@@ -44,6 +44,28 @@ export const TOOL_ACTION_MAP: Record<string, ActionCategory> = {
   commitments: 'write_data',
   research_queue: 'read_data',
 
+  // Git / GitHub (spec section 28-29). Reads stay read_data (AUTO); every
+  // mutating git/GitHub operation is git_operation (level 4) - push and
+  // force_push get their distinct per-operation treatment via context_rules
+  // (tool_name condition), not via a different ActionCategory, since the
+  // gate's governed/approval logic already supports that per-tool-name
+  // granularity - see src/daemon/index.ts's AuthorityEngine defaults.
+  git_status: 'read_data',
+  git_diff: 'read_data',
+  git_commit: 'git_operation',
+  git_push: 'git_operation',
+  git_force_push: 'git_operation',
+  git_pull: 'git_operation',
+  git_branch_create: 'git_operation',
+  github_create_issue: 'git_operation',
+  github_create_pr: 'git_operation',
+  github_pr_status: 'read_data',
+  github_pr_review: 'git_operation',
+
+  // Image Agent (spec section 33). Generates and writes a file locally, same
+  // impact class as write_file - no separate ActionCategory needed.
+  image_generate: 'write_data',
+
   // Authority
   // request_approval is the intent-gate tool; the orchestrator bypasses its
   // authority check (it IS the authority mechanism). Mapped here anyway for
@@ -63,6 +85,8 @@ export const CATEGORY_ACTION_MAP: Record<string, ActionCategory> = {
   content: 'write_data',
   tasks: 'write_data',
   productivity: 'read_data',
+  github: 'git_operation',
+  image: 'write_data',
 };
 
 /**

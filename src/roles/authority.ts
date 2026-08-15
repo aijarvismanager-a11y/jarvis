@@ -6,7 +6,8 @@ export type ActionCategory =
   | 'execute_command' | 'install_software'
   | 'make_payment' | 'modify_settings'
   | 'spawn_agent' | 'terminate_agent'
-  | 'access_browser' | 'control_app';
+  | 'access_browser' | 'control_app'
+  | 'git_operation';
 
 /**
  * High-level impact classification used by the dashboard ApprovalCard.
@@ -32,6 +33,7 @@ export const IMPACT_MAP: Record<ActionCategory, Impact> = {
   modify_settings:  'destructive',
   delete_data:      'destructive',
   terminate_agent:  'destructive',
+  git_operation:    'write',
 };
 
 export function impactFromCategory(category: ActionCategory): Impact {
@@ -123,6 +125,14 @@ export const AUTHORITY_REQUIREMENTS: Record<ActionCategory, number> = {
   // Level 3-4: Read + write + send messages
   'write_data': 3,
   'send_message': 3,
+
+  // Level 4: Git operations (spec section 30, LEVEL 4). Per-operation nuance
+  // beyond this floor (push=approval, force-push=block by default) is
+  // enforced via context_rules keyed on tool name - see
+  // src/daemon/index.ts's AuthorityEngine construction and
+  // src/actions/tools/github.ts's header comment for why a single level
+  // can't express that distinction on its own.
+  'git_operation': 4,
 
   // Level 5-6: + execute commands, control apps
   'execute_command': 5,
