@@ -74,6 +74,48 @@ import {
   createJarvisWorkflowsStartRoute,
   type WorkflowsStartFn,
 } from "./routes/jarvis-workflows";
+import {
+  createJarvisRouterChatRoute,
+  type RouterChatFn,
+} from "./routes/jarvis-router";
+import {
+  createJarvisManagerRunProjectRoute,
+  createJarvisManagerAssignAgentRoute,
+  type ManagerRunProjectFn,
+  type ManagerAssignAgentFn,
+} from "./routes/jarvis-manager";
+import {
+  createJarvisCouncilConveneRoute,
+  type CouncilConveneFn,
+} from "./routes/jarvis-council";
+import {
+  createJarvisHandoffSendRoute,
+  createJarvisHandoffListRoute,
+  type HandoffSendFn,
+  type HandoffListFn,
+} from "./routes/jarvis-handoff";
+import {
+  createJarvisQARunRoute,
+  type QARunFn,
+} from "./routes/jarvis-qa";
+import {
+  createJarvisApprovalRequestRoute,
+  type ApprovalRequestFn,
+} from "./routes/jarvis-approval";
+import {
+  createJarvisMemoryWriteRoute,
+  type MemoryWriteFn,
+} from "./routes/jarvis-memory";
+import {
+  createJarvisDecisionWriteRoute,
+  type DecisionWriteFn,
+} from "./routes/jarvis-decision";
+import {
+  createJarvisGitCommitRoute,
+  createJarvisGitPushRoute,
+  type GitCommitFn,
+  type GitPushFn,
+} from "./routes/jarvis-git";
 import { json, err, type RouteContext, type RouteHandler } from "./routes/shared";
 
 export interface SandboxApiServices {
@@ -131,6 +173,37 @@ export interface SandboxApiServices {
    * If unset, returns 503.
    */
   workflowsStart?: WorkflowsStartFn;
+  /**
+   * Phase 9 (AI Manager workflow integration) backends. Each mirrors the
+   * "if unset, 503" convention above -- the daemon wires these in once the
+   * relevant AI Manager subsystem is available (see
+   * src/workflows/runtime/service-backends.ts and
+   * docs/AI_MANAGER_ARCHITECTURE_AUDIT.md's Phase 9 entry).
+   */
+  /** "Provider Failover" node backend -- `AIRouter.chat()`. */
+  routerChat?: RouterChatFn;
+  /** "AI Task" node backend -- `ManagerAgent.handleRequest()`. Requires a TaskDispatcher. */
+  managerRunProject?: ManagerRunProjectFn;
+  /** "Agent Assignment" node backend -- `AIRouter.route()` (no execution). */
+  managerAssignAgent?: ManagerAssignAgentFn;
+  /** "AI Council" node backend -- `AICouncil.convene()`. */
+  councilConvene?: CouncilConveneFn;
+  /** "Handoff" node backend -- `sendHandoff()`. */
+  handoffSend?: HandoffSendFn;
+  /** "Review" node backend -- `getHandoffsForTask()`. */
+  handoffList?: HandoffListFn;
+  /** "QA" node backend -- `QAAgent.run()`. */
+  qaRun?: QARunFn;
+  /** "Approval" node backend -- generic human-in-the-loop gate. */
+  approvalRequest?: ApprovalRequestFn;
+  /** "Memory Write" node backend -- `createFact()`. */
+  memoryWrite?: MemoryWriteFn;
+  /** "Decision Write" node backend -- `createDecision()`. */
+  decisionWrite?: DecisionWriteFn;
+  /** "Git Commit" node backend -- `commit()`. */
+  gitCommit?: GitCommitFn;
+  /** "Git Push" node backend -- `push()`, authority/approval gated. */
+  gitPush?: GitPushFn;
 }
 
 export interface SandboxApiOptions {
@@ -292,6 +365,67 @@ export class SandboxApi {
         path: "/v1/jarvis/workflows/start",
         method: "POST",
         handler: createJarvisWorkflowsStartRoute(this.services),
+      },
+      // Phase 9: AI Manager workflow-integration nodes.
+      {
+        path: "/v1/jarvis/router/chat",
+        method: "POST",
+        handler: createJarvisRouterChatRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/manager/run-project",
+        method: "POST",
+        handler: createJarvisManagerRunProjectRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/manager/assign-agent",
+        method: "POST",
+        handler: createJarvisManagerAssignAgentRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/council/convene",
+        method: "POST",
+        handler: createJarvisCouncilConveneRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/handoff/send",
+        method: "POST",
+        handler: createJarvisHandoffSendRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/handoff/list",
+        method: "POST",
+        handler: createJarvisHandoffListRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/qa/run",
+        method: "POST",
+        handler: createJarvisQARunRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/approval/request",
+        method: "POST",
+        handler: createJarvisApprovalRequestRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/memory/write",
+        method: "POST",
+        handler: createJarvisMemoryWriteRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/decision/write",
+        method: "POST",
+        handler: createJarvisDecisionWriteRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/git/commit",
+        method: "POST",
+        handler: createJarvisGitCommitRoute(this.services),
+      },
+      {
+        path: "/v1/jarvis/git/push",
+        method: "POST",
+        handler: createJarvisGitPushRoute(this.services),
       },
     );
   }

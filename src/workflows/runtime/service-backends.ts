@@ -18,7 +18,9 @@ import type { AgentOrchestrator } from "../../agents/orchestrator";
 import type { AuthorityEngine } from "../../authority/engine";
 import type { AuditTrail } from "../../authority/audit";
 import type { EmergencyController } from "../../authority/emergency";
+import type { ApprovalManager } from "../../authority/approval";
 import type { RoleDefinition } from "../../roles/types";
+import type { TaskDispatcher } from "../../agents/conv/task-dispatcher";
 import { JarvisLlmClient } from "../adapters/llm-client";
 import { JarvisToolRegistryAdapter } from "../adapters/tool-registry";
 import { JarvisNotifierAdapter, type NotifierDeps } from "../adapters/notifier";
@@ -34,9 +36,36 @@ import type { JarvisContextProvider } from "../sandbox-api/routes/jarvis-context
 import type { AgentDelegateFn } from "../sandbox-api/routes/jarvis-agent";
 import type { EventsPollFn } from "../sandbox-api/routes/jarvis-events";
 import type { WorkflowsStartFn } from "../sandbox-api/routes/jarvis-workflows";
+import type { RouterChatFn } from "../sandbox-api/routes/jarvis-router";
+import type { ManagerRunProjectFn, ManagerAssignAgentFn } from "../sandbox-api/routes/jarvis-manager";
+import type { CouncilConveneFn } from "../sandbox-api/routes/jarvis-council";
+import type { HandoffSendFn, HandoffListFn } from "../sandbox-api/routes/jarvis-handoff";
+import type { QARunFn } from "../sandbox-api/routes/jarvis-qa";
+import type { ApprovalRequestFn } from "../sandbox-api/routes/jarvis-approval";
+import type { MemoryWriteFn } from "../sandbox-api/routes/jarvis-memory";
+import type { DecisionWriteFn } from "../sandbox-api/routes/jarvis-decision";
+import type { GitCommitFn, GitPushFn } from "../sandbox-api/routes/jarvis-git";
 import type { SandboxApiServices } from "../sandbox-api/server";
 import type { CredentialResolver } from "../credentials/adapter";
 import { WorkflowEventBuffer } from "./event-buffer";
+import { AIRouter, ManagerAgent, AICouncil, QAAgent } from "../../ai-manager/index";
+import { sendHandoff, getHandoffsForTask, type Handoff } from "../../agents/handoff";
+import { createFact } from "../../vault/facts";
+import { createDecision } from "../../vault/decisions";
+import { commit as gitCommitImpl, push as gitPushImpl } from "../../github/git";
+import { getActionForTool } from "../../authority/tool-action-map";
+import type { ProjectTemplate } from "../../vault/projects";
+import type { ActionCategory } from "../../roles/authority";
+
+const VALID_PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
+  "website", "web_app", "software", "research", "content", "data_project", "automation", "custom",
+];
+
+const VALID_ACTION_CATEGORIES: readonly ActionCategory[] = [
+  "read_data", "write_data", "delete_data", "send_message", "send_email",
+  "execute_command", "install_software", "make_payment", "modify_settings",
+  "spawn_agent", "terminate_agent", "access_browser", "control_app", "git_operation",
+];
 
 export interface BuildServiceBackendsOptions {
   credentialResolver: CredentialResolver;
@@ -75,6 +104,17 @@ export interface BuildServiceBackendsOptions {
   authorityEngine?: AuthorityEngine;
   auditTrail?: AuditTrail;
   emergencyController?: EmergencyController;
+  /**
+   * Phase 9 (AI Manager workflow integration). `taskDispatcher` powers the
+   * "AI Task" node (`ManagerAgent.handleRequest`) -- unset in classic mode
+   * (no llm.tiers.conversation configured), in which case that one backend
+   * is omitted and the route 503s while every other Phase 9 node (council,
+   * handoff, QA, router, memory/decision write, git) still works.
+   * `approvalManager` powers the "Approval" node and the authority gate the
+   * "Git Push" node runs through -- see the gate note on `gitPush` below.
+   */
+  taskDispatcher?: TaskDispatcher;
+  approvalManager?: ApprovalManager;
   /**
    * Optional callback that builds the Jarvis-flavoured system prompt for
    * a workflow LLM call. When set, the `jarvis-ask` piece will pass this
@@ -266,6 +306,183 @@ export function buildSandboxServiceBackends(
     return { runId: out.runId };
   };
 
+  // Phase 9: AI Manager workflow-integration backends. AIRouter/ManagerAgent/
+  // AICouncil are cheap to construct (thin wrappers over LLMManager/
+  // TaskDispatcher, no state of their own -- see src/ai-manager/api/routes.ts
+  // for the same per-call construction pattern), so a fresh instance is
+  // built per call rather than held as a field here.
+  const router = new AIRouter(opts.llmManager);
+
+  const routerChat: RouterChatFn = async (req) => {
+    const messages: Array<{ role: "system" | "user"; content: string }> = [];
+    if (req.system) messages.push({ role: "system", content: req.system });
+    messages.push({ role: "user", content: req.prompt });
+    const response = await router.chat(
+      { template: req.template, mode: req.mode, subsystem: req.subsystem ?? "workflow_router" },
+      messages,
+    );
+    return {
+      text: response.content ?? "",
+      tier: response.routing.tier,
+      mode: response.routing.mode,
+      recent_error_rate: response.routing.recent_error_rate,
+    };
+  };
+
+  const managerRunProject: ManagerRunProjectFn | undefined = opts.taskDispatcher
+    ? async (req) => {
+        if (req.template !== undefined && !VALID_PROJECT_TEMPLATES.includes(req.template as ProjectTemplate)) {
+          throw new Error(`template must be one of: ${VALID_PROJECT_TEMPLATES.join(", ")}`);
+        }
+        const manager = new ManagerAgent(router, opts.taskDispatcher!);
+        return manager.handleRequest(req.name, req.request, {
+          ...(req.template !== undefined ? { template: req.template as ProjectTemplate } : {}),
+          ...(req.execution_mode !== undefined ? { execution_mode: req.execution_mode } : {}),
+        });
+      }
+    : undefined;
+
+  const managerAssignAgent: ManagerAssignAgentFn = async (req) => {
+    return router.route({ template: req.template, mode: req.mode });
+  };
+
+  const councilConvene: CouncilConveneFn = async (req) => {
+    const council = new AICouncil(router);
+    return council.convene(req.question, {
+      seats: req.seats,
+      template: req.template,
+      project_id: req.project_id,
+      record: req.record,
+    });
+  };
+
+  const handoffSend: HandoffSendFn = async (req) => {
+    const handoff: Handoff = {
+      task_id: req.task_id,
+      from_agent: req.from_agent,
+      to_agent: req.to_agent,
+      status: req.status,
+      summary: req.summary,
+      instructions: req.instructions ?? [],
+      artifacts: req.artifacts ?? [],
+      decisions: req.decisions ?? [],
+      warnings: req.warnings ?? [],
+      open_questions: req.open_questions ?? [],
+      next_action: req.next_action,
+    };
+    const message = sendHandoff(handoff, {
+      ...(req.project_id !== undefined ? { project_id: req.project_id } : {}),
+      ...(req.priority === "high" || req.priority === "normal" ? { priority: req.priority } : {}),
+    });
+    return { id: message.id };
+  };
+
+  const handoffList: HandoffListFn = async (req) => {
+    return { handoffs: getHandoffsForTask(req.task_id) };
+  };
+
+  const qaRun: QARunFn = async (req) => {
+    const qa = new QAAgent();
+    return qa.run(req);
+  };
+
+  // Generic human-in-the-loop gate for the "Approval" node. Always inline:
+  // nothing auto-executes on approval here (see jarvis-approval.ts's header
+  // note) -- the flow branches on the returned status itself.
+  const approvalRequest: ApprovalRequestFn | undefined = opts.approvalManager
+    ? async (req) => {
+        if (!VALID_ACTION_CATEGORIES.includes(req.actionCategory as ActionCategory)) {
+          throw new Error(`actionCategory must be one of: ${VALID_ACTION_CATEGORIES.join(", ")}`);
+        }
+        const request = opts.approvalManager!.createRequest({
+          agentId: "workflow",
+          agentName: "Workflow",
+          toolName: req.toolName,
+          toolArguments: req.arguments ?? {},
+          actionCategory: req.actionCategory as ActionCategory,
+          urgency: req.urgency ?? "normal",
+          reason: req.reason,
+          context: req.context ?? "",
+          executionMode: "inline",
+        });
+        const resolved = await opts.approvalManager!.waitForResolution(request.id, {
+          timeoutMs: req.timeoutMs,
+        });
+        return { requestId: resolved.id, status: resolved.status };
+      }
+    : undefined;
+
+  const memoryWrite: MemoryWriteFn = async (req) => {
+    return createFact(req.subjectId, req.predicate, req.object, {
+      confidence: req.confidence,
+      source: req.source,
+    });
+  };
+
+  const decisionWrite: DecisionWriteFn = async (req) => {
+    return createDecision(req.statement, {
+      project_id: req.project_id,
+      reason: req.reason,
+      made_by: req.made_by,
+    });
+  };
+
+  const gitCommit: GitCommitFn = async (req) => {
+    return gitCommitImpl(req.repoPath, req.message, { all: req.all });
+  };
+
+  // "Git Push" -- the safety-critical node. Runs the same authority-gate
+  // sequence AgentOrchestrator.executeTool applies to the git_push tool
+  // (src/agents/orchestrator.ts) rather than calling git.push() directly:
+  // checkAuthority first (context_rules seeded in src/daemon/index.ts make
+  // this require_approval by default, force-push equivalents are a
+  // separate tool this route doesn't expose), then block on approval when
+  // required, and only then push. `agentAuthorityLevel: 0` is deliberate --
+  // effectiveLevel = max(agentAuthorityLevel, config.default_level), so a
+  // workflow-originated push never gets more authority than the daemon's
+  // configured default; it can't bypass the same numeric floor an agent
+  // would need to clear.
+  const gitPush: GitPushFn | undefined =
+    opts.authorityEngine && opts.approvalManager
+      ? async (req) => {
+          const actionCategory = getActionForTool("git_push", "github");
+          const decision = opts.authorityEngine!.checkAuthority({
+            agentId: "workflow",
+            agentAuthorityLevel: 0,
+            agentRoleId: "workflow",
+            toolName: "git_push",
+            toolCategory: "github",
+            actionCategory,
+            temporaryGrants: new Map(),
+          });
+          if (!decision.allowed) {
+            return { ok: false, output: "", error: `[AUTHORITY DENIED] ${decision.reason}` };
+          }
+          if (decision.requiresApproval) {
+            const request = opts.approvalManager!.createRequest({
+              agentId: "workflow",
+              agentName: "Workflow",
+              toolName: "git_push",
+              toolArguments: { repo_path: req.repoPath, remote: req.remote, branch: req.branch },
+              actionCategory,
+              urgency: "normal",
+              reason: decision.reason,
+              context: `Workflow-initiated git push in ${req.repoPath}`,
+              executionMode: "inline",
+            });
+            const resolved = await opts.approvalManager!.waitForResolution(request.id);
+            if (resolved.status !== "approved") {
+              return { ok: false, output: "", error: `[APPROVAL ${resolved.status.toUpperCase()}]` };
+            }
+          }
+          return gitPushImpl(req.repoPath, {
+            remote: req.remote,
+            branch: req.branch,
+            setUpstream: req.setUpstream,
+          });
+        }
+      : undefined;
+
   const services: SandboxApiServices = {
     credentialResolver: opts.credentialResolver,
     llmChat,
@@ -274,8 +491,20 @@ export function buildSandboxServiceBackends(
     agentDelegate,
     eventsPoll,
     workflowsStart,
+    routerChat,
+    managerAssignAgent,
+    councilConvene,
+    handoffSend,
+    handoffList,
+    qaRun,
+    memoryWrite,
+    decisionWrite,
+    gitCommit,
     ...(opts.resumeUrlPrefix !== undefined ? { resumeUrlPrefix: opts.resumeUrlPrefix } : {}),
   };
   if (toolsInvoke) services.toolsInvoke = toolsInvoke;
+  if (managerRunProject) services.managerRunProject = managerRunProject;
+  if (approvalRequest) services.approvalRequest = approvalRequest;
+  if (gitPush) services.gitPush = gitPush;
   return services;
 }

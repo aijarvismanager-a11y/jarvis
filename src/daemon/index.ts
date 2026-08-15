@@ -29,6 +29,7 @@ import { EventCoalescer } from "./event-coalescer.ts";
 import { CommitmentExecutor } from "./commitment-executor.ts";
 import { classifyEvent } from "./event-classifier.ts";
 import { createApiRoutes, setCorsOrigin } from "./api-routes.ts";
+import { createAIManagerRoutes } from "../ai-manager/api/routes.ts";
 import { GoogleAuth } from "../integrations/google-auth.ts";
 import { ResearchQueue } from "./research-queue.ts";
 import { researchQueueTool, setResearchQueueRef } from "../actions/tools/research.ts";
@@ -3538,7 +3539,30 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       default_level: authorityConfig.default_level,
       governed_categories: (authorityConfig.governed_categories ?? ['send_email', 'send_message', 'make_payment']) as any,
       overrides: (authorityConfig.overrides ?? []) as any,
-      context_rules: (authorityConfig.context_rules ?? []) as any,
+      // Git safety defaults (spec section 29): plain push needs approval,
+      // force push is blocked outright. Both are expressed as tool_name
+      // context rules (not a separate ActionCategory) so they layer on top
+      // of the git_operation level-4 floor without needing per-tool levels -
+      // see src/roles/authority.ts and src/actions/tools/github.ts. Only
+      // applied when the user hasn't already customized context_rules.
+      context_rules: (authorityConfig.context_rules ?? [
+        {
+          id: 'git-push-requires-approval',
+          action: 'git_operation',
+          condition: 'tool_name',
+          params: { tool_name: 'git_push' },
+          effect: 'require_approval',
+          description: 'Git push requires user approval by default (safety default, configurable).',
+        },
+        {
+          id: 'git-force-push-blocked',
+          action: 'git_operation',
+          condition: 'tool_name',
+          params: { tool_name: 'git_force_push' },
+          effect: 'deny',
+          description: 'Force push is blocked by default (safety default, configurable).',
+        },
+      ]) as any,
       learning: authorityConfig.learning ?? { enabled: true, suggest_threshold: 5 },
       emergency_state: authorityConfig.emergency_state ?? 'normal',
     });
@@ -4179,6 +4203,10 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
 
     const apiRoutes = {
       ...createApiRoutes(apiContext),
+      ...createAIManagerRoutes({
+        getLLMManager: () => agentService.getLLMManager(),
+        getTaskDispatcher: () => agentService.getTaskDispatcher(),
+      }),
       ...createWorkflowRoutes({
         triggerManager,
         credentialResolver,
@@ -4423,6 +4451,12 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         authorityEngine,
         auditTrail,
         emergencyController,
+        // Phase 9: powers the AI Task (ManagerAgent), Approval, and
+        // authority-gated Git Push workflow nodes. taskDispatcher is null in
+        // classic mode -- managerRunProject is simply omitted then, same
+        // 503-on-unconfigured convention as every other Phase 9 backend.
+        ...(agentService.getTaskDispatcher() ? { taskDispatcher: agentService.getTaskDispatcher()! } : {}),
+        approvalManager,
         // Give the jarvis-ask piece the same Jarvis-flavoured system
         // prompt the chat agent uses, so workflow LLM calls answer as
         // Jarvis rather than as the bare base model. `"workflow"` is the
