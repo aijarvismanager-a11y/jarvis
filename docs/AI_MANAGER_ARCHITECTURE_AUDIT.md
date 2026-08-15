@@ -107,3 +107,231 @@ Following the spec's own Phase 0-10 plan, refined with what's now known about th
 11. **Phase 10 — Full integration testing**: run the spec's four demo scenarios (simple website, code review, logo, full project + GitHub push) end-to-end, plus the regression checklist in spec §61 (LLM connection, chat, memory, agent delegation, workflow, authority, sidecar, browser, dashboard) to confirm no existing functionality broke.
 
 Each phase should end with `bun test`, typecheck, lint, and build passing before moving to the next, per spec §60-61.
+
+## 8. Phase 11 Plan (post-launch hardening)
+
+The spec's own Phase 0-10 plan is complete (see section 7 above; confirmed via a
+full Phase 10 integration-test pass — 1896 passing, all 63 remaining failures
+pre-existing Windows-only POSIX permission issues unrelated to this work).
+Phase 11 is not spec-defined; it addresses three gaps found by re-reading the
+shipped code against the audit's own section 4 "New Features Needed" list -
+fields that exist but are never consulted, and subsystems that are reachable
+by API but invisible in the UI. Scoped to the three items with real user
+impact (a genuine dead end, and two features that are effectively inert);
+the lower-priority items below (cost-mode selector, Project/User memory
+separation, chat display modes, a real-provider setup guide) are deliberately
+deferred, not forgotten - re-evaluate once 11-A/B/C ship.
+
+**Suggested order: 11-A, then 11-C, then 11-B** - A and C both restructure
+`ManagerAgent`, so doing the harder one (A, task-lifecycle reconstruction)
+first means C's approval gate can be added around an already-resumable
+execution path rather than needing its own follow-up patch. B is pure UI
+wiring against existing/new endpoints and benefits from A/C's new state
+being visible to build against.
+
+### 11-A: Resume a WAITING project subtask — Done
+
+Implemented largely as planned, with one deviation: rather than reconstructing
+subtask state purely from `tasks` table columns (a `template` column already
+existed there via `TaskRegistry`'s own schema, so no migration was needed for
+that part), the full `PlannedSubtask[]` is persisted verbatim as JSON on a
+new `projects.plan` column (`src/vault/projects.ts`'s `PlanSubtask`/
+`setProjectPlan`/`getProjectPlan`), with each entry's `task_id` filled in
+the first time that index is dispatched. This was necessary because a
+subtask blocked behind a WAITING one may never have been dispatched at all
+(no `tasks` row exists for it yet), so the DB-columns-only approach couldn't
+fully reconstruct the graph shape - the persisted plan can. `ManagerAgent`
+gained `continueProject()` (rebuilds the wave scheduler's state from the
+persisted plan + each dispatched subtask's live `project_status`) and
+`resumeSubtask()` (calls `TaskDispatcher.resume()`, updates the task row,
+sends a Handoff, then calls `continueProject()`), with `runPlan`'s wave loop
+extracted into a shared private `runWaves()`. New route
+`POST /api/ai-manager/projects/:id/tasks/:taskId/resume`. Tests in
+`manager-agent.e2e.test.ts` cover the full pause → resume → dependent-runs
+flow and rejecting a resume on a non-WAITING task.
+
+<details>
+<summary>Original plan (superseded by the "Done" note above where it differs)</summary>
+
+**Problem** (self-documented in `manager-agent.ts:20-23`): when a subtask's
+`TaskRunner` returns `{ kind: 'paused' }` (the task tier called
+`ask_for_clarification`), `runSubtask` records `WAITING` and `runPlan`'s wave
+loop treats it as neither ready nor failed - any dependent subtask stays
+unsettled, and the loop's "nothing ready, nothing to cancel" branch
+(`manager-agent.ts:134-146`) intentionally `break`s out of `runPlan`, leaving
+the rest of the graph unprocessed **in that call's memory only**. There is no
+caller anywhere in the codebase that invokes `TaskDispatcher.resume()` for an
+AI-Manager subtask (confirmed by grep across `task-dispatcher.ts`,
+`conv-orchestrator.ts`, `agent-service.ts`,
+`workflows/sandbox-api/server.ts`) - a paused project subtask has no way back
+to running today.
+
+**Why this needs more than "just call `dispatcher.resume()`"**: `runPlan`'s
+wave scheduler operates over the in-memory `PlannedSubtask[]` from the
+`Planner`'s `PlanResult`. That array does not survive past the original
+`handleRequest`/`runPlan` call (and never survives a daemon restart at all).
+Resuming later - possibly in a different request, possibly after a restart -
+needs the graph state reconstructed from what's actually persisted: the
+`tasks` table's `project_status`/`dependencies`/`title`/`priority` columns
+(`src/vault/project-tasks.ts`), which already carry everything `runPlan`
+needs except the original `TaskTemplate` per subtask (also already stored
+via `assigned_agent: task_${template}` - needs a small parse or an explicit
+`template` column added alongside).
+
+**Plan**:
+1. Add a `template` column to `project_tasks.ts`'s `ProjectTaskFields` (or
+   parse it back out of `assigned_agent`'s `task_${template}` prefix - column
+   is cleaner and matches the file's existing additive-migration convention).
+2. Add `ManagerAgent.continueProject(projectId: string): Promise<ProjectRunResult>`
+   that rebuilds a wave-schedulable subtask list from `getProjectTasks(projectId)`
+   (mapping `COMPLETED/FAILED/CANCELLED/WAITING` rows back into the same
+   `settled`/`taskIdByIndex` shape `runPlan` uses internally) and resumes the
+   exact same wave loop from wherever it left off, instead of requiring the
+   original in-memory `PlanResult`. This likely means factoring `runPlan`'s
+   loop body out into a shared private method both `runPlan` (fresh plan) and
+   `continueProject` (reconstructed plan) call.
+3. Add `ManagerAgent.resumeSubtask(projectId, taskId, userInput): Promise<ProjectRunResult>`:
+   calls `dispatcher.resume(taskId, userInput)`, mirrors `runSubtask`'s
+   post-dispatch tail (`setProjectTaskFields`, `sendHandoff`, decision-on-QA-
+   failure), then calls `continueProject(projectId)` so any dependents that
+   were blocked on this subtask get picked up in the same request.
+4. New route `POST /api/ai-manager/projects/:id/tasks/:taskId/resume` (body
+   `{ input: string }`) in `src/ai-manager/api/routes.ts`, calling
+   `resumeSubtask`. Needs a `ManagerAgent` instance reachable from the API
+   layer - check how `src/daemon/agent-service.ts` currently wires
+   `ManagerAgent` for the existing project-creation route and reuse that
+   wiring rather than constructing a second instance.
+5. Tests: extend `manager-agent.e2e.test.ts` with a scenario where a subtask
+   pauses, gets resumed via `resumeSubtask`, and its dependents then run -
+   this is the direct regression guard for the dead end above.
+
+</details>
+
+### 11-B: Surface Phases 5-9 in the dashboard — Done
+
+Implemented as planned: `useAIManagerData.ts` now fetches handoffs and
+per-project agent performance alongside tasks/decisions; `qa_report` renders
+as a checklist on task cards (expand on click); `AIManagerRoom.tsx` gained a
+Handoffs feed, an Agent Performance panel, and an "Ask the Council" dialog
+(fans a question to Cheap/Balanced/Quality seats, shows opinions +
+synthesis, records a Decision). Item 5 (GitHub push approvals) needed no new
+code - confirmed `ui/src/v2/rooms/authority/useAuthorityData.ts` already
+polls the generic `/api/authority/approvals?status=pending` endpoint, which
+surfaces `git_push` (and now the new 11-C subtask-approval) requests
+automatically since `ApprovalManager` is subsystem-agnostic. Item 6 (Image
+Agent generation history) was deferred as noted in the original plan below -
+no backend list endpoint exists yet for past generations.
+
+<details>
+<summary>Original plan</summary>
+
+**Problem**: `ui/src/v2/rooms/aiManager/useAIManagerData.ts:90-200` only
+calls `/api/ai-manager/{projects,tasks,decisions}`. Server endpoints already
+exist for AI Council (`/api/ai-manager/council`,
+`src/ai-manager/api/routes.ts:238`), handoffs (`.../handoffs`, routes.ts:224),
+and agent performance (`/api/ai-manager/agents/performance`, routes.ts:288) -
+none are called from any UI component. `AIManagerRoom.tsx:19-24` shows QA
+only as a bare Kanban status label; the actual `qa_report` (10-category
+checklist, already returned per-task per `project-tasks.ts`'s
+`ProjectTaskFields.qa_report`) has no viewer.
+
+**Plan** (purely additive UI work against existing data - no new backend
+needed except where noted):
+1. Task detail panel: render `qa_report.checks` (name/passed/summary/detail)
+   when a task's status is `QA`/`FAILED` with a `qa_failed` error, reusing
+   whatever card/list primitives the existing Kanban view already has.
+2. New "Handoffs" tab/feed on the project view, calling `.../handoffs` -
+   chronological list of `from_agent -> to_agent`, `status`, `summary`.
+3. New "AI Council" tab, calling `.../council` - show per-provider responses
+   plus the consensus verdict for any project that used it.
+4. New "Agent Performance" panel (success rate / retry rate / human
+   intervention rate per agent), calling `.../agents/performance` - likely
+   fits better as a small widget on an existing Agents-related room than a
+   new top-level tab.
+5. GitHub push approvals: verify first whether these already surface via the
+   existing generic Authority/Approval queue UI (`ApprovalManager` is
+   subsystem-agnostic, so a `git_push` approval request should already
+   appear there without new code). If confirmed, this item is just adding a
+   repo/branch context line to that existing approval card, not new plumbing.
+6. Image Agent generation history: lowest priority of this set (no dedicated
+   backend list endpoint exists yet for "past generations" - `image_generate`
+   results aren't queried anywhere beyond the `llm_usage` `subsystem='image'`
+   rows used for cost tracking) - either add a small list endpoint over that
+   usage data, or defer entirely; note in code review which was chosen.
+
+</details>
+
+### 11-C: Make `execution_mode` (AUTO/ASSISTED/MANUAL) actually do something — Done
+
+Implemented as planned: `ManagerAgent` now takes an `ApprovalManager` as a
+required constructor argument (all call sites updated - `src/ai-manager/api/
+routes.ts`, `src/workflows/runtime/service-backends.ts`'s `managerRunProject`
+backend, which now also requires `opts.approvalManager` to be present). In
+`runSubtask`, before dispatching: `manual` mode always requests approval
+(`createRequest`/`waitForResolution`, `actionCategory: 'spawn_agent'`,
+reusing the same pattern as the `git_push` gate rather than adding a new
+`ActionCategory`); `assisted` mode gates only `code`-template subtasks (kept
+to a single-template `ASSISTED_MODE_GATED_TEMPLATES` list, deliberately
+aligned with `self-healing.ts`'s existing `qaCheck ?? template === 'code'`
+risk cutoff rather than inventing a second classification); `auto` is
+unchanged. A denial cancels the subtask with a clear summary rather than
+silently skipping it. Tests in `manager-agent.e2e.test.ts` cover both modes
+(manual: approve runs it, deny cancels it; assisted: `code` gates, `write`
+doesn't).
+
+<details>
+<summary>Original plan</summary>
+
+**Problem**: `ExecutionMode` is stored and API-settable
+(`src/vault/projects.ts:131`, `src/ai-manager/api/routes.ts:127-179`) but
+`ManagerAgent.runPlan`/`runSubtask` never read it, and `self-healing.ts`
+doesn't reference it at all - every project behaves as AUTO regardless of
+what's set. This is worse than not having the field: a user who sets MANUAL
+expecting to approve each subtask gets silent full-auto execution instead.
+
+**Plan**:
+1. Inject an `ApprovalManager` into `ManagerAgent`'s constructor (currently
+   takes only `router`, `dispatcher`, `maxRetries` - this is a breaking
+   constructor-signature change, update the one call site in
+   `agent-service.ts`/wherever `ManagerAgent` is instantiated, plus this
+   session's `manager-agent.e2e.test.ts`).
+2. In `runSubtask`, before calling `healer.run(...)`: if `project.execution_mode
+   === 'manual'`, or `=== 'assisted'` AND the subtask's template is in a
+   small risk set (start with `code` - the only template that already
+   defaults to a QA gate, per `self-healing.ts`'s `qaCheck ?? template ===
+   'code'` - so "assisted" and "already QA-gated" line up naturally), create
+   an `ApprovalManager` request (new `ActionCategory` or reuse an existing
+   governed category - decide during implementation, mirroring the
+   `git_push` context-rule pattern from Phase 7) and `await
+   waitForResolution()` before dispatching. A denial should mark the subtask
+   `CANCELLED` with a clear summary rather than silently skipping it.
+3. AUTO stays exactly as today - no new gate, zero behavior change for the
+   common case.
+4. Tests: extend `manager-agent.e2e.test.ts` (or a new
+   `manager-agent-execution-mode.e2e.test.ts`) with one MANUAL-mode case
+   (approval granted -> runs; approval denied -> cancelled) and one ASSISTED
+   case (a `write` subtask runs ungated, a `code` subtask gates), following
+   the `ApprovalManager.createRequest`/`waitForResolution`/`approve` pattern
+   already established in `project-push.e2e.test.ts`.
+
+</details>
+
+All of 11-A/B/C shipped together: `tsc --noEmit` clean, full `bun test` at
+1900 passing (1896 baseline + 4 new `manager-agent.e2e.test.ts` cases for
+resume + execution_mode gating), the same pre-existing 63 Windows-only
+failures as every prior Phase 10/11 run, no new ones. UI changes verified via
+successful `tsc`/`bun build:ui`; live browser verification of the dashboard
+room wasn't done in this environment (requires a JWT-enrolled device by
+default - relaxing that would mean touching `auth.insecure_open_access`, a
+security setting outside this pass's scope) - manual verification in a
+browser recommended as a follow-up, consistent with QAAgent's own `ui_tests`
+policy.
+
+**Deferred, not forgotten** (re-evaluate after 11-A/B/C ship): a
+user-settable Cheap/Balanced/Quality cost-mode selector (spec §40-41,
+currently template-default-only); Project Memory vs User Memory `project_id`
+scoping across vault queries (spec §18-19, currently vault memory is fully
+global); chat display modes (spec §52, Simple/Detailed/Developer, entirely
+unimplemented); and a real-provider AI Manager setup guide in `docs/` (none
+exists today - this environment has never exercised Phases 2/5/6/8 against a
+real, non-mock LLM/image provider).

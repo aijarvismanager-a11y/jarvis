@@ -24,6 +24,21 @@ export type ProjectTaskStatus =
   | "PENDING" | "PLANNING" | "READY" | "RUNNING" | "WAITING" | "BLOCKED"
   | "REVIEW" | "QA" | "COMPLETED" | "FAILED" | "CANCELLED";
 
+export interface QACheckResult {
+  name: string;
+  automated: boolean;
+  passed: boolean;
+  summary: string;
+  detail?: string;
+  duration_ms: number;
+}
+
+export interface QAReport {
+  passed: boolean;
+  checks: QACheckResult[];
+  ran_at: number;
+}
+
 export interface ProjectTask {
   id: string;
   project_id: string | null;
@@ -38,6 +53,9 @@ export interface ProjectTask {
   artifacts: string[];
   next_agent: string | null;
   approval_required: boolean;
+  retry_count: number;
+  max_retries: number;
+  qa_report: QAReport | null;
 }
 
 export interface Decision {
@@ -47,6 +65,51 @@ export interface Decision {
   reason: string | null;
   made_by: string;
   created_at: number;
+}
+
+export interface Handoff {
+  id: string;
+  from_agent: string;
+  to_agent: string;
+  priority: string;
+  created_at: number;
+  task_id: string | null;
+  handoff: {
+    status: "completed" | "failed" | "needs_input";
+    summary: string;
+    warnings: string[];
+    open_questions: string[];
+    next_action: string;
+  } | null;
+}
+
+export interface AgentPerformance {
+  agent: string;
+  tasks_completed: number;
+  tasks_failed: number;
+  tasks_cancelled: number;
+  success_rate: number | null;
+  average_duration_ms: number | null;
+  llm_error_rate: number | null;
+  llm_calls: number;
+  providers_used: string[];
+  models_used: string[];
+}
+
+export interface CouncilOpinion {
+  seat: string;
+  mode: "cheap" | "balanced" | "quality";
+  tier: string;
+  content: string;
+  confidence: number | null;
+  error?: string;
+}
+
+export interface CouncilVerdict {
+  question: string;
+  opinions: CouncilOpinion[];
+  synthesis: string;
+  contradictions: string[];
 }
 
 interface ActionResult {
@@ -77,6 +140,8 @@ export function useAIManagerData() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
+  const [agentPerformance, setAgentPerformance] = useState<AgentPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,12 +169,16 @@ export function useAIManagerData() {
   const refreshDetail = useCallback(async (projectId: string) => {
     setDetailLoading(true);
     try {
-      const [tasksResp, decisionsResp] = await Promise.all([
+      const [tasksResp, decisionsResp, handoffsResp, performanceResp] = await Promise.all([
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/tasks`),
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/decisions`),
+        fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/handoffs`),
+        fetch(`/api/ai-manager/agents/performance?project_id=${encodeURIComponent(projectId)}`),
       ]);
       setTasks(tasksResp.ok ? ((await tasksResp.json()) as ProjectTask[]) : []);
       setDecisions(decisionsResp.ok ? ((await decisionsResp.json()) as Decision[]) : []);
+      setHandoffs(handoffsResp.ok ? ((await handoffsResp.json()) as Handoff[]) : []);
+      setAgentPerformance(performanceResp.ok ? ((await performanceResp.json()) as AgentPerformance[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project detail");
     } finally {
@@ -194,6 +263,48 @@ export function useAIManagerData() {
     [refreshProjects],
   );
 
+  /** Phase 11-A: the only way back to running for a WAITING subtask. */
+  const resumeTask = useCallback(
+    async (projectId: string, taskId: string, input: string): Promise<ActionResult> => {
+      try {
+        const resp = await fetch(
+          `/api/ai-manager/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/resume`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input }),
+          },
+        );
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        if (selectedId === projectId) await refreshDetail(projectId);
+        return { ok: true, message: "Task resumed." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed to resume task" };
+      }
+    },
+    [refreshDetail, selectedId],
+  );
+
+  /** AI Council (spec section 16) - fans a question out to several seats and synthesizes a verdict. */
+  const askCouncil = useCallback(
+    async (projectId: string, question: string): Promise<{ ok: true; verdict: CouncilVerdict } | { ok: false; message: string }> => {
+      try {
+        const resp = await fetch("/api/ai-manager/council", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, project_id: projectId, record: true }),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        const verdict = (await resp.json()) as CouncilVerdict;
+        if (selectedId === projectId) await refreshDetail(projectId);
+        return { ok: true, verdict };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Council convene failed" };
+      }
+    },
+    [refreshDetail, selectedId],
+  );
+
   const addDecision = useCallback(
     async (projectId: string, statement: string, reason?: string): Promise<ActionResult> => {
       try {
@@ -218,6 +329,8 @@ export function useAIManagerData() {
     selectProject,
     tasks,
     decisions,
+    handoffs,
+    agentPerformance,
     loading,
     detailLoading,
     running,
@@ -226,5 +339,7 @@ export function useAIManagerData() {
     runProject,
     updateStatus,
     addDecision,
+    resumeTask,
+    askCouncil,
   };
 }

@@ -131,7 +131,7 @@ describe('Full project + GitHub push end-to-end', () => {
       return { kind: 'completed', text: `[${template}] committed feature.txt`, conversation: [] };
     };
     const dispatcher = new TaskDispatcher(llm, registry, runner);
-    const manager = new ManagerAgent(router, dispatcher);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
 
     // Unparseable planner response -> single fallback `general` subtask, which
     // is enough to drive one real commit through the pipeline; the dependency

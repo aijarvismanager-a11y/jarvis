@@ -15,8 +15,9 @@ import { TaskRegistry } from '../agents/conv/task-registry.ts';
 import { TaskDispatcher, type TaskRunner } from '../agents/conv/task-dispatcher.ts';
 import { AIRouter } from './router.ts';
 import { ManagerAgent } from './manager-agent.ts';
-import { getProjectTasks } from '../vault/project-tasks.ts';
+import { getProjectTasks, getProjectTaskFields } from '../vault/project-tasks.ts';
 import { getHandoffsForTask } from '../agents/handoff.ts';
+import { ApprovalManager } from '../authority/approval.ts';
 
 class MockProvider implements LLMProvider {
   name = 'mock';
@@ -92,7 +93,7 @@ describe('ManagerAgent end-to-end: simple website creation', () => {
       conversation: [],
     });
     const dispatcher = new TaskDispatcher(llm, registry, runner);
-    const manager = new ManagerAgent(router, dispatcher);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
 
     const result = await manager.handleRequest('Demo Website', 'Build a simple marketing website for a coffee shop.');
 
@@ -132,7 +133,7 @@ describe('ManagerAgent end-to-end: simple website creation', () => {
     const registry = new TaskRegistry({ db: () => getDb() });
     const runner: TaskRunner = async ({ originalMessage }) => ({ kind: 'completed', text: `done: ${originalMessage}`, conversation: [] });
     const dispatcher = new TaskDispatcher(llm, registry, runner);
-    const manager = new ManagerAgent(router, dispatcher);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
 
     const result = await manager.handleRequest('Fallback Project', 'Build something.');
 
@@ -156,14 +157,168 @@ describe('ManagerAgent end-to-end: simple website creation', () => {
       throw new Error('401 unauthorized: invalid_api_key');
     };
     const dispatcher = new TaskDispatcher(llm, registry, runner);
-    const manager = new ManagerAgent(router, dispatcher);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
 
-    const result = await manager.handleRequest('Checkout Project', 'Build a checkout flow.');
+    // execution_mode: 'auto' - this test is about failure cascading, not
+    // Phase 11-C's approval gating (which defaults to 'assisted' and would
+    // gate these 'code' subtasks, hanging the test on an unresolved approval).
+    const result = await manager.handleRequest('Checkout Project', 'Build a checkout flow.', { execution_mode: 'auto' });
 
     const scaffold = result.outcomes.find((o) => o.index === 0)!;
     const checkout = result.outcomes.find((o) => o.index === 1)!;
     expect(scaffold.status).toBe('FAILED');
     expect(checkout.status).toBe('CANCELLED');
     expect(checkout.summary).toContain('dependency failed');
+  });
+
+  it('Phase 11-A: resumes a WAITING subtask via resumeSubtask(), then continues its blocked dependent', async () => {
+    const plannerResponse = textResponse(JSON.stringify([
+      { title: 'Step A', template: 'general', priority: 'normal', depends_on: [] },
+      { title: 'Step B', template: 'general', priority: 'normal', depends_on: [0] },
+    ]));
+    const provider = new MockProvider([plannerResponse]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+
+    let stepACalls = 0;
+    const runner: TaskRunner = async ({ intent }) => {
+      if (intent === 'Step A') {
+        stepACalls++;
+        if (stepACalls === 1) {
+          return {
+            kind: 'paused',
+            question: 'Which environment - staging or prod?',
+            conversation: [{ role: 'user', content: 'do step A' } as never],
+          };
+        }
+        return { kind: 'completed', text: 'Step A done after clarification.', conversation: [] };
+      }
+      return { kind: 'completed', text: `${intent} done`, conversation: [] };
+    };
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
+
+    const first = await manager.handleRequest('Resumable Project', 'Do step A then step B.', { execution_mode: 'auto' });
+
+    // The graph stalls with only Step A settled (WAITING) - Step B never
+    // even got a task row, since it was still blocked when handleRequest
+    // returned (see manager-agent.ts's "blockedByWaiting" break).
+    expect(first.outcomes).toHaveLength(1);
+    expect(first.outcomes[0]!.status).toBe('WAITING');
+    const waitingTaskId = first.outcomes[0]!.task_id;
+    expect(getProjectTaskFields(waitingTaskId)!.project_status).toBe('WAITING');
+
+    const resumed = await manager.resumeSubtask(first.project.id, waitingTaskId, 'staging');
+
+    const stepA = resumed.outcomes.find((o) => o.index === 0)!;
+    const stepB = resumed.outcomes.find((o) => o.index === 1)!;
+    expect(stepA.status).toBe('COMPLETED');
+    expect(stepB.status).toBe('COMPLETED');
+    expect(getProjectTaskFields(waitingTaskId)!.project_status).toBe('COMPLETED');
+
+    // Step B's task row now exists and correctly depends on Step A's task id.
+    const tasks = getProjectTasks(resumed.project.id);
+    const stepBTask = tasks.find((t) => t.title === 'Step B')!;
+    expect(stepBTask.dependencies).toContain(waitingTaskId);
+  });
+
+  it('resumeSubtask rejects a task that is not currently WAITING', async () => {
+    const provider = new MockProvider([textResponse('not valid json')]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+    const runner: TaskRunner = async () => ({ kind: 'completed', text: 'done', conversation: [] });
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
+
+    const result = await manager.handleRequest('Already Done', 'Do a thing.', { execution_mode: 'auto' });
+    expect(result.outcomes[0]!.status).toBe('COMPLETED');
+
+    await expect(manager.resumeSubtask(result.project.id, result.outcomes[0]!.task_id, 'irrelevant')).rejects.toThrow(
+      /not waiting for input/,
+    );
+  });
+});
+
+describe('ManagerAgent execution_mode gating (Phase 11-C)', () => {
+  beforeEach(() => {
+    initDatabase(':memory:');
+  });
+
+  it("'manual' mode gates every subtask: approval runs it, denial cancels it", async () => {
+    const plannerResponse = textResponse(JSON.stringify([
+      { title: 'Write the README', template: 'write', priority: 'normal', depends_on: [] },
+      { title: 'Draft the changelog', template: 'write', priority: 'normal', depends_on: [] },
+    ]));
+    const provider = new MockProvider([plannerResponse]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+    const runner: TaskRunner = async ({ intent }) => ({ kind: 'completed', text: `${intent} done`, conversation: [] });
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const approvals = new ApprovalManager();
+    const manager = new ManagerAgent(router, dispatcher, approvals);
+
+    // Both subtasks land pending-approval requests in the same wave (they
+    // run in parallel via Promise.all) - approve one, deny the other, then
+    // let handleRequest's await resolve once both are decided.
+    const handled = manager.handleRequest('Docs Project', 'Write docs.', { execution_mode: 'manual' });
+
+    let pending = approvals.getPending();
+    while (pending.length < 2) {
+      await new Promise((r) => setTimeout(r, 5));
+      pending = approvals.getPending();
+    }
+    const readme = pending.find((r) => (JSON.parse(r.tool_arguments) as { title: string }).title === 'Write the README')!;
+    const changelog = pending.find((r) => (JSON.parse(r.tool_arguments) as { title: string }).title === 'Draft the changelog')!;
+    approvals.approve(readme.id, 'test-user');
+    approvals.deny(changelog.id, 'test-user');
+
+    const result = await handled;
+    const readmeOutcome = result.outcomes.find((o) => o.title === 'Write the README')!;
+    const changelogOutcome = result.outcomes.find((o) => o.title === 'Draft the changelog')!;
+    expect(readmeOutcome.status).toBe('COMPLETED');
+    expect(changelogOutcome.status).toBe('CANCELLED');
+    expect(changelogOutcome.summary).toContain('not approved');
+  });
+
+  it("'assisted' mode gates only risk-bearing templates ('code'), leaving 'write' ungated", async () => {
+    const plannerResponse = textResponse(JSON.stringify([
+      { title: 'Implement the parser', template: 'code', priority: 'normal', depends_on: [] },
+      { title: 'Write the release notes', template: 'write', priority: 'normal', depends_on: [] },
+    ]));
+    const provider = new MockProvider([plannerResponse]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+    const runner: TaskRunner = async ({ intent }) => ({ kind: 'completed', text: `${intent} done`, conversation: [] });
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const approvals = new ApprovalManager();
+    const manager = new ManagerAgent(router, dispatcher, approvals);
+
+    const handled = manager.handleRequest('Mixed Project', 'Ship it.', { execution_mode: 'assisted' });
+
+    let pending = approvals.getPending();
+    while (pending.length < 1) {
+      await new Promise((r) => setTimeout(r, 5));
+      pending = approvals.getPending();
+    }
+    // Only the 'code' subtask should ever request approval - if 'write' also
+    // gated, a second pending request would show up here too. Deny it rather
+    // than approve: approving would let it reach SelfHealingRunner's default
+    // QA gate for 'code' subtasks (self-healing.ts), which runs this repo's
+    // REAL tsc/bun test - already covered end to end by qa.e2e.test.ts and
+    // far too slow for this gating-focused test.
+    expect(pending).toHaveLength(1);
+    expect((JSON.parse(pending[0]!.tool_arguments) as { title: string }).title).toBe('Implement the parser');
+    approvals.deny(pending[0]!.id, 'test-user');
+
+    const result = await handled;
+    const parser = result.outcomes.find((o) => o.title === 'Implement the parser')!;
+    const notes = result.outcomes.find((o) => o.title === 'Write the release notes')!;
+    expect(parser.status).toBe('CANCELLED');
+    // 'write' never generated an approval request at all, so it ran normally.
+    expect(notes.status).toBe('COMPLETED');
   });
 });

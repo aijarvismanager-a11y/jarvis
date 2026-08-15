@@ -15,6 +15,7 @@
 import { AIRouter, ManagerAgent, AICouncil, type CouncilSeat } from '../index.ts';
 import type { LLMManager } from '../../llm/manager.ts';
 import type { TaskDispatcher } from '../../agents/conv/task-dispatcher.ts';
+import type { ApprovalManager } from '../../authority/approval.ts';
 import {
   findProjects,
   getProject,
@@ -26,7 +27,7 @@ import {
   type ProjectTemplate,
 } from '../../vault/projects.ts';
 import { findDecisions, createDecision } from '../../vault/decisions.ts';
-import { getProjectTasks } from '../../vault/project-tasks.ts';
+import { getProjectTasks, getProjectTaskFields } from '../../vault/project-tasks.ts';
 import { getAgentPerformance } from '../../vault/agent-performance.ts';
 import { getDb } from '../../vault/schema.ts';
 
@@ -55,6 +56,7 @@ const VALID_TASK_TEMPLATES = ['research', 'code', 'plan', 'write', 'general'] as
 export type AIManagerApiContext = {
   getLLMManager: () => LLMManager;
   getTaskDispatcher: () => TaskDispatcher | null;
+  getApprovalManager: () => ApprovalManager;
 };
 
 /** All handoffs (structured JSON reports) filed for a project, newest first. */
@@ -99,7 +101,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
     const dispatcher = ctx.getTaskDispatcher();
     if (!dispatcher) return null;
     const router = new AIRouter(ctx.getLLMManager());
-    return new ManagerAgent(router, dispatcher);
+    return new ManagerAgent(router, dispatcher, ctx.getApprovalManager());
   };
 
   return {
@@ -196,6 +198,35 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
       GET: (req: Request & { params: { id: string } }) => {
         if (!getProject(req.params.id)) return error('Project not found', 404);
         return json(getProjectTasks(req.params.id));
+      },
+    },
+
+    // Phase 11-A: the only way back to running for a subtask that paused on
+    // `needs_input` - see src/ai-manager/manager-agent.ts's resumeSubtask().
+    '/api/ai-manager/projects/:id/tasks/:taskId/resume': {
+      POST: async (req: Request & { params: { id: string; taskId: string } }) => {
+        try {
+          const project = getProject(req.params.id);
+          if (!project) return error('Project not found', 404);
+          const task = getProjectTaskFields(req.params.taskId);
+          if (!task || task.project_id !== req.params.id) return error('Task not found in this project', 404);
+
+          const body = (await req.json()) as { input?: string };
+          if (!body.input || typeof body.input !== 'string') return error('input is required', 400);
+
+          const manager = managerAgentFor();
+          if (!manager) {
+            return error(
+              'AI Manager project execution requires llm.tiers.conversation to be configured (TaskDispatcher unavailable in classic mode).',
+              503,
+            );
+          }
+
+          const result = await manager.resumeSubtask(req.params.id, req.params.taskId, body.input);
+          return json(result);
+        } catch (err) {
+          return errorFromException(err);
+        }
       },
     },
 

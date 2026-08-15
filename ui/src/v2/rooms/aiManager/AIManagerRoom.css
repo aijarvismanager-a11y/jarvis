@@ -57,6 +57,38 @@
 .rk-aim__decision-reason { font-size: 11px; color: var(--ink3); margin-top: 2px; }
 .rk-aim__decision-meta { font-family: var(--mono); font-size: 8px; color: var(--ink3); margin-top: 4px; }
 
+/* ── task card (expanded: QA report / resume) ── */
+.rk-aim__card { cursor: pointer; }
+.rk-aim__card-qa { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed var(--rule); padding-top: 6px; }
+.rk-aim__qa-check { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9.5px; }
+.rk-aim__qa-check--pass { color: var(--ink3); }
+.rk-aim__qa-check--fail { color: var(--fail-tx, #c0392b); }
+.rk-aim__qa-check-name { flex-shrink: 0; min-width: 90px; }
+.rk-aim__qa-check-summary { color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-aim__resume { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--rule); padding-top: 6px; }
+.rk-aim__resume-q { font-size: 11px; color: var(--ink2); }
+.rk-aim__resume-row { display: flex; gap: 6px; }
+.rk-aim__resume-input { flex: 1; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel2); color: var(--ink); font-family: var(--sans); font-size: 11px; padding: 5px 8px; outline: none; }
+
+/* ── handoffs ── */
+.rk-aim__handoffs { display: flex; flex-direction: column; gap: 8px; }
+.rk-aim__handoff { border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.rk-aim__handoff-route { font-family: var(--mono); font-size: 9px; color: var(--ink3); }
+.rk-aim__handoff-summary { font-size: 12px; }
+.rk-aim__handoff-meta { font-family: var(--mono); font-size: 8px; color: var(--ink3); }
+
+/* ── agent performance ── */
+.rk-aim__perf { display: flex; flex-direction: column; gap: 6px; }
+.rk-aim__perf-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 7px 10px; font-size: 11px; }
+.rk-aim__perf-agent { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-aim__perf-stat { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); white-space: nowrap; }
+
+/* ── council ── */
+.rk-aim__council-btn { font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 7px 2px 7px 7px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); cursor: pointer; font-family: var(--sans); }
+.rk-aim__council-opinion { border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 8px 10px; margin-bottom: 8px; }
+.rk-aim__council-opinion-head { font-family: var(--mono); font-size: 9px; color: var(--ink3); margin-bottom: 3px; }
+.rk-aim__council-synthesis { font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+
 /* ── dialog ── */
 .rk-aim__overlay { position: fixed; inset: 0; background: color-mix(in srgb, black 40%, transparent); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .rk-aim__dialog { width: 420px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--rule); border-radius: 12px 3px 12px 12px; box-shadow: var(--sh-md); display: flex; flex-direction: column; }

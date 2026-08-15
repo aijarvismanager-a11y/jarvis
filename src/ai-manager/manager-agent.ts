@@ -17,22 +17,40 @@
  *  - A subtask whose dependency failed is never run - it's marked
  *    CANCELLED and its own dependents cascade the same way.
  *
- * What this does NOT do (out of scope for this pass): resume a subtask
- * that paused on `needs_input` - that requires surfacing the question to a
- * human and is left as project_status WAITING for a caller to handle via
- * TaskDispatcher.resume() directly.
+ * A subtask that pauses on `needs_input` is left as project_status WAITING;
+ * resumeSubtask() (Phase 11-A) is the way back to running for it - it calls
+ * TaskDispatcher.resume() directly, then continueProject() to pick the rest
+ * of the graph back up. continueProject() reconstructs the wave scheduler's
+ * state from the persisted `plan` (src/vault/projects.ts) plus each
+ * already-dispatched subtask's current `project_status`, rather than
+ * requiring the original in-memory PlanResult, since a resume can happen in
+ * a different request - or after a daemon restart - than the one that
+ * called handleRequest().
  */
 
 import type { TaskDispatcher } from '../agents/conv/task-dispatcher.ts';
-import type { TaskResultEnvelope } from '../agents/conv/task-envelope.ts';
+import type { TaskResultEnvelope, TaskTemplate } from '../agents/conv/task-envelope.ts';
 import { AIRouter } from './router.ts';
-import { Planner, type PlanResult, type PlannedSubtask } from './planner.ts';
-import { updateProjectStatus, type Project, type ProjectTemplate, type ExecutionMode } from '../vault/projects.ts';
-import { setProjectTaskFields, type ProjectTaskStatus } from '../vault/project-tasks.ts';
+import { Planner, type PlanResult, type PlannedSubtask, type PlannedPriority } from './planner.ts';
+import {
+  updateProjectStatus, getProject, getProjectPlan, setProjectPlan,
+  type Project, type ProjectTemplate, type ExecutionMode,
+} from '../vault/projects.ts';
+import { setProjectTaskFields, getProjectTaskFields, type ProjectTaskStatus } from '../vault/project-tasks.ts';
 import { sendHandoff } from '../agents/handoff.ts';
 import { createDecision } from '../vault/decisions.ts';
 import { SelfHealingRunner, type HealingResult } from './self-healing.ts';
 import { QAAgent } from './qa.ts';
+import type { ApprovalManager } from '../authority/approval.ts';
+
+/**
+ * Templates gated in 'assisted' execution mode (Phase 11-C). Deliberately
+ * just `code` for now - it's the one template that already defaults to a
+ * QA gate in self-healing.ts (`qaCheck ?? template === 'code'`), so
+ * "assisted" and "already treated as higher-risk" line up naturally rather
+ * than inventing a second, disconnected risk classification.
+ */
+const ASSISTED_MODE_GATED_TEMPLATES: readonly TaskTemplate[] = ['code'];
 
 const MANAGER_AGENT_ID = 'manager';
 
@@ -66,6 +84,7 @@ export class ManagerAgent {
   constructor(
     private readonly router: AIRouter,
     private readonly dispatcher: TaskDispatcher,
+    private readonly approvals: ApprovalManager,
     maxRetries: number = 3,
   ) {
     this.planner = new Planner(router);
@@ -93,10 +112,154 @@ export class ManagerAgent {
    */
   async runPlan(plan: PlanResult, userRequest: string): Promise<ProjectRunResult> {
     const { project, subtasks } = plan;
+    return this.runWaves(project, subtasks, new Map(), new Map(), [], userRequest);
+  }
+
+  /**
+   * Resume a project whose subtask graph stalled on a WAITING (needs_input)
+   * subtask - or simply re-check a project's graph for newly-runnable work.
+   * Reconstructs the wave scheduler's state from the persisted `plan`
+   * (src/vault/projects.ts) and each already-dispatched subtask's current
+   * `project_status`, rather than requiring the original in-memory
+   * PlanResult, since this may run in a different request or after a
+   * daemon restart than the one that called handleRequest() (Phase 11-A -
+   * see this file's original "what this does NOT do" note above, now
+   * addressed).
+   */
+  async continueProject(projectId: string): Promise<ProjectRunResult> {
+    const project = getProject(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found.`);
+    const plan = getProjectPlan(projectId);
+    if (!plan) throw new Error(`Project ${projectId} has no persisted plan (predates Phase 11-A, or was never planned via ManagerAgent).`);
+
+    const subtasks: PlannedSubtask[] = plan.map((p) => ({
+      title: p.title,
+      template: p.template as TaskTemplate,
+      priority: p.priority as PlannedPriority,
+      depends_on: p.depends_on,
+    }));
+
     const taskIdByIndex = new Map<number, string>();
     const settled = new Map<number, ProjectTaskStatus>();
     const outcomes: SubtaskOutcome[] = [];
+    const TERMINAL: readonly ProjectTaskStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED'];
 
+    plan.forEach((entry, index) => {
+      if (!entry.task_id) return; // never dispatched yet - fresh for this wave loop
+      taskIdByIndex.set(index, entry.task_id);
+      const fields = getProjectTaskFields(entry.task_id);
+      const status = fields?.project_status;
+      if (status && TERMINAL.includes(status)) {
+        settled.set(index, status);
+        outcomes.push({
+          index,
+          title: entry.title,
+          task_id: entry.task_id,
+          status,
+          summary: `(resumed) previously ${status.toLowerCase()}.`,
+        });
+      }
+      // WAITING (or any other non-terminal status) is left unsettled, same
+      // as runPlan's original in-memory semantics - its dependents stay
+      // blocked until it resolves.
+    });
+
+    return this.runWaves(project, subtasks, taskIdByIndex, settled, outcomes, project.description);
+  }
+
+  /**
+   * Resume a single WAITING subtask with the user's clarification reply,
+   * then continue the rest of the project's graph. This is the only path
+   * back to running for a subtask that paused on `needs_input` - see the
+   * class-level doc comment.
+   */
+  async resumeSubtask(projectId: string, taskId: string, userInput: string): Promise<ProjectRunResult> {
+    const project = getProject(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found.`);
+    const taskFields = getProjectTaskFields(taskId);
+    if (!taskFields || taskFields.project_id !== projectId) {
+      throw new Error(`Task ${taskId} not found in project ${projectId}.`);
+    }
+    if (taskFields.project_status !== 'WAITING') {
+      throw new Error(`Task ${taskId} is not waiting for input (status=${taskFields.project_status}).`);
+    }
+
+    const envelope = await this.dispatcher.resume(taskId, userInput);
+    const status = envelopeToProjectStatus(envelope);
+    setProjectTaskFields(taskId, {
+      project_status: status,
+      artifacts: envelope.details_ref ? [...taskFields.artifacts, envelope.details_ref] : taskFields.artifacts,
+    });
+
+    sendHandoff(
+      {
+        task_id: taskId,
+        from_agent: taskFields.assigned_agent ?? MANAGER_AGENT_ID,
+        to_agent: MANAGER_AGENT_ID,
+        status: envelope.status === 'completed' ? 'completed' : envelope.status === 'needs_input' ? 'needs_input' : 'failed',
+        summary: envelope.summary,
+        instructions: [],
+        artifacts: envelope.details_ref ? [envelope.details_ref] : [],
+        decisions: [],
+        warnings: envelope.error ? [envelope.error] : [],
+        open_questions: envelope.needs_input ? [envelope.needs_input.question] : [],
+        next_action: status === 'COMPLETED' ? 'advance' : status === 'WAITING' ? 'await_user_input' : 'review',
+      },
+      { project_id: projectId },
+    );
+
+    return this.continueProject(projectId);
+  }
+
+  /**
+   * Phase 11-C: whether a subtask needs sign-off before running, per the
+   * project's execution_mode. 'auto' never gates (today's default
+   * behavior, unchanged); 'manual' gates every subtask; 'assisted' gates
+   * only the higher-risk templates in ASSISTED_MODE_GATED_TEMPLATES.
+   */
+  private requiresApproval(mode: ExecutionMode, template: TaskTemplate): boolean {
+    if (mode === 'manual') return true;
+    if (mode === 'assisted') return ASSISTED_MODE_GATED_TEMPLATES.includes(template);
+    return false;
+  }
+
+  /** Blocks until the user approves or denies running this subtask. */
+  private async requestSubtaskApproval(project: Project, subtask: PlannedSubtask): Promise<boolean> {
+    const request = this.approvals.createRequest({
+      agentId: MANAGER_AGENT_ID,
+      agentName: 'Manager Agent',
+      toolName: 'ai_manager_run_subtask',
+      toolArguments: { project_id: project.id, title: subtask.title, template: subtask.template },
+      actionCategory: 'spawn_agent',
+      urgency: 'normal',
+      reason: `Project "${project.name}" is in ${project.execution_mode} mode - subtask "${subtask.title}" (${subtask.template}) requires approval before running.`,
+      context: project.description,
+    });
+    const resolved = await this.approvals.waitForResolution(request.id);
+    return resolved.status === 'approved';
+  }
+
+  /** Mark index `i`'s task_id in the persisted plan, once it's first known. */
+  private persistTaskId(projectId: string, index: number, taskId: string): void {
+    const plan = getProjectPlan(projectId);
+    if (!plan || !plan[index]) return; // defensive - shouldn't happen for a ManagerAgent-created project
+    plan[index]!.task_id = taskId;
+    setProjectPlan(projectId, plan);
+  }
+
+  /**
+   * The dependency-graph wave scheduler shared by a fresh plan (runPlan) and
+   * a reconstructed one (continueProject) - `taskIdByIndex`/`settled`/
+   * `outcomes` start empty for the former and pre-populated for the latter.
+   */
+  private async runWaves(
+    project: Project,
+    subtasks: PlannedSubtask[],
+    taskIdByIndex: Map<number, string>,
+    settled: Map<number, ProjectTaskStatus>,
+    outcomes: SubtaskOutcome[],
+    userRequest: string,
+  ): Promise<ProjectRunResult> {
     const isSettled = (i: number) => settled.has(i);
     const dependenciesOk = (subtask: PlannedSubtask) =>
       subtask.depends_on.every((dep) => settled.get(dep) === 'COMPLETED');
@@ -189,6 +352,19 @@ export class ManagerAgent {
     userRequest: string,
     taskIdByIndex: Map<number, string>,
   ): Promise<SubtaskOutcome> {
+    if (this.requiresApproval(project.execution_mode, subtask.template)) {
+      const approved = await this.requestSubtaskApproval(project, subtask);
+      if (!approved) {
+        return {
+          index,
+          title: subtask.title,
+          task_id: '',
+          status: 'CANCELLED',
+          summary: `Skipped: not approved to run (project execution_mode=${project.execution_mode}).`,
+        };
+      }
+    }
+
     const routing = this.router.route({ template: subtask.template });
     const healing: HealingResult = await this.healer.run({
       template: subtask.template,
@@ -217,6 +393,7 @@ export class ManagerAgent {
     }
 
     taskIdByIndex.set(index, envelope.task_id);
+    this.persistTaskId(project.id, index, envelope.task_id);
     const status = envelopeToProjectStatus(envelope);
     const dependencies = subtask.depends_on
       .map((i) => taskIdByIndex.get(i))

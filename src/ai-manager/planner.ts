@@ -13,7 +13,7 @@
 
 import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
 import { AIRouter } from './router.ts';
-import { createProject, type Project, type ProjectTemplate, type ExecutionMode } from '../vault/projects.ts';
+import { createProject, setProjectPlan, type Project, type ProjectTemplate, type ExecutionMode } from '../vault/projects.ts';
 
 const VALID_TEMPLATES: readonly TaskTemplate[] = ['research', 'code', 'plan', 'write', 'general'];
 const VALID_PRIORITIES = ['low', 'normal', 'high', 'critical'] as const;
@@ -59,6 +59,11 @@ export class Planner {
     });
 
     const subtasks = await this.decompose(userRequest);
+    // Persist the plan immediately (task_id: null for every index) so a
+    // subtask that later pauses on needs_input can be resumed via
+    // ManagerAgent.continueProject() even in a different request/process -
+    // see src/vault/projects.ts's PlanSubtask and Phase 11-A.
+    setProjectPlan(project.id, subtasks.map((s) => ({ ...s, task_id: null })));
     return { project, subtasks };
   }
 

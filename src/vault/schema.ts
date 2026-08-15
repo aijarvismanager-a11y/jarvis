@@ -851,6 +851,14 @@ function createTables(db: Database): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at DESC)`);
 
+  // Migration (Phase 11-A): `plan` persists the Planner's full subtask list
+  // (title/template/priority/depends_on/task_id per index) as JSON, so
+  // ManagerAgent.continueProject() can reconstruct the dependency-graph wave
+  // scheduler's state after a WAITING subtask is resumed - possibly in a
+  // different request, or after a daemon restart - without needing the
+  // original in-memory PlanResult. See src/ai-manager/manager-agent.ts.
+  try { db.run(`ALTER TABLE projects ADD COLUMN plan TEXT`); } catch { /* already present */ }
+
   db.run(`
     CREATE TABLE IF NOT EXISTS decisions (
       id TEXT PRIMARY KEY,

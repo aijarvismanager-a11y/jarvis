@@ -329,12 +329,12 @@ export function buildSandboxServiceBackends(
     };
   };
 
-  const managerRunProject: ManagerRunProjectFn | undefined = opts.taskDispatcher
+  const managerRunProject: ManagerRunProjectFn | undefined = opts.taskDispatcher && opts.approvalManager
     ? async (req) => {
         if (req.template !== undefined && !VALID_PROJECT_TEMPLATES.includes(req.template as ProjectTemplate)) {
           throw new Error(`template must be one of: ${VALID_PROJECT_TEMPLATES.join(", ")}`);
         }
-        const manager = new ManagerAgent(router, opts.taskDispatcher!);
+        const manager = new ManagerAgent(router, opts.taskDispatcher!, opts.approvalManager!);
         return manager.handleRequest(req.name, req.request, {
           ...(req.template !== undefined ? { template: req.template as ProjectTemplate } : {}),
           ...(req.execution_mode !== undefined ? { execution_mode: req.execution_mode } : {}),

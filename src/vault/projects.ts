@@ -138,6 +138,42 @@ export function updateProjectExecutionMode(id: string, mode: ExecutionMode): Pro
 }
 
 /**
+ * The Planner's subtask list, persisted so ManagerAgent.continueProject()
+ * can reconstruct the dependency-graph wave scheduler's state without the
+ * original in-memory PlanResult (Phase 11-A). `template`/`priority` are kept
+ * as plain strings here rather than importing ai-manager's `TaskTemplate`/
+ * `PlannedPriority` types, to avoid this lower-level vault module depending
+ * on the higher-level ai-manager one - callers cast back to their own types.
+ * `task_id` is null until ManagerAgent actually dispatches that index for
+ * the first time.
+ */
+export type PlanSubtask = {
+  title: string;
+  template: string;
+  priority: string;
+  depends_on: number[];
+  task_id: string | null;
+};
+
+/** Persist (or update) a project's full subtask plan. */
+export function setProjectPlan(id: string, plan: PlanSubtask[]): void {
+  const db = getDb();
+  db.prepare('UPDATE projects SET plan = ?, updated_at = ? WHERE id = ?').run(
+    JSON.stringify(plan),
+    Date.now(),
+    id
+  );
+}
+
+/** Null if the project predates Phase 11-A or was never planned via ManagerAgent. */
+export function getProjectPlan(id: string): PlanSubtask[] | null {
+  const db = getDb();
+  const row = db.prepare('SELECT plan FROM projects WHERE id = ?').get(id) as { plan: string | null } | null;
+  if (!row || !row.plan) return null;
+  return JSON.parse(row.plan) as PlanSubtask[];
+}
+
+/**
  * Replace a project's rule list wholesale (Project Memory, spec section 18).
  * Rules are short standing instructions, not a growing log - callers should
  * fetch, mutate, and pass the full array back rather than appending blindly.
