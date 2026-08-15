@@ -52,6 +52,14 @@ export interface JarvisManagerRouteDeps {
 const VALID_EXECUTION_MODES = ["auto", "assisted", "manual"];
 const VALID_TEMPLATES = ["research", "code", "plan", "write", "general"];
 const VALID_MODES = ["cheap", "balanced", "quality"];
+// Distinct from VALID_TEMPLATES above (that's TaskTemplate, for assign-agent).
+// run-project's `template` is a ProjectTemplate (src/vault/projects.ts) --
+// validated here too, not just in managerRunProject, so an invalid value
+// gets this route's normal 400 instead of surfacing as a 500 from a thrown
+// Error deeper in the backend.
+const VALID_PROJECT_TEMPLATES = [
+  "website", "web_app", "software", "research", "content", "data_project", "automation", "custom",
+];
 
 export function createJarvisManagerRunProjectRoute(deps: JarvisManagerRouteDeps): RouteHandler {
   return async (ctx: RouteContext) => {
@@ -67,7 +75,12 @@ export function createJarvisManagerRunProjectRoute(deps: JarvisManagerRouteDeps)
       return err("request must be a non-empty string", 400);
     }
     const out: ManagerRunProjectRequest = { name: raw.name, request: raw.request };
-    if (typeof raw.template === "string" && raw.template.length > 0) out.template = raw.template;
+    if (raw.template !== undefined) {
+      if (typeof raw.template !== "string" || !VALID_PROJECT_TEMPLATES.includes(raw.template)) {
+        return err(`template must be one of: ${VALID_PROJECT_TEMPLATES.join(", ")}`, 400);
+      }
+      out.template = raw.template;
+    }
     if (raw.execution_mode !== undefined) {
       if (typeof raw.execution_mode !== "string" || !VALID_EXECUTION_MODES.includes(raw.execution_mode)) {
         return err(`execution_mode must be one of: ${VALID_EXECUTION_MODES.join(", ")}`, 400);

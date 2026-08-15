@@ -133,10 +133,23 @@ export class ManagerAgent {
 
       if (readyIndices.length === 0) {
         if (cancelIndices.length === 0) {
-          // No ready work and nothing to cancel, but the graph isn't fully
-          // settled - only possible with a circular dependency the planner
-          // should have prevented (indices must reference earlier elements).
-          // Bail out rather than looping forever.
+          // A subtask parked at WAITING (needs human input) is neither
+          // dependenciesOk nor dependenciesFailed for its dependents, so it
+          // reproduces the same "nothing ready, nothing to cancel" state as
+          // a real cycle. Leave those subtasks unsettled instead of
+          // force-cancelling them as an "unresolvable dependency graph" -
+          // they can resume once the WAITING subtask gets its answer.
+          const blockedByWaiting = subtasks.some(
+            (subtask, index) =>
+              !isSettled(index) && subtask.depends_on.some((dep) => settled.get(dep) === 'WAITING'),
+          );
+          if (blockedByWaiting) break;
+
+          // No ready work, nothing to cancel, and nothing blocked on a
+          // pending human answer, but the graph isn't fully settled - only
+          // possible with a circular dependency the planner should have
+          // prevented (indices must reference earlier elements). Bail out
+          // rather than looping forever.
           subtasks.forEach((subtask, index) => {
             if (!isSettled(index)) {
               settled.set(index, 'CANCELLED');
@@ -186,6 +199,23 @@ export class ManagerAgent {
     const envelope = healing.envelope;
     const finalAttempt = healing.attempts[healing.attempts.length - 1]!;
 
+    // Every retry attempt dispatches through TaskDispatcher, which mints a
+    // fresh `tasks` row each time (see self-healing.ts) - only the final
+    // attempt's task_id gets the full setProjectTaskFields call below. Scope
+    // the earlier attempts' rows to this project too (as superseded/
+    // cancelled) so they don't end up with project_id=NULL, invisible to
+    // getProjectTasks() but still lingering in any unscoped task listing.
+    for (const priorAttempt of healing.attempts.slice(0, -1)) {
+      if (priorAttempt.envelope.task_id === envelope.task_id) continue;
+      setProjectTaskFields(priorAttempt.envelope.task_id, {
+        project_id: project.id,
+        parent_task_id: envelope.task_id,
+        title: subtask.title,
+        project_status: 'CANCELLED',
+        assigned_agent: `task_${priorAttempt.template}`,
+      });
+    }
+
     taskIdByIndex.set(index, envelope.task_id);
     const status = envelopeToProjectStatus(envelope);
     const dependencies = subtask.depends_on
@@ -205,11 +235,18 @@ export class ManagerAgent {
     });
 
     if (healing.exhausted && status === 'FAILED') {
+      // QA rejection (self-healing.ts's post-loop QA gate) isn't a dispatch
+      // failure, so it never gets pushed onto `attempts` - without this, a
+      // subtask that failed purely because QA rejected it would report only
+      // its execution attempts' failure classes (often 'none'), hiding the
+      // real reason it failed.
+      const failureClasses = new Set<string>(healing.attempts.map((a) => a.failure_class));
+      if (healing.qa_report && !healing.qa_report.passed) failureClasses.add('qa_failed');
       createDecision(
         `Subtask "${subtask.title}" exhausted self-healing after ${healing.attempts.length} attempt(s): ${envelope.summary}`,
         {
           project_id: project.id,
-          reason: `Failure classes seen: ${[...new Set(healing.attempts.map((a) => a.failure_class))].join(', ')}.`,
+          reason: `Failure classes seen: ${[...failureClasses].join(', ')}.`,
           made_by: 'manager',
         },
       );

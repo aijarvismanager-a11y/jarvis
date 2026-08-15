@@ -23,7 +23,17 @@ export type GitResult = {
 
 async function runGit(cwd: string, args: string[], timeoutMs = 30_000): Promise<GitResult> {
   try {
-    const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+    const proc = Bun.spawn(['git', ...args], {
+      cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      // Without this, a push/pull against a remote with no cached
+      // credentials blocks waiting for an interactive prompt on a TTY that
+      // doesn't exist here, only failing once `timeoutMs` kills it. Fail
+      // fast with a clean auth error instead (matches GitManager.run in
+      // src/sites/git-manager.ts).
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
     const timer = setTimeout(() => proc.kill(), timeoutMs);
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(proc.stdout).text(),

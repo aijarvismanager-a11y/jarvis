@@ -110,8 +110,23 @@ export class SelfHealingRunner {
     let exhausted = false;
     const qaCheck = opts.qaCheck ?? template === 'code';
 
+    // `route()` runs a live queryUsage() scan; template/mode only change via
+    // nextStrategy() after a failed attempt, so consecutive attempts with
+    // the same inputs would otherwise re-run the identical 24h-window query
+    // for no new information. Cache by "template:mode" for this run() call.
+    const routeCache = new Map<string, ReturnType<AIRouter['route']>>();
+    const routeFor = (t: TaskTemplate, m: CostMode) => {
+      const key = `${t}:${m}`;
+      let cached = routeCache.get(key);
+      if (!cached) {
+        cached = this.router.route({ template: t, mode: m });
+        routeCache.set(key, cached);
+      }
+      return cached;
+    };
+
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
-      const routing = this.router.route({ template, mode });
+      const routing = routeFor(template, mode);
       const request: TaskRequest = {
         tier: routing.tier,
         template,

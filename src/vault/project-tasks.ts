@@ -146,8 +146,20 @@ export function setProjectTaskStatus(taskId: string, status: ProjectTaskStatus):
 /** All tasks (in any status) belonging to a project, for the Kanban view. */
 export function getProjectTasks(projectId: string): ProjectTaskFields[] {
   const db = getDb();
+  // `priority` is TEXT ('low'|'normal'|'high'|'critical'); SQLite's default
+  // collation would sort those alphabetically, not by severity, so rank them
+  // explicitly rather than relying on `ORDER BY priority DESC`.
   const rows = db
-    .prepare(`SELECT ${PROJECT_TASK_COLUMNS} FROM tasks WHERE project_id = ? ORDER BY priority DESC`)
+    .prepare(
+      `SELECT ${PROJECT_TASK_COLUMNS} FROM tasks WHERE project_id = ?
+       ORDER BY CASE priority
+         WHEN 'critical' THEN 0
+         WHEN 'high' THEN 1
+         WHEN 'normal' THEN 2
+         WHEN 'low' THEN 3
+         ELSE 4
+       END`
+    )
     .all(projectId) as ProjectTaskRow[];
   return rows.map(parseRow);
 }

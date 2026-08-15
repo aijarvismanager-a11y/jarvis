@@ -372,7 +372,7 @@ export function buildSandboxServiceBackends(
     };
     const message = sendHandoff(handoff, {
       ...(req.project_id !== undefined ? { project_id: req.project_id } : {}),
-      ...(req.priority === "high" || req.priority === "normal" ? { priority: req.priority } : {}),
+      ...(req.priority !== undefined ? { priority: req.priority } : {}),
     });
     return { id: message.id };
   };
@@ -445,6 +445,14 @@ export function buildSandboxServiceBackends(
   const gitPush: GitPushFn | undefined =
     opts.authorityEngine && opts.approvalManager
       ? async (req) => {
+          // 1. Emergency check -- same gate AgentOrchestrator.executeTool applies
+          // before any authority check, so a paused/killed system also blocks
+          // workflow-originated pushes, not just agent-tool-initiated ones.
+          if (opts.emergencyController && !opts.emergencyController.canExecute()) {
+            const state = opts.emergencyController.getState();
+            return { ok: false, output: "", error: `[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.` };
+          }
+
           const actionCategory = getActionForTool("git_push", "github");
           const decision = opts.authorityEngine!.checkAuthority({
             agentId: "workflow",
@@ -455,6 +463,24 @@ export function buildSandboxServiceBackends(
             actionCategory,
             temporaryGrants: new Map(),
           });
+
+          // 2. Log to audit trail -- mirrors executeTool's step 3, so
+          // workflow-initiated pushes show up in the same accountability log
+          // as agent-tool-initiated ones.
+          const decisionType = decision.allowed
+            ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
+            : "denied" as const;
+          opts.auditTrail?.log({
+            agent_id: "workflow",
+            agent_name: "Workflow",
+            tool_name: "git_push",
+            action_category: actionCategory,
+            authority_decision: decisionType,
+            approval_id: null,
+            executed: decision.allowed && !decision.requiresApproval,
+            execution_time_ms: null,
+          });
+
           if (!decision.allowed) {
             return { ok: false, output: "", error: `[AUTHORITY DENIED] ${decision.reason}` };
           }
