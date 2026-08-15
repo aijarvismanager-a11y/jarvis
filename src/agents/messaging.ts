@@ -13,6 +13,8 @@ export type AgentMessage = {
   requires_response: boolean;
   deadline: number | null;
   created_at: number;
+  task_id: string | null;
+  project_id: string | null;
 };
 
 type MessageRow = {
@@ -25,6 +27,8 @@ type MessageRow = {
   requires_response: number;
   deadline: number | null;
   created_at: number;
+  task_id: string | null;
+  project_id: string | null;
 };
 
 /**
@@ -49,6 +53,8 @@ export function sendMessage(
     priority?: MessagePriority;
     requires_response?: boolean;
     deadline?: number;
+    task_id?: string;
+    project_id?: string;
   }
 ): AgentMessage {
   const db = getDb();
@@ -57,9 +63,11 @@ export function sendMessage(
   const priority = opts?.priority ?? 'normal';
   const requiresResponse = opts?.requires_response ?? false;
   const deadline = opts?.deadline ?? null;
+  const taskId = opts?.task_id ?? null;
+  const projectId = opts?.project_id ?? null;
 
   const stmt = db.prepare(
-    'INSERT INTO agent_messages (id, from_agent, to_agent, type, content, priority, requires_response, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO agent_messages (id, from_agent, to_agent, type, content, priority, requires_response, deadline, created_at, task_id, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
   stmt.run(
@@ -71,7 +79,9 @@ export function sendMessage(
     priority,
     requiresResponse ? 1 : 0,
     deadline,
-    now
+    now,
+    taskId,
+    projectId
   );
 
   return {
@@ -84,6 +94,8 @@ export function sendMessage(
     requires_response: requiresResponse,
     deadline,
     created_at: now,
+    task_id: taskId,
+    project_id: projectId,
   };
 }
 

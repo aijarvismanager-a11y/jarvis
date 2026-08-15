@@ -10,6 +10,10 @@ export type { AgentMessage, MessageType, MessagePriority } from './messaging.ts'
 export { delegateTask, reportCompletion } from './delegation.ts';
 export type { DelegationResult } from './delegation.ts';
 
+// Handoff (AI Manager, Phase 1)
+export { sendHandoff, parseHandoff, getHandoffsForTask } from './handoff.ts';
+export type { Handoff } from './handoff.ts';
+
 // Hierarchy management
 export { AgentHierarchy } from './hierarchy.ts';
 export type { AgentTreeNode } from './hierarchy.ts';

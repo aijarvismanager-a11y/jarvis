@@ -821,4 +821,93 @@ function createTables(db: Database): void {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_status_updated ON tasks(status, updated_at DESC)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC)`);
+
+  // ── AI Manager (Phase 1): Projects, Decisions, and Task/Handoff extensions ──
+  //
+  // These additions generalize the existing conv-tier `tasks` table and
+  // `agent_messages` handoff mechanism for cross-provider Manager Agent use
+  // (see docs/AI_MANAGER_ARCHITECTURE_AUDIT.md). Deliberately additive:
+  // the conv-tier's `tasks.status` enum and `TaskRegistry` reconciliation
+  // logic are untouched — Manager-created tasks get their own
+  // `project_status` column instead of overloading `status`.
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      template TEXT NOT NULL DEFAULT 'custom'
+        CHECK(template IN ('website', 'web_app', 'software', 'research', 'content', 'data_project', 'automation', 'custom')),
+      status TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'paused', 'completed', 'archived')),
+      execution_mode TEXT NOT NULL DEFAULT 'assisted'
+        CHECK(execution_mode IN ('auto', 'assisted', 'manual')),
+      rules TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at DESC)`);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS decisions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      statement TEXT NOT NULL,
+      reason TEXT,
+      made_by TEXT NOT NULL DEFAULT 'manager',
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_decisions_project ON decisions(project_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_decisions_created ON decisions(created_at DESC)`);
+
+  // Migration: project-management columns on the existing `tasks` table.
+  // All nullable/defaulted so conv-tier delegated tasks (which never set
+  // these) are unaffected; only Manager-created project tasks populate them.
+  // No REFERENCES/FK clauses on these ALTER ADD COLUMNs (unlike the CREATE
+  // TABLE statements above) — this file's existing migration convention
+  // never adds a foreign key via ALTER TABLE, and linkage is enforced at
+  // the application layer (see src/vault/projects.ts, project-tasks.ts).
+  try { db.run(`ALTER TABLE tasks ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN title TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`); } catch { /* already present */ }
+  // project_status: the spec's 11-state Kanban enum for Manager-tracked
+  // tasks. Kept separate from `status` (owned by TaskRegistry) to avoid
+  // colliding with its 'queued|running|needs_input|completed|failed|cancelled'
+  // reconciliation-on-restart logic.
+  try { db.run(`ALTER TABLE tasks ADD COLUMN project_status TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN assigned_agent TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN assigned_provider TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN assigned_model TEXT`); } catch { /* already present */ }
+  // dependencies / artifacts: JSON-encoded string arrays of task ids / file paths.
+  try { db.run(`ALTER TABLE tasks ADD COLUMN dependencies TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN artifacts TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN next_agent TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN approval_required INTEGER NOT NULL DEFAULT 0`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)`);
+
+  // Migration: Self-Healing / QA state (Phase 6, see src/ai-manager/self-healing.ts
+  // and qa.ts). retry_count/max_retries track the bounded ERROR -> Classify ->
+  // Retry -> Alternative strategy -> Alternative Agent -> QA loop so it never
+  // spins forever; qa_report is the last QAAgent verdict (JSON), kept on the
+  // task row rather than a new table since it's 1:1 with a single task.
+  try { db.run(`ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 3`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN qa_report TEXT`); } catch { /* already present */ }
+
+  // Migration: handoff linkage on agent_messages, so a structured Handoff
+  // envelope (spec section 14, stored JSON-encoded in the existing `content`
+  // column) can be queried per task/project. The `type` CHECK constraint
+  // ('task'|'report'|'question'|'escalation') is left untouched — handoffs
+  // are sent as type='report' with a `payload_kind:'handoff'` marker in
+  // content, since altering a CHECK constraint requires a table rebuild.
+  try { db.run(`ALTER TABLE agent_messages ADD COLUMN task_id TEXT`); } catch { /* already present */ }
+  try { db.run(`ALTER TABLE agent_messages ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_msg_task ON agent_messages(task_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_msg_project ON agent_messages(project_id)`);
 }
