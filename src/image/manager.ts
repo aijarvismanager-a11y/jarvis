@@ -58,7 +58,7 @@ export class ImageManager {
   async generate(
     prompt: string,
     options?: ImageGenerateOptions & { provider?: string },
-  ): Promise<ImageResult> {
+  ): Promise<ImageResult & { provider: string }> {
     const sequence = this.getProviderSequence(options?.provider ?? null);
     if (sequence.length === 0) {
       throw new Error('No image providers configured.');
@@ -87,7 +87,7 @@ export class ImageManager {
             output_tokens: 0,
             latency_ms: Date.now() - started,
           });
-          return result;
+          return { ...result, provider: provider.name };
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           errors.push(`attempt ${attempt}: ${errorMsg}`);

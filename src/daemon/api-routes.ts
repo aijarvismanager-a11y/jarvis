@@ -34,6 +34,7 @@ import { getDb } from '../vault/schema.ts';
 import { findCommitments, getUpcoming, createCommitment, getCommitment, updateCommitmentStatus, reorderCommitments } from '../vault/commitments.ts';
 import { getOrCreateConversation, getMessages, getRecentConversation } from '../vault/conversations.ts';
 import { getRecentObservations, summarizeObservation } from '../vault/observations.ts';
+import { listImageGenerations } from '../vault/image-generations.ts';
 import { listAgentActivity, countAgentActivity } from '../vault/agent-activity.ts';
 import { getPersonality } from '../personality/model.ts';
 import { clearUserProfile, getUserProfile, saveUserProfile } from '../vault/user-profile.ts';
@@ -1497,6 +1498,79 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           return json(result);
         } catch (err) {
           return error('Invalid request body');
+        }
+      },
+    },
+
+    // --- Image Agent credentials (keychain-only, Phase 8; route added
+    // Phase 13-B - registerImageProviders()/keychain setters already existed,
+    // there was just no dashboard-reachable way to call them). Mirrors
+    // /api/config/llm's has_api_key-only response shape - the key itself
+    // never round-trips back out.
+    '/api/config/image': {
+      GET: async () => {
+        const { getImageProviderKey } = await import('../image/config-binding.ts');
+        return json({
+          providers: {
+            'openai-image': { has_api_key: Boolean(getImageProviderKey('openai-image')) },
+            'gemini-image': { has_api_key: Boolean(getImageProviderKey('gemini-image')) },
+          },
+        });
+      },
+      POST: async (req: Request) => {
+        try {
+          const body = await req.json() as { provider?: string; api_key?: string };
+          if (body.provider !== 'openai-image' && body.provider !== 'gemini-image') {
+            return error("provider must be one of: openai-image, gemini-image", 400);
+          }
+          if (!body.api_key || typeof body.api_key !== 'string') {
+            return error('api_key is required', 400);
+          }
+          const { setImageProviderKey, registerImageProviders } = await import('../image/config-binding.ts');
+          setImageProviderKey(body.provider, body.api_key);
+          // Re-register from the keychain so the running ImageManager picks
+          // up the new key immediately, same idea as hotReloadLLMProviders -
+          // registerProvider() keys by provider name, so this is a safe
+          // re-registration, not a duplicate.
+          registerImageProviders(ctx.agentService.getImageManager());
+          return json({ ok: true, message: 'Image provider key saved and applied.' });
+        } catch (err) {
+          return errorFromException(err);
+        }
+      },
+    },
+
+    // --- Image Agent generation history (Phase 13-D). Read-only list over
+    // image_generations (src/vault/image-generations.ts) - separate from
+    // the llm_usage cost-tracking rows, which never had the file path/prompt.
+    '/api/image/generations': {
+      GET: (req: Request) => {
+        const params = new URL(req.url).searchParams;
+        const limit = Math.min(Number(params.get('limit')) || 50, 200);
+        const offset = Math.max(Number(params.get('offset')) || 0, 0);
+        return json(listImageGenerations(limit, offset));
+      },
+    },
+
+    // --- GitHub credential (keychain-only, Phase 7; route added Phase 13-B).
+    // No re-registration step needed - src/github/git.ts and api.ts call
+    // getGitHubToken() fresh on every request rather than caching it.
+    '/api/config/github': {
+      GET: async () => {
+        const { getGitHubToken } = await import('../github/api.ts');
+        return json({ has_token: Boolean(getGitHubToken()) });
+      },
+      POST: async (req: Request) => {
+        try {
+          const body = await req.json() as { token?: string };
+          if (!body.token || typeof body.token !== 'string') {
+            return error('token is required', 400);
+          }
+          const { setGitHubToken } = await import('../github/api.ts');
+          setGitHubToken(body.token);
+          return json({ ok: true, message: 'GitHub token saved.' });
+        } catch (err) {
+          return errorFromException(err);
         }
       },
     },

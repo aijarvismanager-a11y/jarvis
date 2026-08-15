@@ -690,8 +690,9 @@ export class AgentService implements Service, IAgentService {
         originalMessage,
         signal,
         history,
+        project_id,
       }) => {
-        const baseSystem = this.buildFullSystemPromptParts('conv', originalMessage);
+        const baseSystem = this.buildFullSystemPromptParts('conv', originalMessage, project_id);
         const templateNote = TaskDispatcher.templatePromptFor(template);
         // Attach the conv LLM's routing intent as system context so the task
         // tier sees both the user's verbatim ask AND the conv's framing -
@@ -826,7 +827,7 @@ export class AgentService implements Service, IAgentService {
    * Callers hand the parts to the orchestrator, which marks the static half
    * as a provider cache boundary.
    */
-  buildFullSystemPromptParts(channel: string, userMessage?: string): SystemPromptParts {
+  buildFullSystemPromptParts(channel: string, userMessage?: string, projectId?: string): SystemPromptParts {
     if (!this.role) return { static: '', dynamic: '' };
 
     // Build prompt context with live data + vault knowledge.
@@ -835,8 +836,8 @@ export class AgentService implements Service, IAgentService {
     // conversational voice queries rarely benefit from them and the
     // extra prompt tokens slow first-token-out by hundreds of ms.
     const context = channel === 'pebble'
-      ? this.buildPromptContext(userMessage, { slim: true })
-      : this.buildPromptContext(userMessage);
+      ? this.buildPromptContext(userMessage, { slim: true }, projectId)
+      : this.buildPromptContext(userMessage, undefined, projectId);
 
     // Build base system prompt from role + context, split at the boundary
     const roleParts = buildSystemPromptParts(this.role, context);
@@ -853,7 +854,7 @@ export class AgentService implements Service, IAgentService {
     };
   }
 
-  private buildPromptContext(userMessage?: string, opts?: { slim?: boolean }): PromptContext {
+  private buildPromptContext(userMessage?: string, opts?: { slim?: boolean }, projectId?: string): PromptContext {
     // Slim mode: voice channels skip the heavyweight context blocks
     // (observations, content pipeline, commitments) so the LLM has
     // hundreds fewer prompt tokens to chew through before first response.
@@ -890,7 +891,7 @@ export class AgentService implements Service, IAgentService {
     // Retrieve relevant knowledge from vault based on user message
     if (userMessage) {
       try {
-        const knowledge = getKnowledgeForMessage(userMessage);
+        const knowledge = getKnowledgeForMessage(userMessage, projectId);
         if (knowledge) {
           context.knowledgeContext = knowledge;
         }

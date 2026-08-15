@@ -381,6 +381,7 @@ export class ManagerAgent {
       mode: routing.mode,
       intent: subtask.title,
       original_message: userRequest,
+      project_id: project.id,
     });
     const envelope = healing.envelope;
     const finalAttempt = healing.attempts[healing.attempts.length - 1]!;

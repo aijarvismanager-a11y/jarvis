@@ -942,4 +942,23 @@ function createTables(db: Database): void {
 
   try { db.run(`ALTER TABLE commitments ADD COLUMN project_id TEXT`); } catch { /* already present */ }
   db.run(`CREATE INDEX IF NOT EXISTS idx_commitments_project ON commitments(project_id)`);
+
+  // Phase 13-D: Image Agent generation history. Deliberately its own table
+  // rather than reusing llm_usage (subsystem='image') - that table's shape
+  // is token/cost accounting, not artifact tracking, and it has no column
+  // for the file path or prompt image_generate actually produced. Kept
+  // separate for the same reason qa_report got its own task column instead
+  // of overloading tasks.status.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS image_generations (
+      id TEXT PRIMARY KEY,
+      prompt TEXT NOT NULL,
+      revised_prompt TEXT,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      file_paths TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_image_generations_created ON image_generations(created_at DESC)`);
 }

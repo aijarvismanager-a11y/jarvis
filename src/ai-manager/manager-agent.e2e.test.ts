@@ -322,3 +322,32 @@ describe('ManagerAgent execution_mode gating (Phase 11-C)', () => {
     expect(notes.status).toBe('COMPLETED');
   });
 });
+
+describe('ManagerAgent project-scoped memory (Phase 13-A)', () => {
+  beforeEach(() => {
+    initDatabase(':memory:');
+  });
+
+  it('forwards project.id to the task runner as TaskRequest.project_id for every dispatched subtask', async () => {
+    const plannerResponse = textResponse(JSON.stringify([
+      { title: 'Draft the announcement', template: 'write', priority: 'normal', depends_on: [] },
+    ]));
+    const provider = new MockProvider([plannerResponse]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+
+    const seenProjectIds: (string | undefined)[] = [];
+    const runner: TaskRunner = async ({ intent, project_id }) => {
+      seenProjectIds.push(project_id);
+      return { kind: 'completed', text: `${intent} done`, conversation: [] };
+    };
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
+
+    const result = await manager.handleRequest('Launch Announcement', 'Announce the launch.');
+
+    expect(seenProjectIds).toHaveLength(1);
+    expect(seenProjectIds[0]).toBe(result.project.id);
+  });
+});

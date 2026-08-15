@@ -311,6 +311,17 @@ export type ActionResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
+/** Phase 13-B: /api/config/image response shape. */
+export type ImageProvidersStatus = {
+  providers: {
+    "openai-image": { has_api_key: boolean };
+    "gemini-image": { has_api_key: boolean };
+  };
+};
+
+/** Phase 13-B: /api/config/github response shape. */
+export type GitHubTokenStatus = { has_token: boolean };
+
 export type ProviderTestResult = ActionResult & { models?: string[] };
 
 async function getJson<T>(url: string): Promise<T | null> {
@@ -386,6 +397,8 @@ export function useSettingsData() {
   const [personality, setPersonality] = useState<PersonalityModel | null>(null);
   const [role, setRole] = useState<RoleInfo | null>(null);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [imageProviders, setImageProviders] = useState<ImageProvidersStatus | null>(null);
+  const [github, setGithub] = useState<GitHubTokenStatus | null>(null);
   const [sidecars, setSidecars] = useState<SidecarInfo[]>([]);
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -409,6 +422,8 @@ export function useSettingsData() {
         gR,
         scR,
         profR,
+        imgR,
+        ghR,
       ] = await Promise.all([
         getJson<LLMConfig>("/api/config/llm"),
         getJson<ChannelStatus>("/api/channels/status"),
@@ -423,6 +438,8 @@ export function useSettingsData() {
         getJson<GoogleStatus>("/api/auth/google/status"),
         getJson<SidecarInfo[]>("/api/sidecars"),
         getJson<UserProfileResponse>("/api/user-profile"),
+        getJson<ImageProvidersStatus>("/api/config/image"),
+        getJson<GitHubTokenStatus>("/api/config/github"),
       ]);
       // Functional updaters + preserveRef: keep the previous object reference
       // when the re-fetched payload is unchanged, so dependent effects in the
@@ -440,6 +457,8 @@ export function useSettingsData() {
       if (gR) setGoogle((p) => preserveRef(p, gR));
       if (scR) setSidecars((p) => preserveRef(p, scR));
       if (profR) setProfile((p) => preserveRef(p, profR));
+      if (imgR) setImageProviders((p) => preserveRef(p, imgR));
+      if (ghR) setGithub((p) => preserveRef(p, ghR));
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -892,6 +911,33 @@ export function useSettingsData() {
     }
   }, [refresh]);
 
+  // ── Image Agent / GitHub credentials (Phase 13-B) ───────────────────
+  const saveImageProviderKey = useCallback(
+    async (provider: "openai-image" | "gemini-image", api_key: string): Promise<ActionResult> => {
+      try {
+        await postJson("/api/config/image", { provider, api_key });
+        await refresh();
+        return { ok: true, message: "Image provider key saved." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refresh],
+  );
+
+  const saveGitHubToken = useCallback(
+    async (token: string): Promise<ActionResult> => {
+      try {
+        await postJson("/api/config/github", { token });
+        await refresh();
+        return { ok: true, message: "GitHub token saved." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refresh],
+  );
+
   // ── Sidecars ────────────────────────────────────────────────────────
   const enrollSidecar = useCallback(
     async (
@@ -950,6 +996,8 @@ export function useSettingsData() {
     google,
     sidecars,
     profile,
+    imageProviders,
+    github,
 
     // derived
     stats,
@@ -978,6 +1026,8 @@ export function useSettingsData() {
     saveGoogleCredentials,
     initGoogleAuth,
     disconnectGoogle,
+    saveImageProviderKey,
+    saveGitHubToken,
     enrollSidecar,
     revokeSidecar,
     findSidecarByName,

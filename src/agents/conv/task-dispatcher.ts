@@ -63,6 +63,8 @@ export type TaskRunner = (args: {
   signal: AbortSignal;
   /** When resuming, the conversation buffer captured at the previous pause. */
   history?: unknown[];
+  /** Phase 13-A: forwarded from TaskRequest.project_id - scopes vault memory retrieval. */
+  project_id?: string;
 }) => Promise<TaskRunResult>;
 
 export type DispatchOptions = {
@@ -161,6 +163,7 @@ export class TaskDispatcher {
         originalMessage: callArgs.originalMessage,
         signal: abort.signal,
         history: callArgs.history,
+        project_id: request.project_id,
       });
 
       if (abort.signal.aborted) {

@@ -393,6 +393,211 @@ Phase 11-B, still no backend list endpoint).
 All four items deferred at the end of Phase 11 are in scope. Not spec-ordered
 - scoped by what actually blocks what.
 
+## 10. Phase 13 Plan (clearing the 12-deferred list) — Done
+
+All four items shipped: `tsc --noEmit` clean, full `bun test` at 1901 passing
+(1900 baseline + 1 new Phase 13-A test) / 63 failing - the same pre-existing
+Windows-only failures as every prior phase, no new ones, `bun run build:ui`
+succeeds. Notes by item:
+
+- **13-B**: `/api/config/image` (`GET`/`POST`) and `/api/config/github`
+  (`GET`/`POST`) added to `api-routes.ts`, calling the keychain getter/setter
+  functions that already existed. Image key saves re-call
+  `registerImageProviders()` against the live `ImageManager` so a new key
+  applies without a restart (`Map.set` keyed by provider name makes
+  re-registration safe); GitHub needs no re-registration since
+  `getGitHubToken()` is read fresh per call. UI: two new sections in the
+  existing `IntegrationsTab.tsx`, wired through `useSettingsData.ts` in the
+  same `Promise.all` poll as the other settings reads. Not covered by an
+  automated test - both credential setters write through
+  `src/vault/keychain.ts` to a real `~/.jarvis/.secrets.*` file (not an
+  in-memory test DB, confirmed no existing test exercises `setSecret`
+  directly for this reason), so a round-trip test would need
+  `keychain.ts` mocked rather than called for real; deferred rather than
+  risk a test that writes into a developer's actual secrets file.
+- **13-C**: `CreateProjectDialog` gained `execution_mode`/`cost_mode`
+  selects (defaulting to `assisted`/`balanced`, matching the API's own
+  defaults so leaving them untouched changes nothing). Pure UI wiring, no
+  backend change - both fields already flowed through `runProject`'s body
+  and the API route since Phase 12-A.
+- **13-D**: new `image_generations` table (`src/vault/schema.ts`), a small
+  `src/vault/image-generations.ts` module, `image_generate`'s `execute()`
+  now records prompt/provider/model/file paths alongside the existing
+  `llm_usage` cost row, `GET /api/image/generations` (paginated), and a
+  "Recent generations" list in `IntegrationsTab.tsx`'s Image Agent section
+  (load-on-demand, not on the 10s settings poll). One real gap found and
+  fixed along the way: `ImageManager.generate()`'s return type had no
+  `provider` field (only `model`), so there was no way to know which
+  provider actually produced a given image after fallback - widened its
+  return type to `ImageResult & { provider: string }`.
+- **13-A**: turned out narrower than planned once traced end to end. The
+  Phase 12 plan doc's premise - "`ManagerAgent`'s task execution never
+  touches vault memory retrieval at all" - was wrong: the `TaskRunner`
+  closure in `agent-service.ts:685` already calls
+  `buildFullSystemPromptParts('conv', originalMessage)`, which already calls
+  `getKnowledgeForMessage()`, for every task-tier dispatch, including
+  `ManagerAgent`-driven subtasks. It was just unscoped (global search only).
+  So this became pure plumbing, not new retrieval logic: added
+  `project_id?: string` to `TaskRequest` (`task-envelope.ts`) and
+  `TaskRunner`'s args (`task-dispatcher.ts`), threaded it through
+  `runAndHandle` → the runner call → `buildFullSystemPromptParts`/
+  `buildPromptContext` → `getKnowledgeForMessage(message, projectId)`, and
+  set it from `HealingRunOptions.project_id` (`self-healing.ts`) ← passed by
+  `ManagerAgent.runSubtask` as `project.id` (`manager-agent.ts`). The
+  plan's second half - whether classic (non-project) conversation should be
+  able to pin an "active project" - was correctly identified as a UI
+  decision, not a code gap, and stayed out of scope. New test:
+  `manager-agent.e2e.test.ts`'s "ManagerAgent project-scoped memory" block
+  asserts `project.id` reaches the task runner as `TaskRequest.project_id`
+  for a dispatched subtask.
+
+**Deferred, not forgotten**: whether classic conversational chat should be
+able to pin an "active project" so ambient facts get scoped outside the AI
+Manager project flow (13-A's second half, needs a product decision first);
+an automated round-trip test for `/api/config/image`/`/api/config/github`
+(needs `keychain.ts` mocked, not called for real).
+
+**Suggested order: 13-B, 13-C, 13-D, then 13-A.** The first three are small,
+independent, and low-risk - each closes a concrete gap surfaced while
+building Phase 12, with no dependency on each other. 13-A is last because
+it's the one genuinely open architectural question in this list: it's not a
+missing route or a missing UI field, it's "does the conversational path get
+a project concept at all, and if so how" - worth doing once, deliberately,
+not squeezed in alongside three smaller items.
+
+### 13-A: Project-scoped memory in the conversational path
+
+**Problem**: Phase 12-B added `project_id` scoping to `entities`/`facts`/
+`observations`/`commitments` and an optional `projectId` parameter to
+`retrieveForMessage`/`getKnowledgeForMessage` (`src/vault/retrieval.ts`), but
+nothing calls them with one. The two real call sites -
+`AgentService.buildAmbientFactsBlock` and `buildPromptContext`
+(`src/daemon/agent-service.ts:610-622`, `:856-...`) - build the system prompt
+for the **conversational** tier, which has no project concept anywhere in
+its state today (confirmed while building 12-B: no `currentProject`/
+`activeProject`/`selectedProject` field exists in `src/daemon/`).
+`ManagerAgent`'s **task** tier execution is a separate path entirely (its own
+`TaskDispatcher` runner closure in `agent-service.ts:685`, not
+`buildPromptContext`) and already threads `project.id` end-to-end for
+tasks/decisions/handoffs - it just never touches vault memory retrieval.
+
+So there are really two different gaps hiding under one name:
+1. Should a `ManagerAgent`-run subtask's LLM call see project-scoped memory
+   context (facts/entities relevant to *this* project)? Today it sees none
+   at all, project-scoped or otherwise - `TaskDispatcher`'s runner builds a
+   template-specific system prompt with no vault retrieval step.
+2. Should the classic conversational chat (outside any AI Manager project)
+   have a way to say "I'm currently working on project X" so ambient facts
+   get scoped? Today conversation and projects are entirely parallel
+   surfaces - a user can have an active project and an unrelated chat
+   session at the same time, and nothing links them.
+
+**Plan**:
+1. Resolve (1) first, since `ManagerAgent` already has `project.id` in hand
+   and it's the narrower, lower-risk change: add an optional
+   `getKnowledgeForMessage(subtask.title, project.id)` call inside the
+   `TaskDispatcher` runner closure (`agent-service.ts:685`) or inside
+   `runSubtask` before dispatch (`manager-agent.ts`), appended to the task
+   tier's system context the same way `buildAmbientFactsBlock` appends it
+   for the conversational tier. This alone makes the `project_id` plumbing
+   from 12-B load-bearing instead of dead code.
+2. For (2), don't invent a new "current project" concept without a UI
+   decision first - ask whether the dashboard should let a user pin an
+   active project to their chat session (a small piece of session state,
+   not a schema change) before writing any retrieval-side code. If the
+   answer is no (projects and chat stay deliberately separate surfaces),
+   close this half of 13-A as "not needed" rather than building unused
+   plumbing - don't repeat 12-B's mistake of adding a parameter with no
+   caller.
+3. Tests: extend `manager-agent.e2e.test.ts` with a case asserting a
+   project-scoped fact created via `createFact(..., { project_id })` shows
+   up in a subtask's task-tier context, and a fact scoped to a *different*
+   project does not.
+
+### 13-B: `/api/config/image` and `/api/config/github` routes
+
+**Problem**: Phase 12-D's setup guide found that Image Agent
+(`src/image/config-binding.ts`) and GitHub (`src/github/api.ts`) credentials
+already have working keychain-backed getter/setter functions
+(`getImageProviderKey`/`setImageProviderKey`, `getGitHubToken`/
+`setGitHubToken`) but no daemon API route calls them - unlike
+`/api/config/llm` (`src/daemon/llm-settings.ts` + `api-routes.ts:1460-1482`),
+there is no dashboard-reachable way to set these two credentials at all
+today.
+
+**Plan**:
+1. `/api/config/image`: `GET` returns `{ providers: { 'openai-image': {
+   has_api_key }, 'gemini-image': { has_api_key } } }` (mirrors
+   `LLMSettingsProviderView`'s `has_api_key`-only shape - never echo the
+   key back). `POST` accepts `{ provider: ImageProviderName, api_key:
+   string }`, calls `setImageProviderKey`, then re-registers providers on
+   the shared `ImageManager` (mirrors `hotReloadLLMProviders`'s pattern -
+   check how `ImageManager` is constructed in `agent-service.ts`/
+   `daemon/index.ts` for where a re-registration hook would go, likely just
+   re-calling `registerImageProviders(manager)` since it's idempotent per
+   provider name).
+2. `/api/config/github`: `GET` returns `{ has_token: boolean }`. `POST`
+   accepts `{ token: string }`, calls `setGitHubToken`. No re-registration
+   step needed - `src/github/git.ts`/`api.ts` read the token fresh via
+   `getGitHubToken()` on every call rather than caching it.
+3. UI: a small "Integrations" or "Credentials" section (wherever the
+   existing LLM provider settings screen lives) with two more provider
+   rows, reusing whatever form component that screen already has for an
+   API-key input.
+4. Tests: route-level tests following `api-llm-test.test.ts`'s pattern -
+   `POST` then `GET` shows `has_api_key`/`has_token: true`, no key ever
+   appears in a response body.
+
+### 13-C: `cost_mode`/`execution_mode` at project creation time
+
+**Problem**: `CreateProjectDialog` (`ui/src/v2/rooms/aiManager/
+AIManagerRoom.tsx:399-442`) only collects `name`/`request` - `execution_mode`
+and `cost_mode` (Phase 12-A) both default silently (`assisted`/`balanced`)
+and can only be changed via a follow-up `PATCH` after the project already
+exists. Not wrong, just an extra round-trip for anyone who wants something
+other than the defaults from the start.
+
+**Plan**:
+1. Add two selects to `CreateProjectDialog` (same `<select>` pattern as the
+   Phase 12-A cost-mode selector added to the project header), defaulting
+   to `assisted`/`balanced` so the common case's markup is unchanged - just
+   two more optional fields in the dialog.
+2. Thread `execution_mode`/`cost_mode` through `onCreate`'s input type and
+   `runProject`'s body (`useAIManagerData.ts:220-246`) - both already flow
+   through to the API unchanged today for any field present in `input`,
+   the API route already accepts and validates both
+   (`src/ai-manager/api/routes.ts`, Phase 12-A), so this is pure UI wiring,
+   no backend change.
+
+### 13-D: Image Agent generation history
+
+**Problem**: Deferred since Phase 11-B, re-confirmed while writing 12-D:
+`llm_usage`'s `subsystem='image'` rows (`src/llm/usage.ts`) record tokens/
+latency/error_code for cost tracking, but **not** the generated file path or
+prompt - `image_generate` (`src/actions/tools/image.ts:60-70`) writes files
+under `~/.jarvis/images/<uuid>.<ext>` and returns the path in the tool
+result, but nothing persists that path anywhere queryable afterward. This
+isn't a missing endpoint over existing data (as originally scoped in
+Phase 11-B) - the data itself doesn't exist yet.
+
+**Plan**:
+1. Add a lightweight `image_generations` table (`id, prompt, revised_prompt,
+   provider, model, file_paths (JSON array), created_at`) via the usual
+   additive `CREATE TABLE IF NOT EXISTS` in `schema.ts` - deliberately not
+   reusing `llm_usage` (that table's shape is token/cost accounting, not
+   artifact tracking; conflating them was rejected for the same reason
+   `qa_report` got its own task column instead of overloading `status`).
+2. `image_generate`'s `execute()` (`src/actions/tools/image.ts`) writes one
+   row here right after `writeFileSync`, alongside (not instead of) the
+   existing `llm_usage` cost-tracking row `ImageManager` already records.
+3. New `GET /api/image/generations` route (paginated, newest first) -
+   mirrors the read-only list pattern `/api/ai-manager/projects/:id/tasks`
+   already uses.
+4. UI: the deferred item from Phase 11-B - a small gallery/list panel,
+   lowest priority of this phase's four items since it's the most net-new
+   surface (a table plus a route plus a panel, vs. the other three which
+   are wiring existing pieces together).
+
 **Suggested order: 12-B, then 12-A, then 12-C, with 12-D done in parallel at
 any point.** B touches the most call sites (every vault memory read/write
 used by agents and the dashboard) and both A and C are easiest to build once

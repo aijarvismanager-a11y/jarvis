@@ -54,6 +54,15 @@ export type TaskRequest = {
    * builds a TaskRequest; the runner uses it as the task tier's user prompt.
    */
   original_message?: string;
+  /**
+   * Phase 13-A: when set (only by ManagerAgent-driven subtasks), scopes the
+   * task tier's vault memory retrieval to this project (+ global/User
+   * memory) instead of leaving it unscoped. Plain string, not part of what
+   * the LLM sees - server-side plumbing only, so it doesn't carry the
+   * small-model serialization risk the rest of this envelope is kept
+   * minimal to avoid.
+   */
+  project_id?: string;
 };
 
 /**

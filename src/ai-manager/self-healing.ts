@@ -92,6 +92,8 @@ export type HealingRunOptions = {
    */
   qaCheck?: boolean;
   qaOptions?: Parameters<QAAgent['run']>[0];
+  /** Phase 13-A: forwarded onto every dispatched TaskRequest.project_id. */
+  project_id?: string;
 };
 
 export class SelfHealingRunner {
@@ -132,6 +134,7 @@ export class SelfHealingRunner {
         template,
         intent: opts.intent,
         original_message: opts.original_message,
+        project_id: opts.project_id,
       };
       const result = await this.dispatcher.dispatch(request);
       const failureClass = classifyFailure(result);

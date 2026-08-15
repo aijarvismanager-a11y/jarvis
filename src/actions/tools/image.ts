@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import type { ToolDefinition, ToolResult } from './registry.ts';
 import type { ImageManager } from '../../image/manager.ts';
 import type { ImageSize } from '../../image/provider.ts';
+import { createImageGeneration } from '../../vault/image-generations.ts';
 
 const IMAGES_DIR = join(homedir(), '.jarvis', 'images');
 
@@ -75,6 +76,14 @@ export const imageGenerateTool: ToolDefinition = {
     ];
     const revised = result.images.find((i) => i.revised_prompt)?.revised_prompt;
     if (revised) summaryLines.push(`Revised prompt: ${revised}`);
+
+    try {
+      createImageGeneration(params.prompt as string, result.provider, result.model, savedPaths, {
+        revised_prompt: revised ?? null,
+      });
+    } catch (err) {
+      console.warn('[image_generate] Failed to record generation history:', err);
+    }
 
     content.unshift({ type: 'text', text: summaryLines.join('\n') });
     return { content } satisfies ToolResult;

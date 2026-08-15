@@ -2,6 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { SettingsHook } from "../useSettingsData";
 import { confirmDialog } from "../../../ui/ConfirmDialog";
 
+/** Phase 13-D: /api/image/generations row shape (src/vault/image-generations.ts). */
+type ImageGeneration = {
+  id: string;
+  prompt: string;
+  revised_prompt: string | null;
+  provider: string;
+  model: string;
+  file_paths: string[];
+  created_at: number;
+};
+
 export function IntegrationsTab({
   data,
   onToast,
@@ -14,6 +25,40 @@ export function IntegrationsTab({
   const [clientSecret, setClientSecret] = useState("");
   const [phase, setPhase] = useState<"idle" | "saving" | "authenticating">("idle");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Phase 13-B: Image Agent + GitHub credentials.
+  const [openaiImageKey, setOpenaiImageKey] = useState("");
+  const [geminiImageKey, setGeminiImageKey] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+
+  const handleSaveImageKey = async (provider: "openai-image" | "gemini-image", key: string, clear: () => void) => {
+    if (!key.trim()) return;
+    const r = await data.saveImageProviderKey(provider, key.trim());
+    onToast(r.message, r.ok ? "ok" : "warn");
+    if (r.ok) clear();
+  };
+
+  const handleSaveGithubToken = async () => {
+    if (!githubToken.trim()) return;
+    const r = await data.saveGitHubToken(githubToken.trim());
+    onToast(r.message, r.ok ? "ok" : "warn");
+    if (r.ok) setGithubToken("");
+  };
+
+  // Phase 13-D: past generations, fetched on demand rather than on the
+  // settings room's 10s poll - this is a browse-once list, not live state.
+  const [generations, setGenerations] = useState<ImageGeneration[] | null>(null);
+  const [generationsLoading, setGenerationsLoading] = useState(false);
+
+  const loadGenerations = async () => {
+    setGenerationsLoading(true);
+    try {
+      const r = await fetch("/api/image/generations?limit=20");
+      if (r.ok) setGenerations((await r.json()) as ImageGeneration[]);
+    } finally {
+      setGenerationsLoading(false);
+    }
+  };
 
   // Listen for the OAuth popup completion event
   const handleMessage = useCallback(
@@ -247,6 +292,133 @@ export function IntegrationsTab({
             </div>
           </>
         )}
+      </section>
+
+      <section className="v2-set__section">
+        <div className="v2-set__section-head">
+          <div>
+            <h3 className="v2-set__section-title">Image Agent</h3>
+            <div className="v2-set__section-sub">
+              Provider keys for image_generate (Phase 8). Applied immediately, no restart needed.
+            </div>
+          </div>
+        </div>
+
+        <div className="v2-set__field">
+          <label className="v2-set__field-label">
+            OpenAI (gpt-image-1 / dall-e-3)
+            {data.imageProviders?.providers["openai-image"].has_api_key && (
+              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>saved</span>
+            )}
+          </label>
+          <div style={{ display: "flex", gap: "var(--s-2)" }}>
+            <input
+              className="v2-set__input"
+              type="password"
+              placeholder="sk-..."
+              value={openaiImageKey}
+              onChange={(e) => setOpenaiImageKey(e.target.value)}
+            />
+            <button
+              type="button"
+              className="v2-set__btn v2-set__btn--primary"
+              onClick={() => handleSaveImageKey("openai-image", openaiImageKey, () => setOpenaiImageKey(""))}
+              disabled={!openaiImageKey.trim()}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div className="v2-set__field">
+          <label className="v2-set__field-label">
+            Gemini (Imagen)
+            {data.imageProviders?.providers["gemini-image"].has_api_key && (
+              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>saved</span>
+            )}
+          </label>
+          <div style={{ display: "flex", gap: "var(--s-2)" }}>
+            <input
+              className="v2-set__input"
+              type="password"
+              placeholder="AIza..."
+              value={geminiImageKey}
+              onChange={(e) => setGeminiImageKey(e.target.value)}
+            />
+            <button
+              type="button"
+              className="v2-set__btn v2-set__btn--primary"
+              onClick={() => handleSaveImageKey("gemini-image", geminiImageKey, () => setGeminiImageKey(""))}
+              disabled={!geminiImageKey.trim()}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div className="v2-set__field">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <label className="v2-set__field-label">Recent generations</label>
+            <button type="button" className="v2-set__btn" onClick={loadGenerations} disabled={generationsLoading}>
+              {generationsLoading ? "Loading…" : generations === null ? "Load" : "Refresh"}
+            </button>
+          </div>
+          {generations !== null && (
+            generations.length === 0 ? (
+              <div className="v2-set__hint">No images generated yet.</div>
+            ) : (
+              <div>
+                {generations.map((g) => (
+                  <div key={g.id} className="v2-set__row" title={g.file_paths.join("\n")}>
+                    <span className="v2-set__row-label" style={{ maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {g.prompt}
+                    </span>
+                    <span className="v2-set__row-value">
+                      {g.provider} · {g.file_paths.length} file{g.file_paths.length === 1 ? "" : "s"} · {new Date(g.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      </section>
+
+      <section className="v2-set__section">
+        <div className="v2-set__section-head">
+          <div>
+            <h3 className="v2-set__section-title">GitHub</h3>
+            <div className="v2-set__section-sub">
+              Personal access token for git operations (Phase 7). Push/force-push/delete stay gated by Authority.
+            </div>
+          </div>
+          {data.github && (
+            <span className={"v2-set__chip " + (data.github.has_token ? "v2-set__chip--ok" : "")}>
+              {data.github.has_token ? "connected" : "not connected"}
+            </span>
+          )}
+        </div>
+
+        <div className="v2-set__field">
+          <label className="v2-set__field-label">Personal access token</label>
+          <div style={{ display: "flex", gap: "var(--s-2)" }}>
+            <input
+              className="v2-set__input"
+              type="password"
+              placeholder="ghp_..."
+              value={githubToken}
+              onChange={(e) => setGithubToken(e.target.value)}
+            />
+            <button
+              type="button"
+              className="v2-set__btn v2-set__btn--primary"
+              onClick={handleSaveGithubToken}
+              disabled={!githubToken.trim()}
+            >
+              Save
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

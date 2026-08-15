@@ -13,6 +13,7 @@ import {
   type AgentPerformance,
   type CouncilVerdict,
   type CostMode,
+  type ExecutionMode,
 } from "./useAIManagerData";
 import "./AIManagerRoom.css";
 
@@ -30,6 +31,7 @@ const TASK_COLUMNS: ProjectTaskStatus[] = [
 ];
 
 const COST_MODES: readonly CostMode[] = ["cheap", "balanced", "quality"];
+const EXECUTION_MODES: readonly ExecutionMode[] = ["auto", "assisted", "manual"];
 
 const TASK_STATUS_TONE: Record<ProjectTaskStatus, Tone> = {
   PENDING: "mut", PLANNING: "mut", READY: "mut", RUNNING: "run", WAITING: "hold",
@@ -420,14 +422,26 @@ function CreateProjectDialog({
 }: {
   busy: boolean;
   onClose: () => void;
-  onCreate: (input: { name: string; request: string }) => Promise<boolean>;
+  onCreate: (input: {
+    name: string;
+    request: string;
+    execution_mode: ExecutionMode;
+    cost_mode: CostMode;
+  }) => Promise<boolean>;
 }) {
   const [name, setName] = useState("");
   const [request, setRequest] = useState("");
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>("assisted");
+  const [costMode, setCostMode] = useState<CostMode>("balanced");
 
   const submit = async () => {
     if (!name.trim() || !request.trim()) return;
-    await onCreate({ name: name.trim(), request: request.trim() });
+    await onCreate({
+      name: name.trim(),
+      request: request.trim(),
+      execution_mode: executionMode,
+      cost_mode: costMode,
+    });
   };
 
   return (
@@ -445,6 +459,32 @@ function CreateProjectDialog({
           <div>
             <div className="rk-aim__flab">request</div>
             <textarea className="rk-aim__textarea" value={request} onChange={(e) => setRequest(e.target.value)} placeholder="What should JARVIS build or do?" rows={4} />
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div className="rk-aim__flab">execution mode</div>
+              <select
+                className="rk-aim__cost-select"
+                value={executionMode}
+                onChange={(e) => setExecutionMode(e.target.value as ExecutionMode)}
+              >
+                {EXECUTION_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="rk-aim__flab">cost mode</div>
+              <select
+                className="rk-aim__cost-select"
+                value={costMode}
+                onChange={(e) => setCostMode(e.target.value as CostMode)}
+              >
+                {COST_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <div className="rk-aim__dialog-acts">
