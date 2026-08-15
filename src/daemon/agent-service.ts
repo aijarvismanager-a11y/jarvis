@@ -14,6 +14,9 @@ import type { RoleDefinition } from '../roles/types.ts';
 import type { PersonalityModel } from '../personality/model.ts';
 
 import { LLMManager } from '../llm/manager.ts';
+import { ImageManager } from '../image/manager.ts';
+import { registerImageProviders } from '../image/config-binding.ts';
+import { setImageManager } from '../actions/tools/image.ts';
 import { activeTurns, DrainingError } from './active-turns.ts';
 import { registerLLMProviders, configureLLMTiers } from '../llm/config-binding.ts';
 
@@ -80,6 +83,7 @@ export class AgentService implements Service, IAgentService {
   private _status: ServiceStatus = 'stopped';
   private config: JarvisConfig;
   private llmManager: LLMManager;
+  private imageManager: ImageManager;
   private orchestrator: AgentOrchestrator;
   private role: RoleDefinition | null = null;
   private personality: PersonalityModel | null = null;
@@ -101,6 +105,7 @@ export class AgentService implements Service, IAgentService {
   constructor(config: JarvisConfig) {
     this.config = config;
     this.llmManager = new LLMManager();
+    this.imageManager = new ImageManager();
     this.orchestrator = new AgentOrchestrator();
   }
 
@@ -140,6 +145,10 @@ export class AgentService implements Service, IAgentService {
     return this.llmManager;
   }
 
+  getImageManager(): ImageManager {
+    return this.imageManager;
+  }
+
   /**
    * Public accessor for the daemon config snapshot. Used by WSService's
    * onboarding setup-mode guard to read `onboarding.setup_completed_at`
@@ -164,6 +173,14 @@ export class AgentService implements Service, IAgentService {
     try {
       // 1. Create LLM providers from config
       this.registerProviders();
+
+      // 1b. Image Agent providers (keychain-sourced, Phase 8). Optional -
+      // image_generate reports a clear error when none are configured.
+      const imageProviderCount = registerImageProviders(this.imageManager);
+      if (imageProviderCount === 0) {
+        console.log('[AgentService] No image providers configured - image_generate will be unavailable.');
+      }
+      setImageManager(this.imageManager);
 
       // 2. Load role YAML
       this.role = this.loadActiveRole();
@@ -618,6 +635,18 @@ export class AgentService implements Service, IAgentService {
    */
   getTaskRegistry(): TaskRegistry | null {
     return this.taskRegistry;
+  }
+
+  /**
+   * Expose the task dispatcher so the AI Manager (src/ai-manager/) can run
+   * project subtasks through the same execution path conv-tier `delegate`
+   * calls use (full tool registry, role prompt, authority gating). Null
+   * when running in classic mode (no llm.tiers.conversation configured) -
+   * callers must treat AI Manager project execution as unavailable in that
+   * case rather than falling back to a lesser path.
+   */
+  getTaskDispatcher(): TaskDispatcher | null {
+    return this.taskDispatcher;
   }
 
   // --- Private methods ---

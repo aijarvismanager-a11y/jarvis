@@ -87,3 +87,32 @@ export {
   parseExtractionResponse,
   extractAndStore,
 } from './extractor.ts';
+
+// Re-export projects module (AI Manager, Phase 1)
+export type { Project, ProjectTemplate, ProjectStatus, ExecutionMode } from './projects.ts';
+export {
+  createProject,
+  getProject,
+  findProjects,
+  updateProjectStatus,
+  updateProjectExecutionMode,
+  setProjectRules,
+} from './projects.ts';
+
+// Re-export decisions module (AI Manager, Phase 1)
+export type { Decision } from './decisions.ts';
+export { createDecision, getDecision, findDecisions } from './decisions.ts';
+
+// Re-export project-task accessors (AI Manager, Phase 1)
+export type { ProjectTaskFields, ProjectTaskStatus, TaskPriority } from './project-tasks.ts';
+export {
+  getProjectTaskFields,
+  setProjectTaskFields,
+  setProjectTaskStatus,
+  getProjectTasks,
+  getSubtasks,
+} from './project-tasks.ts';
+
+// Re-export agent performance module (AI Manager, Phase 4)
+export type { AgentPerformance } from './agent-performance.ts';
+export { getAgentPerformance } from './agent-performance.ts';
