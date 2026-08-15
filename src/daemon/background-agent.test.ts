@@ -1,5 +1,7 @@
 import { test, expect, describe } from 'bun:test';
 import { createBrowserTools, NON_BROWSER_TOOLS, BUILTIN_TOOLS } from '../actions/tools/builtin.ts';
+import { GITHUB_TOOLS } from '../actions/tools/github.ts';
+import { IMAGE_TOOLS } from '../actions/tools/image.ts';
 import { BrowserController } from '../actions/browser/session.ts';
 
 describe('NON_BROWSER_TOOLS', () => {
@@ -56,8 +58,10 @@ describe('createBrowserTools', () => {
     ]);
   });
 
-  test('BUILTIN_TOOLS = NON_BROWSER_TOOLS + 10 browser + 9 desktop tools', () => {
-    expect(BUILTIN_TOOLS).toHaveLength(NON_BROWSER_TOOLS.length + 10 + 9);
+  test('BUILTIN_TOOLS = NON_BROWSER_TOOLS + 10 browser + 9 desktop + GitHub + image tools', () => {
+    expect(BUILTIN_TOOLS).toHaveLength(
+      NON_BROWSER_TOOLS.length + 10 + 9 + GITHUB_TOOLS.length + IMAGE_TOOLS.length,
+    );
   });
 });
 
