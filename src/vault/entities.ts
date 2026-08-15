@@ -15,6 +15,8 @@ export type Entity = {
   created_at: number;
   updated_at: number;
   source: string | null;
+  /** Project this entity belongs to, or null for User/global memory (spec §18-19). */
+  project_id: string | null;
 };
 
 type EntityRow = {
@@ -25,6 +27,7 @@ type EntityRow = {
   created_at: number;
   updated_at: number;
   source: string | null;
+  project_id: string | null;
 };
 
 /**
@@ -44,14 +47,15 @@ export function createEntity(
   type: EntityType,
   name: string,
   properties?: Record<string, unknown>,
-  source?: string
+  source?: string,
+  project_id?: string | null
 ): Entity {
   const db = getDb();
   const id = generateId();
   const now = Date.now();
 
   const stmt = db.prepare(
-    'INSERT INTO entities (id, type, name, properties, created_at, updated_at, source) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO entities (id, type, name, properties, created_at, updated_at, source, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
   stmt.run(
@@ -61,7 +65,8 @@ export function createEntity(
     properties ? JSON.stringify(properties) : null,
     now,
     now,
-    source ?? null
+    source ?? null,
+    project_id ?? null
   );
 
   return {
@@ -72,6 +77,7 @@ export function createEntity(
     created_at: now,
     updated_at: now,
     source: source ?? null,
+    project_id: project_id ?? null,
   };
 }
 
@@ -96,6 +102,10 @@ export function findEntities(query: {
   name?: string;
   nameContains?: string;
   source?: string;
+  /** Exact project_id match (use `projectScope` for "this project or global"). */
+  project_id?: string;
+  /** Match this project's entities plus global (project_id IS NULL) ones. */
+  projectScope?: string;
 }): Entity[] {
   const db = getDb();
   const conditions: string[] = [];
@@ -119,6 +129,14 @@ export function findEntities(query: {
   if (query.nameContains) {
     conditions.push("name LIKE ? ESCAPE '\\'");
     params.push(`%${escapeLike(query.nameContains)}%`);
+  }
+
+  if (query.project_id) {
+    conditions.push('project_id = ?');
+    params.push(query.project_id);
+  } else if (query.projectScope) {
+    conditions.push('(project_id = ? OR project_id IS NULL)');
+    params.push(query.projectScope);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -183,9 +201,13 @@ export function deleteEntity(id: string): boolean {
 /**
  * Search entities by name using LIKE query
  */
-export function searchEntitiesByName(query: string): Entity[] {
+export function searchEntitiesByName(query: string, projectScope?: string): Entity[] {
   const db = getDb();
-  const stmt = db.prepare("SELECT * FROM entities WHERE name LIKE ? ESCAPE '\\' ORDER BY name");
-  const rows = stmt.all(`%${escapeLike(query)}%`) as EntityRow[];
+  const scopeClause = projectScope ? 'AND (project_id = ? OR project_id IS NULL)' : '';
+  const stmt = db.prepare(
+    `SELECT * FROM entities WHERE name LIKE ? ESCAPE '\\' ${scopeClause} ORDER BY name`
+  );
+  const params = projectScope ? [`%${escapeLike(query)}%`, projectScope] : [`%${escapeLike(query)}%`];
+  const rows = stmt.all(...params) as EntityRow[];
   return rows.map(parseEntity);
 }

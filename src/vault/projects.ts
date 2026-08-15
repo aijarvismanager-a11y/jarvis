@@ -12,6 +12,13 @@ export type ProjectTemplate =
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
 export type ExecutionMode = 'auto' | 'assisted' | 'manual';
+/**
+ * User-facing Cheap/Balanced/Quality mode (spec §40-41), mapped onto the
+ * existing low/medium/high tier system by src/llm/cost-mode.ts. 'balanced'
+ * is a no-op - it leaves each subtask template's existing per-template tier
+ * default alone, same as 'auto' is a no-op for execution_mode.
+ */
+export type CostMode = 'cheap' | 'balanced' | 'quality';
 
 /**
  * A rule is a short standing instruction the Manager Agent must keep
@@ -25,6 +32,7 @@ export type Project = {
   template: ProjectTemplate;
   status: ProjectStatus;
   execution_mode: ExecutionMode;
+  cost_mode: CostMode;
   rules: string[];
   created_at: number;
   updated_at: number;
@@ -38,6 +46,7 @@ type ProjectRow = {
   template: ProjectTemplate;
   status: ProjectStatus;
   execution_mode: ExecutionMode;
+  cost_mode: CostMode;
   rules: string | null;
   created_at: number;
   updated_at: number;
@@ -57,6 +66,7 @@ export function createProject(
     description?: string;
     template?: ProjectTemplate;
     execution_mode?: ExecutionMode;
+    cost_mode?: CostMode;
     rules?: string[];
   }
 ): Project {
@@ -66,12 +76,13 @@ export function createProject(
   const description = opts?.description ?? '';
   const template = opts?.template ?? 'custom';
   const execution_mode = opts?.execution_mode ?? 'assisted';
+  const cost_mode = opts?.cost_mode ?? 'balanced';
   const rules = opts?.rules ?? [];
 
   db.prepare(
-    `INSERT INTO projects (id, name, description, template, status, execution_mode, rules, created_at, updated_at, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, description, template, 'active', execution_mode, JSON.stringify(rules), now, now, null);
+    `INSERT INTO projects (id, name, description, template, status, execution_mode, cost_mode, rules, created_at, updated_at, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, description, template, 'active', execution_mode, cost_mode, JSON.stringify(rules), now, now, null);
 
   return {
     id,
@@ -80,6 +91,7 @@ export function createProject(
     template,
     status: 'active',
     execution_mode,
+    cost_mode,
     rules,
     created_at: now,
     updated_at: now,
@@ -134,6 +146,15 @@ export function updateProjectExecutionMode(id: string, mode: ExecutionMode): Pro
   if (!project) return null;
 
   db.prepare('UPDATE projects SET execution_mode = ?, updated_at = ? WHERE id = ?').run(mode, Date.now(), id);
+  return getProject(id);
+}
+
+export function updateProjectCostMode(id: string, mode: CostMode): Project | null {
+  const db = getDb();
+  const project = getProject(id);
+  if (!project) return null;
+
+  db.prepare('UPDATE projects SET cost_mode = ?, updated_at = ? WHERE id = ?').run(mode, Date.now(), id);
   return getProject(id);
 }
 

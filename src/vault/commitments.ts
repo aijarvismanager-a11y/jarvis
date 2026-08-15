@@ -23,6 +23,8 @@ export type Commitment = {
   completed_at: number | null;
   result: string | null;
   sort_order: number;
+  /** Project this commitment belongs to, or null for User/global memory (spec §18-19). */
+  project_id: string | null;
 };
 
 type CommitmentRow = {
@@ -39,6 +41,7 @@ type CommitmentRow = {
   completed_at: number | null;
   result: string | null;
   sort_order: number;
+  project_id: string | null;
 };
 
 /**
@@ -63,15 +66,17 @@ export function createCommitment(
     retry_policy?: RetryPolicy;
     created_from?: string;
     assigned_to?: string;
+    project_id?: string | null;
   }
 ): Commitment {
   const db = getDb();
   const id = generateId();
   const now = Date.now();
   const priority = opts?.priority ?? 'normal';
+  const project_id = opts?.project_id ?? null;
 
   const stmt = db.prepare(
-    'INSERT INTO commitments (id, what, when_due, context, priority, status, retry_policy, created_from, assigned_to, created_at, completed_at, result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO commitments (id, what, when_due, context, priority, status, retry_policy, created_from, assigned_to, created_at, completed_at, result, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
   stmt.run(
@@ -86,7 +91,8 @@ export function createCommitment(
     opts?.assigned_to ?? null,
     now,
     null,
-    null
+    null,
+    project_id
   );
 
   return {
@@ -103,6 +109,7 @@ export function createCommitment(
     completed_at: null,
     result: null,
     sort_order: 0,
+    project_id,
   };
 }
 
@@ -127,6 +134,10 @@ export function findCommitments(query: {
   priority?: CommitmentPriority;
   assigned_to?: string;
   overdue?: boolean;
+  /** Exact project_id match (use `projectScope` for "this project or global"). */
+  project_id?: string;
+  /** Match this project's commitments plus global (project_id IS NULL) ones. */
+  projectScope?: string;
 }): Commitment[] {
   const db = getDb();
   const conditions: string[] = [];
@@ -151,6 +162,14 @@ export function findCommitments(query: {
     conditions.push('when_due IS NOT NULL AND when_due <= ?');
     params.push(Date.now());
     conditions.push("status IN ('pending', 'active')");
+  }
+
+  if (query.project_id) {
+    conditions.push('project_id = ?');
+    params.push(query.project_id);
+  } else if (query.projectScope) {
+    conditions.push('(project_id = ? OR project_id IS NULL)');
+    params.push(query.projectScope);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

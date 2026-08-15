@@ -412,10 +412,11 @@ export function buildSandboxServiceBackends(
       }
     : undefined;
 
-  const memoryWrite: MemoryWriteFn = async (req) => {
+  const memoryWrite: MemoryWriteFn = async (req, ctx) => {
     return createFact(req.subjectId, req.predicate, req.object, {
       confidence: req.confidence,
       source: req.source,
+      project_id: ctx.projectId,
     });
   };
 

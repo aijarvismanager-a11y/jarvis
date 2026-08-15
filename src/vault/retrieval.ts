@@ -58,7 +58,7 @@ export function extractSearchTerms(message: string): string[] {
  * Search the vault for entities matching the given terms.
  * Searches entity names and fact objects/predicates.
  */
-export function retrieveForMessage(message: string): EntityProfile[] {
+export function retrieveForMessage(message: string, projectId?: string): EntityProfile[] {
   const terms = extractSearchTerms(message);
   const entityMap = new Map<string, Entity>();
 
@@ -75,6 +75,7 @@ export function retrieveForMessage(message: string): EntityProfile[] {
         created_at: number;
         updated_at: number;
         source: string | null;
+        project_id: string | null;
       } | null;
 
       if (row) {
@@ -92,7 +93,7 @@ export function retrieveForMessage(message: string): EntityProfile[] {
 
   // 1. Search entity names
   for (const term of terms) {
-    const matches = searchEntitiesByName(term);
+    const matches = searchEntitiesByName(term, projectId);
     for (const entity of matches) {
       entityMap.set(entity.id, entity);
     }
@@ -101,15 +102,17 @@ export function retrieveForMessage(message: string): EntityProfile[] {
   // 2. Search fact objects and predicates for matching terms
   try {
     const db = getDb();
+    const scopeClause = projectId ? 'AND (e.project_id = ? OR e.project_id IS NULL)' : '';
     for (const term of terms) {
       const stmt = db.prepare(`
-        SELECT DISTINCT e.id, e.type, e.name, e.properties, e.created_at, e.updated_at, e.source
+        SELECT DISTINCT e.id, e.type, e.name, e.properties, e.created_at, e.updated_at, e.source, e.project_id
         FROM entities e
         JOIN facts f ON e.id = f.subject_id
-        WHERE f.object LIKE ? OR f.predicate LIKE ?
+        WHERE (f.object LIKE ? OR f.predicate LIKE ?) ${scopeClause}
         LIMIT 10
       `);
-      const rows = stmt.all(`%${term}%`, `%${term}%`) as any[];
+      const params = projectId ? [`%${term}%`, `%${term}%`, projectId] : [`%${term}%`, `%${term}%`];
+      const rows = stmt.all(...params) as any[];
       for (const row of rows) {
         if (!entityMap.has(row.id)) {
           entityMap.set(row.id, {
@@ -128,7 +131,9 @@ export function retrieveForMessage(message: string): EntityProfile[] {
   const profiles: EntityProfile[] = [];
 
   for (const entity of entities) {
-    const facts = findFacts({ subject_id: entity.id });
+    const facts = findFacts(
+      projectId ? { subject_id: entity.id, projectScope: projectId } : { subject_id: entity.id }
+    );
 
     let relationships: EntityProfile['relationships'] = [];
     try {
@@ -187,9 +192,9 @@ export function formatKnowledgeContext(profiles: EntityProfile[]): string {
  * Main entry point: get formatted knowledge context for a user message.
  * Returns empty string if no relevant knowledge found.
  */
-export function getKnowledgeForMessage(message: string): string {
+export function getKnowledgeForMessage(message: string, projectId?: string): string {
   try {
-    const profiles = retrieveForMessage(message);
+    const profiles = retrieveForMessage(message, projectId);
     return formatKnowledgeContext(profiles);
   } catch (err) {
     console.error('[Retrieval] Error querying vault:', err);

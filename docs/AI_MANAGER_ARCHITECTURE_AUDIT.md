@@ -335,3 +335,205 @@ global); chat display modes (spec §52, Simple/Detailed/Developer, entirely
 unimplemented); and a real-provider AI Manager setup guide in `docs/` (none
 exists today - this environment has never exercised Phases 2/5/6/8 against a
 real, non-mock LLM/image provider).
+
+## 9. Phase 12 Plan (clearing the 11-deferred list) — Done
+
+All four items shipped: `tsc --noEmit` clean (both `src/` and `ui/`), full
+`bun test` at 1900 passing / 63 failing - the same pre-existing Windows-only
+failures as every prior Phase 10/11 run, no new ones, `bun run build:ui`
+succeeds. Deviations from the plan below, by item:
+
+- **12-A**: `AIRouter.route()` already had `mode`/`MODE_TO_TIER` plumbing
+  built (spec §40-41 groundwork landed earlier than the audit's Phase 7
+  survey noticed) - this pass only had to add the persisted
+  `projects.cost_mode` column/API/UI and thread it into
+  `ManagerAgent.runSubtask`'s call to `router.route()`, passing `mode` only
+  when `cost_mode !== 'balanced'` so the existing per-template tier defaults
+  stay the no-op case, same convention as `execution_mode: 'auto'`.
+- **12-B**: scoped to `entities`/`facts`/`observations`/`commitments` only,
+  as planned (relationships inherit scope transitively via their entity
+  endpoints - `getEntityRelationships` now also returns each endpoint's
+  `project_id`). Found and fixed a live bug while wiring this: the Phase 9
+  workflow bridge's `memoryWrite` backend (`service-backends.ts`) was
+  silently dropping the `ctx.projectId` the route handler already extracted
+  (`jarvis-memory.ts`) instead of forwarding it to `createFact`, unlike its
+  sibling `decisionWrite`. `retrieveForMessage`/`getKnowledgeForMessage` now
+  take an optional `projectId` and scope to "this project or global", but
+  nothing in the conversational path (`AgentService.buildAmbientFactsBlock`/
+  `buildPromptContext`) calls them with one yet - that path has no project
+  concept at all today (confirmed: `ManagerAgent`'s task execution runs
+  through a separate `TaskDispatcher` runner in `agent-service.ts`, not
+  through the prompt builders). Wiring project-scoped memory into that
+  runner is a larger, separate change and was deliberately left out of this
+  pass rather than risk a rushed cross-path integration.
+- **12-C**: implemented as a client-side density filter
+  (`ui/src/v2/thread/displayMode.ts`) over the existing `ThreadItem` kinds
+  rather than new task/handoff item kinds - no such kinds exist in the
+  thread today (confirmed: task/agent chatter currently only surfaces via
+  `card`/`result`/`room-window`). `simple` keeps only user/Jarvis-speech/
+  decision-required kinds; `detailed` adds `card`/`result`; `developer`
+  (default, matching today's unfiltered behavior) adds `jarvis-thought`.
+  Persisted via `useChatDisplayMode` (localStorage, mirrors `useTheme.ts`),
+  selector added next to the Talk panel's close button.
+- **12-D**: `docs/AI_MANAGER_SETUP.md` written from the code (`llm-settings.ts`,
+  `keychain.ts`, tier validation), not from a live provider run - no API keys
+  are available in this environment. It documents a real, confirmed gap
+  found while writing it: unlike `/api/config/llm`, there is no
+  `/api/config/image` or `/api/config/github` route to set the Image/GitHub
+  keychain secrets from the dashboard - currently keychain-only, no UI path.
+
+**Deferred, not forgotten** (re-evaluate later, not urgent): project-scoped
+memory retrieval wired into `AgentService`'s conversational prompt builders
+(12-B's remaining half); `/api/config/image` and `/api/config/github` routes
+mirroring `/api/config/llm` (surfaced by 12-D); `cost_mode`/`execution_mode`
+exposed in `CreateProjectDialog` at creation time instead of only via
+post-creation `PATCH`; Image Agent generation history (deferred since
+Phase 11-B, still no backend list endpoint).
+
+All four items deferred at the end of Phase 11 are in scope. Not spec-ordered
+- scoped by what actually blocks what.
+
+**Suggested order: 12-B, then 12-A, then 12-C, with 12-D done in parallel at
+any point.** B touches the most call sites (every vault memory read/write
+used by agents and the dashboard) and both A and C are easiest to build once
+project-scoped state is the norm rather than an exception - A adds another
+per-project setting next to `execution_mode`/`project_id`-scoped memory, and
+C's chat panel wants to show memory/decision context next to messages, which
+reads better once that context is already project-scoped. D is pure
+documentation research against a real provider account and has no code
+dependency on A/B/C, so it can run independently rather than gating the end
+of the phase.
+
+### 12-A: Cheap/Balanced/Quality cost-mode selector (spec §40-41)
+
+**Problem**: `TaskDispatcher.dispatch` already accepts a `tier` override per
+`TaskRequest` (`src/agents/conv/task-dispatcher.ts:56`), and `runSubtask`
+picks a tier per template today with no user input. There is no persisted,
+user-facing "Cheap / Balanced / Quality" setting anywhere - `projects` has
+`execution_mode` (Phase 11-C) but nothing analogous for cost. A user who
+wants to cap spend on a project has no lever; the spec explicitly asks for a
+3-mode selector layered on the existing tier system (not a new router).
+
+**Plan**:
+1. Add a `cost_mode: 'cheap' | 'balanced' | 'quality'` column to `projects`
+   (additive `ALTER TABLE ... ADD COLUMN`, default `'balanced'`, same
+   convention as `execution_mode`) plus a `updateProjectCostMode` helper in
+   `src/vault/projects.ts` mirroring `updateProjectExecutionMode`.
+2. Define the mode → tier mapping once, near `TIERS`/`TIER_FALLUP_ORDER` in
+   `src/llm/tiers.ts` or as a small table in `src/ai-manager/`: `cheap` forces
+   `low` (falling up through the existing chain only on failure), `quality`
+   forces `high`, `balanced` leaves each template's existing per-template
+   default alone (today's behavior, so `balanced` is a no-op mapping - keeps
+   the common case unchanged like `auto` did for execution mode).
+3. In `ManagerAgent.runSubtask`, read `project.cost_mode` and pass the
+   resolved tier as `TaskRequest.tier` instead of leaving it to the
+   dispatcher's per-template default, following the same
+   read-project-field-before-dispatch pattern 11-C established for
+   `execution_mode`.
+4. API: extend the existing project create/update routes in
+   `src/ai-manager/api/routes.ts` (same handlers that already accept
+   `execution_mode`) to accept/return `cost_mode`.
+5. UI: a 3-way selector next to wherever `execution_mode` is already exposed
+   in `AIManagerRoom.tsx` / project settings, calling the same update route.
+6. Tests: extend `manager-agent.e2e.test.ts` with cases asserting the
+   resolved tier for each mode (cheap forces low, quality forces high,
+   balanced matches today's per-template default), following the
+   execution-mode test pattern from 11-C.
+
+### 12-B: Project Memory vs User Memory separation (spec §18-19)
+
+**Problem**: `entities`, `facts`, `relationships`, `observations` (`src/vault/
+schema.ts`) have no `project_id` column - all vault memory is global across
+every agent and project. `tasks`/`decisions`/`agent_messages` already carry
+`project_id` (Phase 1). Without scoping, a fact learned while working on
+project A can leak into project B's context, and there is no way to query
+"memory for this project only" vs. "memory about the user in general" - both
+required by the spec as logically separate categories.
+
+**Plan**:
+1. Additive migration: `project_id TEXT` (nullable - `NULL` means
+   user/global-scoped, matching the spec's User Memory category) on
+   `entities`, `facts`, `observations`, `commitments`, plus a
+   `idx_*_project` index on each, following the exact `try { ALTER TABLE ...
+   } catch {}` + `CREATE INDEX IF NOT EXISTS` convention already used for
+   `tasks.project_id`/`agent_messages.project_id` (`schema.ts:865-920`).
+   `relationships` inherits scoping transitively via its `entities` endpoints
+   rather than getting its own column.
+2. Vault write paths: every function that creates an entity/fact/observation
+   from within a project-scoped agent call (`ManagerAgent`/`TaskDispatcher`
+   context) needs to thread `project_id` through - audit
+   `src/vault/*.ts` create functions and their call sites in
+   `src/agents/`/`src/ai-manager/` for where a project id is already
+   available in scope vs. where it needs to be passed down one more level.
+3. Vault read paths used by agents (whatever builds LLM context from
+   memory - likely in `src/vault/` retrieval helpers or wherever
+   `AgentInstance`/task runners assemble their system prompt) should default
+   to `project_id = current project OR project_id IS NULL` (project memory +
+   user memory, never other projects' memory) unless a caller explicitly asks
+   for cross-project/global-only.
+4. Do not touch `conversations`/`conversation_messages`/`vectors`/
+   `personality_state` unless a concrete leak is found there - the spec's
+   separation concern is about facts/entities/observations bleeding across
+   projects, not chat transcripts, and Section 5's "must not be changed"
+   list argues for the smallest schema surface that satisfies the
+   requirement.
+5. Tests: a vault-level test creating facts under two different `project_id`s
+   (plus one `NULL`/global fact) and asserting project-scoped retrieval
+   returns only its own + global, never the other project's.
+
+### 12-C: Chat display modes - Simple/Detailed/Developer (spec §52)
+
+**Problem**: no existing concept of collapsing agent/task/handoff detail in
+the chat UI - every message renders at the same level of detail regardless
+of user preference. Phase 11-B already surfaced Handoffs/Council/Agent
+Performance as dashboard panels; this item is about the density of the main
+chat stream itself, not new data sources.
+
+**Plan**:
+1. A per-user (not per-project) UI preference, `chatDisplayMode: 'simple' |
+   'detailed' | 'developer'`, persisted client-side (localStorage, consistent
+   with other UI-only prefs already in `ui/src/v2/`) rather than a new vault
+   table - this is a rendering concern, not data the backend needs to know
+   about.
+2. `Simple`: only final agent replies and user messages, no task/handoff/tool
+   chatter.
+3. `Detailed`: adds task lifecycle events (spawned/running/waiting/completed)
+   and Handoff summaries inline, reusing the same data 11-B's Handoffs feed
+   already fetches rather than a new endpoint.
+4. `Developer`: adds raw tool calls/results and QA report detail inline
+   (the `qa_report` checklist 11-B already renders on task cards gets a
+   compact inline variant here).
+5. Implementation is a filter/render-density switch over the existing
+   message/event stream in whatever component renders the chat panel - no
+   new backend endpoint needed since 11-B already wired the underlying data
+   fetches; confirm during implementation whether any of it needs to move
+   from "dashboard-only" fetches into the main chat view's data hook.
+6. A mode selector control near the chat input, mirroring wherever
+   execution_mode/cost_mode selectors end up living so project- and
+   user-level controls read as one settings surface, not two.
+
+### 12-D: Real-provider AI Manager setup guide (docs)
+
+**Problem**: every Phase 2/5/6/8 integration test in this environment runs
+against mock/test providers. No `docs/` guide exists for pointing a real
+account (Anthropic/OpenAI/etc. for LLM tiers, an image provider for Phase 8)
+at the AI Manager and confirming Council/QA/Image generation work end to end
+against live APIs. This is pure documentation + manual verification, not a
+code change, and has no dependency on 12-A/B/C.
+
+**Plan**:
+1. Walk through `jarvis enroll`/config setup with a real provider API key,
+   documenting the keychain-based credential flow already established
+   (`src/vault/keychain.ts`, `github_token`/`image.provider.*` precedents)
+   rather than inventing a new setup path.
+2. Document the minimum tier config needed (`llm/tiers.ts`'s "at least one of
+   `medium` or `high`" validation) to get AI Manager project creation
+   working.
+3. Run one real end-to-end project through the dashboard against live
+   providers (not mocked) and capture what breaks, if anything - this is
+   also the first real-provider validation of Phases 2/5/6/8 called out as a
+   gap at the end of Phase 11.
+4. Write the guide as `docs/AI_MANAGER_SETUP.md`, covering: prerequisites,
+   provider credential setup, minimum config, first project walkthrough,
+   troubleshooting common failures (auth errors, tier fall-up behavior,
+   image provider setup).

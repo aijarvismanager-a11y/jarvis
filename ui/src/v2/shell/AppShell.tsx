@@ -14,6 +14,7 @@ import type { PaletteNavEntry, PaletteResult, PaletteResultType } from "../palet
 import { navKeyToObjectType } from "../palette/types";
 import { usePaletteHotkey } from "../palette/usePaletteHotkey";
 import { SystemTakeover, SystemBanners, useSystemStateOverride, type TakeoverKind } from "./SystemStates";
+import { useChatDisplayMode, type ChatDisplayMode } from "./useChatDisplayMode";
 import { BillingBanner } from "../billing/BillingBanner";
 import { closeRoom, openRoom, useV2Route, ROOM_KEYS, type RoomKey } from "../router";
 import { getRoomBody } from "../rooms/RoomBodyRegistry";
@@ -847,6 +848,7 @@ function ShellLayout({
   const [arranging, setArranging] = useState(false);
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkIn, setTalkIn] = useState(false);
+  const [chatDisplayMode, setChatDisplayMode] = useChatDisplayMode();
 
   // awaiting-approval renders as the "asking" (amber) pebble state.
   const dataState = voiceState === "awaiting-approval" ? "asking" : voiceState;
@@ -963,6 +965,17 @@ function ShellLayout({
                 {voiceState === "idle" ? "tap the pebble to talk" : TALK_HINT[voiceState]}
               </span>
             </div>
+            <select
+              className="rs-talk-density"
+              value={chatDisplayMode}
+              onChange={(e) => setChatDisplayMode(e.target.value as ChatDisplayMode)}
+              aria-label="Chat detail level"
+              title="How much task/tool detail to show inline in the chat"
+            >
+              <option value="simple">Simple</option>
+              <option value="detailed">Detailed</option>
+              <option value="developer">Developer</option>
+            </select>
             <button className="esc" onClick={() => setTalkOpen(false)} aria-label="Close Talk">⌘J · esc</button>
           </div>
 
@@ -971,6 +984,7 @@ function ShellLayout({
             <Thread
               ref={threadRef}
               items={items}
+              displayMode={chatDisplayMode}
               onApprove={onApprove}
               onCancel={onCancel}
               onFocusCard={onFocusCard}

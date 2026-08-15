@@ -851,6 +851,13 @@ function createTables(db: Database): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at DESC)`);
 
+  // Migration (Phase 12-A): user-facing Cheap/Balanced/Quality cost mode
+  // (spec §40-41). Mirrors execution_mode's ALTER-TABLE-with-default
+  // convention rather than being added to the CREATE TABLE above, since that
+  // statement only runs for brand-new databases. 'balanced' is a no-op
+  // mapping onto today's per-template tier defaults (see src/llm/cost-mode.ts).
+  try { db.run(`ALTER TABLE projects ADD COLUMN cost_mode TEXT NOT NULL DEFAULT 'balanced'`); } catch { /* already present */ }
+
   // Migration (Phase 11-A): `plan` persists the Planner's full subtask list
   // (title/template/priority/depends_on/task_id per index) as JSON, so
   // ManagerAgent.continueProject() can reconstruct the dependency-graph wave
@@ -918,4 +925,21 @@ function createTables(db: Database): void {
   try { db.run(`ALTER TABLE agent_messages ADD COLUMN project_id TEXT`); } catch { /* already present */ }
   db.run(`CREATE INDEX IF NOT EXISTS idx_msg_task ON agent_messages(task_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_msg_project ON agent_messages(project_id)`);
+
+  // Migration (Phase 12-B): Project Memory vs. User Memory separation (spec
+  // §18-19). `project_id` is nullable on every knowledge-graph/awareness
+  // table below, same convention as `decisions.project_id` — NULL means
+  // User/global memory, a set value means it belongs to that project only.
+  // No FK clause, consistent with this file's existing ALTER TABLE convention.
+  try { db.run(`ALTER TABLE entities ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_entities_project ON entities(project_id)`);
+
+  try { db.run(`ALTER TABLE facts ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_facts_project ON facts(project_id)`);
+
+  try { db.run(`ALTER TABLE observations ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_observations_project ON observations(project_id)`);
+
+  try { db.run(`ALTER TABLE commitments ADD COLUMN project_id TEXT`); } catch { /* already present */ }
+  db.run(`CREATE INDEX IF NOT EXISTS idx_commitments_project ON commitments(project_id)`);
 }

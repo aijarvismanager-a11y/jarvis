@@ -12,6 +12,7 @@ import {
   type Handoff,
   type AgentPerformance,
   type CouncilVerdict,
+  type CostMode,
 } from "./useAIManagerData";
 import "./AIManagerRoom.css";
 
@@ -27,6 +28,8 @@ const PROJECT_STATUS_TONE: Record<ProjectStatus, Tone> = {
 const TASK_COLUMNS: ProjectTaskStatus[] = [
   "PENDING", "PLANNING", "READY", "RUNNING", "WAITING", "BLOCKED", "REVIEW", "QA", "COMPLETED", "FAILED", "CANCELLED",
 ];
+
+const COST_MODES: readonly CostMode[] = ["cheap", "balanced", "quality"];
 
 const TASK_STATUS_TONE: Record<ProjectTaskStatus, Tone> = {
   PENDING: "mut", PLANNING: "mut", READY: "mut", RUNNING: "run", WAITING: "hold",
@@ -103,6 +106,20 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                   <div className="rk-aim__dn">{selected.name}</div>
                   <div className="rk-aim__dm">{selected.template} · {selected.execution_mode}</div>
                 </div>
+                <select
+                  className="rk-aim__cost-select"
+                  value={selected.cost_mode}
+                  onChange={async (e) => {
+                    const r = await data.updateCostMode(selected.id, e.target.value as CostMode);
+                    setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+                  }}
+                  aria-label="Cost mode"
+                  title="Cheap/Balanced/Quality — overrides each subtask template's default tier"
+                >
+                  {COST_MODES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
                 <StatusChip tone={PROJECT_STATUS_TONE[selected.status]} dot>{selected.status}</StatusChip>
                 <button className="rk-aim__council-btn" onClick={() => setCouncilOpen(true)}>Ask the Council</button>
                 {selected.status === "active" && (

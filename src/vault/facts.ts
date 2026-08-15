@@ -10,6 +10,8 @@ export type Fact = {
   source: string | null;
   created_at: number;
   verified_at: number | null;
+  /** Project this fact belongs to, or null for User/global memory (spec §18-19). */
+  project_id: string | null;
 };
 
 type FactRow = {
@@ -21,6 +23,7 @@ type FactRow = {
   source: string | null;
   created_at: number;
   verified_at: number | null;
+  project_id: string | null;
 };
 
 /**
@@ -37,20 +40,21 @@ export function createFact(
   subject_id: string,
   predicate: string,
   object: string,
-  opts?: { confidence?: number; source?: string }
+  opts?: { confidence?: number; source?: string; project_id?: string | null }
 ): Fact {
   const db = getDb();
   const id = generateId();
   const now = Date.now();
   const confidence = opts?.confidence ?? 1.0;
   const source = opts?.source ?? null;
+  const project_id = opts?.project_id ?? null;
 
   const stmt = db.prepare(
-    'INSERT INTO facts (id, subject_id, predicate, object, confidence, source, created_at, verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO facts (id, subject_id, predicate, object, confidence, source, created_at, verified_at, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
   const objectStr = typeof object === 'string' ? object : JSON.stringify(object);
-  stmt.run(id, subject_id, predicate, objectStr, confidence, source, now, null);
+  stmt.run(id, subject_id, predicate, objectStr, confidence, source, now, null, project_id);
 
   return {
     id,
@@ -61,6 +65,7 @@ export function createFact(
     source,
     created_at: now,
     verified_at: null,
+    project_id,
   };
 }
 
@@ -84,6 +89,10 @@ export function findFacts(query: {
   subject_id?: string;
   predicate?: string;
   object?: string;
+  /** Exact project_id match (use `projectScope` for "this project or global"). */
+  project_id?: string;
+  /** Match this project's facts plus global (project_id IS NULL) ones. */
+  projectScope?: string;
 }): Fact[] {
   const db = getDb();
   const conditions: string[] = [];
@@ -102,6 +111,14 @@ export function findFacts(query: {
   if (query.object) {
     conditions.push('object = ?');
     params.push(query.object);
+  }
+
+  if (query.project_id) {
+    conditions.push('project_id = ?');
+    params.push(query.project_id);
+  } else if (query.projectScope) {
+    conditions.push('(project_id = ? OR project_id IS NULL)');
+    params.push(query.projectScope);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

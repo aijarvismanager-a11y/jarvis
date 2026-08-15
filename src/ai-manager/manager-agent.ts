@@ -34,7 +34,7 @@ import { AIRouter } from './router.ts';
 import { Planner, type PlanResult, type PlannedSubtask, type PlannedPriority } from './planner.ts';
 import {
   updateProjectStatus, getProject, getProjectPlan, setProjectPlan,
-  type Project, type ProjectTemplate, type ExecutionMode,
+  type Project, type ProjectTemplate, type ExecutionMode, type CostMode,
 } from '../vault/projects.ts';
 import { setProjectTaskFields, getProjectTaskFields, type ProjectTaskStatus } from '../vault/project-tasks.ts';
 import { sendHandoff } from '../agents/handoff.ts';
@@ -99,7 +99,7 @@ export class ManagerAgent {
   async handleRequest(
     name: string,
     userRequest: string,
-    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode },
+    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode },
   ): Promise<ProjectRunResult> {
     const plan = await this.planner.planProject(name, userRequest, opts);
     return this.runPlan(plan, userRequest);
@@ -365,7 +365,17 @@ export class ManagerAgent {
       }
     }
 
-    const routing = this.router.route({ template: subtask.template });
+    // Phase 12-A: project.cost_mode overrides the router's per-template
+    // default tier. 'balanced' is deliberately passed through as "no
+    // override" (omitted) rather than forced to router.ts's MODE_TO_TIER
+    // 'balanced'->medium mapping - that mapping is for an explicit user
+    // choice of "balanced", not a stand-in for "unset", and forcing it here
+    // would flatten `code`/`plan`'s existing 'quality' template default down
+    // to 'medium' for every project that never touched the selector.
+    const routing = this.router.route({
+      template: subtask.template,
+      ...(project.cost_mode !== 'balanced' ? { mode: project.cost_mode } : {}),
+    });
     const healing: HealingResult = await this.healer.run({
       template: subtask.template,
       mode: routing.mode,

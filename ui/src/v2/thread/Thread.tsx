@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 import { Icon } from "../ui";
 import { ApprovalCard } from "./ApprovalCard";
@@ -14,12 +14,16 @@ import {
   UserVoiceItem,
 } from "./items";
 import type { ThreadItem } from "./types";
+import { filterThreadItems } from "./displayMode";
+import type { ChatDisplayMode } from "../shell/useChatDisplayMode";
 import "./Thread.css";
 
 const NEAR_BOTTOM_PX = 80;
 
 export interface ThreadProps {
   items: ThreadItem[];
+  /** Phase 12-C (spec §52) density preference. Defaults to "developer" (unfiltered, today's behavior). */
+  displayMode?: ChatDisplayMode;
   onApprove?: (id: string) => void;
   onCancel?: (id: string) => void;
   onFocusCard?: (id: string) => void;
@@ -54,7 +58,8 @@ export type ThreadHandle = {
 };
 
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({
-  items,
+  items: rawItems,
+  displayMode = "developer",
   onApprove,
   onCancel,
   onFocusCard,
@@ -67,6 +72,7 @@ export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({
   onRoomLayoutChange,
   dev,
 }, ref) {
+  const items = useMemo(() => filterThreadItems(rawItems, displayMode), [rawItems, displayMode]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(items.length);

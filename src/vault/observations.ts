@@ -17,6 +17,8 @@ export type Observation = {
   data: Record<string, unknown>;
   processed: boolean;
   created_at: number;
+  /** Project this observation belongs to, or null for host-level/global (spec §18-19). */
+  project_id: string | null;
 };
 
 /**
@@ -126,6 +128,7 @@ type ObservationRow = {
   data: string;
   processed: number;
   created_at: number;
+  project_id: string | null;
 };
 
 /**
@@ -138,6 +141,7 @@ function parseObservation(row: ObservationRow): Observation {
     data: JSON.parse(row.data),
     processed: row.processed === 1,
     created_at: row.created_at,
+    project_id: row.project_id ?? null,
   };
 }
 
@@ -146,17 +150,18 @@ function parseObservation(row: ObservationRow): Observation {
  */
 export function createObservation(
   type: ObservationType,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  project_id?: string | null
 ): Observation {
   const db = getDb();
   const id = generateId();
   const now = Date.now();
 
   const stmt = db.prepare(
-    'INSERT INTO observations (id, type, data, processed, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO observations (id, type, data, processed, created_at, project_id) VALUES (?, ?, ?, ?, ?, ?)'
   );
 
-  stmt.run(id, type, JSON.stringify(data), 0, now);
+  stmt.run(id, type, JSON.stringify(data), 0, now, project_id ?? null);
 
   return {
     id,
@@ -164,6 +169,7 @@ export function createObservation(
     data,
     processed: false,
     created_at: now,
+    project_id: project_id ?? null,
   };
 }
 
@@ -194,16 +200,27 @@ export function markProcessed(id: string): void {
  */
 export function getRecentObservations(
   type?: ObservationType,
-  limit: number = 50
+  limit: number = 50,
+  projectScope?: string
 ): Observation[] {
   const db = getDb();
 
   let query = 'SELECT * FROM observations';
+  const conditions: string[] = [];
   const params: unknown[] = [];
 
   if (type) {
-    query += ' WHERE type = ?';
+    conditions.push('type = ?');
     params.push(type);
+  }
+
+  if (projectScope) {
+    conditions.push('(project_id = ? OR project_id IS NULL)');
+    params.push(projectScope);
+  }
+
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
   }
 
   query += ' ORDER BY created_at DESC LIMIT ?';

@@ -4,6 +4,7 @@ const POLL_INTERVAL_MS = 8000;
 
 export type ProjectStatus = "active" | "paused" | "completed" | "archived";
 export type ExecutionMode = "auto" | "assisted" | "manual";
+export type CostMode = "cheap" | "balanced" | "quality";
 export type ProjectTemplate =
   | "website" | "web_app" | "software" | "research" | "content" | "data_project" | "automation" | "custom";
 
@@ -14,6 +15,7 @@ export interface Project {
   template: ProjectTemplate;
   status: ProjectStatus;
   execution_mode: ExecutionMode;
+  cost_mode: CostMode;
   rules: string[];
   created_at: number;
   updated_at: number;
@@ -223,6 +225,7 @@ export function useAIManagerData() {
       request: string;
       template?: ProjectTemplate;
       execution_mode?: ExecutionMode;
+      cost_mode?: CostMode;
     }): Promise<{ ok: true; project: Project } | { ok: false; message: string }> => {
       setRunning(true);
       try {
@@ -256,6 +259,25 @@ export function useAIManagerData() {
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refreshProjects();
         return { ok: true, message: `Project ${status}.` };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refreshProjects],
+  );
+
+  /** Phase 12-A: Cheap/Balanced/Quality cost mode selector. */
+  const updateCostMode = useCallback(
+    async (id: string, cost_mode: CostMode): Promise<ActionResult> => {
+      try {
+        const resp = await fetch(`/api/ai-manager/projects/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cost_mode }),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        await refreshProjects();
+        return { ok: true, message: `Cost mode set to ${cost_mode}.` };
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : "Failed" };
       }
@@ -338,6 +360,7 @@ export function useAIManagerData() {
     refresh: refreshProjects,
     runProject,
     updateStatus,
+    updateCostMode,
     addDecision,
     resumeTask,
     askCouncil,

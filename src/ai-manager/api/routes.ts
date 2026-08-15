@@ -21,9 +21,11 @@ import {
   getProject,
   updateProjectStatus,
   updateProjectExecutionMode,
+  updateProjectCostMode,
   setProjectRules,
   type ProjectStatus,
   type ExecutionMode,
+  type CostMode,
   type ProjectTemplate,
 } from '../../vault/projects.ts';
 import { findDecisions, createDecision } from '../../vault/decisions.ts';
@@ -47,6 +49,7 @@ function errorFromException(err: unknown): Response {
 
 const VALID_PROJECT_STATUSES: readonly ProjectStatus[] = ['active', 'paused', 'completed', 'archived'];
 const VALID_EXECUTION_MODES: readonly ExecutionMode[] = ['auto', 'assisted', 'manual'];
+const VALID_COST_MODES: readonly CostMode[] = ['cheap', 'balanced', 'quality'];
 const VALID_TEMPLATES: readonly ProjectTemplate[] = [
   'website', 'web_app', 'software', 'research', 'content', 'data_project', 'automation', 'custom',
 ];
@@ -127,6 +130,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             request?: string;
             template?: ProjectTemplate;
             execution_mode?: ExecutionMode;
+            cost_mode?: CostMode;
           };
           if (!body.name || typeof body.name !== 'string') return error('name is required', 400);
           if (!body.request || typeof body.request !== 'string') return error('request is required', 400);
@@ -135,6 +139,9 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
           }
           if (body.execution_mode && !VALID_EXECUTION_MODES.includes(body.execution_mode)) {
             return error(`execution_mode must be one of: ${VALID_EXECUTION_MODES.join(', ')}`, 400);
+          }
+          if (body.cost_mode && !VALID_COST_MODES.includes(body.cost_mode)) {
+            return error(`cost_mode must be one of: ${VALID_COST_MODES.join(', ')}`, 400);
           }
 
           const manager = managerAgentFor();
@@ -148,6 +155,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
           const result = await manager.handleRequest(body.name, body.request, {
             template: body.template,
             execution_mode: body.execution_mode,
+            cost_mode: body.cost_mode,
           });
           return json(result, 201);
         } catch (err) {
@@ -164,7 +172,12 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
       },
       PATCH: async (req: Request & { params: { id: string } }) => {
         try {
-          const body = (await req.json()) as { status?: ProjectStatus; execution_mode?: ExecutionMode; rules?: string[] };
+          const body = (await req.json()) as {
+            status?: ProjectStatus;
+            execution_mode?: ExecutionMode;
+            cost_mode?: CostMode;
+            rules?: string[];
+          };
           let project = getProject(req.params.id);
           if (!project) return error('Project not found', 404);
 
@@ -179,6 +192,12 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               return error(`execution_mode must be one of: ${VALID_EXECUTION_MODES.join(', ')}`, 400);
             }
             project = updateProjectExecutionMode(req.params.id, body.execution_mode);
+          }
+          if (body.cost_mode) {
+            if (!VALID_COST_MODES.includes(body.cost_mode)) {
+              return error(`cost_mode must be one of: ${VALID_COST_MODES.join(', ')}`, 400);
+            }
+            project = updateProjectCostMode(req.params.id, body.cost_mode);
           }
           if (body.rules) {
             if (!Array.isArray(body.rules) || !body.rules.every((r) => typeof r === 'string')) {

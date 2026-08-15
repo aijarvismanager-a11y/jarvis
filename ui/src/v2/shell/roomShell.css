@@ -316,6 +316,7 @@ button.rs-chip:hover { color: var(--ink); border-color: var(--ink3); }
 .rs-talk-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .rs-talk .th .tt { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.1; }
 .rs-talk-sub { font-family: var(--mono); font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-talk .th .rs-talk-density { font-family: var(--mono); font-size: 9px; color: var(--ink3); background: none; border: 1px solid var(--rule); cursor: pointer; padding: 3px 6px; border-radius: 6px; }
 .rs-talk .th .esc { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--ink3); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 6px; }
 .rs-talk .th .esc:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .rs-talk .rs-talk-thread { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }

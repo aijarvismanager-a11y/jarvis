@@ -13,7 +13,7 @@
 
 import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
 import { AIRouter } from './router.ts';
-import { createProject, setProjectPlan, type Project, type ProjectTemplate, type ExecutionMode } from '../vault/projects.ts';
+import { createProject, setProjectPlan, type Project, type ProjectTemplate, type ExecutionMode, type CostMode } from '../vault/projects.ts';
 
 const VALID_TEMPLATES: readonly TaskTemplate[] = ['research', 'code', 'plan', 'write', 'general'];
 const VALID_PRIORITIES = ['low', 'normal', 'high', 'critical'] as const;
@@ -50,12 +50,13 @@ export class Planner {
   async planProject(
     name: string,
     userRequest: string,
-    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode },
+    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode },
   ): Promise<PlanResult> {
     const project = createProject(name, {
       description: userRequest,
       template: opts?.template,
       execution_mode: opts?.execution_mode,
+      cost_mode: opts?.cost_mode,
     });
 
     const subtasks = await this.decompose(userRequest);
