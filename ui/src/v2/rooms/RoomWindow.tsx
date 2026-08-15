@@ -19,6 +19,7 @@ const ROOM_TITLE: Record<RoomKey, string> = {
   workspaces: "Workspaces",
   usage: "Usage",
   settings: "Settings",
+  ai_manager: "AI Manager",
 };
 
 export interface RoomWindowProps {

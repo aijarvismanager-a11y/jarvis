@@ -14,6 +14,7 @@ import { ContentRoomBody } from "./content/ContentRoom";
 import { WorkspacesRoomBody } from "./workspaces/WorkspacesRoom";
 import { UsageRoomBody } from "./usage/UsageRoom";
 import { SettingsRoomBody } from "./settings/SettingsRoom";
+import { AIManagerRoomBody } from "./aiManager/AIManagerRoom";
 
 export type RoomBodyMode = "inline" | "expanded";
 
@@ -42,6 +43,7 @@ const REGISTRY: Partial<Record<RoomKey, RoomBodyComponent>> = {
   workspaces: WorkspacesRoomBody,
   usage: UsageRoomBody,
   settings: SettingsRoomBody,
+  ai_manager: AIManagerRoomBody,
 };
 
 /**

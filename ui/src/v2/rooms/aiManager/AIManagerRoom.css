@@ -1,0 +1,73 @@
+/* AI Manager room — projects, task board, decisions. Mirrors the tokens and
+   grammar established in rooms/tasks/TasksRoom.css (rk-* prefix, chip for
+   status instead of side-stripes). */
+
+.rk-aim { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 12.5px; position: relative; }
+
+/* ── toolbar ── */
+.rk-aim__tool { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--rule); background: var(--panel2); flex-shrink: 0; flex-wrap: wrap; }
+.rk-aim__title { font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.rk-aim__sub { font-family: var(--mono); font-size: 9px; color: var(--ink3); }
+.rk-aim__icbtn { margin-left: auto; width: 26px; height: 26px; border-radius: 6px 1px 6px 6px; border: 1px solid var(--rule); background: var(--raise); display: inline-flex; align-items: center; justify-content: center; color: var(--ink3); cursor: pointer; }
+.rk-aim__icbtn:hover { color: var(--ink); border-color: var(--ink3); }
+.rk-aim__new { font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 7px 2px 7px 7px; background: var(--ink); color: var(--bg); box-shadow: var(--sh-sm); white-space: nowrap; border: none; cursor: pointer; font-family: var(--sans); }
+
+/* ── layout: project list + detail ── */
+.rk-aim__body { flex: 1; display: flex; min-height: 0; }
+.rk-aim__list { width: 240px; flex-shrink: 0; border-right: 1px solid var(--rule); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.rk-aim__detail { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.rk-aim__empty { padding: 26px 16px; }
+.rk-aim__msg { padding: 26px 16px; font-family: var(--mono); font-size: 12px; color: var(--listen-tx); }
+
+/* ── project row ── */
+.rk-aim__row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 8px 10px; cursor: pointer; text-align: left; width: 100%; font-family: var(--sans); }
+.rk-aim__row:hover { box-shadow: var(--sh-sm); }
+.rk-aim__row--sel { border-color: var(--ink); box-shadow: inset 2px 0 0 var(--ink); }
+.rk-aim__row-t { font-size: 12px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-aim__row-end { flex-shrink: 0; }
+
+/* ── detail header ── */
+.rk-aim__dh { display: flex; align-items: center; gap: 10px; }
+.rk-aim__dn { font-size: 15px; font-weight: 700; }
+.rk-aim__dm { font-family: var(--mono); font-size: 9px; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; }
+.rk-aim__desc { font-size: 12px; color: var(--ink2); line-height: 1.5; }
+.rk-aim__sbtn { margin-left: auto; font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 7px 2px 7px 7px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); cursor: pointer; font-family: var(--sans); }
+.rk-aim__sbtn--pri { background: var(--ink); color: var(--bg); border: none; }
+.rk-aim__sbtn:disabled { opacity: .5; cursor: default; }
+
+/* ── board ── */
+.rk-aim__board { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.rk-aim__col { flex: 0 0 160px; display: flex; flex-direction: column; min-height: 0; border-radius: 11px 3px 11px 11px; background: var(--panel2); }
+.rk-aim__colh { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 9px 11px 7px; flex-shrink: 0; }
+.rk-aim__colh .c { margin-left: auto; color: var(--ink2); }
+.rk-aim__col-scroll { overflow-y: auto; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 320px; }
+.rk-aim__col-empty { font-family: var(--mono); font-size: 11px; color: var(--faint); padding: 8px 11px; }
+
+/* ── task card ── */
+.rk-aim__card { border: 1px solid var(--rule); border-radius: 10px 2px 10px 10px; background: var(--raise); box-shadow: var(--sh-sm); padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; }
+.rk-aim__card-t { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.rk-aim__card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rk-aim__asg { font-family: var(--mono); font-size: 8px; color: var(--ink2); border: 1px solid var(--rule); border-radius: 999px; padding: 1.5px 7px; white-space: nowrap; }
+
+/* ── decisions ── */
+.rk-aim__decisions { display: flex; flex-direction: column; gap: 8px; }
+.rk-aim__dlabel { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); }
+.rk-aim__decision { border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 8px 10px; }
+.rk-aim__decision-statement { font-size: 12px; font-weight: 600; }
+.rk-aim__decision-reason { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.rk-aim__decision-meta { font-family: var(--mono); font-size: 8px; color: var(--ink3); margin-top: 4px; }
+
+/* ── dialog ── */
+.rk-aim__overlay { position: fixed; inset: 0; background: color-mix(in srgb, black 40%, transparent); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.rk-aim__dialog { width: 420px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--rule); border-radius: 12px 3px 12px 12px; box-shadow: var(--sh-md); display: flex; flex-direction: column; }
+.rk-aim__dialog-head { padding: 16px 16px 8px; }
+.rk-aim__dialog-title { font-size: 14px; font-weight: 700; }
+.rk-aim__dialog-sub { font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.4; }
+.rk-aim__dialog-body { padding: 8px 16px; display: flex; flex-direction: column; gap: 12px; }
+.rk-aim__flab { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 4px; }
+.rk-aim__input, .rk-aim__textarea { width: 100%; border: 1px solid var(--rule); border-radius: 7px; background: var(--raise); color: var(--ink); font-family: var(--sans); font-size: 12px; padding: 7px 10px; outline: none; }
+.rk-aim__textarea { resize: vertical; }
+.rk-aim__dialog-acts { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 16px; }
+
+/* ── toast ── */
+.rk-aim__toast { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); }

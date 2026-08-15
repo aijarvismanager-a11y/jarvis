@@ -232,4 +232,11 @@ const ROOM_META: Record<RoomKey, RoomMeta> = {
     description:
       "Configuration: profile, LLM providers, channels, integrations, sidecar setup.",
   },
+  ai_manager: {
+    title: "AI Manager",
+    subtitle: "projects · tasks · council · decisions",
+    phaseTag: "AI Manager",
+    description:
+      "Projects run by the Manager Agent: task kanban, handoffs, agent performance, decisions, and the AI Council.",
+  },
 };
