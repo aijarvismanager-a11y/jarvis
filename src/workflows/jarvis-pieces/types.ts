@@ -122,6 +122,8 @@ export interface PieceAgentDelegateInput {
   goal: string;
   role?: string;
   maxIterations?: number;
+  /** Phase 27: threaded from the route's ctx.projectId so M7AgentDelegator can pass it into runSubAgent's audit rows. */
+  projectId?: string;
 }
 
 export type PieceAgentRunStatus = "completed" | "max_iterations" | "error" | "canceled";

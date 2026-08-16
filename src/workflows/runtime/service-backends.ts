@@ -266,11 +266,17 @@ export function buildSandboxServiceBackends(
         ...(opts.emergencyController ? { emergencyController: opts.emergencyController } : {}),
       })
     : new LlmOnlyAgentDelegator(llmClient);
-  const agentDelegate: AgentDelegateFn = async (req) => {
+  const agentDelegate: AgentDelegateFn = async (req, ctx) => {
+    // Phase 27: ctx.projectId was already resolved and passed by the route
+    // (jarvis-agent.ts) but dropped here — same shape as agentDelegate's
+    // siblings (councilConvene 20-D, handoffSend 22-A, approvalRequest 24-A).
+    // Threaded into PieceAgentDelegateInput so M7AgentDelegator can carry it
+    // into runSubAgent's audit rows (Phase 27 also touches sub-agent-runner.ts).
     const result = await agentAdapter.delegate({
       goal: req.goal,
       ...(req.role !== undefined ? { role: req.role } : {}),
       ...(req.maxIterations !== undefined ? { maxIterations: req.maxIterations } : {}),
+      ...(ctx.projectId !== undefined ? { projectId: ctx.projectId } : {}),
     });
     return result;
   };

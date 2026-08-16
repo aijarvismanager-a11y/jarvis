@@ -77,6 +77,10 @@ export class DeferredExecutor {
       this.approvalManager.markExecuted(requestId, result.slice(0, 2000));
 
       // Log to audit trail
+      // Phase 27: request.project_id has existed since Phase 24-A
+      // (ApprovalRequest.project_id) but this sink — the deferred/dashboard-
+      // click execution path — was never updated to carry it through, unlike
+      // the voice approve/deny audit rows fixed in Phase 26.
       this.auditTrail.log({
         agent_id: request.agent_id,
         agent_name: request.agent_name,
@@ -86,6 +90,7 @@ export class DeferredExecutor {
         approval_id: requestId,
         executed: true,
         execution_time_ms: executionTimeMs,
+        project_id: request.project_id,
       });
 
       // Record approval for learning

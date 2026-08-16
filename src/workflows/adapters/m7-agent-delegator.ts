@@ -163,6 +163,7 @@ export class M7AgentDelegator implements PieceAgentDelegator {
         ...(this.auditTrail ? { auditTrail: this.auditTrail } : {}),
         ...(this.emergencyController ? { emergencyController: this.emergencyController } : {}),
         ...(this.temporaryGrants ? { temporaryGrants: this.temporaryGrants } : {}),
+        ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       });
 
       // Walk the runSubAgent-supplied message log (NOT child.getMessages(),

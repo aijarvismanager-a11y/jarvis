@@ -69,6 +69,8 @@ export type RunSubAgentOptions = {
   auditTrail?: AuditTrail;
   emergencyController?: EmergencyController;
   temporaryGrants?: Map<string, ActionCategory[]>;
+  /** Phase 27: only set when the caller (M7AgentDelegator, from the workflow route's ctx.projectId) has a project id in scope. Threaded into the sub-agent's audit rows so they're project-scoped like every other audit sink fixed since Phase 23. */
+  projectId?: string;
 };
 
 /**
@@ -126,11 +128,12 @@ async function executeTool(
     auditTrail?: AuditTrail;
     emergencyController?: EmergencyController;
     temporaryGrants?: Map<string, ActionCategory[]>;
+    projectId?: string;
   }
 ): Promise<string> {
   // Authority gate (if engine provided)
   if (authorityCtx) {
-    const { agent, engine, auditTrail, emergencyController, temporaryGrants } = authorityCtx;
+    const { agent, engine, auditTrail, emergencyController, temporaryGrants, projectId } = authorityCtx;
 
     // Emergency check
     if (emergencyController && !emergencyController.canExecute()) {
@@ -157,6 +160,7 @@ async function executeTool(
       action_category: actionCategory,
       authority_decision: decision.allowed ? 'allowed' : 'denied',
       executed: decision.allowed,
+      project_id: projectId ?? null,
     });
 
     if (!decision.allowed) {
@@ -203,6 +207,7 @@ export async function runSubAgent(opts: RunSubAgentOptions): Promise<SubAgentRes
     auditTrail,
     emergencyController,
     temporaryGrants,
+    projectId,
   } = opts;
 
   // Build authority context if engine provided
@@ -212,6 +217,7 @@ export async function runSubAgent(opts: RunSubAgentOptions): Promise<SubAgentRes
     auditTrail,
     emergencyController,
     temporaryGrants,
+    projectId,
   } : undefined;
 
   const agentName = agent.agent.role.name;

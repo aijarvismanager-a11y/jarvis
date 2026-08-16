@@ -2076,3 +2076,72 @@ suite, unrelated to this change (same category of environment-specific
 failure the doc has tracked under `shared-runtime-paths.test.ts` since
 Phase 21). No UI diff, so no browser verification needed - same
 backend-only risk profile as 19-D/20-D/21-C/22-A/23-A/24-A.
+
+## 24. Phase 27 Plan (post-26 full-codebase gap audit) — Done
+
+Requested as a wider "audit beyond the diff" pass rather than the usual
+"re-check the prior phase's deferred list" - re-derived the full picture
+from scratch (module map, every `auditTrail.log()`/`createRequest()`
+call site, every function accepting a `ctx`/`projectId`-shaped param, DB
+schema vs. insert coverage) instead of assuming the deferred list was
+exhaustive. It wasn't materially different: same two open items Phase 26
+re-confirmed, ranked by how directly they extend the "restore missing
+`project_id` on an existing audit sink" pattern from Phases 23/25/26.
+
+**27-A: `sub-agent-runner.ts`/`m7-agent-delegator.ts` had no `projectId`
+field to carry through at all — the actual blocker since Phase 18.**
+Unlike 26-A (where `latest.project_id` already existed on a loaded row),
+this path had no sink: `RunSubAgentOptions` and `PieceAgentDelegateInput`
+lacked a `projectId` field, so even a wired `ctx.projectId` had nowhere
+to go. Added `projectId?: string` to both, plus to `executeTool`'s
+`authorityCtx` in `sub-agent-runner.ts`, and threaded it into the
+`auditTrail?.log()` call at line 153 as `project_id: projectId ?? null`.
+`M7AgentDelegator.delegate` (`m7-agent-delegator.ts`) now forwards
+`input.projectId` into `runSubAgentFn`. `service-backends.ts`'s
+`agentDelegate` closure — previously the fourth function silently
+dropping `ctx` (`toolsInvoke`/`qaRun`/`managerAssignAgent` still do, see
+below) — now accepts `ctx` and passes `ctx.projectId` into
+`PieceAgentDelegateInput`. End to end: `jarvis-agent.delegate` piece ->
+route resolves `ctx.claims.projectId` -> `agentDelegate(req, ctx)` ->
+`M7AgentDelegator.delegate({ ...projectId })` -> `runSubAgent` ->
+`executeTool`'s audit row.
+
+**27-B: `deferred-executor.ts`'s `executeApproved` audit row — same
+shape as 26-A, just a different call site.** `request.project_id` has
+existed on `ApprovalRequest` since 24-A and is already loaded via
+`approvalManager.getRequest(requestId)`; the `auditTrail.log()` call at
+line 80 (the dashboard-click/deferred execution path, sibling to the
+voice path 26-A fixed) never forwarded it. Added `project_id:
+request.project_id`.
+
+**Deferred-list re-check (unchanged, correctly left alone):**
+
+- `orchestrator.ts:769,929` (primary agent's own `executeTool` audit log
+  and the voice-realtime `logAudit` closure): `AgentOrchestrator` has no
+  project concept at all — the primary chat agent isn't project-scoped
+  by design, consistent with `orchestrator.ts:794`'s `createRequest`
+  call already being confirmed correct-as-is back in Phase 22. Not
+  touched.
+- `toolsInvoke`/`qaRun`/`managerAssignAgent` still drop `ctx` in
+  `service-backends.ts`. Re-confirmed why they're a different problem
+  than `agentDelegate`: `qaRun`/`managerAssignAgent` invoke
+  `QAAgent.run`/`AIRouter.route`, neither of which writes to
+  `audit_trail` at all, so there's no row to scope. `toolsInvoke` is
+  worse than unscoped — `JarvisToolRegistryAdapter.execute` calls
+  `ToolRegistry.execute` directly with no authority gate or audit log of
+  any kind, unlike every other execution path in this subsystem. That's
+  a missing-audit-coverage gap, not a missing-`project_id` gap; fixing
+  it means adding an authority/audit gate to the `jarvis-tool` piece's
+  execution path, a distinct and larger change out of scope for this
+  phase's "thread project_id through existing sinks" pattern. Flagged
+  for a future phase, not silently dropped.
+- Inline-wait approval flow (`useAIManagerData.ts:448-450`): still
+  deferred, unchanged since Phase 18.
+
+Shipped: `bunx tsc --noEmit` clean across the whole project. `bun test
+src/authority/authority.test.ts src/daemon/approval-decision.test.ts
+src/workflows/adapters/m7-agent-delegator.test.ts
+src/workflows/sandbox-api/sandbox-api.test.ts
+src/workflows/runner/engine-runtime/end-to-end.test.ts`: 142 passing / 0
+failing. No UI diff, so no browser verification needed - same
+backend-only risk profile as every prior phase in this series.
