@@ -1940,3 +1940,88 @@ not a rendering gap), so no browser verification needed - same backend-
 only risk profile as 19-D/20-D/21-C/22-A, scaled up slightly since this
 gap required restoring a whole authority-check block rather than a single
 fallback expression.
+
+## 21. Phase 24 Plan (post-23 gap audit) — Done
+
+Same fresh-audit methodology as every prior phase. Re-verified all four
+items on Phase 23's deferred list against the current code (unchanged
+since Phase 23's own commit, `a8e5f00`) and re-ran both sweeps (backend-
+field/frontend-render, `Fn`-type `ctx`) - both came back clean again
+except for one new gap:
+
+- `approvalRequest` (`service-backends.ts:400-421`, the workflow "Approval"
+  node backend) had the exact pre-23-A `gitCommit` shape: its route,
+  `jarvis-approval.ts:87-90`, already resolves and passes `ctx: { runId,
+  projectId }`, but the backend function only took `(req)`, silently
+  dropping the second parameter (TypeScript allows a narrower-arity
+  function to satisfy a wider `Fn` type, so this compiled clean and stayed
+  invisible to `tsc`). Unlike `gitCommit`/`gitPush`, there was no
+  `auditTrail.log()` call to restore here - `approvalRequest` only calls
+  `ApprovalManager.createRequest()` - and `ApprovalRequest` had no
+  `project_id` column to put the value in even if the ctx were threaded.
+  That column's absence was itself a deliberate Phase 18-C decision
+  (`src/ai-manager/api/routes.ts:415-418`, pre-fix comment: "out of scope
+  to add one - see the Phase 18 plan doc"), made when only one call site
+  needed it and stuffing the id into the free-text `context` string was
+  cheaper. A second, independent call site now needing the same sink is
+  what the Phase 18 doc's deferral was waiting on.
+
+**24-A: Give `ApprovalRequest` a `project_id` column (same additive,
+nullable convention `audit_trail.project_id` used in 18-C), thread
+`ctx.projectId` through it everywhere a caller already has one in scope.**
+`src/vault/schema.ts` adds the migration + index; `ApprovalRequest`'s type
+and `ApprovalManager.createRequest()`'s params (`src/authority/
+approval.ts`) gain an optional `project_id`/`projectId`, defaulting to
+`null` so every existing call site compiles unchanged. Four call sites
+then pass it explicitly, all using a project id already resolved in local
+scope (no new resolution logic added anywhere):
+`approvalRequest` (closes this phase's actual gap), and - for consistency,
+since the column now exists and leaving them out would immediately relist
+them as gaps - `gitCommit`/`gitPush`'s own `createRequest` calls
+(`service-backends.ts`, both already receive `ctx.projectId` for their
+`auditTrail.log()` calls) and the dashboard GitHub-action route
+(`src/ai-manager/api/routes.ts:419`, which already had `body.project_id`
+in scope and was the site whose absence of a sink justified deferring the
+column in Phase 18). `orchestrator.ts:794`'s `createRequest` call is
+unchanged - confirmed it has no project id in scope at all (same
+conclusion Phase 18-22's `ctx`-sweeps reached for that file), so there's
+nothing to thread there.
+
+**Deferred-list re-check:**
+
+- Inline-wait approval flow (`useAIManagerData.ts:448-450`'s `202
+  pending` branch): still just returns `{ pending: true, approvalId }`
+  with no polling. `ApprovalRequest` now carries `project_id`, which is a
+  prerequisite a project-scoped polling UI would need, but no consumer of
+  it was added this phase - the UI still doesn't read the field. Stays
+  deferred, 10th phase running.
+- `project_id` threading through `sub-agent-runner.ts:153`/
+  `orchestrator.ts:769,929`/`deferred-executor.ts:80`: re-checked, still
+  no sink (`RunSubAgentOptions`/`PieceAgentDelegateInput` still have no
+  `projectId` field). Unchanged since Phase 18.
+- `agentDelegate`/`toolsInvoke`/`qaRun`/`managerAssignAgent` dropping
+  `ctx`: re-checked all four downstream sinks
+  (`PieceAgentDelegateInput`, `ToolRegistry.execute`, `QAOptions`,
+  `AIRouter.route`) - none gained a project id field. Unchanged since
+  Phase 22/23.
+- Three `auditTrail.log()` calls in `ws-service.ts:1881,1899,1925` (voice
+  approve/deny): `ApprovalRequest` (the request being approved/denied)
+  now has `project_id`, but these three call sites log to `audit_trail`
+  from the *decision*, not the request object itself, and weren't
+  changed to look it up. A future phase could fetch the request via
+  `ApprovalManager.getRequest(requestId)` and forward its `project_id`
+  into the audit-trail entry - a concrete, minimal fix now exists where
+  Phase 23 found none - but that's a new piece of logic, not the
+  same-shape ctx-restore this phase's budget covered. Left deferred,
+  now with a template for the next phase to use.
+
+Shipped: `bunx tsc --noEmit` clean (after also adding `project_id: null`
+to the `ApprovalRequest` fixture in
+`src/authority/approval-delivery.test.ts`, the one place a full literal
+of the type existed outside production code), `bun test src/ai-manager
+src/authority src/workflows`: 471 passing / 4 failing - the same
+pre-existing `shared-runtime-paths.test.ts` failures every phase since
+Phase 21 has hit, unrelated to this change. `bun test src/github`: 3/3
+passing (covers `ApprovalManager.createRequest`/`waitForResolution` via
+the project-push e2e path). No UI diff, so no browser verification
+needed - same backend-only risk profile as 19-D/20-D/21-C/22-A/23-A.

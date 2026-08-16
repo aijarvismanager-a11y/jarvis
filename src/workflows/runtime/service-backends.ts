@@ -397,8 +397,15 @@ export function buildSandboxServiceBackends(
   // Generic human-in-the-loop gate for the "Approval" node. Always inline:
   // nothing auto-executes on approval here (see jarvis-approval.ts's header
   // note) -- the flow branches on the returned status itself.
+  //
+  // Phase 24-A: jarvis-approval.ts already resolves and passes ctx.projectId
+  // (same shape as gitCommit/gitPush/councilConvene/handoffSend/decisionWrite)
+  // but this backend dropped it entirely, not even accepting the second
+  // parameter -- the same pattern gitCommit had before 23-A. Fixed the same
+  // way: accept ctx and thread projectId into createRequest, now that
+  // ApprovalRequest has a project_id column to put it in.
   const approvalRequest: ApprovalRequestFn | undefined = opts.approvalManager
-    ? async (req) => {
+    ? async (req, ctx) => {
         if (!VALID_ACTION_CATEGORIES.includes(req.actionCategory as ActionCategory)) {
           throw new Error(`actionCategory must be one of: ${VALID_ACTION_CATEGORIES.join(", ")}`);
         }
@@ -412,6 +419,7 @@ export function buildSandboxServiceBackends(
           reason: req.reason,
           context: req.context ?? "",
           executionMode: "inline",
+          projectId: ctx.projectId,
         });
         const resolved = await opts.approvalManager!.waitForResolution(request.id, {
           timeoutMs: req.timeoutMs,
@@ -498,6 +506,7 @@ export function buildSandboxServiceBackends(
           reason: decision.reason,
           context: `Workflow-initiated git commit in ${req.repoPath}`,
           executionMode: "inline",
+          projectId: ctx.projectId,
         });
         const resolved = await opts.approvalManager.waitForResolution(request.id);
         if (resolved.status !== "approved") {
@@ -577,6 +586,7 @@ export function buildSandboxServiceBackends(
               reason: decision.reason,
               context: `Workflow-initiated git push in ${req.repoPath}`,
               executionMode: "inline",
+              projectId: ctx.projectId,
             });
             const resolved = await opts.approvalManager!.waitForResolution(request.id);
             if (resolved.status !== "approved") {

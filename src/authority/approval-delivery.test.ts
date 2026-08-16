@@ -24,6 +24,7 @@ function makeRequest(overrides?: Partial<ApprovalRequest>): ApprovalRequest {
     executed_at: null,
     execution_result: null,
     created_at: Date.now(),
+    project_id: null,
     ...overrides,
   };
 }

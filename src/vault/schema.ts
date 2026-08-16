@@ -371,6 +371,15 @@ function createTables(db: Database): void {
   // execute-on-approve behavior.
   try { db.run(`ALTER TABLE approval_requests ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'deferred'`); } catch {}
 
+  // Phase 24-A: nullable project_id, same additive convention as
+  // audit_trail.project_id (Phase 18-C) and tasks/decisions/agent_messages/
+  // entities/facts/observations/commitments. Phase 18-C explicitly left this
+  // column off ApprovalRequest as out of scope; Phase 24 revisits that once
+  // a second independent call site (the workflow `approvalRequest` backend)
+  // needed the same sink and had none.
+  try { db.run(`ALTER TABLE approval_requests ADD COLUMN project_id TEXT`); } catch {}
+  db.run(`CREATE INDEX IF NOT EXISTS idx_approval_project ON approval_requests(project_id)`);
+
   // Authority: Audit trail
   db.run(`
     CREATE TABLE IF NOT EXISTS audit_trail (

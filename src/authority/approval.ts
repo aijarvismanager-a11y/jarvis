@@ -38,6 +38,8 @@ export type ApprovalRequest = {
   executed_at: number | null;
   execution_result: string | null;
   created_at: number;
+  /** Phase 24-A: only populated by call sites that have a project id in scope. */
+  project_id: string | null;
 };
 
 export class ApprovalManager {
@@ -54,17 +56,20 @@ export class ApprovalManager {
     reason: string;
     context: string;
     executionMode?: ApprovalExecutionMode;
+    /** Phase 24-A: only set by call sites that have a project id in scope. */
+    projectId?: string | null;
   }): ApprovalRequest {
     const db = getDb();
     const id = generateId();
     const now = Date.now();
     const toolArgs = JSON.stringify(params.toolArguments);
     const executionMode = params.executionMode ?? 'deferred';
+    const projectId = params.projectId ?? null;
 
     db.run(
-      `INSERT INTO approval_requests (id, agent_id, agent_name, tool_name, tool_arguments, action_category, urgency, reason, context, status, execution_mode, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-      [id, params.agentId, params.agentName, params.toolName, toolArgs, params.actionCategory, params.urgency, params.reason, params.context, executionMode, now]
+      `INSERT INTO approval_requests (id, agent_id, agent_name, tool_name, tool_arguments, action_category, urgency, reason, context, status, execution_mode, created_at, project_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      [id, params.agentId, params.agentName, params.toolName, toolArgs, params.actionCategory, params.urgency, params.reason, params.context, executionMode, now, projectId]
     );
 
     return {
@@ -84,6 +89,7 @@ export class ApprovalManager {
       executed_at: null,
       execution_result: null,
       created_at: now,
+      project_id: projectId,
     };
   }
 

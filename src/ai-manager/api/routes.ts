@@ -412,10 +412,12 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             if (body.number !== undefined) params.number = body.number;
             if (body.event !== undefined) params.event = body.event;
 
-            // Phase 18-C: ApprovalRequest itself has no project_id column
-            // (out of scope to add one - see the Phase 18 plan doc), so the
-            // project id is appended to the context string instead, same as
-            // the repo_path is today.
+            // Phase 24-A: ApprovalRequest gained a project_id column (Phase
+            // 18-C left this out of scope; revisited once a second, unrelated
+            // call site - the workflow `approvalRequest` backend - needed the
+            // same sink). Pass it directly now; the context-string annotation
+            // stays for human-readable history, since existing rows only have
+            // the string form.
             const request = ctx.getApprovalManager().createRequest({
               agentId: DASHBOARD_ACTOR_ID,
               agentName: DASHBOARD_ACTOR_NAME,
@@ -428,6 +430,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
                 ? `Dashboard: ${toolName} on ${body.repo_path} (project ${body.project_id})`
                 : `Dashboard: ${toolName} on ${body.repo_path}`,
               executionMode: 'deferred',
+              projectId: body.project_id ?? null,
             });
 
             ctx.getAuditTrail().log({
