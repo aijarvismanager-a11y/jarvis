@@ -333,9 +333,14 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             base?: string;
             number?: number;
             event?: string;
+            /** Phase 18-C: optional - scopes the audit_trail rows this call writes. */
+            project_id?: string;
           };
           if (!body.tool || !VALID_GITHUB_ACTION_TOOLS.includes(body.tool as GitHubActionToolName)) {
             return error(`tool must be one of: ${VALID_GITHUB_ACTION_TOOLS.join(', ')}`, 400);
+          }
+          if (body.project_id !== undefined && !getProject(body.project_id)) {
+            return error('Project not found', 404);
           }
           if (!body.repo_path || typeof body.repo_path !== 'string') {
             return error('repo_path is required', 400);
@@ -386,6 +391,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               executed: false,
               execution_time_ms: null,
               channel: 'click',
+              project_id: body.project_id ?? null,
             });
             return error(`Denied: ${decision.reason}`, 403);
           }
@@ -406,6 +412,10 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             if (body.number !== undefined) params.number = body.number;
             if (body.event !== undefined) params.event = body.event;
 
+            // Phase 18-C: ApprovalRequest itself has no project_id column
+            // (out of scope to add one - see the Phase 18 plan doc), so the
+            // project id is appended to the context string instead, same as
+            // the repo_path is today.
             const request = ctx.getApprovalManager().createRequest({
               agentId: DASHBOARD_ACTOR_ID,
               agentName: DASHBOARD_ACTOR_NAME,
@@ -414,7 +424,9 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               actionCategory,
               urgency: 'normal',
               reason: decision.reason ?? 'Dashboard-triggered GitHub action requires approval',
-              context: `Dashboard: ${toolName} on ${body.repo_path}`,
+              context: body.project_id
+                ? `Dashboard: ${toolName} on ${body.repo_path} (project ${body.project_id})`
+                : `Dashboard: ${toolName} on ${body.repo_path}`,
               executionMode: 'deferred',
             });
 
@@ -428,6 +440,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               executed: false,
               execution_time_ms: null,
               channel: 'click',
+              project_id: body.project_id ?? null,
             });
 
             return json({ status: 'pending_approval', approval_id: request.id }, 202);
@@ -443,6 +456,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             executed: true,
             execution_time_ms: null,
             channel: 'click',
+            project_id: body.project_id ?? null,
           });
 
           const params: Record<string, unknown> = { repo_path: body.repo_path };

@@ -72,9 +72,13 @@ export interface ProjectTask {
 
 /**
  * Phase 15-B: tool names the authority gate already tags `git_operation`/
- * `read_data` for (src/authority/tool-action-map.ts) - not project-scoped,
- * since audit_trail has no project_id column; this is recent activity
- * across the whole daemon, not just the selected project.
+ * `read_data` for (src/authority/tool-action-map.ts). As of Phase 18-C this
+ * panel is project-scoped when a project is selected: dashboard-triggered
+ * GitHub actions (`githubAction` below) pass the selected project's id, and
+ * `audit_trail.project_id` filters the activity fetch to just that project's
+ * rows. Rows logged from other paths (agent conversation, orchestrator,
+ * workflow nodes) still have a null project_id and won't appear here - this
+ * panel only ever showed dashboard-triggered activity to begin with.
  */
 const GITHUB_TOOL_NAMES = [
   "git_commit", "git_push", "git_force_push", "git_pull", "git_branch_create",
@@ -206,7 +210,9 @@ export function useAIManagerData() {
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/decisions`),
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/handoffs`),
         fetch(`/api/ai-manager/agents/performance?project_id=${encodeURIComponent(projectId)}`),
-        fetch(`/api/authority/audit?tools=${GITHUB_TOOL_NAMES.join(",")}&limit=20`),
+        fetch(
+          `/api/authority/audit?tools=${GITHUB_TOOL_NAMES.join(",")}&limit=20&project_id=${encodeURIComponent(projectId)}`,
+        ),
       ]);
       setTasks(tasksResp.ok ? ((await tasksResp.json()) as ProjectTask[]) : []);
       setDecisions(decisionsResp.ok ? ((await decisionsResp.json()) as Decision[]) : []);
@@ -404,6 +410,9 @@ export function useAIManagerData() {
    * (see routes.ts's `/api/ai-manager/github/action`). `repo_path` is a
    * plain local filesystem path - projects have no persisted repo mapping
    * yet, so the caller supplies it per call, same as an agent tool call.
+   * Phase 18-C: the currently selected project's id is sent automatically
+   * (the dialog only ever opens from a selected project's detail view) so
+   * the resulting audit_trail/approval rows are project-scoped.
    */
   const githubAction = useCallback(
     async (input: {
@@ -427,7 +436,7 @@ export function useAIManagerData() {
         const resp = await fetch("/api/ai-manager/github/action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(input),
+          body: JSON.stringify(selectedId ? { ...input, project_id: selectedId } : input),
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         if (resp.status === 202) {

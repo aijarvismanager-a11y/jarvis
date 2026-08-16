@@ -616,6 +616,180 @@ surface (first GitHub-specific dashboard UI at all), and benefits from
 confirming during C whether `audit_trail` is the right read model to reuse
 rather than inventing a second one.
 
+## 15. Phase 18 Plan (post-17 gap audit) — Done
+
+All three items shipped in the suggested order (18-A, 18-B, 18-C).
+`bunx tsc --noEmit` clean, `bun build ui/index.html ui/pebble.html --outdir
+ui/dist` succeeds (the `bun run build:ui` wrapper's `copy:models` prebuild
+step fails in this worktree because the wasm model assets aren't installed
+here at all - a pre-existing environment gap unrelated to this phase's code,
+confirmed by running the underlying `bun build` command directly). Full
+`bun test`: 1900 passing (1893-passing baseline measured in this environment
+at the start of this phase + 5 new: 4 in `routes-github-action.test.ts`, 1 in
+`authority.test.ts`) / 65 failing / 2 errors - all in the same pre-existing
+Windows-only categories as every prior phase (unix-domain sockets, process-
+lock files, `chmod`/`O_NOFOLLOW` permission tests, `jarvis export`/`restore`
+subprocess tests, `EBUSY` temp-dir cleanup races) - none touch `ai-manager`/
+`authority`/`vault` code, confirmed by grepping the failing-test list for
+those paths. (Note: this environment's raw pass/fail counts drift a few
+tests run-to-run - 1893/67/3 on one run, 1907/65/2 reported by Phase 17 -
+which reads as pre-existing flakiness in the same lock/socket/subprocess
+tests rather than anything this phase touched; the fail *categories* and
+zero involvement of AI-Manager-adjacent code are the stable signal checked
+here.) Notes by item:
+
+- **18-A**: `PendingApprovalCard` (`ui/src/v2/rooms/authority/
+  AuthorityRoom.tsx`) gained a `parseToolArguments()` helper (JSON.parse,
+  drops nested object/array values, fails soft on malformed input) rendering
+  `tool_arguments` as a compact key:value `<dl>`, plus a `context` line
+  above it. The history row (formerly a single-line grid) is now wrapped in
+  a `.v2-auth__history-row-wrap` column that adds `context`/
+  `execution_result` lines below the existing time/agent/tool/status grid
+  row. No route/schema change - both fields were already written by
+  `ApprovalManager.createRequest` and, for GitHub actions specifically,
+  `routes.ts`'s `context: "Dashboard: ${toolName} on ${repo_path}"` /
+  `toolArguments: { repo_path, title, ... }`.
+- **18-B**: two one-line additions - `QACheckResult.detail` now renders
+  under a failed automated check (`AIManagerRoom.tsx`'s `TaskCard`, new
+  `.rk-aim__qa-check-detail` class, `rk-aim__qa-check`'s flex row given
+  `flex-wrap` so the detail line wraps onto its own row rather than
+  truncating), and `CouncilOpinion.tier` is now shown next to `mode` in the
+  Council opinion header. No backend change, no test (pure rendering of
+  already-typed/fetched fields, same as 17-A/16-B/15-C's equivalent items).
+- **18-C**: additive `audit_trail.project_id TEXT` column + `idx_audit_project`
+  index (`schema.ts`, same convention as every other `project_id`-scoped
+  table since Phase 1). `AuditTrail.log()`/`AuditEntry`/`query()` gained an
+  optional `project_id`/`projectId`; `GET /api/authority/audit` accepts
+  `?project_id=`. `POST /api/ai-manager/github/action` now accepts an
+  optional `project_id` in its body (404s if the id doesn't resolve via
+  `getProject`), threads it into both `AuditTrail.log()` calls it makes, and
+  - since `ApprovalRequest` itself has no `project_id` column and adding one
+  was explicitly out of scope per the plan - appends `(project <id>)` to the
+  pending-approval `context` string instead. `useAIManagerData.ts`'s
+  `githubAction` now sends the currently selected project's id automatically
+  (the GitHub Action dialog only ever opens from a project's detail view),
+  and the "recent GitHub activity" fetch passes `?project_id=` so the panel
+  shows only the selected project's activity - closing the "not project-
+  scoped" caveat 15-B's panel comment stated. Deliberately left the other 5
+  `AuditTrail.log()` call sites (orchestrator, sub-agent-runner, deferred-
+  executor, workflow backend) untouched - none has a project id in local
+  scope, confirmed while writing this item, so full daemon-wide threading is
+  still the larger, not-yet-worth-it change the doc has correctly deferred
+  three phases running. New tests: `routes-github-action.test.ts` gained
+  4 cases (unknown `project_id` → 404, allowed-path audit row scoped,
+  pending-approval audit row + `ApprovalRequest.context` scoped, and
+  omitted-`project_id` still defaults to `null` - the pre-18-C behavior);
+  `authority.test.ts` gained one `AuditTrail`-level case asserting `log()`
+  persists `project_id` and `query({ projectId })` filters correctly.
+
+**Deferred, not forgotten**: a dashboard-side inline-wait approval flow
+(unchanged from Phase 16/17 - still no concrete need, still the same 202→
+check-the-Authority-tab round trip); full daemon-wide `project_id` threading
+through the remaining 5 `AuditTrail.log()` call sites (18-C only closed the
+2 dashboard-reachable ones; the other 5 have no project id in scope without
+larger changes to `TaskDispatcher`/agent context plumbing - re-evaluate only
+if a concrete cross-cutting need for full audit-trail project-scoping shows
+up, not just "it would be nice for completeness").
+
+Phase 17 cleared both its own items and left only the same two "no concrete
+need yet" carry-overs it inherited from Phase 16: a dashboard-side inline-
+wait approval flow, and project-scoping `audit_trail`. Re-checked both
+against the current code before starting a fresh audit:
+
+- **Inline-wait approval flow**: still no concrete need. Nothing in this
+  pass's review of `useAIManagerData.ts`/`AIManagerRoom.tsx` suggests the
+  202-then-check-the-Authority-tab round trip is causing friction - there's
+  no telemetry or user complaint to act on, and building a live-resolving
+  dialog (WebSocket push or long-poll against a single approval id) would be
+  genuinely new plumbing, not a "render what's already there" item. Stays
+  deferred.
+- **Project-scoping `audit_trail`**: re-examined with a concrete question
+  this time (which Phase 15/16/17 hadn't asked): *how many `AuditTrail.log()`
+  call sites actually have a `project_id` in scope already?* Answer: of the
+  7 real call sites (`sub-agent-runner.ts:153`, `orchestrator.ts:769,929`,
+  `service-backends.ts:474`, `deferred-executor.ts:80`, and
+  `routes.ts:379,421`), only the last two - both inside
+  `POST /api/ai-manager/github/action` - are reachable from a UI surface
+  that already knows which project is selected (`AIManagerRoom.tsx`'s
+  GitHub Action dialog opens from a project's detail view). The other five
+  operate on tool calls/agent contexts with no project concept in local
+  scope, so full daemon-wide threading is still not worth it. But narrowed
+  to just those two call sites plus the read side (`GET /api/authority/audit`
+  and the dashboard's "recent GitHub activity" panel, which today explicitly
+  says it is *not* project-scoped), this is now a small, concrete change
+  worth shipping - see 18-C.
+
+A fresh audit of the code shipped through Phase 17 turned up two more items,
+both the "fetched/typed but never rendered" pattern every prior phase has
+favored:
+
+- `ApprovalRequest.tool_arguments`/`context`/`execution_result`
+  (`ui/src/v2/rooms/authority/useAuthorityData.ts:38,41,47`) are typed and
+  populated server-side (`approval.ts`'s `createRequest`, and for GitHub
+  actions specifically `routes.ts:401-419`'s
+  `context: "Dashboard: ${toolName} on ${repo_path}"` +
+  `toolArguments: { repo_path, title, ... }`), but
+  `PendingApprovalCard`/the history row in `AuthorityRoom.tsx:395-478` never
+  render any of them - a GitHub-action approval card shows only the tool
+  name and a generic reason string, with no visible repo path, PR
+  title/head/base, or (once resolved) what the tool actually returned. This
+  is the exact "generic blob missing context" shape 17-B's own doc note
+  anticipated when it said a project-aware panel could add context cheaply -
+  turns out the context is already being written, just not read.
+- Two smaller sibling fields in the AI Manager room: `QACheckResult.detail`
+  (`useAIManagerData.ts:33`, distinct from `summary`, presumably the
+  longer diagnostic for a failed automated check) and `CouncilOpinion.tier`
+  (`useAIManagerData.ts:132`, alongside `mode` which *is* shown) are both
+  fetched and typed but never referenced in `AIManagerRoom.tsx`'s QA-check
+  list (`:409-419`) or Council opinion header (`:590`).
+
+**18-A: Render approval request context/arguments/result in the Authority
+Room.** The pending-approval card and history row currently drop
+`tool_arguments`, `context`, and `execution_result` on the floor even though
+the server already writes meaningful values into all three (most visibly for
+GitHub actions, but every approval request carries them). Parse
+`tool_arguments` (JSON) into a compact key:value list, show `context` under
+the reason line, and show `execution_result` on resolved/executed history
+rows. Pure rendering of already-fetched data - no schema or route change.
+
+**18-B: Surface `QACheckResult.detail` and `CouncilOpinion.tier`.** Same
+"computed but not displayed" pattern 15-C/16-B/17-A each closed one instance
+of - these are the two remaining scalar fields of that shape left in the AI
+Manager room after 17-A closed the task-level ones. Show `detail` under a
+failed QA check (collapsed/secondary to `summary`) and add `tier` to the
+Council opinion header next to `mode`. Trivial, no backend change.
+
+**18-C: Project-scope the GitHub dashboard-action audit trail.** Add a
+nullable `audit_trail.project_id TEXT` column (same additive convention
+already used for `tasks`/`decisions`/`agent_messages`/`entities`/`facts`/
+`observations`/`commitments`), accept an optional `project_id` in
+`POST /api/ai-manager/github/action`'s body, thread it through the two
+`AuditTrail.log()` calls in that route plus the `ApprovalManager.createRequest`
+call's `context` (append `, project <id>` for the pending-approval case since
+`ApprovalRequest` has no `project_id` column of its own - out of scope to add
+one there too), add a matching `project_id` query filter to
+`AuditTrail.query()`, extend `GET /api/authority/audit` with an optional
+`?project_id=`, and have `useAIManagerData.ts`'s GitHub-activity fetch pass
+the selected project's id so the "recent github activity" panel actually
+shows only this project's activity instead of the whole daemon's - closing
+out the caveat 15-B's panel header states today. Deliberately still not
+touching the other 5 `AuditTrail.log()` call sites (orchestrator,
+sub-agent-runner, deferred-executor, workflow backend) - none of them have a
+project id in local scope, and threading one through would be the larger,
+still-not-worth-it change the doc has correctly deferred three phases
+running.
+
+**Suggested order: 18-A, then 18-B, then 18-C.** A is the highest-value item
+(closes a real "can't tell what this approval is actually for" UX gap) and
+touches only the UI layer against data the server already writes, so it's
+both valuable and low-risk to do first. B is the smallest possible item -
+two one-line render additions - and shares no code with A or C, so it can
+slot in anywhere; doing it second keeps the UI-only items grouped before C's
+schema/route change. C is last because it's the only item touching the
+backend (migration + route + query filter + UI wiring across two files), the
+same relative ordering 15-B/16-C/17-B each used for "the one item that isn't
+pure rendering."
+
 ## 14. Phase 17 Plan (clearing the 16-deferred list) — Done
 
 Both addressable items shipped: `tsc --noEmit` clean (`src/` and `ui/`),

@@ -413,6 +413,12 @@ function TaskCard({
               <span>{c.automated ? (c.passed ? "✓" : "✗") : "–"}</span>
               <span className="rk-aim__qa-check-name">{c.name}</span>
               <span className="rk-aim__qa-check-summary">{c.summary}</span>
+              {/* Phase 18-B: `detail` was fetched/typed but never rendered -
+                  only surface it for a failed check, where it's the useful
+                  diagnostic beyond the one-line summary. */}
+              {c.automated && !c.passed && c.detail && (
+                <span className="rk-aim__qa-check-detail">{c.detail}</span>
+              )}
             </div>
           ))}
         </div>
@@ -587,7 +593,10 @@ function CouncilDialog({
             <div>
               {verdict.opinions.map((op) => (
                 <div key={op.seat} className="rk-aim__council-opinion">
-                  <div className="rk-aim__council-opinion-head">{op.seat} ({op.mode}){op.confidence !== null ? ` · confidence ${Math.round(op.confidence * 100)}%` : ""}</div>
+                  {/* Phase 18-B: `tier` was fetched/typed alongside `mode`
+                      but never rendered - shows which tier (e.g. `high`)
+                      the cost-mode-derived seat actually resolved to. */}
+                  <div className="rk-aim__council-opinion-head">{op.seat} ({op.mode} · {op.tier}){op.confidence !== null ? ` · confidence ${Math.round(op.confidence * 100)}%` : ""}</div>
                   <div>{op.error ? `Error: ${op.error}` : op.content}</div>
                 </div>
               ))}

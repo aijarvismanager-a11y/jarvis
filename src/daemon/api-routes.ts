@@ -2993,6 +2993,9 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           decision: (params.get('decision') as AuthorityDecisionType) || undefined,
           since: params.get('since') ? parseInt(params.get('since')!) : undefined,
           limit: parseInt(params.get('limit') ?? '100') || 100,
+          // Phase 18-C: optional project scoping, only populated on rows the
+          // dashboard's GitHub-action route logs with a project id.
+          projectId: params.get('project_id') || undefined,
         }));
       },
     },

@@ -396,6 +396,15 @@ function createTables(db: Database): void {
   // Column is nullable so existing rows remain valid; new rows specify it.
   try { db.run(`ALTER TABLE audit_trail ADD COLUMN channel TEXT`); } catch {}
 
+  // Phase 18-C: nullable project_id, same additive convention as
+  // tasks/decisions/agent_messages/entities/facts/observations/commitments.
+  // Only populated by the two dashboard-triggered GitHub-action call sites
+  // (src/ai-manager/api/routes.ts) that actually have a project id in
+  // scope - the other AuditTrail.log() call sites (orchestrator,
+  // sub-agent-runner, deferred-executor, workflow backend) leave it NULL.
+  try { db.run(`ALTER TABLE audit_trail ADD COLUMN project_id TEXT`); } catch {}
+  db.run(`CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_trail(project_id)`);
+
   // Authority: Approval patterns (for learning)
   db.run(`
     CREATE TABLE IF NOT EXISTS approval_patterns (

@@ -28,6 +28,8 @@ export type AuditEntry = {
   execution_time_ms: number | null;
   created_at: number;
   channel: ResolutionChannel | null;
+  /** Phase 18-C: only populated where a call site has a project id in scope. */
+  project_id: string | null;
 };
 
 export class AuditTrail {
@@ -45,14 +47,16 @@ export class AuditTrail {
     execution_time_ms?: number | null;
     /** Resolution channel for forensics. Optional; defaults to null. */
     channel?: ResolutionChannel | null;
+    /** Phase 18-C: only set by call sites that have a project id in scope. */
+    project_id?: string | null;
   }): AuditEntry {
     const db = getDb();
     const id = generateId();
     const now = Date.now();
 
     db.run(
-      `INSERT INTO audit_trail (id, agent_id, agent_name, tool_name, action_category, authority_decision, approval_id, executed, execution_time_ms, created_at, channel)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO audit_trail (id, agent_id, agent_name, tool_name, action_category, authority_decision, approval_id, executed, execution_time_ms, created_at, channel, project_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         entry.agent_id,
@@ -65,6 +69,7 @@ export class AuditTrail {
         entry.execution_time_ms ?? null,
         now,
         entry.channel ?? null,
+        entry.project_id ?? null,
       ]
     );
 
@@ -80,6 +85,7 @@ export class AuditTrail {
       execution_time_ms: entry.execution_time_ms ?? null,
       created_at: now,
       channel: entry.channel ?? null,
+      project_id: entry.project_id ?? null,
     };
   }
 
@@ -95,6 +101,8 @@ export class AuditTrail {
     decision?: AuthorityDecisionType;
     since?: number;
     limit?: number;
+    /** Phase 18-C: filter to a single project's rows (only ever populated by the dashboard GitHub-action route). */
+    projectId?: string;
   }): AuditEntry[] {
     const db = getDb();
     const conditions: string[] = [];
@@ -123,6 +131,10 @@ export class AuditTrail {
     if (filters?.since) {
       conditions.push('created_at >= ?');
       values.push(filters.since);
+    }
+    if (filters?.projectId) {
+      conditions.push('project_id = ?');
+      values.push(filters.projectId);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

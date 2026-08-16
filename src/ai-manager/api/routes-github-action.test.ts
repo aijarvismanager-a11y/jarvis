@@ -11,6 +11,7 @@ import { initDatabase, getDb } from '../../vault/schema.ts';
 import { AuthorityEngine, type AuthorityConfig } from '../../authority/engine.ts';
 import { AuditTrail } from '../../authority/audit.ts';
 import { ApprovalManager } from '../../authority/approval.ts';
+import { createProject } from '../../vault/projects.ts';
 
 type Handler = (req: Request) => Response | Promise<Response>;
 
@@ -162,5 +163,74 @@ describe('POST /api/ai-manager/github/action', () => {
     expect(approvalRow!.execution_mode).toBe('deferred');
     expect(approvalRow!.tool_name).toBe('github_create_issue');
     expect(JSON.parse(approvalRow!.tool_arguments)).toMatchObject({ repo_path: '.', title: 'Bug report' });
+  });
+
+  // Phase 18-C: project_id threading through the two AuditTrail.log() call
+  // sites this route owns.
+  it('rejects an unknown project_id with 404', async () => {
+    const res = await postAction(makeCtx(baseConfig()), {
+      tool: 'github_create_issue',
+      repo_path: '.',
+      title: 'x',
+      project_id: 'does-not-exist',
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('scopes the allowed-path audit row to the given project_id', async () => {
+    const project = createProject('Test project');
+    const ctx = makeCtx(baseConfig());
+    const res = await postAction(ctx, {
+      tool: 'github_create_issue',
+      repo_path: '.',
+      title: 'Bug report',
+      project_id: project.id,
+    });
+    expect(res.status).toBe(200);
+
+    const rows = getDb().prepare('SELECT project_id FROM audit_trail').all() as Array<{ project_id: string | null }>;
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.project_id).toBe(project.id);
+  });
+
+  it('scopes the pending-approval audit row and its context to the given project_id', async () => {
+    const project = createProject('Test project');
+    const config = baseConfig();
+    config.context_rules = [
+      {
+        id: 'issues-need-approval',
+        action: 'git_operation',
+        condition: 'tool_name',
+        params: { tool_name: 'github_create_issue' },
+        effect: 'require_approval',
+        description: 'Needs approval for this test.',
+      },
+    ];
+    const ctx = makeCtx(config);
+    const res = await postAction(ctx, {
+      tool: 'github_create_issue',
+      repo_path: '.',
+      title: 'Bug report',
+      project_id: project.id,
+    });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { approval_id: string };
+
+    const rows = getDb().prepare('SELECT project_id FROM audit_trail').all() as Array<{ project_id: string | null }>;
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.project_id).toBe(project.id);
+
+    const approvalRow = ctx.getApprovalManager().getRequest(body.approval_id);
+    expect(approvalRow!.context).toContain(project.id);
+  });
+
+  it('leaves project_id null when the caller omits it (existing behavior unchanged)', async () => {
+    const ctx = makeCtx(baseConfig());
+    const res = await postAction(ctx, { tool: 'github_create_issue', repo_path: '.', title: 'Bug report' });
+    expect(res.status).toBe(200);
+
+    const rows = getDb().prepare('SELECT project_id FROM audit_trail').all() as Array<{ project_id: string | null }>;
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.project_id).toBeNull();
   });
 });

@@ -598,6 +598,24 @@ describe('AuditTrail', () => {
     expect(githubOnly.map((e) => e.tool_name).sort()).toEqual(['git_commit', 'github_create_issue']);
   });
 
+  test('Phase 18-C: queries and logs project_id, filtering to one project', () => {
+    const trail = new AuditTrail();
+
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'github_create_issue', action_category: 'git_operation', authority_decision: 'allowed', executed: true, project_id: 'proj-1' });
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'github_create_pr', action_category: 'git_operation', authority_decision: 'allowed', executed: true, project_id: 'proj-2' });
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'browser_navigate', action_category: 'access_browser', authority_decision: 'allowed', executed: true });
+
+    const all = trail.query();
+    expect(all.length).toBe(3);
+    // Entries logged without a project_id default to null.
+    expect(all.find((e) => e.tool_name === 'browser_navigate')!.project_id).toBeNull();
+
+    const proj1Only = trail.query({ projectId: 'proj-1' });
+    expect(proj1Only.length).toBe(1);
+    expect(proj1Only[0]!.tool_name).toBe('github_create_issue');
+    expect(proj1Only[0]!.project_id).toBe('proj-1');
+  });
+
   test('getStats aggregates correctly', () => {
     const trail = new AuditTrail();
 

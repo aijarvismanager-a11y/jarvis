@@ -408,14 +408,56 @@
   border-top: var(--hair-soft);
 }
 
+/* Phase 18-A: context line + parsed tool_arguments on the pending card. */
+.v2-auth__pending-context {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.v2-auth__pending-args {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--s-2);
+  background: var(--paper-2);
+  border-radius: var(--r-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.v2-auth__pending-args-row {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.v2-auth__pending-args-row dt {
+  color: var(--ink-3);
+  min-width: 5em;
+}
+
+.v2-auth__pending-args-row dd {
+  margin: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.v2-auth__history-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  background: var(--paper-2);
+  border-radius: var(--r-1);
+}
+
 .v2-auth__history-row {
   display: grid;
   grid-template-columns: 60px 1fr 1.4fr auto;
   gap: var(--s-3);
   align-items: center;
-  padding: var(--s-2) var(--s-3);
-  background: var(--paper-2);
-  border-radius: var(--r-1);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
 }
@@ -427,6 +469,20 @@
 
 .v2-auth__history-agent { color: var(--ink-2); }
 .v2-auth__history-tool { color: var(--ink); font-family: var(--font-mono); }
+
+/* Phase 18-A: context/execution_result on resolved history rows. */
+.v2-auth__history-context,
+.v2-auth__history-result {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  padding-left: var(--s-2);
+  overflow-wrap: anywhere;
+}
+
+.v2-auth__history-result {
+  font-family: var(--font-mono);
+}
 
 /* ── Audit tab ── */
 

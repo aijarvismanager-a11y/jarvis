@@ -402,16 +402,24 @@ function ApprovalsTab({
         ) : (
           <ul className="v2-auth__history-list">
             {recentDecisions.map((a) => (
-              <li key={a.id} className="v2-auth__history-row">
-                <span className="v2-auth__history-time">{formatTime(a.created_at)}</span>
-                <span className="v2-auth__history-agent">{a.agent_name}</span>
-                <span className="v2-auth__history-tool">{a.tool_name}</span>
-                <Chip
-                  tone={a.status === "approved" || a.status === "executed" ? "ok" : a.status === "denied" ? "accent" : "neutral"}
-                  dot
-                >
-                  {a.status}
-                </Chip>
+              <li key={a.id} className="v2-auth__history-row-wrap">
+                <div className="v2-auth__history-row">
+                  <span className="v2-auth__history-time">{formatTime(a.created_at)}</span>
+                  <span className="v2-auth__history-agent">{a.agent_name}</span>
+                  <span className="v2-auth__history-tool">{a.tool_name}</span>
+                  <Chip
+                    tone={a.status === "approved" || a.status === "executed" ? "ok" : a.status === "denied" ? "accent" : "neutral"}
+                    dot
+                  >
+                    {a.status}
+                  </Chip>
+                </div>
+                {/* Phase 18-A: context/tool_arguments/execution_result were
+                    already fetched and typed but never rendered. */}
+                {a.context && <div className="v2-auth__history-context">{a.context}</div>}
+                {a.execution_result && (
+                  <div className="v2-auth__history-result">{a.execution_result}</div>
+                )}
               </li>
             ))}
           </ul>
@@ -436,6 +444,9 @@ function PendingApprovalCard({
       : approval.impact === "external"
         ? "warn"
         : "neutral";
+  // Phase 18-A: tool_arguments is a JSON string of the tool's call params -
+  // parse into a compact key:value list rather than dumping raw JSON.
+  const argEntries = parseToolArguments(approval.tool_arguments);
   return (
     <article className="v2-auth__pending" data-urgency={approval.urgency} data-tone={tone}>
       <header className="v2-auth__pending-head">
@@ -455,6 +466,20 @@ function PendingApprovalCard({
         <span className="v2-auth__pending-tool">{approval.tool_name}</span>
         <span className="v2-auth__pending-cat">{approval.action_category}</span>
       </div>
+      {/* Phase 18-A: tool_arguments/context are already written by the
+          server (e.g. repo_path/title/head/base for GitHub actions) but
+          were never rendered - a card used to show only the tool name. */}
+      {approval.context && <div className="v2-auth__pending-context">{approval.context}</div>}
+      {argEntries.length > 0 && (
+        <dl className="v2-auth__pending-args">
+          {argEntries.map(([key, value]) => (
+            <div key={key} className="v2-auth__pending-args-row">
+              <dt>{key}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className="v2-auth__pending-actions">
         <button
           type="button"
@@ -908,6 +933,26 @@ function formatTime(ts: number): string {
   if (!Number.isFinite(ts)) return "";
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Phase 18-A: `ApprovalRequest.tool_arguments` is stored as a JSON string
+ * (see `ApprovalManager.createRequest`). Parses it into a short, stable
+ * list of primitive key:value pairs for display - skips nested
+ * objects/arrays rather than trying to render them, and fails soft on
+ * malformed/empty input.
+ */
+function parseToolArguments(raw: string | null): Array<[string, string]> {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+    return Object.entries(parsed as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+      .map(([k, v]) => [k, String(v)]);
+  } catch {
+    return [];
+  }
 }
 
 function levelZone(level: number): "ok" | "neutral" | "warn" | "accent" {
