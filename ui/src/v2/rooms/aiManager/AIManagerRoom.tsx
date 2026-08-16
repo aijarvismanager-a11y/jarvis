@@ -33,7 +33,8 @@ const TASK_COLUMNS: ProjectTaskStatus[] = [
 const COST_MODES: readonly CostMode[] = ["cheap", "balanced", "quality"];
 const EXECUTION_MODES: readonly ExecutionMode[] = ["auto", "assisted", "manual"];
 
-const TASK_STATUS_TONE: Record<ProjectTaskStatus, Tone> = {
+/** Shared with the Cinematic Shell's Focus Mode (Phase 35) so both surfaces use one status vocabulary. */
+export const TASK_STATUS_TONE: Record<ProjectTaskStatus, Tone> = {
   PENDING: "mut", PLANNING: "mut", READY: "mut", RUNNING: "run", WAITING: "hold",
   BLOCKED: "hold", REVIEW: "hold", QA: "hold", COMPLETED: "ok", FAILED: "fail", CANCELLED: "mut",
 };

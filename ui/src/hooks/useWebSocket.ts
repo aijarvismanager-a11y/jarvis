@@ -137,6 +137,33 @@ export type SiteEvent = {
   timestamp: number;
 };
 
+/**
+ * Phase 34-B — global Emergency Stop state (`src/authority/emergency.ts`),
+ * pushed live over `notification`/`source: "emergency_state"`
+ * (`WebSocketService.broadcastEmergencyState()`). The backend has broadcast
+ * this since before this phase; the daemon-side wiring already existed and
+ * simply had no frontend consumer until now.
+ */
+export type EmergencyStateValue = "normal" | "paused" | "killed";
+
+/**
+ * Phase 33 — an AI Manager Handoff (spec §14-15), pushed live over
+ * `handoff_event` right after `ManagerAgent`/`sendHandoff()` files it. See
+ * the `handoff_event` doc comment on `WSMessage` in `src/comms/websocket.ts`
+ * for the exact backend payload contract this mirrors.
+ */
+export type HandoffEvent = {
+  message_id: string;
+  project_id?: string;
+  task_id: string;
+  from_agent: string;
+  to_agent: string;
+  status: "completed" | "failed" | "needs_input";
+  summary: string;
+  next_action: string;
+  timestamp: number;
+};
+
 export type SystemNotice = {
   id: string;
   title: string;
@@ -375,6 +402,8 @@ export function useWebSocket() {
   const [workflowEvents, setWorkflowEvents] = useState<WorkflowEvent[]>([]);
   const [goalEvents, setGoalEvents] = useState<GoalEvent[]>([]);
   const [siteEvents, setSiteEvents] = useState<SiteEvent[]>([]);
+  const [handoffEvents, setHandoffEvents] = useState<HandoffEvent[]>([]);
+  const [emergencyState, setEmergencyStateValue] = useState<EmergencyStateValue | null>(null);
   const [settingsEvents, setSettingsEvents] = useState<SettingsAppliedEvent[]>([]);
   const [notices, setNotices] = useState<SystemNotice[]>([]);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
@@ -730,6 +759,10 @@ export function useWebSocket() {
     } else if (msg.type === "site_event") {
       const siteEvent = msg.payload as SiteEvent;
       setSiteEvents((prev) => [...prev.slice(-100), siteEvent]);
+    } else if (msg.type === "handoff_event") {
+      const payload = msg.payload as Omit<HandoffEvent, "timestamp">;
+      const event: HandoffEvent = { ...payload, timestamp: msg.timestamp };
+      setHandoffEvents((prev) => [...prev.slice(-100), event]);
     } else if (msg.type === "settings_applied") {
       const payload = msg.payload as Omit<SettingsAppliedEvent, "timestamp">;
       const event: SettingsAppliedEvent = { ...payload, timestamp: msg.timestamp };
@@ -764,6 +797,11 @@ export function useWebSocket() {
           // Suggestion events also arrive via broadcastNotification as chat messages,
           // so no need to duplicate here — just log for debugging
           console.log("[WS] Awareness suggestion:", awarenessEvent.data.title);
+        }
+      } else if (payload.source === "emergency_state") {
+        const state = (payload as { state?: EmergencyStateValue }).state;
+        if (state === "normal" || state === "paused" || state === "killed") {
+          setEmergencyStateValue(state);
         }
       } else if (payload.source === "sidecar_event" && payload.event?.type === "sidecar_disconnect") {
         const noticeMessage = createSidecarNotice(payload, msg.timestamp);
@@ -1032,7 +1070,7 @@ export function useWebSocket() {
   }, []);
 
   return {
-    messages, isConnected, sendMessage, taskEvents, contentEvents, agentActivity, workflowEvents, goalEvents, siteEvents, settingsEvents, notices, dismissNotice,
+    messages, isConnected, sendMessage, taskEvents, contentEvents, agentActivity, workflowEvents, goalEvents, siteEvents, handoffEvents, emergencyState, settingsEvents, notices, dismissNotice,
     approvals,
     clarifiers,
     repeatBacks,

@@ -308,6 +308,10 @@ export function useLiveThread() {
     contentEvents: ws.contentEvents,
     /** Live agent delegation events (drives Logs Room live tail). */
     agentActivity: ws.agentActivity,
+    /** Phase 33: live AI Manager Handoff events (drives the Cinematic Shell's animated packet). */
+    handoffEvents: ws.handoffEvents,
+    /** Phase 34-B: live global Emergency Stop state (drives the shell's EmergencyChip). */
+    emergencyState: ws.emergencyState,
     /** Settings hot-apply results (drives the Settings Room status card + toasts). */
     settingsEvents: ws.settingsEvents,
     /** Phase 5A: palette pushes synthetic cards into the thread via this. */

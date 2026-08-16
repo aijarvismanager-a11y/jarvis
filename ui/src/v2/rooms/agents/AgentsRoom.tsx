@@ -27,6 +27,8 @@ import { useRovingTabs } from "../useRovingTabs";
 import {
   useAgentsData,
   useFullTaskResponse,
+  formatAgentActivityText,
+  agentInitials,
   type AgentRosterEntry,
   type SpecialistInfo,
 } from "./useAgentsData";
@@ -47,13 +49,6 @@ const ROLE_ICON: Record<string, LucideIcon> = {
   "marketing-strategist": Megaphone,
   "customer-support": Headphones,
 };
-
-/** 2-letter avatar from an agent name (agents §01 — "PA", "RA", "SE"). */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (name.trim().slice(0, 2) || "··").toUpperCase();
-}
 
 type TabId = "command" | "orbital" | "builder";
 const AGENTS_TAB_KEYS: ReadonlyArray<TabId> = ["command", "orbital", "builder"];
@@ -385,7 +380,7 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
     <article className="v2-agents__card" data-active={agent.isActive}>
       <div className="v2-agents__card-head">
         <div className="v2-agents__card-icon">
-          <span className="v2-agents__avatar-txt">{initials(agent.name)}</span>
+          <span className="v2-agents__avatar-txt">{agentInitials(agent.name)}</span>
         </div>
         <div className="v2-agents__card-id">
           <div className="v2-agents__card-name">{agent.name}</div>
@@ -522,7 +517,7 @@ function Orbital({
                   }
                   title={a.name}
                 >
-                  <span className="v2-agents__avatar-txt">{initials(a.name)}</span>
+                  <span className="v2-agents__avatar-txt">{agentInitials(a.name)}</span>
                   <span className="v2-agents__orb-name">{a.name}</span>
                 </button>
               );
@@ -576,7 +571,7 @@ function Orbital({
                   <span className="v2-agents__ticker-time">{formatTime(e.timestamp)}</span>
                   <span>
                     <span className="v2-agents__ticker-agent">{e.agentName}</span>{" "}
-                    {formatTickerText(e)}
+                    {formatAgentActivityText(e)}
                   </span>
                 </span>
               ))}
@@ -588,16 +583,6 @@ function Orbital({
       </div>
     </div>
   );
-}
-
-function formatTickerText(event: ReturnType<typeof useAgentsData>["liveActivity"][number]): string {
-  if (event.eventType === "tool_call") {
-    const name = (event.data as { name?: string })?.name ?? "unknown";
-    return `called ${name}`;
-  }
-  if (event.eventType === "done") return "completed task";
-  const text = (event.data as { text?: string })?.text ?? "";
-  return text.length > 50 ? text.slice(0, 50) + "…" : text;
 }
 
 /* ─────────── Builder redirect ─────────── */

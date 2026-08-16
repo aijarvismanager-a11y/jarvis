@@ -1761,6 +1761,28 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
       },
     },
 
+    /**
+     * Cinematic UI Phase 29 — per-provider status ("AI Network" panel, spec
+     * §23), derived from real `llm_usage` call history (see
+     * `getProviderStatus`'s doc comment) rather than a live probe. Provider
+     * list comes from the live LLMManager registration, not the DB, so a
+     * configured-but-never-called provider still shows up as 'unknown'
+     * rather than being silently absent.
+     */
+    '/api/llm/providers/status': {
+      GET: async () => {
+        try {
+          const { getProviderStatus } = await import('../llm/usage.ts');
+          const llmManager = ctx.agentService.getLLMManager();
+          const names = llmManager.getProviderNames();
+          return json({ providers: getProviderStatus(names) });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return json({ error: msg, providers: [] });
+        }
+      },
+    },
+
     /** Distinct filter values + date range present in the DB. Used by the
      *  Usage room to populate filter dropdowns with only-extant choices. */
     '/api/usage/filters': {

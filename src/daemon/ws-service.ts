@@ -739,6 +739,30 @@ export class WebSocketService implements Service {
   }
 
   /**
+   * Broadcast an AI Manager Handoff (spec section 14-15) to all connected
+   * clients, right after `sendHandoff()` persists it. Full payload contract
+   * + consumer example: see the `handoff_event` comment on `WSMessage` in
+   * `src/comms/websocket.ts`.
+   */
+  broadcastHandoffEvent(handoff: {
+    message_id: string;
+    project_id?: string;
+    task_id: string;
+    from_agent: string;
+    to_agent: string;
+    status: 'completed' | 'failed' | 'needs_input';
+    summary: string;
+    next_action: string;
+  }): void {
+    const message: WSMessage = {
+      type: 'handoff_event',
+      payload: handoff,
+      timestamp: Date.now(),
+    };
+    this.wsServer.broadcast(message);
+  }
+
+  /**
    * Format a FileEntry tree into a compact text listing.
    */
   private formatFileTree(entry: { name: string; path: string; type: 'file' | 'directory'; children?: { name: string; type: 'file' | 'directory' }[] }): string {

@@ -37,7 +37,7 @@ import {
   type Project, type ProjectTemplate, type ExecutionMode, type CostMode,
 } from '../vault/projects.ts';
 import { setProjectTaskFields, getProjectTaskFields, type ProjectTaskStatus } from '../vault/project-tasks.ts';
-import { sendHandoff } from '../agents/handoff.ts';
+import { sendHandoff, type Handoff } from '../agents/handoff.ts';
 import { createDecision } from '../vault/decisions.ts';
 import { SelfHealingRunner, type HealingResult } from './self-healing.ts';
 import { QAAgent } from './qa.ts';
@@ -86,9 +86,23 @@ export class ManagerAgent {
     private readonly dispatcher: TaskDispatcher,
     private readonly approvals: ApprovalManager,
     maxRetries: number = 3,
+    /**
+     * Phase 33 — fired right after a Handoff is persisted, so a caller with
+     * WS access (see `src/ai-manager/api/routes.ts`'s `AIManagerApiContext.
+     * getWsService`) can push it live instead of the UI only seeing it on
+     * the next 8s poll. Optional and side-effect-only: ManagerAgent's own
+     * control flow never depends on whether this is set or what it does.
+     */
+    private readonly onHandoff?: (handoff: Handoff, messageId: string, projectId?: string) => void,
   ) {
     this.planner = new Planner(router);
     this.healer = new SelfHealingRunner(router, dispatcher, new QAAgent(), maxRetries);
+  }
+
+  /** sendHandoff() + the optional live-push side effect, in one place so both call sites stay in sync. */
+  private fileHandoff(handoff: Handoff, opts?: { project_id?: string }): void {
+    const message = sendHandoff(handoff, opts);
+    this.onHandoff?.(handoff, message.id, opts?.project_id);
   }
 
   /**
@@ -191,7 +205,7 @@ export class ManagerAgent {
       artifacts: envelope.details_ref ? [...taskFields.artifacts, envelope.details_ref] : taskFields.artifacts,
     });
 
-    sendHandoff(
+    this.fileHandoff(
       {
         task_id: taskId,
         from_agent: taskFields.assigned_agent ?? MANAGER_AGENT_ID,
@@ -450,7 +464,7 @@ export class ManagerAgent {
       );
     }
 
-    sendHandoff(
+    this.fileHandoff(
       {
         task_id: envelope.task_id,
         from_agent: `task_${finalAttempt.template}`,

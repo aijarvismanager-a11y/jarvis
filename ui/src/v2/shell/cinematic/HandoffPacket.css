@@ -1,0 +1,65 @@
+/* ═══════════════════ Handoff packet + ticker (Phase 33) ═══════════════════
+   The flight animation only claims what `handoff_event` actually tells us:
+   direction relative to the Core ('manager', see AgentOrbit's core node) —
+   not a specific counterparty screen position (see HandoffPacket.tsx's doc
+   comment for why). Colour is real status, not decoration. */
+
+.cin-packet-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cin-packet {
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--pkt-hue, var(--speak));
+  box-shadow: 0 0 0.8em 0.1em color-mix(in srgb, var(--pkt-hue, var(--speak)) 55%, transparent);
+}
+
+.cin-packet[data-status="completed"] { --pkt-hue: var(--ok); }
+.cin-packet[data-status="failed"] { --pkt-hue: var(--listen); }
+.cin-packet[data-status="needs_input"] { --pkt-hue: var(--hold); }
+
+.cin-packet[data-direction="inbound"] { animation: cin-pkt-in var(--pkt-dur, 1.4s) var(--ease) both; }
+.cin-packet[data-direction="outbound"] { animation: cin-pkt-out var(--pkt-dur, 1.4s) var(--ease) both; }
+
+@keyframes cin-pkt-in {
+  0% { top: 6%; opacity: 0; transform: scale(0.6); }
+  15% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; }
+  100% { top: 48%; opacity: 0; transform: scale(0.4); }
+}
+@keyframes cin-pkt-out {
+  0% { top: 48%; opacity: 0; transform: scale(0.4); }
+  15% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; }
+  100% { top: 6%; opacity: 0; transform: scale(0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cin-packet { animation: none !important; opacity: 0 !important; }
+}
+
+/* ── Ticker ── */
+
+.cin-handoff-ticker {
+  flex-shrink: 0; width: 100%; max-width: 640px;
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink3);
+  max-height: 5.4em; overflow-y: auto;
+}
+.cin-handoff-row { display: flex; align-items: center; gap: 6px; }
+.cin-handoff-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--faint); }
+.cin-handoff-dot[data-status="completed"] { background: var(--ok); }
+.cin-handoff-dot[data-status="failed"] { background: var(--listen); }
+.cin-handoff-dot[data-status="needs_input"] { background: var(--hold); }
+.cin-handoff-from, .cin-handoff-to { color: var(--ink); font-weight: 600; }
+.cin-handoff-arrow { color: var(--faint); }
+.cin-handoff-status { color: var(--ink3); text-transform: uppercase; letter-spacing: 0.04em; }
+.cin-handoff-empty { color: var(--faint); }

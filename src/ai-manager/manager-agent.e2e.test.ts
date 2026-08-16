@@ -126,6 +126,39 @@ describe('ManagerAgent end-to-end: simple website creation', () => {
     }
   });
 
+  it('Phase 33: fires the onHandoff callback once per filed Handoff, with the message id and project id', async () => {
+    const plannerResponse = textResponse(JSON.stringify([
+      { title: 'Research the target audience and competitors', template: 'research', priority: 'normal', depends_on: [] },
+    ]));
+    const provider = new MockProvider([plannerResponse]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+    const runner: TaskRunner = async ({ template, intent }) => ({
+      kind: 'completed',
+      text: `[${template}] done: ${intent}`,
+      conversation: [],
+    });
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+
+    const seen: Array<{ handoff: Parameters<NonNullable<ConstructorParameters<typeof ManagerAgent>[4]>>[0]; messageId: string; projectId?: string }> = [];
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager(), 3, (handoff, messageId, projectId) => {
+      seen.push({ handoff, messageId, projectId });
+    });
+
+    const result = await manager.handleRequest('Demo Website', 'Research the market.');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.handoff.status).toBe('completed');
+    expect(seen[0]!.handoff.to_agent).toBe('manager');
+    expect(seen[0]!.projectId).toBe(result.project.id);
+    // The pushed message id round-trips to the real persisted row.
+    const handoffs = getHandoffsForTask(result.outcomes[0]!.task_id);
+    expect(handoffs).toHaveLength(1);
+    expect(typeof seen[0]!.messageId).toBe('string');
+    expect(seen[0]!.messageId.length).toBeGreaterThan(0);
+  });
+
   it('falls back to a single general subtask when the planner LLM returns unparseable output, and still completes the project', async () => {
     const provider = new MockProvider([textResponse('not valid json, the model ignored instructions')]);
     const llm = makeLLM(provider);

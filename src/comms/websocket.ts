@@ -61,7 +61,34 @@ export type WSMessage = {
       // daemon (per-section apply or POST /api/config/reload / SIGHUP).
       // Payload: { sections: string[], ok: boolean, errors?: { section, error }[] }
       // — section names and error strings only, never setting values.
-      | 'settings_applied';
+      | 'settings_applied'
+      // AI Manager Handoff filed (spec section 14-15, src/agents/handoff.ts).
+      // Fires whenever ManagerAgent.sendHandoff() records an agent-to-agent
+      // (or agent-to-manager) handoff for a project subtask — the Cinematic
+      // UI's animated handoff-packet visualization (Phase 33) and any list
+      // view that wants live updates instead of an 8s poll both consume
+      // this instead of re-deriving it from GET .../projects/:id/handoffs.
+      //
+      // Payload:
+      //   {
+      //     message_id: string,      // the underlying agent_messages row id
+      //     project_id?: string,     // absent for handoffs filed outside a project
+      //     task_id: string,
+      //     from_agent: string,
+      //     to_agent: string,
+      //     status: 'completed' | 'failed' | 'needs_input',
+      //     summary: string,
+      //     next_action: string,
+      //   }
+      //
+      // Consuming:
+      //   const ws = new WebSocket('ws://host:port/ws');
+      //   ws.onmessage = (e) => {
+      //     const msg = JSON.parse(e.data);
+      //     if (msg.type !== 'handoff_event') return;
+      //     animatePacket(msg.payload.from_agent, msg.payload.to_agent);
+      //   };
+      | 'handoff_event';
   payload: unknown;
   id?: string;
   priority?: 'urgent' | 'normal' | 'low';

@@ -130,6 +130,32 @@ export const ROSTER: ReadonlyArray<Omit<AgentRosterEntry, "live" | "isActive">> 
     ring: "outer",  orbital: { left: "50%", top: "85%" } },
 ];
 
+/** 2-letter avatar from an agent name (agents §01 — "PA", "RA", "SE"). Shared
+ *  by `AgentsRoom`'s Orbital View and the Cinematic Shell's Agent Orbit. */
+export function agentInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  return (name.trim().slice(0, 2) || "··").toUpperCase();
+}
+
+/**
+ * One-line summary of a live activity event, for tickers. Shared by
+ * `AgentsRoom`'s Orbital View ticker and the Cinematic Shell's Agent Orbit
+ * (Phase 32) so both surfaces describe the same event the same way.
+ */
+export function formatAgentActivityText(event: {
+  eventType: "text" | "tool_call" | "done";
+  data: unknown;
+}): string {
+  if (event.eventType === "tool_call") {
+    const name = (event.data as { name?: string })?.name ?? "unknown";
+    return `called ${name}`;
+  }
+  if (event.eventType === "done") return "completed task";
+  const text = (event.data as { text?: string })?.text ?? "";
+  return text.length > 50 ? text.slice(0, 50) + "…" : text;
+}
+
 export interface AgentActivityHistoryRow {
   id: string;
   agent_id: string;

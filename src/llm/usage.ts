@@ -326,6 +326,61 @@ export function queryUsage(
   }
 }
 
+export type ProviderStatus = 'online' | 'error' | 'unknown';
+
+export type ProviderStatusEntry = {
+  provider: string;
+  status: ProviderStatus;
+  last_call_ts: number | null;
+  last_error_code: string | null;
+  last_latency_ms: number | null;
+};
+
+/**
+ * Cinematic UI Phase 29 — per-provider status derived from real call
+ * history, not a live probe. Reads each registered provider's single most
+ * recent `llm_usage` row: no row yet -> 'unknown' (never called, not the
+ * same as "down"), most recent row has no error_code -> 'online', most
+ * recent row has an error_code -> 'error' (carries the code so the UI can
+ * word it, e.g. 'rate_limit' vs 'auth'). Deliberately not an active
+ * health-check ping — that would mean issuing real (costed) requests to
+ * every configured provider on every dashboard poll, which the Cinematic UI
+ * spec's anti-fake-data rule doesn't require: reusing already-recorded call
+ * outcomes is real data, just not real-time-probed data.
+ */
+export function getProviderStatus(providerNames: string[]): ProviderStatusEntry[] {
+  const db = resolveDb();
+  if (!db) return providerNames.map((provider) => ({
+    provider, status: 'unknown', last_call_ts: null, last_error_code: null, last_latency_ms: null,
+  }));
+
+  return providerNames.map((provider) => {
+    try {
+      const row = db
+        .query<{ ts: number; error_code: string | null; latency_ms: number }, [string]>(
+          `SELECT ts, error_code, latency_ms FROM llm_usage
+           WHERE provider = ?
+           ORDER BY ts DESC
+           LIMIT 1`,
+        )
+        .get(provider);
+      if (!row) {
+        return { provider, status: 'unknown' as const, last_call_ts: null, last_error_code: null, last_latency_ms: null };
+      }
+      return {
+        provider,
+        status: row.error_code ? ('error' as const) : ('online' as const),
+        last_call_ts: row.ts,
+        last_error_code: row.error_code,
+        last_latency_ms: row.latency_ms,
+      };
+    } catch (err) {
+      console.warn(`[LLMUsage] getProviderStatus failed for '${provider}':`, err);
+      return { provider, status: 'unknown' as const, last_call_ts: null, last_error_code: null, last_latency_ms: null };
+    }
+  });
+}
+
 /**
  * Return distinct values present in the DB for each filterable column,
  * plus the earliest/latest timestamps. Used by the UI to populate filter

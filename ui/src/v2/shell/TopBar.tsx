@@ -4,6 +4,9 @@ import { ROOM_NAV_ENTRIES } from "../palette/types";
 import type { ConnectionState } from "./Header";
 import type { VoiceState } from "./VoiceRail";
 import { useTheme } from "./useTheme";
+import { useCinematicMode, type UIMode } from "./useCinematicMode";
+import { EmergencyChip } from "./EmergencyChip";
+import { AwarenessChip } from "./AwarenessChip";
 
 /**
  * Top bar — 44px, never two rows. Left: room name + contextual actions
@@ -39,6 +42,16 @@ const DAEMON: Record<ConnectionState, { cls: string; hue: string; label: string 
   offline: { cls: "bad", hue: "var(--listen)", label: "offline" },
 };
 
+// Cinematic/Focus have no dedicated surface yet (Phase 31/35) — Normal Mode
+// renders unchanged regardless of this switch's value today. The label says
+// so rather than pretending the mode already does something, per the spec's
+// anti-dummy-data rule (docs/CINEMATIC_UI_AUDIT.md §11, spec §78/§79-80).
+const MODE_META: Record<UIMode, { label: string; icon: string; note: string }> = {
+  normal: { label: "Normal", icon: "▢", note: "Standard dashboard" },
+  cinematic: { label: "Cinematic", icon: "◈", note: "Central Core view — live project/task/agent/provider status" },
+  focus: { label: "Focus", icon: "◎", note: "Single-task view — the pinned project's most urgent task, one at a time" },
+};
+
 export function TopBar({
   connection,
   voiceState,
@@ -60,6 +73,7 @@ export function TopBar({
 }) {
   const route = useV2Route();
   const [theme, toggleTheme] = useTheme();
+  const [uiMode, cycleUiMode] = useCinematicMode();
   const isNow = route.kind !== "room";
   const title = route.kind === "room" ? ROOM_TITLES[route.key] ?? route.key : "Now";
   const daemon = DAEMON[connection];
@@ -86,6 +100,18 @@ export function TopBar({
             <span className="rs-stl">{STATE_LABEL[voiceState]}</span>
           </span>
         )}
+
+        <EmergencyChip />
+        <AwarenessChip />
+
+        <button
+          className={`rs-chip${uiMode !== "normal" ? " hold" : ""}`}
+          onClick={() => cycleUiMode()}
+          aria-label={`UI mode: ${MODE_META[uiMode].label}. Click to switch.`}
+          title={MODE_META[uiMode].note}
+        >
+          {MODE_META[uiMode].icon} {MODE_META[uiMode].label}
+        </button>
 
         <button
           className="rs-chip"

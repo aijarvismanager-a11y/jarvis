@@ -5,6 +5,7 @@ import {
   recordUsage,
   queryUsage,
   listUsageDistinctValues,
+  getProviderStatus,
 } from './usage.ts';
 import type { Tier } from './tiers.ts';
 
@@ -148,6 +149,66 @@ describe('queryUsage', () => {
     const r = queryUsage({}, 'model');
     expect(r.total.calls).toBe(0);
     expect(r.rows).toEqual([]);
+  });
+});
+
+describe('getProviderStatus', () => {
+  beforeEach(() => {
+    closeDb();
+    const db = initDatabase(':memory:');
+    setUsageDatabase(() => db);
+    seed();
+  });
+
+  it("'online' for a provider whose most recent call had no error", () => {
+    // Seed's most recent openai row (msAgo: 0) is error-free, even though an
+    // older openai row (msAgo: 240_000) did error - status reflects the
+    // latest call, not "ever errored".
+    const [openai] = getProviderStatus(['openai']);
+    expect(openai?.status).toBe('online');
+    expect(openai?.last_error_code).toBeNull();
+  });
+
+  it("'error' for a provider whose most recent call is older but still its latest", () => {
+    // anthropic's only rows in the seed never error.
+    const [anthropic] = getProviderStatus(['anthropic']);
+    expect(anthropic?.status).toBe('online');
+  });
+
+  it("'unknown' for a provider with zero usage rows", () => {
+    const [none] = getProviderStatus(['never-called-provider']);
+    expect(none).toEqual({
+      provider: 'never-called-provider',
+      status: 'unknown',
+      last_call_ts: null,
+      last_error_code: null,
+      last_latency_ms: null,
+    });
+  });
+
+  it('returns one entry per requested provider, preserving order', () => {
+    const rows = getProviderStatus(['ollama', 'unknown-x', 'anthropic']);
+    expect(rows.map((r) => r.provider)).toEqual(['ollama', 'unknown-x', 'anthropic']);
+  });
+
+  it('reflects an errored most-recent call as status "error" with the code', () => {
+    recordUsage({
+      tier: 'low', resolved_tier: 'low', subsystem: 'test', provider: 'flaky',
+      model: 'stub', input_tokens: 1, output_tokens: 1, latency_ms: 10, error_code: 'rate_limit',
+    });
+    const [flaky] = getProviderStatus(['flaky']);
+    expect(flaky?.status).toBe('error');
+    expect(flaky?.last_error_code).toBe('rate_limit');
+  });
+
+  it('no DB configured returns unknown for every provider rather than throwing', () => {
+    closeDb();
+    setUsageDatabase(() => null);
+    const rows = getProviderStatus(['a', 'b']);
+    expect(rows).toEqual([
+      { provider: 'a', status: 'unknown', last_call_ts: null, last_error_code: null, last_latency_ms: null },
+      { provider: 'b', status: 'unknown', last_call_ts: null, last_error_code: null, last_latency_ms: null },
+    ]);
   });
 });
 

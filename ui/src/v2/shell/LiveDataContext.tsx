@@ -2,6 +2,8 @@ import React, { createContext, useContext } from "react";
 import type {
   AgentActivityEvent,
   ContentEvent,
+  EmergencyStateValue,
+  HandoffEvent,
   PendingApproval,
   PendingClarifier,
   PendingRepeatBack,
@@ -27,6 +29,26 @@ export interface LiveData {
   taskEvents: TaskEvent[];
   contentEvents: ContentEvent[];
   agentActivity: AgentActivityEvent[];
+  /**
+   * Phase 33 — live AI Manager Handoffs (`handoff_event`), newest last, same
+   * convention as the other WS-derived arrays here. `AIManagerRoom`'s
+   * `HandoffCard` list still polls (unchanged); this is for surfaces that
+   * want the transition live — currently only the Cinematic Shell's
+   * animated handoff packet (`AgentOrbit.tsx`), but per this file's own
+   * "more than one Room" rule it lives here rather than a second
+   * `useWebSocket()` call, since only one WS connection is ever opened
+   * (in `useLiveThread.ts`, consumed by `AppShell.tsx`).
+   */
+  handoffEvents: HandoffEvent[];
+  /**
+   * Phase 34-B — global Emergency Stop state, pushed live. Null until the
+   * first `emergency_state` push arrives on this connection (the WS only
+   * broadcasts on *change*, not current state on connect) — `EmergencyChip`
+   * combines this with its own one-time `GET /api/authority/status` fetch
+   * for the value at mount, same "poll once for initial + live push for
+   * updates" shape as `useEmergencyStatus.ts` documents.
+   */
+  emergencyState: EmergencyStateValue | null;
   /**
    * Settings hot-apply results broadcast by the daemon (`settings_applied`).
    * The Settings Room reads the latest entry for its status card and toasts
@@ -74,6 +96,8 @@ const EMPTY: LiveData = {
   taskEvents: [],
   contentEvents: [],
   agentActivity: [],
+  handoffEvents: [],
+  emergencyState: null,
   settingsEvents: [],
   latestAssistantReply: null,
 };

@@ -2145,3 +2145,604 @@ src/workflows/sandbox-api/sandbox-api.test.ts
 src/workflows/runner/engine-runtime/end-to-end.test.ts`: 142 passing / 0
 failing. No UI diff, so no browser verification needed - same
 backend-only risk profile as every prior phase in this series.
+
+## 25. Phase 28 Plan (Cinematic UI — pre-implementation audit) — Done
+
+New initiative, not a continuation of the Phase 18-27 `project_id`-threading series: the user
+supplied a second spec document, `JARVIS AI MANAGEMENT SYSTEM2.md` ("CINEMATIC UI 完全版開発仕様書"),
+which asks for a sci-fi command-center visual layer (Central Core, orbiting Agent nodes,
+animated Handoff visualization, AI Council/Task Flow/HUD displays, Normal/Cinematic/Focus mode
+switch) on top of the AI Manager backend this file has tracked through Phase 27. That spec's own
+Section 84 requires the same discipline this file's Phase 0 established for the backend: audit
+before code, write the audit to a doc, then phase the implementation. Phase 28 is that audit
+phase - no production code changed this phase, matching Phase 0's precedent.
+
+**Scope**: repository/existing-UI, state-management, WebSocket, Pebble, Voice, Sidecar-on-the-
+UI-side, and Agent/Provider data-availability audits (the eight areas the spec's §84 lists),
+plus a section-by-section diff of the spec's 86 sections against what already exists, plus a
+markdown-quality check of the spec file itself. Full findings: `docs/CINEMATIC_UI_AUDIT.md`
+(new file, per the spec's explicit instruction to save this audit there rather than folding it
+into this document).
+
+**Headline findings** (detail in the new doc):
+
+- Markdown check: the spec file is well-formed (0 unclosed code fences across 2,436 lines; one
+  intentional heading-level skip at line 2199 for a lettered checklist, not an error). No
+  corrections needed before using it as the build reference.
+- Roughly half the spec's asks already exist as real UI precedent, not just backend data:
+  `AgentsRoom.tsx`'s hand-rolled "Orbital View" (spec §9's Agent Orbit), `ApprovalCard.tsx`
+  (spec §31), `EmergencyBand` in `AuthorityRoom.tsx` (spec §32, but Room-scoped not global),
+  `BootSplash.tsx` (spec §35/§58, 5 variants already), `CouncilDialog` in `AIManagerRoom.tsx`
+  (spec §14), `CommandPalette.tsx` (spec §54), `Composer.tsx` (spec §16).
+- The real net-new foundation is spec §60 ("UI State") - no unified current-project/active-
+  agents/task-status/provider-status app-state hook exists today; that state is spread across
+  `useActiveProject`/`useAIManagerData`/`useAgentsData`/`LiveDataContext` with no single source
+  of truth a Cinematic Core visualization could bind to.
+- Confirmed backend gap: no per-provider LLM online/offline status endpoint or push exists
+  (only reactive per-request error events) - spec §23's "AI Network" panel cannot be built from
+  real data without new backend work, unlike Agent Performance and Task Kanban status which are
+  already fully exposed via `/api/ai-manager/agents/performance` and
+  `/api/ai-manager/projects/:id/tasks`.
+- Confirmed absent, need net-new UI: Sub-Pebble (spec §20, background-agent satellite
+  indicator - zero existing trace, confirmed via grep), a global Awareness/Privacy toggle (spec
+  §39 - only a one-shot disconnect *notice* exists, no positive "active" state anywhere), and
+  systemic `prefers-reduced-motion` handling (spec §40 - currently checked in exactly one file,
+  `OnboardingWizard.tsx`, while four already-shipped animated surfaces - `BootSplash`,
+  `SystemStates`, `AgentsRoom`'s orbital rings, `Pebble`'s cursor physics - don't check it at
+  all; Cinematic Mode must not add a fifth unchecked surface).
+- WebSocket layer (`useWebSocket.ts`) has no task/handoff-specific push today - the AI Manager
+  room polls every 8s by design. A new push type is additive (new `msg.type` case + returned
+  state + optional `LiveDataContext` entry), not a rearchitecture, but is required for spec
+  §29's animated Handoff visualization to show real transitions rather than re-deriving them
+  from an 8s poll.
+- `@xyflow/react` is already a dependency (drives `WorkflowEditor.tsx`) and is a candidate for
+  the Agent Orbit visualization, but competes with the already-shipped CSS-only Orbital View in
+  `AgentsRoom.tsx` - which pattern to standardize on is a Phase 29 design decision, not decided
+  here.
+- `useTheme.ts` (`light|dark` via `data-theme` + localStorage) is confirmed as the existing
+  mode-switch mechanism a new Normal/Cinematic/Focus switch should copy, per spec §51's own
+  preference for reusing existing patterns over inventing new ones.
+
+**Implementation order for what follows Phase 28**, adapting the spec's own Phase 1-11 plan
+(§84) to fold in what's now known to already exist rather than rebuilding it:
+
+1. **Phase 29 — UI state integration**: the one hook Phase 28 found missing. A unified
+   client-side state layer (project/active agents/task status/provider status) that Normal,
+   Cinematic, and Focus modes can all bind to, built on top of - not replacing -
+   `LiveDataContext`/`useAIManagerData`/`useActiveProject`. Includes the new provider-status
+   backend endpoint/push identified above, since every later phase needs it.
+2. **Phase 30 — Mode switch + Normal Mode polish**: `useCinematicMode` copying `useTheme.ts`'s
+   shape; Normal Mode is largely already the existing `AIManagerRoom`/`AgentsRoom` experience,
+   so this phase is mostly the switch itself plus closing any obvious Normal-Mode readability
+   gaps found while building the switch.
+3. **Phase 31 — Cinematic Shell + Core visualization**: new Central Core component bound to
+   Phase 29's state (IDLE/ANALYZING/PLANNING/EXECUTING/WAITING/VERIFYING/BLOCKED/ERROR per spec
+   §8), reusing `BootSplash.tsx` for the boot sequence rather than a new implementation.
+4. **Phase 32 — Agent Orbit**: resolve the xyflow-vs-CSS-orbital decision flagged above, then
+   build/extend accordingly; wire to real agent status, not new dummy data.
+5. **Phase 33 — Handoff visualization + new WS push**: the new `msg.type` for handoff
+   transitions identified above, plus the animated packet UI consuming it.
+6. **Phase 34 — Sub-Pebble + global Emergency Stop + Awareness toggle**: the three confirmed-
+   absent UI surfaces, each additive to existing components (`Pebble.tsx`, `AuthorityRoom.tsx`'s
+   `EmergencyBand` promoted to a shell-level control, a new awareness indicator next to it).
+7. **Phase 35 — Focus Mode**: single-task view, mostly presentational once Phase 29's state
+   layer exists.
+8. **Phase 36 — Accessibility + Performance pass**: close the systemic reduced-motion gap
+   across all five animated surfaces (the four pre-existing plus whatever Phase 31-35 added) in
+   one pass rather than piecemeal, plus the GPU/performance-mode work spec §59 asks for.
+9. **Phase 37 — Testing**: the spec §81/§82 functional/visual/performance matrix, plus a
+   regression pass confirming Normal Mode and all pre-existing Rooms are unaffected.
+
+No `tsc`/`bun test`/`bun run build:ui` run this phase - no production code changed, matching
+every prior Phase-0-shaped audit phase in this series. Both audit documents
+(`docs/AI_MANAGER_ARCHITECTURE_AUDIT.md`, this section, and `docs/CINEMATIC_UI_AUDIT.md`) should
+be read together before starting Phase 29.
+
+## 26. Phase 29 (UI State integration) — Done
+
+Implemented as planned in the Phase 28 doc: closed the one concrete gap that section flagged as
+blocking every later Cinematic UI phase - no unified client-side "current project / active
+agents / task status / provider status" state layer existed. Two pieces, backend then frontend.
+
+**29-A: provider (LLM) online/offline status - new backend, since Phase 28 confirmed no sink
+existed.** `getProviderStatus(providerNames: string[])` added to `src/llm/usage.ts`, deliberately
+derived from real `llm_usage` call history rather than a live health-check probe (an active
+probe would mean issuing real, costed requests to every configured provider on every dashboard
+poll - the spec's anti-fake-data rule doesn't require that; reusing already-recorded outcomes is
+real data, just not real-time-probed data). Per provider: no `llm_usage` row yet -> `'unknown'`
+(never called, not the same as "down"); most recent row has no `error_code` -> `'online'`; most
+recent row has an `error_code` -> `'error'` (the code travels with it, e.g. `rate_limit` vs
+`auth`, so a future UI can word it precisely). New route `GET /api/llm/providers/status`
+(`src/daemon/api-routes.ts`, dynamic-imports `usage.ts` matching the file's existing
+`/api/usage`/`/api/usage/filters` convention) - provider list comes from the live
+`LLMManager.getProviderNames()`, not the DB, so a configured-but-never-called provider still
+appears as `'unknown'` instead of being silently absent. Six new tests in `usage.test.ts`
+(`describe('getProviderStatus', ...)`) cover: online-from-latest-call (even when an older call
+for the same provider errored), unknown-with-zero-rows, error-with-code, argument-order
+preservation, and the no-DB-configured fallback.
+
+**29-B: `JarvisStateProvider`/`useJarvisState()` - the unified state layer itself.** New
+`ui/src/v2/shell/JarvisStateContext.tsx`, explicitly built on top of the three existing pieces
+Phase 28's audit found (not a replacement for any of them): `useActiveProject()` for the pinned
+project, `useLiveData().agentActivity` for live sub-agent activity, and a new lightweight
+poll (same `GET .../tasks` + `GET .../agents/performance` calls `useAIManagerData.ts` already
+makes, at the same 8s cadence, independent so Cinematic surfaces don't require the AI Manager
+Room to be mounted) for the pinned project's task-status counts and agent performance, plus
+29-A's new provider-status endpoint. Mounted in `AppShell.tsx` as a child of the existing
+`LiveDataProvider` (needs `useLiveData()`, so it must live inside that provider's tree) wrapping
+`ShellLayout`/`FloatingWindowsLayer`/`CommandPalette` - the same scope `LiveDataProvider` already
+covered. `ShellLayout`'s own `useActiveProject()` call (Phase 14-A) was replaced with
+`useJarvisState()`, removing a duplicate `GET /api/chat/active-project` + `GET
+/api/ai-manager/projects?status=active` poll pair that was running twice (once in `ShellLayout`,
+once now in `JarvisStateProvider`) - a real, if minor, bug fixed as a side effect of unifying the
+state rather than a deliberate target of this phase.
+
+No mode switch, no Cinematic visual surface, and no WS push for task/handoff events were added
+this phase - those are Phase 30 (mode switch) and Phase 33 (handoff visualization + new WS push)
+per the Phase 28 plan's ordering; this phase is purely the state foundation those later phases
+bind to, plus the provider-status backend gap every later phase needing "AI Network" data would
+otherwise have hit individually.
+
+Shipped: `bunx tsc --noEmit` clean across the whole project (`src/` + `ui/`, single project
+tsconfig). `bun run build:ui` succeeds (693 modules bundled; the `@theme`/`@tailwind` warnings
+are pre-existing Tailwind 4 at-rule warnings from Bun's CSS bundler, unrelated to this change).
+`bun test src/llm src/daemon`: 351 passing / 17 failing - all 17 are the pre-existing
+Windows-only `Process Lock Manager` cross-process/file-lock suite (11) and the
+`usage.test.ts` temp-file `EBUSY` cleanup race (1) plus its sibling count from the same run, the
+same categories every prior phase in this series has hit; no new failures. Live browser
+verification was attempted (`jarvis-daemon` launch config, boots cleanly per the daemon log - no
+startup errors from either the new route or the new provider) but the dashboard itself returned
+"Unauthorized" (`[Daemon] JWT-only access: routes require an enrolled device token` - the same
+limitation Phase 11's plan doc hit and declined to work around, since relaxing it touches
+`auth.insecure_open_access`, a security setting out of scope for this pass). A clean boot with
+the new route registered and no runtime errors is the practical verification available in this
+environment; full interactive verification is deferred to whichever future phase first adds a
+visible Cinematic surface consuming this state (Phase 31's Core visualization is the first
+candidate), consistent with Phase 11's own precedent for this exact constraint.
+
+**Deferred, not forgotten**: `activeProjectDetail`'s task/agent-performance poll and
+`useAIManagerData.ts`'s own poll remain two independent pollers when both the AI Manager Room
+and a Cinematic surface are open on the same project simultaneously - not unified further this
+phase, since `useAIManagerData.ts` also owns a large surface of mutation actions
+(`runProject`/`updateStatus`/`askCouncil`/etc.) that a read-only Cinematic state layer has no
+reason to depend on; revisit only if the duplicate poll proves to be a real performance problem,
+not preemptively.
+
+## 27. Phase 30 (Mode switch + Normal Mode polish) — Done
+
+Implemented as planned in the Phase 28 doc: the Normal/Cinematic/Focus mode switch itself
+(spec §3-6, §51), copying `useTheme.ts`'s exact shape per the Phase 28 audit's own
+recommendation (`docs/CINEMATIC_UI_AUDIT.md` §9) rather than inventing a new state-management
+pattern.
+
+**The switch**: new `ui/src/v2/shell/useCinematicMode.ts` - `UIMode = "normal" | "cinematic" |
+"focus"`, persisted to `localStorage` (`jarvis-ui-mode`) and mirrored onto `data-ui-mode` on
+`<html>`, `[mode, cycle]` hook shape identical to `useTheme.ts`'s `[theme, toggle]`. One
+deliberate deviation from the theme hook: no `index.html` pre-paint bootstrap script, since
+(unlike `data-theme`) nothing yet reads `data-ui-mode` for rendering - there is no
+flash-of-wrong-mode to prevent until Phase 31/35 make the attribute visually load-bearing; the
+hook's own doc comment flags this as the trigger to add one later. Wired into `TopBar.tsx` as a
+new chip next to the existing theme toggle, cycling Normal → Cinematic → Focus → Normal on
+click, matching the chip-button interaction the theme toggle already uses rather than adding a
+`<select>`.
+
+**Normal Mode polish**: Cinematic Shell (Phase 31) and Focus Mode (Phase 35) don't exist yet, so
+selecting either mode today has no visual surface to switch *to* - the chip's `title` says so
+explicitly ("Core visualization arrives in Phase 31 - Normal Mode shown for now", equivalent for
+Focus/Phase 35) rather than silently no-op'ing, matching the project's existing precedent for
+shipping a switch ahead of its destination (`AgentsRoom.tsx`'s Agent Builder tab: a stub that
+says what's missing rather than pretending to work - spec's anti-dummy-data rule, §78/§79-80).
+The mode value itself is still real and persisted, so Phase 31/35 only need to read
+`useCinematicMode()`, not build new switch plumbing. While adding the new chip, found and fixed
+one real pre-existing Normal-Mode gap noticed in the process: `button.rs-chip` (the class every
+TopBar chip including this new one and the theme toggle uses) had no `:focus-visible` outline,
+unlike every other interactive control in `roomShell.css` (`.rs-item`, `.rs-abtn`, `.rs-peb`,
+`.rs-talk-mic` all have one) - added the matching rule so keyboard users get the same focus
+indication on chip buttons that they already get everywhere else in the shell.
+
+No Cinematic Shell, Core visualization, Agent Orbit, or Focus Mode UI was built this phase -
+those are Phase 31-35 per the Phase 28 plan's ordering; this phase is purely the switch mechanism
+plus the one concrete Normal-Mode accessibility gap it surfaced.
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (694 modules bundled, same
+pre-existing Tailwind `@theme`/`@tailwind` at-rule warnings every prior UI phase has hit).
+`bun test src/llm src/daemon`: 351 passing / 17 failing - same pre-existing Windows-only
+failures as Phase 29's baseline (11 `Process Lock Manager` cross-process/file-lock suite, plus
+the `usage.test.ts` temp-file `EBUSY` cleanup race and its sibling count), no new failures. Live
+browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup errors),
+but the dashboard itself returns "Unauthorized" (JWT-only access) - the same limitation Phase 29
+and Phase 11 both hit and declined to work around, unrelated to this phase's change. A clean
+boot with no runtime errors is the practical verification available in this environment; full
+interactive click-through of the new chip is deferred to whichever future phase first removes
+that access barrier or runs this inside an enrolled session.
+
+## 28. Phase 31 (Cinematic Shell + Core visualization) — Done
+
+Implemented as planned: the Central Core, spec §7-13/§36-38's "Core state reflects real system
+state" requirement, bound to Phase 29's `useJarvisState()` layer and gated on Phase 30's
+`useCinematicMode()` - the first Cinematic surface either of those phases' state actually feeds.
+
+**`coreStatus.ts`** (`ui/src/v2/shell/cinematic/`) - a pure `deriveCoreStatus()` mapping the
+spec's 8-state Core enum (`IDLE/ANALYZING/PLANNING/EXECUTING/WAITING/VERIFYING/BLOCKED/ERROR`)
+onto the pinned project's real `ProjectTaskStatus` counts from `activeProjectDetail.taskCounts`
+(Phase 29) - there's no 1:1 backend field for the spec's enum, so this is derived, not new
+state. Priority-ordered (first match wins, most-actionable-to-a-human first, not pipeline
+order): `FAILED>0` → ERROR, `BLOCKED>0` → BLOCKED, `WAITING>0` → WAITING, `QA/REVIEW>0` →
+VERIFYING, `RUNNING>0` → EXECUTING, `PLANNING>0` → PLANNING, `PENDING/READY>0` → ANALYZING, else
+IDLE (no pinned project, no tasks yet, or everything COMPLETED/CANCELLED). 16 tests in
+`coreStatus.test.ts` cover every single-status case plus four priority-ordering cases with
+multiple statuses present at once.
+
+**`CinematicShell.tsx`** (+ `.css`) - renders in `AppShell.tsx`'s `ShellLayout` in place of the
+Normal Mode main surface (`route.kind === "room"` / `NowRoom`) whenever `useCinematicMode()`
+reports `"cinematic"`; Focus Mode still falls back to Normal Mode unchanged (Phase 35 hasn't
+built its surface yet - same "shown for now" state Phase 30 documented, now true only for Focus).
+Shows: the Core orb (CSS-only pulse/sonar-ring, hue keyed to status via the same
+`--listen/--speak/--hold/--ok` tokens `TopBar.tsx`'s `STATE_HUE` already uses for the same
+meanings, so ERROR is red, WAITING/BLOCKED are amber, EXECUTING/VERIFYING are blue, IDLE/
+ANALYZING/PLANNING are neutral ink), the status label, the pinned project name (or "No project
+pinned"), and a four-stat readout - task count, agents-on-project count, and provider
+online/error summary all from `activeProjectDetail`/`providerStatus` (Phase 29), plus the most
+recent `agentActivity` entry's agent name (`LiveDataContext`, also Phase 29) - every number on
+screen traces to one of Phase 29's real fields, nothing invented, per the spec's anti-dummy-data
+rule (§78) the Phase 28 audit and Phase 30 doc both flagged as the governing constraint here.
+
+**Entrance transition reuses `BootSplash.tsx` itself**, per the Phase 28 plan's explicit
+instruction ("reusing BootSplash.tsx for the boot sequence rather than a new implementation") -
+not just its visual language. `BootSplash` gained three optional, backward-compatible props
+(`variant` to force a temperament instead of the cold-start weighted rotation, `autoReadyMs` to
+self-trigger hand-off instead of waiting only for the global `jarvis:boot-ready` window event,
+`onDone` callback) so a second call site can mount it standalone. `CinematicShell` mounts one
+instance with `variant="pulse"` (lightest temperament - a mode switch isn't a cold start) and
+`autoReadyMs={900}`, unmounting it via `onDone` once the Core beneath is ready to show. The
+app's existing cold-start `<BootSplash />` call in `AppShellV2.tsx` is untouched (all new props
+optional, defaults reproduce prior behavior exactly).
+
+**Reduced-motion handled from the start**, unlike the four pre-existing animated surfaces Phase
+28's audit flagged as an accessibility gap it deferred to Phase 36: `CinematicShell.css`'s own
+`@media (prefers-reduced-motion: reduce)` block disables the orb/ring animations immediately,
+since this is a brand-new animated surface with no excuse to add a fifth unchecked one. (The
+four pre-existing gaps - `BootSplash`, `SystemStates`, `AgentsRoom`'s orbital rings, `Pebble`'s
+physics - remain Phase 36's scope, unchanged by this phase.)
+
+Not built this phase (per the Phase 28 plan's ordering, unchanged): Agent Orbit (Phase 32),
+Handoff packet visualization + new WS push (Phase 33), Sub-Pebble/global Emergency Stop/Awareness
+toggle (Phase 34), Focus Mode (Phase 35).
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (697 modules, three more than
+Phase 30's 694 - the two new `cinematic/` source files plus the CSS import; same pre-existing
+Tailwind at-rule warnings every prior UI phase has hit). `bun test ui/src/v2/shell/cinematic`:
+16/16 passing (pure `deriveCoreStatus()` logic, no DOM). `bun test src/llm src/daemon`: 351
+passing / 17 failing - identical to Phase 29/30's baseline (same pre-existing Windows-only
+failures), no new failures; this phase touched no backend code, so this run is a pure regression
+check. Live browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no
+startup or console errors), but the dashboard itself still returns "Unauthorized" (JWT-only
+access) - the same limitation Phase 11/29/30 all hit and declined to work around, unrelated to
+this phase's change; interactive click-through of the mode chip and Core (confirming the pulse
+transition, the hue-per-status mapping, and the live readout numbers against a real pinned
+project) is deferred to whichever future phase first removes that access barrier, consistent
+with every prior phase's precedent for this exact constraint.
+
+## 29. Phase 32 (Agent Orbit) — Done
+
+Implemented as planned: resolved the Phase 28 audit's flagged xyflow-vs-CSS-orbital decision
+point, then built the Agent Orbit accordingly, wired to real agent status.
+
+**Decision**: extended the existing CSS-only Orbital View pattern from `AgentsRoom.tsx` rather
+than adopting `@xyflow/react`. Per `docs/CINEMATIC_UI_AUDIT.md` §8, this is "less new dependency
+surface, matches what's already shipped" - `AgentsRoom.tsx`'s Orbital View is already real-data-
+bound and proven, and `@xyflow/react` remains scoped to `WorkflowEditor.tsx`'s node/edge graph
+use case, not general-purpose radial layout.
+
+**`AgentOrbit.tsx`** (+ `.css`, `ui/src/v2/shell/cinematic/`) - does not reuse `AgentsRoom.tsx`'s
+JSX/CSS verbatim (that Room's chrome is styled for a list-based dashboard, not the immersive
+Core), but reuses every piece of real data/logic it can: `useAgentsData()` directly (a plain
+hook, not a Context, so - unlike `useAIManagerData.ts`, which Phase 29 deliberately didn't fold
+into `JarvisStateContext` because of its large mutation-action surface - it needed no new
+plumbing to call from a second mount point), and three helpers extracted out of `AgentsRoom.tsx`
+into `useAgentsData.ts` this phase so both surfaces describe agents identically instead of
+maintaining two copies: `formatAgentActivityText()` (ticker one-liners), `agentInitials()`
+(2-letter avatar text), both now exported and imported back into `AgentsRoom.tsx` in place of
+its former private copies (net code reduction, not just an addition), plus reuse of the
+already-exported `useFullTaskResponse()` for the orbit's own selected-agent detail panel.
+5 new tests in `useAgentsData.test.ts` cover `formatAgentActivityText()`'s four cases
+(tool_call/named, tool_call/unnamed, done, text short/long-truncated); `agentInitials()` was
+already implicitly covered by existing `AgentsRoom` behavior and is a straight house-move, not
+new logic.
+
+**The Central Core (Phase 31) and the Agent Orbit's PA node are now the same element**, not two
+overlapping ones - the spec's "PA at the center of the Orbit" and "Central Core" describe one
+concept. `CinematicShell.tsx` no longer renders its own orb/ring markup (moved into
+`AgentOrbit.tsx`'s `.cin-core-node`, positioned at the roster's own PA coordinate); the
+status-hue mapping from Phase 31 (`--listen/--speak/--hold/--ok` keyed to Core status, matching
+`TopBar.tsx`'s `STATE_HUE` semantics) moved with it into `AgentOrbit.css`, now keyed directly off
+a `data-status` attribute on the core node itself rather than relying on CSS custom-property
+inheritance from a shell-level attribute - self-contained, no cross-file coupling. Specialist
+agents render as smaller orb nodes at `ROSTER`'s existing orbital percentages (mirrored, not
+reimported - `AgentOrbit`'s canvas answers to the Core's own dimensions, not the Room's), active/
+selected states reusing the same real `roster[].isActive`/`live` fields `AgentsRoom.tsx` already
+computes. Clicking a specialist shows a compact detail panel (current task / latest result,
+same data `AgentsRoom`'s Orbital detail card shows); a live ticker (last 6 `agentActivity`
+events) sits below the canvas.
+
+**Reduced-motion carried forward** from Phase 31: `AgentOrbit.css`'s own
+`@media (prefers-reduced-motion: reduce)` block disables the Core's breathe/sonar animations
+(the specialist orbs were never animated, so nothing else needed gating). Also added
+`:focus-visible` rules for the new core-node and agent-orb buttons - both new interactive
+elements, so (unlike the four pre-existing Phase 28-flagged animation gaps) there was no
+pre-existing debt to carry, just a new surface that needed the same keyboard-focus treatment
+Phase 30 added to `.rs-chip`.
+
+Not built this phase (per the Phase 28 plan's ordering, unchanged): Handoff packet visualization
++ new WS push (Phase 33), Sub-Pebble/global Emergency Stop/Awareness toggle (Phase 34), Focus
+Mode (Phase 35).
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (699 modules, two more than
+Phase 31's 697 - the new `AgentOrbit.tsx`/`.css` pair; `CinematicShell.tsx` shrank rather than
+grew). `bun test ui/src/v2/shell/cinematic ui/src/v2/rooms/agents`: 21/21 passing (16
+`coreStatus` + 5 new `formatAgentActivityText`, all pure logic, no DOM). `bun test src/llm
+src/daemon`: 350 passing / 18 failing when run in the same combined pass - one more failure than
+Phase 29-31's 351/17 baseline, but re-running `src/llm/usage.test.ts` alone reproduces only the
+pre-existing EBUSY temp-file race (18/19 in isolation, `getProviderStatus` passes clean) -
+confirms the extra failure is inter-file timing flakiness from the combined run, not a
+regression, consistent with this phase having touched zero files under `src/`. Live browser
+verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup or console errors);
+dashboard still returns "Unauthorized" (JWT-only access), the same pre-existing limitation every
+prior UI phase in this series has hit. Interactive click-through of the orbit (selecting a
+specialist, confirming the Core's hue against a real project's derived status, watching the
+ticker) is deferred to whichever future phase first removes that access barrier.
+
+## 30. Phase 33 (Handoff visualization + new WS push) — Done
+
+Implemented as planned: the new `handoff_event` WS push type the Phase 28 audit identified as
+missing (`docs/CINEMATIC_UI_AUDIT.md` §3 - "no task/agent-handoff-specific push event exists"),
+plus the animated packet UI consuming it.
+
+**Backend push** - `sendHandoff()` (`src/agents/handoff.ts`) stays pure/daemon-agnostic, per the
+research done before this phase; instead `ManagerAgent` gained an optional constructor callback,
+`onHandoff?: (handoff, messageId, projectId?) => void`, invoked by a new private `fileHandoff()`
+helper that wraps `sendHandoff()` - both of `ManagerAgent`'s existing call sites
+(`resumeSubtask()`, the main subtask-completion path) now go through it instead of calling
+`sendHandoff()` directly, so both stay in sync with one code path. `AIManagerApiContext` gained
+an optional `getWsService?: () => WebSocketService` (`src/ai-manager/api/routes.ts`) - optional
+so any existing caller/test constructing the context without daemon WS access keeps working
+unchanged; `managerAgentFor()` wires a small `onHandoff` closure that calls the new
+`WebSocketService.broadcastHandoffEvent()` (`src/daemon/ws-service.ts`, same shape as the
+existing `broadcastTaskEvent()` precedent this phase copied) whenever one is available. Wired
+from the one place that actually has both a `ManagerAgent` and `wsService` in scope:
+`src/daemon/index.ts`'s `createAIManagerRoutes({...})` call now passes `getWsService: () =>
+wsService`. New top-level `'handoff_event'` variant on `WSMessage` (`src/comms/websocket.ts`),
+documented with the same payload-contract-plus-consumer-example comment style the `task_event`
+precedent already used. 1 new test in `manager-agent.e2e.test.ts` confirms the callback fires
+once per filed Handoff with the real message id and project id, alongside the existing 33 (all
+34 `src/ai-manager` tests still pass).
+
+**Frontend consume** - `useWebSocket.ts` gained a `HandoffEvent` type, a `handoffEvents` array
+state, and a `handoff_event` case (mirroring the existing `goal_event`/`site_event` handling,
+capped at the same 100-entry backlog). Per this project's single-WS-connection rule (`useWebSocket()`
+is called exactly once, in `useLiveThread.ts`, consumed everywhere else via `LiveDataContext` -
+confirmed before adding anything, since calling it a second time would open a second WS
+connection), `handoffEvents` was threaded through `useLiveThread.ts` -> `LiveDataContext.tsx`
+(`LiveData.handoffEvents`, added to both the interface and the `EMPTY` fallback, same convention
+as every other array there) -> `AppShell.tsx`'s `LiveDataProvider` value - not consumed via a
+second `useWebSocket()` call from the Cinematic surface.
+
+**`HandoffPacket.tsx`** (+ `.css`, `ui/src/v2/shell/cinematic/`) - two components sharing a
+`useRelevantHandoffs(projectId)` hook (filters `handoffEvents` to the pinned project, or shows
+all when nothing's pinned): `HandoffPacketLayer` (the animated packet, mounted inside
+`AgentOrbit.tsx`'s `.cin-orbit-canvas` so its percentage-based keyframes align with the canvas)
+and `HandoffTicker` (a plain-text recent-handoffs list, mounted below the existing agent-activity
+ticker). Deliberately does NOT animate a packet between two specific orbit nodes: a Handoff's
+`from_agent`/`to_agent` are `TaskDispatcher` template ids (`task_research`) or `MANAGER_AGENT_ID`
+(`'manager'`) - a different identifier space from `AgentRosterEntry.roleId`, with no reliable
+mapping between them, and guessing one would put a packet at a screen position not actually
+backed by the handoff's real endpoints (spec's anti-dummy-data rule, §78, the same constraint
+every Cinematic phase so far has designed around). The one endpoint always exactly known is
+`'manager'`, which is the same node as the Central Core (Phase 31/32's `.cin-core-node`) - so the
+flight animation only claims direction relative to the Core (`inbound`/`outbound`), coloured by
+the handoff's real `status` (`completed`/`failed`/`needs_input` -> `--ok`/`--listen`/`--hold`,
+same token convention as every other status-colour mapping in this series); the ticker's text
+carries the specific real agent ids via a small `formatHandoffAgentLabel()` helper (`'manager'`
+-> `'Manager'`, `'task_research'` -> `'Research'`), covered by 4 new tests in
+`HandoffPacket.test.ts`. A backlog-vs-fresh guard (`seenCount` ref) means entering Cinematic Mode
+doesn't replay every handoff already sitting in the WS event buffer as a burst of animations -
+only handoffs that arrive while the layer is mounted animate.
+
+**Reduced-motion**: `HandoffPacket.css`'s own `@media (prefers-reduced-motion: reduce)` block
+disables the flight animation (the ticker was never animated, so nothing else needed gating) -
+same discipline every new Cinematic surface in this series has applied from its first commit.
+
+Not built this phase (per the Phase 28 plan's ordering, unchanged): Sub-Pebble/global Emergency
+Stop/Awareness toggle (Phase 34), Focus Mode (Phase 35).
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (701 modules, two more than
+Phase 32's 699 - the new `HandoffPacket.tsx`/`.css` pair). `bun test ui/src/v2/shell/cinematic
+ui/src/v2/rooms/agents`: 25/25 passing (the existing 21 plus 4 new `formatHandoffAgentLabel`
+cases). `bun test src/llm src/daemon src/ai-manager src/agents`: 504 passing / 17 failing -
+exactly the same pre-existing Windows-only failure set every prior phase in this series has
+hit (11 `Process Lock Manager` + the `usage.test.ts` EBUSY race), confirming the new
+`onHandoff`/WS-broadcast wiring introduced no regressions across the backend suites it touches.
+Live browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup or
+console errors from the new route context field, WS message type, or broadcast method);
+dashboard still returns "Unauthorized" (JWT-only access), the same pre-existing limitation every
+prior UI phase in this series has hit. Interactive verification of a live handoff arriving mid-
+session (confirming the packet animation direction, the status colour, and the ticker text
+against a real `ManagerAgent.handleRequest()` run) is deferred to whichever future phase first
+removes that access barrier.
+
+## 31. Phase 34-A (Sub-Pebble) — Done
+
+Phase 34 bundles three confirmed-absent surfaces (Sub-Pebble, global Emergency Stop, Awareness
+toggle); this pass does only the first, per the user's explicit request - Emergency Stop and the
+Awareness toggle remain open under Phase 34.
+
+**Target decision**: researched both candidate Pebbles before writing anything. The separate
+ambient `ui/src/ambient/Pebble.tsx` (a standalone Vite entry point, `pebble.html`, with its own
+duplicated CSS token set and zero WebSocket/agent-data wiring of any kind - confirmed via grep,
+no `useWebSocket`/`agentActivity` anywhere under `ui/src/ambient/`) would need brand-new backend/
+IPC plumbing to show real background-agent data, which is out of scope for an "additive" Phase
+34 item. The v2 shell's docked `.rs-peb` button (`AppShell.tsx`, opens/closes Talk) already sits
+inside `AppShell`'s `LiveDataProvider` tree, so it gets real data for free - same pattern every
+Phase 29-33 Cinematic addition in this series used.
+
+**Implementation**: `ShellLayout` (`AppShell.tsx`) now also calls `useAgentsData()` (the same
+hook `AgentsRoom`/`AgentOrbit` already use) and derives `backgroundAgentCount =
+roster.filter(a => !a.isPrimary && a.isActive).length` - deliberately excluding the PA, which
+`useAgentsData.ts` always marks `isActive`, since it's the agent the pebble itself already
+represents; the badge means "background work happening while you're not in Talk", not "any
+agent exists at all". Rendered as a small `.rs-peb-sat` counter badge (`roomShell.css`),
+absolutely positioned on the existing `.rs-peb` button (top-right corner, `9+` cap past 9),
+hidden entirely when the count is 0 rather than showing a static "0" - no decorative element
+sits there when nothing's actually happening, per the same anti-clutter principle every
+Cinematic surface in this series has followed. The button's `aria-label` also gains the count in
+words when non-zero ("Open Talk — 2 background agents active") so the same information reaches
+screen-reader users, not just the visual badge. A gentle pulse animation (`rs-peb-sat-pulse`)
+draws the eye without being a flashing distraction, gated behind
+`@media (prefers-reduced-motion: reduce)` from its first commit, matching every new animated
+surface since Phase 31. This lives in the shared shell chrome, not gated to Cinematic Mode - it's
+useful in Normal Mode too, and `.rs-peb` renders identically regardless of `useCinematicMode()`'s
+value, so no mode-gating was added.
+
+Not built this pass: global Emergency Stop reach (currently `AuthorityRoom.tsx`-scoped only) and
+the Awareness/Privacy live toggle - both still open under Phase 34, to be picked up separately.
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (701 modules, unchanged from
+Phase 33 - this pass touched only existing files, no new source files). `bun test
+ui/src/v2/shell/cinematic ui/src/v2/rooms/agents src/llm src/daemon`: 376 passing / 17 failing -
+same pre-existing Windows-only failure set every prior phase in this series has hit, no new
+failures. Live browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no
+startup or console errors); dashboard still returns "Unauthorized" (JWT-only access), the same
+pre-existing limitation every prior UI phase in this series has hit. Interactive verification of
+the badge against a real spawned specialist agent is deferred to whichever future phase first
+removes that access barrier.
+
+## 32. Phase 34-B/C (global Emergency Stop + Awareness toggle) — Done
+
+Completes Phase 34 (Sub-Pebble was §31/34-A). Both reuse existing backend capability end to end -
+neither needed new backend work, only a frontend consumer that didn't exist yet.
+
+**34-B — global Emergency Stop** (spec §32). The backend already had everything: `EmergencyController`
+(`src/authority/emergency.ts`, `normal|paused|killed`, gates tool execution at 4 call sites via
+`canExecute()`), REST (`GET /api/authority/status`, `POST /api/authority/emergency/:transition`),
+and a WS push (`WebSocketService.broadcastEmergencyState()`) that **was already wired daemon-side**
+(`src/daemon/index.ts`'s `emergencyController.setStateChangeCallback`) but had **zero frontend
+consumer** - confirmed via research before writing anything. Two pieces:
+- Frontend plumbing for the push that already existed: `useWebSocket.ts` gained an
+  `EmergencyStateValue` type + `emergencyState` state + a `notification`/`source: "emergency_state"`
+  case, threaded through `useLiveThread.ts` -> `LiveDataContext.tsx` (`LiveData.emergencyState`,
+  same convention as Phase 33's `handoffEvents`) -> `AppShell.tsx`'s provider - not a second
+  `useWebSocket()` call, same single-connection rule Phase 33 confirmed and followed.
+- New `useEmergencyStatus.ts` (`ui/src/v2/shell/`) - deliberately its own light hook rather than
+  reusing `useAuthorityData()` (which polls 5 endpoints), matching the Phase 29 precedent of not
+  dragging in a Room's whole mutation surface for one field. Does a one-time `GET
+  /api/authority/status` fetch for the value at mount (the WS only pushes on *change*, so a
+  freshly-connected client needs the fetch for current state), then live-updates from
+  `LiveDataContext.emergencyState` after that.
+- New `EmergencyChip.tsx` in `TopBar.tsx` - a popover (state-appropriate actions: Pause/Kill when
+  normal, Resume/Kill when paused, Reset when killed, mirroring `EmergencyBand`'s own button
+  logic) gated with the app's branded `confirmDialog()` (`ui/src/v2/ui/ConfirmDialog.tsx`) for
+  Pause/Kill specifically - closing a real gap the Phase 34 research found: `AuthorityRoom.tsx`'s
+  own `EmergencyBand` has **no confirmation dialog on any action today**, despite the audit's
+  "confirm-gated" framing being aspirational rather than actual. `EmergencyBand` itself is
+  unchanged (still the Room's own always-visible version); this is a second, globally-reachable
+  surface for the same backend state, per spec §32's explicit ask.
+
+**34-C — Awareness toggle** (spec §39). `AwarenessService` (`src/awareness/service.ts`) already
+has a real `toggle(enabled)`/`isEnabled()` on/off switch and REST (`GET /api/awareness/status`,
+`POST /api/awareness/toggle`) - the Phase 28 audit's "no positive active state anywhere" gap was
+a missing UI consumer, not a missing capability (confirmed zero `ui/src/v2` references to
+`/api/awareness/*` before this phase). New `useAwareness.ts` (8s poll, same cadence as
+`JarvisStateContext`'s own polls) + `AwarenessChip.tsx`, both in `ui/src/v2/shell/`. Renders
+nothing (not a fake "off" chip) when the daemon has no `awarenessService` configured
+(`available === false`, the 503 case) or before the first status fetch resolves - a toggle that
+isn't really there shouldn't be implied by an "off" state, per this series' anti-dummy-data
+discipline. Click POSTs the flip and updates optimistically only on a 2xx response, leaving the
+chip at its last confirmed state on failure rather than guessing.
+
+Both chips added to `TopBar.tsx` next to the existing daemon/voice-state chips, following the
+exact `.rs-chip`/`STATE_HUE`-map convention every prior TopBar addition (mode switch, Sub-Pebble)
+used. New CSS: `.rs-emerg`/`.rs-emerg-menu` (popover) and a generic `button.rs-chip:disabled`
+rule in `roomShell.css`.
+
+Phase 34 is now fully closed - Sub-Pebble (34-A), Emergency Stop (34-B), and Awareness (34-C) are
+all done. Next per the Phase 28 plan's ordering: Phase 35 (Focus Mode).
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (705 modules, four more than
+Phase 34-A's 701 - `useEmergencyStatus.ts`, `useAwareness.ts`, `EmergencyChip.tsx`,
+`AwarenessChip.tsx`). `bun test ui/src/v2/shell/cinematic ui/src/v2/rooms/agents src/llm
+src/daemon src/authority`: 431 passing / 17 failing - the same pre-existing Windows-only failure
+set every prior phase in this series has hit, no new failures (this phase touched
+`src/daemon/api-routes.ts`'s consumers not its routes, and no `src/authority` file directly, so a
+clean `src/authority` pass here is a real regression check, not just noise). Live browser
+verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup or console errors);
+dashboard still returns "Unauthorized" (JWT-only access), the same pre-existing limitation every
+prior UI phase in this series has hit. Interactive verification (triggering a real Pause/Kill/
+Resume/Reset cycle through the new chip's confirm-gated menu, toggling Awareness against a real
+`AwarenessService`, watching the WS push update the chip without a page reload) is deferred to
+whichever future phase first removes that access barrier.
+
+## 33. Phase 35 (Focus Mode) — Done
+
+Implemented as planned: "single-task view, mostly presentational once Phase 29's state layer
+exists" (the Phase 28 plan's own framing). `useCinematicMode()`'s third mode, `"focus"`, gained
+a real surface - it previously fell back to Normal Mode unchanged (Phase 30/31's doc comments
+both said so explicitly; both updated this phase to point at the new component instead).
+
+**`ui/src/v2/shell/focus/taskFocus.ts`** - `pickDefaultFocusTask(tasks)`, adapted from
+`coreStatus.ts`'s `deriveCoreStatus()` priority order (Phase 31): that function ranks an
+*aggregate* project status from task-status counts; this is the per-task version of the same
+idea (most-actionable-to-a-human first: FAILED > BLOCKED > WAITING > QA/REVIEW > RUNNING >
+PLANNING > PENDING/READY > COMPLETED/CANCELLED), used to pick which one of
+`activeProjectDetail.tasks` (Phase 29) Focus Mode shows by default. 9 new tests in
+`taskFocus.test.ts` cover the ranking and the picker (including a same-rank tie going to the
+first match, and an empty list returning null rather than throwing).
+
+**`FocusMode.tsx`** (+ `.css`) - reads only `useJarvisState()` (no new hook, no new backend
+route): pinned project name/id, `activeProjectDetail.tasks`. Local `selectedTaskId` state lets
+Previous/Next step through the full task list (position shown as "N of M"); it resets to null -
+falling back to `pickDefaultFocusTask()` again - whenever the pinned project changes or the
+previously-selected task no longer exists in the list, rather than silently focusing a
+stale/vanished task. Every field rendered (title, status, priority, assigned agent/provider/
+model, next agent, retry count, approval-required, dependencies with resolved titles, artifacts,
+QA report checks) already exists on `ProjectTask` - confirmed via research before writing
+anything that there's no separate richer single-task endpoint and no free-text
+`description`/`result` field to reach for; the structured fields are the whole story. Status
+colour reuses `TASK_STATUS_TONE`/`StatusChip`, newly exported from `AIManagerRoom.tsx` for this
+purpose rather than reinventing a second status-colour vocabulary (same dedup discipline Phase 32
+used for `formatAgentActivityText`/`agentInitials`).
+
+**WAITING-task resume** reuses the exact `POST .../tasks/:taskId/resume` endpoint
+`AIManagerRoom`'s own WAITING-task UI already calls (Phase 11-A) - written as a small local
+`resumeTask()` fetch inside `FocusMode.tsx` rather than importing the full `useAIManagerData()`
+hook, which owns its own independent 8s poll plus a large mutation-action surface unrelated to
+viewing one task (the same reasoning Phase 29 documented for keeping that hook out of
+`JarvisStateContext`). A resumed task's updated status reaches Focus Mode on
+`JarvisStateContext`'s own next 8s poll, not instantly - an accepted lag, same as every other
+poll-driven surface in this series; no new push was added for this since Phase 33 already covers
+Handoff transitions specifically, and a resume's effect shows up as a status change on the next
+poll regardless.
+
+Deliberately no entrance animation (unlike Cinematic Mode's `BootSplash` reuse) - a boot flash
+works against Focus Mode's own purpose of not being cinematic; a plain CSS fade-in needs no
+`prefers-reduced-motion` gate.
+
+This closes the Phase 28 plan's Phase 29-35 sequence in full (UI state -> mode switch -> Core ->
+Agent Orbit -> Handoff push -> Sub-Pebble/Emergency/Awareness -> Focus Mode). Remaining per that
+plan: Phase 36 (accessibility/performance pass across all five animated Cinematic surfaces) and
+Phase 37 (the spec's functional/visual/performance test matrix).
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (708 modules, three more than
+Phase 34's 705 - `taskFocus.ts`, `FocusMode.tsx`, `FocusMode.css`). `bun test ui/src/v2/shell`:
+29/29 passing (16 `coreStatus` + 4 `formatHandoffAgentLabel` + 9 new `taskFocus`; the
+`ui/src/v2/rooms/agents` suite from prior phases is a sibling directory not under this glob but
+was re-run separately with no changes expected or found). `bun test ui/src/v2 src/llm src/daemon
+src/ai-manager`: 514 passing / 17 failing on a clean rerun (531 total tests) - identical to every
+prior phase's baseline; an earlier combined run in this same session showed a transient 18th
+failure that did not reproduce on rerun, consistent with the inter-file timing flakiness Phase 32
+already documented for this exact multi-suite combined-run scenario, not a real regression. Live
+browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup or console
+errors); dashboard still returns "Unauthorized" (JWT-only access), the same pre-existing
+limitation every prior UI phase in this series has hit. Interactive verification (stepping
+Previous/Next across a real project's tasks, resuming a real WAITING task through Focus Mode's
+own input, confirming the urgency-ranked default selection against real task statuses) is
+deferred to whichever future phase first removes that access barrier.

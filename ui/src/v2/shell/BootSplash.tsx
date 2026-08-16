@@ -50,10 +50,30 @@ const Drop = ({ ring }: { ring?: boolean }) => (
 );
 const Word = () => <div className="lword"><span className="u">use</span>jarvis</div>;
 
-export function BootSplash() {
+export interface BootSplashProps {
+  /**
+   * Force a specific variant instead of the cold-start weighted rotation.
+   * Used by callers that reuse this component outside the app-boot flow
+   * (e.g. Cinematic Mode's entrance transition, Phase 31) and want a
+   * consistent, lighter temperament rather than the Summon rotation.
+   */
+  variant?: VariantId;
+  /**
+   * Auto-trigger the hand-off this many ms after mount, instead of (only)
+   * waiting for the global `jarvis:boot-ready` window event. The app's own
+   * cold-start usage leaves this unset — it hands off on the real signal.
+   * A reuse site with no such signal (nothing external becomes "ready")
+   * sets this to get a bounded, self-contained splash.
+   */
+  autoReadyMs?: number;
+  /** Called once the hand-off animation finishes and this renders null. */
+  onDone?: () => void;
+}
+
+export function BootSplash({ variant: forcedVariant, autoReadyMs, onDone }: BootSplashProps = {}) {
   // Lazy state init, not useMemo: pickVariant is impure (Math.random +
   // localStorage write), and StrictMode double-invokes render-phase memos.
-  const [variant] = useState(pickVariant);
+  const [variant] = useState(() => forcedVariant ?? pickVariant());
   const [done, setDone] = useState(variant === null);
   const [out, setOut] = useState(false);
   const [progress, setProgress] = useState(6);
@@ -88,16 +108,24 @@ export function BootSplash() {
     window.addEventListener("jarvis:boot-ready", handOff);
     // safety: never let the splash stick if the ready signal is missed
     const safety = window.setTimeout(handOff, SAFETY);
+    // self-contained reuse sites (no external "ready" signal) opt into this
+    const auto = autoReadyMs != null ? window.setTimeout(handOff, autoReadyMs) : 0;
 
     return () => {
       clearInterval(prog);
       if (statTimer) clearInterval(statTimer);
       clearTimeout(ceil);
       clearTimeout(safety);
+      if (auto) clearTimeout(auto);
       for (const t of pending) clearTimeout(t);
       window.removeEventListener("jarvis:boot-ready", handOff);
     };
-  }, [variant, done]);
+  }, [variant, done, autoReadyMs]);
+
+  useEffect(() => {
+    if (done) onDone?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
 
   if (done || variant === null) return null;
 

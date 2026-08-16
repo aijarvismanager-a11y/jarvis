@@ -18,6 +18,8 @@ import type { TaskDispatcher } from '../../agents/conv/task-dispatcher.ts';
 import type { ApprovalManager } from '../../authority/approval.ts';
 import type { AuthorityEngine } from '../../authority/engine.ts';
 import type { AuditTrail } from '../../authority/audit.ts';
+import type { WebSocketService } from '../../daemon/ws-service.ts';
+import type { Handoff } from '../../agents/handoff.ts';
 import { getActionForTool } from '../../authority/tool-action-map.ts';
 import {
   githubCreateIssueTool,
@@ -71,6 +73,14 @@ export type AIManagerApiContext = {
   getApprovalManager: () => ApprovalManager;
   getAuthorityEngine: () => AuthorityEngine;
   getAuditTrail: () => AuditTrail;
+  /**
+   * Phase 33 — optional so existing callers/tests that construct this
+   * context without daemon WS access keep working unchanged. When present,
+   * every Handoff a ManagerAgent files is also pushed live over
+   * `handoff_event` (src/comms/websocket.ts) instead of only being visible
+   * on the next 8s poll of GET .../projects/:id/handoffs.
+   */
+  getWsService?: () => WebSocketService;
 };
 
 // Phase 16-C: a dashboard-triggered GitHub action has no agent identity to
@@ -135,11 +145,26 @@ function listProjectHandoffs(projectId: string, limit: number): unknown[] {
 }
 
 export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, unknown> {
+  const onHandoff = (handoff: Handoff, messageId: string, projectId?: string): void => {
+    const ws = ctx.getWsService?.();
+    if (!ws) return;
+    ws.broadcastHandoffEvent({
+      message_id: messageId,
+      ...(projectId ? { project_id: projectId } : {}),
+      task_id: handoff.task_id,
+      from_agent: handoff.from_agent,
+      to_agent: handoff.to_agent,
+      status: handoff.status,
+      summary: handoff.summary,
+      next_action: handoff.next_action,
+    });
+  };
+
   const managerAgentFor = (): ManagerAgent | null => {
     const dispatcher = ctx.getTaskDispatcher();
     if (!dispatcher) return null;
     const router = new AIRouter(ctx.getLLMManager());
-    return new ManagerAgent(router, dispatcher, ctx.getApprovalManager());
+    return new ManagerAgent(router, dispatcher, ctx.getApprovalManager(), 3, onHandoff);
   };
 
   return {

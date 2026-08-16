@@ -15,7 +15,10 @@ import { navKeyToObjectType } from "../palette/types";
 import { usePaletteHotkey } from "../palette/usePaletteHotkey";
 import { SystemTakeover, SystemBanners, useSystemStateOverride, type TakeoverKind } from "./SystemStates";
 import { useChatDisplayMode, type ChatDisplayMode } from "./useChatDisplayMode";
-import { useActiveProject } from "./useActiveProject";
+import { useCinematicMode } from "./useCinematicMode";
+import { CinematicShell } from "./cinematic/CinematicShell";
+import { FocusMode } from "./focus/FocusMode";
+import { JarvisStateProvider, useJarvisState } from "./JarvisStateContext";
 import { BillingBanner } from "../billing/BillingBanner";
 import { closeRoom, openRoom, useV2Route, ROOM_KEYS, type RoomKey } from "../router";
 import { getRoomBody } from "../rooms/RoomBodyRegistry";
@@ -31,6 +34,7 @@ import { useRoomActionDispatcher } from "../rooms/useRoomActionBus";
 import { IndexSidebar, useIndexCollapsed } from "./IndexSidebar";
 import { TopBar } from "./TopBar";
 import { NowRoom } from "./NowRoom";
+import { useAgentsData } from "../rooms/agents/useAgentsData";
 import "./AppShell.css";
 import "./roomShell.css";
 
@@ -501,10 +505,13 @@ function AppShellLive() {
         taskEvents: live.taskEvents,
         contentEvents: live.contentEvents,
         agentActivity: live.agentActivity,
+        handoffEvents: live.handoffEvents,
+        emergencyState: live.emergencyState,
         settingsEvents: live.settingsEvents,
         latestAssistantReply,
       }}
     >
+    <JarvisStateProvider>
       <RoomActionBridge request={live.roomActionRequest} forceIdle={voice.forceIdle} />
       <ShellLayout
         connection={live.isConnected ? "live" : "offline"}
@@ -591,6 +598,7 @@ function AppShellLive() {
         onPickObject={handlePickObject}
         onPickRoom={handlePickRoom}
       />
+    </JarvisStateProvider>
     </LiveDataProvider>
   );
 }
@@ -850,7 +858,20 @@ function ShellLayout({
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkIn, setTalkIn] = useState(false);
   const [chatDisplayMode, setChatDisplayMode] = useChatDisplayMode();
-  const { projects: activeProjectOptions, activeProjectId, setActiveProject } = useActiveProject();
+  // Phase 29: shared with JarvisStateProvider (mounted above ShellLayout in
+  // AppShell) instead of a second independent useActiveProject() poll.
+  const { activeProjectOptions, activeProjectId, setActiveProject } = useJarvisState();
+  // Phase 30/31/35: Cinematic Mode replaces the main surface below with the
+  // Central Core; Focus Mode replaces it with a single-task view.
+  const [uiMode] = useCinematicMode();
+  // Phase 34 — Sub-Pebble: how many specialist (non-primary) agents are
+  // currently busy, real data from the same roster AgentsRoom/AgentOrbit
+  // already use — no new backend endpoint. Excludes the PA, which
+  // useAgentsData.ts always marks isActive (it's the one already
+  // represented by the pebble itself), so the badge means "background"
+  // work specifically, not "any agent exists".
+  const { roster: agentRoster } = useAgentsData();
+  const backgroundAgentCount = agentRoster.filter((a) => !a.isPrimary && a.isActive).length;
 
   // awaiting-approval renders as the "asking" (amber) pebble state.
   const dataState = voiceState === "awaiting-approval" ? "asking" : voiceState;
@@ -927,7 +948,11 @@ function ShellLayout({
         />
         {/* Subscription state banner (trial / past-due / canceling / expired). */}
         <BillingBanner />
-        {route.kind === "room" ? (
+        {uiMode === "cinematic" ? (
+          <CinematicShell />
+        ) : uiMode === "focus" ? (
+          <FocusMode />
+        ) : route.kind === "room" ? (
           <div className="rs-surface rs-room">
             <RoomSurface roomKey={route.key} />
           </div>
@@ -937,14 +962,27 @@ function ShellLayout({
       </div>
 
       {/* Docked pebble — opens/closes Talk. It does NOT start voice; the
-          mic only engages from the pebble inside the Talk panel (or PTT). */}
+          mic only engages from the pebble inside the Talk panel (or PTT).
+          Phase 34 — Sub-Pebble: a small satellite badge on background
+          (non-primary) agent activity, real count from useAgentsData(). */}
       <button
         className="rs-peb"
-        aria-label={talkOpen ? "Close Talk" : "Open Talk"}
+        aria-label={
+          talkOpen
+            ? "Close Talk"
+            : backgroundAgentCount > 0
+              ? `Open Talk — ${backgroundAgentCount} background agent${backgroundAgentCount === 1 ? "" : "s"} active`
+              : "Open Talk"
+        }
         aria-expanded={talkOpen}
         onClick={() => setTalkOpen((o) => !o)}
       >
         <span className="gdrop live"><span className="in" /><span className="ring" /></span>
+        {backgroundAgentCount > 0 && (
+          <span className="rs-peb-sat" aria-hidden="true">
+            {backgroundAgentCount > 9 ? "9+" : backgroundAgentCount}
+          </span>
+        )}
         <span className="rs-stl">{dataState}</span>
       </button>
 
