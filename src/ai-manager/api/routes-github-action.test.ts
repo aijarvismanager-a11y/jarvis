@@ -10,7 +10,7 @@ import { createAIManagerRoutes, type AIManagerApiContext } from './routes.ts';
 import { initDatabase, getDb } from '../../vault/schema.ts';
 import { AuthorityEngine, type AuthorityConfig } from '../../authority/engine.ts';
 import { AuditTrail } from '../../authority/audit.ts';
-import type { ApprovalManager } from '../../authority/approval.ts';
+import { ApprovalManager } from '../../authority/approval.ts';
 
 type Handler = (req: Request) => Response | Promise<Response>;
 
@@ -31,7 +31,7 @@ function makeCtx(config: AuthorityConfig): AIManagerApiContext {
   return {
     getLLMManager: () => { throw new Error('not needed for this test'); },
     getTaskDispatcher: () => null,
-    getApprovalManager: () => ({} as ApprovalManager),
+    getApprovalManager: () => new ApprovalManager(),
     getAuthorityEngine: () => authorityEngine,
     getAuditTrail: () => auditTrail,
   };
@@ -127,7 +127,7 @@ describe('POST /api/ai-manager/github/action', () => {
     expect(rows[0]!.executed).toBe(0);
   });
 
-  it('returns 409 and does not execute when a context rule requires approval', async () => {
+  it('files a pending (deferred) approval request instead of executing when a context rule requires approval', async () => {
     const config = baseConfig();
     config.context_rules = [
       {
@@ -141,14 +141,26 @@ describe('POST /api/ai-manager/github/action', () => {
     ];
     const ctx = makeCtx(config);
     const res = await postAction(ctx, { tool: 'github_create_issue', repo_path: '.', title: 'Bug report' });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { status: string; approval_id: string };
+    expect(body.status).toBe('pending_approval');
+    expect(body.approval_id).toBeTruthy();
 
-    const rows = getDb().prepare('SELECT authority_decision, executed FROM audit_trail').all() as Array<{
+    const rows = getDb().prepare('SELECT authority_decision, executed, approval_id FROM audit_trail').all() as Array<{
       authority_decision: string;
       executed: number;
+      approval_id: string | null;
     }>;
     expect(rows.length).toBe(1);
     expect(rows[0]!.authority_decision).toBe('approval_required');
     expect(rows[0]!.executed).toBe(0);
+    expect(rows[0]!.approval_id).toBe(body.approval_id);
+
+    const approvalRow = ctx.getApprovalManager().getRequest(body.approval_id);
+    expect(approvalRow).not.toBeNull();
+    expect(approvalRow!.status).toBe('pending');
+    expect(approvalRow!.execution_mode).toBe('deferred');
+    expect(approvalRow!.tool_name).toBe('github_create_issue');
+    expect(JSON.parse(approvalRow!.tool_arguments)).toMatchObject({ repo_path: '.', title: 'Bug report' });
   });
 });

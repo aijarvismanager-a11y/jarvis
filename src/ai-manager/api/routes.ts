@@ -375,6 +375,64 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               : ('allowed' as const)
             : ('denied' as const);
 
+          if (!decision.allowed) {
+            ctx.getAuditTrail().log({
+              agent_id: DASHBOARD_ACTOR_ID,
+              agent_name: DASHBOARD_ACTOR_NAME,
+              tool_name: toolName,
+              action_category: actionCategory,
+              authority_decision: decisionType,
+              approval_id: null,
+              executed: false,
+              execution_time_ms: null,
+              channel: 'click',
+            });
+            return error(`Denied: ${decision.reason}`, 403);
+          }
+          if (decision.requiresApproval) {
+            // Phase 17-B: the 4 GitHub action tools are already registered in
+            // the daemon's shared ToolRegistry (src/actions/tools/builtin.ts's
+            // GITHUB_TOOLS spread), the same registry DeferredExecutor executes
+            // against for every other deferred approval - so a dashboard click
+            // can go through the exact same request → approve (dashboard's
+            // Authority tab) → DeferredExecutor.executeApproved() path a
+            // conversational tool call would, rather than being told to go
+            // start a conversation instead.
+            const params: Record<string, unknown> = { repo_path: body.repo_path };
+            if (body.title !== undefined) params.title = body.title;
+            if (body.body !== undefined) params.body = body.body;
+            if (body.head !== undefined) params.head = body.head;
+            if (body.base !== undefined) params.base = body.base;
+            if (body.number !== undefined) params.number = body.number;
+            if (body.event !== undefined) params.event = body.event;
+
+            const request = ctx.getApprovalManager().createRequest({
+              agentId: DASHBOARD_ACTOR_ID,
+              agentName: DASHBOARD_ACTOR_NAME,
+              toolName: toolName,
+              toolArguments: params,
+              actionCategory,
+              urgency: 'normal',
+              reason: decision.reason ?? 'Dashboard-triggered GitHub action requires approval',
+              context: `Dashboard: ${toolName} on ${body.repo_path}`,
+              executionMode: 'deferred',
+            });
+
+            ctx.getAuditTrail().log({
+              agent_id: DASHBOARD_ACTOR_ID,
+              agent_name: DASHBOARD_ACTOR_NAME,
+              tool_name: toolName,
+              action_category: actionCategory,
+              authority_decision: decisionType,
+              approval_id: request.id,
+              executed: false,
+              execution_time_ms: null,
+              channel: 'click',
+            });
+
+            return json({ status: 'pending_approval', approval_id: request.id }, 202);
+          }
+
           ctx.getAuditTrail().log({
             agent_id: DASHBOARD_ACTOR_ID,
             agent_name: DASHBOARD_ACTOR_NAME,
@@ -382,20 +440,10 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             action_category: actionCategory,
             authority_decision: decisionType,
             approval_id: null,
-            executed: decision.allowed && !decision.requiresApproval,
+            executed: true,
             execution_time_ms: null,
             channel: 'click',
           });
-
-          if (!decision.allowed) {
-            return error(`Denied: ${decision.reason}`, 403);
-          }
-          if (decision.requiresApproval) {
-            return error(
-              `This action requires approval (${decision.reason}). Dashboard-triggered GitHub actions don't support the approval flow yet - ask the agent to do this from a conversation instead.`,
-              409,
-            );
-          }
 
           const params: Record<string, unknown> = { repo_path: body.repo_path };
           if (body.title !== undefined) params.title = body.title;

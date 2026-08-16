@@ -616,6 +616,78 @@ surface (first GitHub-specific dashboard UI at all), and benefits from
 confirming during C whether `audit_trail` is the right read model to reuse
 rather than inventing a second one.
 
+## 14. Phase 17 Plan (clearing the 16-deferred list) — Done
+
+Both addressable items shipped: `tsc --noEmit` clean (`src/` and `ui/`),
+`bun run build:ui` succeeds, full `bun test` at 1907 passing (same as the
+Phase 16 baseline - one existing test was rewritten in place rather than
+added, plus its assertion count grew) / 65 failing + 2 errors, the same
+pre-existing Windows-only failures as every prior phase, no new ones. Notes
+by item:
+
+- **17-A**: `dependencies` (task-id list) and `next_agent`/`approval_required`
+  were the last of Phase 16's own "fetched but unrendered" `ProjectTask`
+  fields (`artifacts`/`assigned_provider`/`assigned_model` were closed in
+  16-B). `TaskCard` (`AIManagerRoom.tsx`) now takes the full `allTasks` list
+  as a prop (already available in the parent's `data.tasks`) so a
+  dependency id can resolve to the referenced task's title and live status
+  rather than a bare id - mirrors 16-B's artifact-list styling
+  (`rk-aim__card-qa`/`rk-aim__qa-check`). `next_agent`/`approval_required`
+  are compact meta-row badges next to `assigned_provider`/retry count,
+  matching that row's existing pattern rather than a new expanded section -
+  they're single scalar values, not lists, so they didn't need the
+  click-to-expand treatment `dependencies` did. Pure rendering of
+  already-fetched data; no new test needed (no backend change).
+- **17-B**: closed the 16-C `409` dead end using an existing mechanism this
+  phase's audit found already fully wired for other tools:
+  `ApprovalManager`'s `deferred` execution mode + `DeferredExecutor`, which
+  executes against the daemon's shared `ToolRegistry`
+  (`src/actions/tools/builtin.ts`) - and all four GitHub action tools were
+  already registered there via `GITHUB_TOOLS` (confirmed: Phase 7's tools
+  are agent-callable, meaning they were already in that registry; 16-C's
+  route just never used it). So `POST /api/ai-manager/github/action` now
+  creates a real `deferred` approval request (same `createRequest` call
+  `manager-agent.ts`'s manual-mode gate already makes) instead of returning
+  409, and returns `202 { status: 'pending_approval', approval_id }`. No new
+  approval-surfacing UI was needed - 11-B already confirmed the dashboard's
+  generic Authority tab (`useAuthorityData.ts`) polls
+  `/api/authority/approvals?status=pending` and is subsystem-agnostic, so
+  the filed request appears there automatically, gets approved/denied
+  through the same `applyApprovalDecision` path `git_push` approvals already
+  use, and `DeferredExecutor.executeApproved()` runs the tool for real. The
+  audit-trail log call was restructured to fire once per branch (not
+  unconditionally before knowing the outcome) so the `approval_required` row
+  now carries the real `approval_id` instead of always logging `null` -
+  matches every other authority-gate log site's convention of linking the
+  audit row to its approval request. `useAIManagerData.ts`'s `githubAction`
+  and `AIManagerRoom.tsx`'s `GitHubActionDialog` both gained a `pending`
+  result branch (202 → "sent for approval, check the Authority tab" instead
+  of a raw error). `routes-github-action.test.ts`'s former "returns 409"
+  case was rewritten to assert the 202 response, the audit row's
+  `approval_id`, and the persisted `approval_requests` row's
+  `execution_mode: 'deferred'`/tool name/arguments.
+
+**Deferred, not forgotten** (unchanged from Phase 16, still true): a
+dashboard-side *inline-wait* approval flow (this phase closed the dead end
+with the existing deferred path, not a new synchronous one - a user still
+has to go check the Authority tab rather than watch the dialog resolve
+live; revisit only if that round-trip proves annoying in practice);
+project-scoping `audit_trail` (carried over from Phase 15/16, still no
+concrete need).
+
+Phase 16 cleared its own deferred list in full except for the audit-trail
+item it explicitly held back again. Phase 17 had only two real items left
+from that list (`dependencies`/`next_agent`/`approval_required` rendering,
+and the GitHub approval dead end) - both closed without a fresh gap audit
+turning up a third, unlike Phases 15/16 which each surfaced three findings.
+
+**Suggested order: 17-A, then 17-B.** A is pure rendering with zero
+dependencies, same role it played in 16-B. B is the substantive item - it
+looked like it might need new plumbing (an inline-wait UI, a polling
+mechanism) but turned out to be existing infrastructure the route simply
+hadn't been wired to yet, once the `ToolRegistry` registration was
+confirmed.
+
 ## 13. Phase 16 Plan (post-15 gap audit) — Done
 
 All three items shipped in suggested order (16-A, 16-B, 16-C). `tsc --noEmit`

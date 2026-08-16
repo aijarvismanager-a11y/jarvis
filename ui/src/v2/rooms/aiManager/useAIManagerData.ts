@@ -415,7 +415,14 @@ export function useAIManagerData() {
       base?: string;
       number?: number;
       event?: string;
-    }): Promise<{ ok: true; result: string } | { ok: false; message: string }> => {
+    }): Promise<
+      | { ok: true; result: string }
+      // Phase 17-B: the gate can now file a real (deferred) approval request
+      // instead of a dead-end 409 - resolve it from the dashboard's own
+      // Authority tab, same as any other pending approval.
+      | { ok: true; pending: true; approvalId: string }
+      | { ok: false; message: string }
+    > => {
       try {
         const resp = await fetch("/api/ai-manager/github/action", {
           method: "POST",
@@ -423,6 +430,10 @@ export function useAIManagerData() {
           body: JSON.stringify(input),
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        if (resp.status === 202) {
+          const { approval_id } = (await resp.json()) as { status: string; approval_id: string };
+          return { ok: true, pending: true, approvalId: approval_id };
+        }
         const { result } = (await resp.json()) as { result: string };
         if (selectedId) await refreshDetail(selectedId);
         return { ok: true, result };

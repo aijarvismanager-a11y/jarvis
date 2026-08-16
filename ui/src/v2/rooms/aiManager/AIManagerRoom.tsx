@@ -197,6 +197,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                               <TaskCard
                                 key={t.id}
                                 task={t}
+                                allTasks={data.tasks}
                                 priorAttempts={priorAttemptsByParent.get(t.id) ?? []}
                                 onResume={async (input) => {
                                   const r = await data.resumeTask(selected.id, t.id, input);
@@ -323,10 +324,12 @@ function ProjectRow({ project, selected, onClick }: { project: Project; selected
 
 function TaskCard({
   task,
+  allTasks,
   priorAttempts,
   onResume,
 }: {
   task: ProjectTask;
+  allTasks: ProjectTask[];
   priorAttempts: ProjectTask[];
   onResume: (input: string) => Promise<void>;
 }) {
@@ -337,9 +340,10 @@ function TaskCard({
   const isWaiting = task.project_status === "WAITING";
   const hasHealingDetail = task.healing_attempts.length > 0;
   const hasArtifacts = task.artifacts.length > 0;
+  const hasDependencies = task.dependencies.length > 0;
 
   return (
-    <div className="rk-aim__card" onClick={() => (hasQaReport || isWaiting || hasHealingDetail || hasArtifacts) && setExpanded((e) => !e)}>
+    <div className="rk-aim__card" onClick={() => (hasQaReport || isWaiting || hasHealingDetail || hasArtifacts || hasDependencies) && setExpanded((e) => !e)}>
       <div className="rk-aim__card-t">{task.title ?? "Untitled task"}</div>
       <div className="rk-aim__card-meta">
         <StatusChip tone={task.project_status ? TASK_STATUS_TONE[task.project_status] : "mut"}>{task.priority}</StatusChip>
@@ -348,7 +352,24 @@ function TaskCard({
           <span className="rk-aim__asg">{task.assigned_provider}{task.assigned_model ? `/${task.assigned_model}` : ""}</span>
         )}
         {task.retry_count > 0 && <span className="rk-aim__asg">retry {task.retry_count}/{task.max_retries}</span>}
+        {task.next_agent && <span className="rk-aim__asg">→ {task.next_agent}</span>}
+        {task.approval_required && <span className="rk-aim__asg">needs approval</span>}
       </div>
+
+      {expanded && hasDependencies && (
+        <div className="rk-aim__card-qa">
+          {task.dependencies.map((depId) => {
+            const dep = allTasks.find((x) => x.id === depId);
+            return (
+              <div key={depId} className="rk-aim__qa-check">
+                <span>·</span>
+                <span className="rk-aim__qa-check-name">{dep?.title ?? depId}</span>
+                {dep?.project_status && <span className="rk-aim__qa-check-summary">{dep.project_status.toLowerCase()}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {expanded && hasArtifacts && (
         <div className="rk-aim__card-qa">
@@ -617,7 +638,11 @@ function GitHubActionDialog({
     base?: string;
     number?: number;
     event?: string;
-  }) => Promise<{ ok: true; result: string } | { ok: false; message: string }>;
+  }) => Promise<
+    | { ok: true; result: string }
+    | { ok: true; pending: true; approvalId: string }
+    | { ok: false; message: string }
+  >;
 }) {
   const [tool, setTool] = useState<GitHubActionTool>("github_create_issue");
   const [repoPath, setRepoPath] = useState("");
@@ -655,8 +680,9 @@ function GitHubActionDialog({
       number: needsNumber ? Number(number) : undefined,
       event: needsEvent ? event : undefined,
     });
-    if (r.ok) setResult(r.result);
-    else setError(r.message);
+    if (!r.ok) setError(r.message);
+    else if ("pending" in r) setResult(`Sent for approval (request ${r.approvalId.slice(0, 8)}…) - resolve it from the Authority tab.`);
+    else setResult(r.result);
     setBusy(false);
   };
 
