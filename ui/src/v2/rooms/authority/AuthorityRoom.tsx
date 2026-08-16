@@ -417,6 +417,19 @@ function ApprovalsTab({
                 {/* Phase 18-A: context/tool_arguments/execution_result were
                     already fetched and typed but never rendered. */}
                 {a.context && <div className="v2-auth__history-context">{a.context}</div>}
+                {/* Phase 19-B: decided_by/decided_at/executed_at were already
+                    fetched and typed but never rendered. */}
+                {a.decided_by && (
+                  <div className="v2-auth__history-decided">
+                    Decided by {a.decided_by}
+                    {a.decided_at ? ` at ${formatTime(a.decided_at)}` : ""}
+                  </div>
+                )}
+                {a.status === "executed" && a.executed_at && (
+                  <div className="v2-auth__history-executed">
+                    Executed at {formatTime(a.executed_at)}
+                  </div>
+                )}
                 {a.execution_result && (
                   <div className="v2-auth__history-result">{a.execution_result}</div>
                 )}
@@ -528,6 +541,20 @@ function AuditTab({
         </div>
       )}
 
+      {/* Phase 19-A: byCategory was already fetched/typed but never rendered. */}
+      {stats && Object.keys(stats.byCategory).length > 0 && (
+        <ul className="v2-auth__audit-bycat">
+          {Object.entries(stats.byCategory)
+            .sort(([, a], [, b]) => b - a)
+            .map(([category, count]) => (
+              <li key={category} className="v2-auth__audit-bycat-row">
+                <span className="v2-auth__audit-bycat-label">{category}</span>
+                <span className="v2-auth__audit-bycat-count">{count}</span>
+              </li>
+            ))}
+        </ul>
+      )}
+
       <div className="v2-auth__filter-row" role="tablist" aria-label="Filter audit entries">
         {(Object.keys(AUDIT_FILTER_LABEL) as AuditFilter[]).map((f) => (
           <button
@@ -567,9 +594,16 @@ function AuditTab({
               <span className="v2-auth__audit-agent">{e.agent_name}</span>
               <span className="v2-auth__audit-tool">{e.tool_name}</span>
               <span className="v2-auth__audit-cat">{e.action_category}</span>
-              {e.execution_time_ms != null && (
-                <span className="v2-auth__audit-ms">{e.execution_time_ms}ms</span>
-              )}
+              {/* Phase 19-A: channel was already returned by the API but never typed/rendered. */}
+              {e.channel && <span className="v2-auth__audit-channel">{e.channel}</span>}
+              {/* Phase 20-C: executed was already typed/fetched but never rendered. Shares the
+                  last grid cell with execution_time_ms (same wrap technique as 19-C). */}
+              <span className="v2-auth__audit-ms-wrap">
+                {e.execution_time_ms != null && (
+                  <span className="v2-auth__audit-ms">{e.execution_time_ms}ms</span>
+                )}
+                {e.executed === 0 && <span className="v2-auth__audit-notexec">not executed</span>}
+              </span>
             </li>
           ))}
         </ul>

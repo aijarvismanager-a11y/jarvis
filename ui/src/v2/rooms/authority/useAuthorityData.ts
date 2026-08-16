@@ -62,6 +62,7 @@ export interface AuditEntry {
   executed: number;
   execution_time_ms: number | null;
   created_at: number;
+  channel: "click" | "voice" | "system" | null;
 }
 
 export interface AuditStats {

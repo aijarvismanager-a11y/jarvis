@@ -346,12 +346,15 @@ export function buildSandboxServiceBackends(
     return router.route({ template: req.template, mode: req.mode });
   };
 
-  const councilConvene: CouncilConveneFn = async (req) => {
+  const councilConvene: CouncilConveneFn = async (req, ctx) => {
     const council = new AICouncil(router);
+    // Phase 20-D: the route already resolves ctx.claims.projectId and passes
+    // it here (jarvis-council.ts:73-76) - it was just dropped because this
+    // backend only forwarded the caller-supplied, optional req.project_id.
     return council.convene(req.question, {
       seats: req.seats,
       template: req.template,
-      project_id: req.project_id,
+      project_id: req.project_id ?? ctx.projectId,
       record: req.record,
     });
   };
@@ -445,7 +448,7 @@ export function buildSandboxServiceBackends(
   // would need to clear.
   const gitPush: GitPushFn | undefined =
     opts.authorityEngine && opts.approvalManager
-      ? async (req) => {
+      ? async (req, ctx) => {
           // 1. Emergency check -- same gate AgentOrchestrator.executeTool applies
           // before any authority check, so a paused/killed system also blocks
           // workflow-originated pushes, not just agent-tool-initiated ones.
@@ -471,6 +474,9 @@ export function buildSandboxServiceBackends(
           const decisionType = decision.allowed
             ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
             : "denied" as const;
+          // Phase 19-D: the route already resolves ctx.claims.projectId and
+          // passes it here (jarvis-git.ts:96-99) - it was just dropped
+          // because this backend didn't accept the second parameter.
           opts.auditTrail?.log({
             agent_id: "workflow",
             agent_name: "Workflow",
@@ -480,6 +486,7 @@ export function buildSandboxServiceBackends(
             approval_id: null,
             executed: decision.allowed && !decision.requiresApproval,
             execution_time_ms: null,
+            project_id: ctx.projectId,
           });
 
           if (!decision.allowed) {

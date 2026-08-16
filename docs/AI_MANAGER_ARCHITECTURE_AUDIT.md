@@ -1391,3 +1391,301 @@ code change, and has no dependency on 12-A/B/C.
    provider credential setup, minimum config, first project walkthrough,
    troubleshooting common failures (auth errors, tier fall-up behavior,
    image provider setup).
+
+## 16. Phase 19 Plan (post-18 gap audit) — Done
+
+All four items shipped in the suggested order (19-A, 19-B, 19-C, 19-D).
+`bunx tsc --noEmit` clean, `bun build ui/index.html ui/pebble.html --outdir
+ui/dist` succeeds (only the pre-existing `@theme`/`@tailwind` Tailwind-4
+at-rule warnings, unrelated to this phase). Full `bun test`: 1912 passing /
+65 failing / 2 errors - the same pre-existing categories as every prior
+phase (Windows-only unix-domain sockets, process-lock files, `chmod`/
+`O_NOFOLLOW` permission tests, `jarvis export`/`restore` subprocess tests,
+`EBUSY` temp-dir races, plus `shared-runtime-paths.test.ts`'s POSIX-path
+assertions failing on Windows path separators) - confirmed none touch
+`ai-manager`/`authority`/`workflows` code by running those three test
+directories in isolation first (`src/ai-manager`: 34/34 passing; `src/
+authority` + `src/workflows`: 427 passing / 4 failing, all 4 in
+`shared-runtime-paths.test.ts`). Notes by item:
+
+- **19-A**: `AuditEntry.channel` added to the client type
+  (`useAuthorityData.ts`) and rendered as a small uppercase chip on each
+  audit row (`AuthorityRoom.tsx`'s `AuditTab`, new
+  `.v2-auth__audit-channel` class); the row's grid gained a 7th column for
+  it. `AuditStats.byCategory` is now rendered as a wrapped pill list below
+  the four `StatCard`s (new `.v2-auth__audit-bycat*` classes), sorted
+  descending by count. No route/schema change - both fields were already
+  returned by the existing `/api/authority/audit` and `/api/authority/
+  audit/stats` endpoints.
+- **19-B**: `decided_by`/`decided_at`/`executed_at` now render as two
+  additional lines on the "Recent decisions" history row
+  (`AuthorityRoom.tsx`, new `.v2-auth__history-decided`/
+  `.v2-auth__history-executed` classes, same list as 18-A's `context`/
+  `execution_result` lines) - "Decided by \<who\> at \<time\>" when present,
+  and "Executed at \<time\>" only for `status === "executed"` rows. No
+  backend change.
+- **19-C**: `AgentPerformanceRow` (`AIManagerRoom.tsx`) now shows
+  `tasks_cancelled` (conditional, next to `tasks_failed`), `llm_error_rate`
+  as a percentage, and a `providers_used`/`models_used` line beneath the
+  stat row (new `.rk-aim__perf-models*` classes; row given `flex-wrap` so
+  the line wraps rather than overflowing, same technique 18-B used for
+  `QACheckResult.detail`). No backend change - `getAgentPerformance` was
+  already computing and returning all five fields.
+- **19-D**: `service-backends.ts`'s `gitPush` backend now accepts the
+  `ctx: { runId, projectId }` second parameter its `GitPushFn` type always
+  declared (and which `jarvis-git.ts`'s route already supplied - the
+  parameter was just never consumed), and passes `project_id: ctx.projectId`
+  into the `auditTrail.log()` call. Closes the last of the two dashboard/
+  workflow-reachable `AuditTrail.log()` call sites that have a project id
+  in local scope; the other 4 (`sub-agent-runner.ts`, `orchestrator.ts` x2,
+  `deferred-executor.ts`) remain deferred, unchanged. No schema migration -
+  `audit_trail.project_id` already exists from Phase 18-C. No new test (no
+  behavior branch - just an additional column value on an existing insert;
+  covered indirectly by the existing `sandbox-api`/`repos` workflow test
+  suites passing unchanged).
+
+**Deferred, not forgotten**: a dashboard-side inline-wait approval flow
+(unchanged since Phase 16 - still no concrete need); `project_id` threading
+through the remaining 4 `AuditTrail.log()` call sites in
+`sub-agent-runner.ts`/`orchestrator.ts`(x2)/`deferred-executor.ts` - none
+has a project id in local scope without larger context-plumbing changes,
+re-evaluate only if a concrete need surfaces.
+
+Phase 18 cleared all three of its own items. Its "deferred, not forgotten"
+list carried over two items: a dashboard-side inline-wait approval flow
+(still no concrete need - re-checked below, still true), and full
+daemon-wide `project_id` threading through the remaining 5 `AuditTrail.log()`
+call sites (18-C only closed the 2 dashboard-reachable ones).
+
+Re-checked both against the code shipped through Phase 18:
+
+- **Inline-wait approval flow**: still no concrete need. `githubAction`
+  (`useAIManagerData.ts:417-454`) already handles the `202 pending` case by
+  pointing the user at the Authority tab; nothing in this pass suggests
+  that round trip is causing friction. Stays deferred.
+- **Daemon-wide `audit_trail.project_id` threading**: re-examined per call
+  site. `sub-agent-runner.ts` and both `orchestrator.ts` sites still have no
+  `project_id` in local scope - stay deferred, unchanged from Phase 18's
+  conclusion. `deferred-executor.ts` likewise. But
+  `service-backends.ts`'s `gitPush` backend (used by the Phase 9 "Git Push"
+  workflow node) is the one exception: the route that calls it,
+  `createJarvisGitPushRoute` (`jarvis-git.ts:78-102`), already resolves
+  `ctx.claims.projectId` and passes `{ runId, projectId }` as the backend's
+  second argument - exactly the pattern `gitCommit`/`memoryWrite` use. The
+  `gitPush` backend itself just declares `async (req) => {...}` with no
+  second parameter, so the `project_id` that's already flowing through the
+  route is silently dropped before it ever reaches `auditTrail.log()`
+  (`service-backends.ts:448,474`). This is a one-parameter fix, not new
+  plumbing, so it's worth closing now rather than leaving it deferred a
+  fourth phase.
+
+A fresh audit of the code shipped through Phase 18 turned up two more
+"fetched/computed but never rendered" items, the same recurring pattern
+every prior phase (15-C/16-B/17-A/18-B) has closed instances of:
+
+- `AuditStats.byCategory` (`src/authority/audit.ts:151-189`, typed and
+  fetched via `useAuthorityData.ts:67-73,158`) is computed server-side (one
+  `GROUP BY action_category` query) and reaches the client, but `AuditTab`
+  (`AuthorityRoom.tsx:507-529`) only renders the four scalar totals
+  (`total`/`allowed`/`denied`/`approvalRequired`) - the per-category
+  breakdown is dropped entirely, even though `ActionCategory` already has a
+  fixed, known set of values (`ACTION_CATEGORIES`,
+  `useAuthorityData.ts:20-27`) that maps cleanly onto a small bar/list.
+  Same tab also has `AuditEntry.channel` (`'click'|'voice'|'system'`,
+  `audit.ts:17,30`, written at `orchestrator.ts:937` for voice-resolved
+  auto-approvals and `routes.ts:393/442/458` for dashboard clicks, returned
+  by the `SELECT *` in `audit.ts:143-145`) - but the frontend `AuditEntry`
+  type (`useAuthorityData.ts:54-65`) never declares `channel` at all, so a
+  value the server already writes can't be surfaced even in the raw entry
+  list. Both items live in the same tab/component, so one pass covers both.
+- `ApprovalRequest.decided_by`/`decided_at`/`executed_at`
+  (`useAuthorityData.ts:44-46`, written by `ApprovalManager.approve`/
+  `.deny`/`.markExecuted` - `src/authority/approval.ts:36-38,82-84,117,
+  133,182`) are fetched and typed but the "Recent decisions" history row
+  (`AuthorityRoom.tsx:403-426`) only shows `created_at`/`agent_name`/
+  `tool_name`/`status` - there's no "who decided" or "when it actually
+  ran" line, even though 18-A already added that row's sibling `context`/
+  `execution_result` fields in the same phase.
+
+**19-A: Render `AuditStats.byCategory` and `AuditEntry.channel` in the Audit
+tab.** Add a compact per-category count list/bar next to the four existing
+`StatCard`s in `AuditTab` (`AuthorityRoom.tsx:520-529`), sourced from
+`stats.byCategory` (already fetched, no route change). Add `channel:
+"click" | "voice" | "system" | null` to the `AuditEntry` type
+(`useAuthorityData.ts:54-65`) and show it as a small chip on each audit row
+(if the tab renders a per-entry list; otherwise on the history rows that
+already show `tool_name`/`status`). Pure rendering of already-fetched data,
+no schema/route change.
+
+**19-B: Render `decided_by`/`decided_at`/`executed_at` on the approvals
+history row.** Add a line under the existing history row in `AuthorityRoom.tsx`
+showing who resolved the request and when (`decided_by` at `decided_at`),
+and - for `executed` status - when it actually ran (`executed_at`), mirroring
+18-A's `context`/`execution_result` addition to the same row. All three
+fields are already typed and fetched; no backend change.
+
+**19-C: Surface the remaining unrendered `AgentPerformance` fields.**
+`AgentPerformanceRow` (`AIManagerRoom.tsx:535-547`) renders
+`tasks_completed`/`tasks_failed`/`success_rate`/`average_duration_ms` but
+drops `tasks_cancelled`, `llm_error_rate`, `llm_calls`, `providers_used`,
+`models_used` - all populated by the existing `getAgentPerformance`
+aggregation and already typed in `AgentPerformance`
+(`useAIManagerData.ts:121-132`). Add `tasks_cancelled` next to
+`tasks_failed` (same conditional-render pattern), `llm_error_rate` next to
+`success_rate`, and a compact `providers_used`/`models_used` list (the only
+place this data would ever reach a user) below the stat row. Pure
+rendering, no backend change.
+
+**19-D: Thread `project_id` through the workflow `gitPush` backend's audit
+log.** Give the `gitPush` backend in `service-backends.ts` (currently
+`async (req) => {...}`, matching `GitPushFn`'s `(req, ctx) => ...` signature
+minus the second parameter) the `ctx: { runId: string; projectId: string }`
+parameter the route (`jarvis-git.ts:96-99`) already supplies, and pass
+`project_id: ctx.projectId` into the `auditTrail.log()` call at
+`service-backends.ts:474` (the column already exists from Phase 18-C - no
+migration). Leaves the other 4 deferred call sites untouched, per the
+re-check above.
+
+**Suggested order: 19-A, then 19-B, then 19-C, then 19-D.** A/B/C are all
+pure UI rendering of already-fetched data, no shared code between them, so
+order among them doesn't matter much - grouped first because they're the
+lowest-risk, highest-value-per-line items, same reasoning as every prior
+phase's ordering. D is last because it's the only item touching backend
+code (a function signature + one call site), even though it's small.
+
+## 17. Phase 20 Plan (post-19 gap audit) — Done
+
+All four items shipped in the suggested order (20-A, 20-B, 20-C, 20-D).
+`bunx tsc --noEmit` clean, `bun build ui/index.html ui/pebble.html --outdir
+ui/dist` succeeds (only the pre-existing `@theme`/`@tailwind` Tailwind-4
+at-rule warnings). `src/ai-manager`: 34/34 passing; `src/authority` + `src/
+workflows`: 437 passing / 4 failing, all 4 in `shared-runtime-paths.test.ts`
+(the same pre-existing Windows-path-separator category every prior phase
+has hit - unrelated to this phase's code). Notes by item:
+
+- **20-A**: `perf.llm_calls` now renders as an `N LLM calls` stat next to
+  `llm_error_rate` in `AgentPerformanceRow` (`AIManagerRoom.tsx`),
+  conditional on `> 0`. No backend/type change - already computed by
+  `getAgentPerformance` and typed.
+- **20-B**: the project detail header (`AIManagerRoom.tsx`'s `rk-aim__dh`
+  block) now shows a `Completed <date>` line (new
+  `.rk-aim__dh-completed` class) when `status === "completed" &&
+  completed_at`, formatted with `toLocaleString()` to match the rest of the
+  room. No backend change.
+- **20-C**: `AuditTab`'s row list (`AuthorityRoom.tsx`) now shows a `not
+  executed` marker (new `.v2-auth__audit-notexec` class) when
+  `e.executed === 0`. Since the row's CSS grid was already fixed at 7
+  columns (from 19-A), the marker shares the last grid cell with
+  `execution_time_ms` inside a new flex-wrap wrapper
+  (`.v2-auth__audit-ms-wrap`) rather than adding an 8th column, avoiding a
+  grid-layout break. No backend change.
+- **20-D**: `councilConvene` (`service-backends.ts`) now accepts the `ctx:
+  { runId, projectId }` second parameter `CouncilConveneFn` always
+  declared (and which the route, `jarvis-council.ts:73-76`, already
+  supplied), falling back to `ctx.projectId` when the workflow node's own
+  `req.project_id` is absent. Closes the `councilConvene` instance of the
+  declared-but-dropped `ctx.projectId` shape 19-D closed for `gitPush`. The
+  identical shape at `decisionWrite`/`handoffSend` remains deferred, per
+  the plan.
+
+**Deferred, not forgotten**: a dashboard-side inline-wait approval flow
+(unchanged since Phase 16 - still no concrete need, now a 6th phase
+running); `project_id` threading through `sub-agent-runner.ts`/
+`orchestrator.ts`(x2)/`deferred-executor.ts` (none has a project id in
+local scope without larger context-plumbing changes, unchanged since Phase
+18); `decisionWrite`/`handoffSend`'s `ctx.projectId`-dropped fallback in
+`service-backends.ts` (identical shape to the `councilConvene` fix above,
+deliberately left for a future phase rather than bundled into 20-D).
+
+A fresh audit of the code shipped through Phase 19 (same methodology as
+every prior phase: check every backend-computed/typed field against its
+frontend render function, and every `Fn` type's `ctx` parameter against
+what the implementing backend actually consumes) turned up four more
+"fetched/computed but never rendered" or "declared but dropped" items -
+the same recurring pattern 15-C/16-B/17-A/18-B/19-A/19-B/19-C have each
+closed instances of.
+
+- `AgentPerformance.llm_calls` (`src/vault/agent-performance.ts:29`, set at
+  `agent-performance.ts:93`) is returned by `/api/ai-manager/agents/
+  performance` and typed in `useAIManagerData.ts`, but `AgentPerformanceRow`
+  (`AIManagerRoom.tsx:535-563`) - freshly touched by 19-C - renders
+  `tasks_completed`/`tasks_failed`/`tasks_cancelled`/`success_rate`/
+  `average_duration_ms`/`llm_error_rate`/`providers_used`/`models_used` but
+  never the raw call count the error-rate percentage is computed from.
+- `Project.completed_at` (`src/vault/projects.ts:39,53`, set at
+  `projects.ts:132-133` when `updateStatus` transitions a project to
+  `completed`) is typed and fetched, but the project detail header
+  (`AIManagerRoom.tsx:125-171`, the block that already shows
+  `execution_mode`/`cost_mode`/`status`) never shows it - a completed
+  project's card gives no indication of when it finished.
+- `AuditEntry.executed` (`src/authority/audit.ts:27,84`, written by every
+  `AuditTrail.log()` call site) is typed and returned by `/api/authority/
+  audit`, but `AuditTab`'s row list (`AuthorityRoom.tsx:578-604`) drops it -
+  for `approval_required` rows this is the only signal for "was it
+  eventually carried out", and the AI Manager Room's GitHub-activity list
+  already has the exact rendering precedent for this
+  (`AIManagerRoom.tsx:263`: `{g.executed ? "" : " - not executed"}`).
+- `councilConvene`'s `CouncilConveneFn` type (`jarvis-council.ts:25-28`)
+  declares `ctx: { runId: string; projectId: string }`, and the route
+  (`jarvis-council.ts:73-76`) already resolves and passes
+  `ctx.claims.projectId` - but the backend implementation
+  (`service-backends.ts:349`, `async (req) => {...}`) ignores the second
+  parameter entirely and forwards only the caller-supplied, optional
+  `req.project_id` into `council.convene()`. A workflow-triggered "Ask the
+  Council" node running inside a known project run silently records an
+  unscoped Decision (`project_id: null`) unless the workflow author also
+  wires `project_id` into the node's own input - the same
+  declared-but-dropped shape 19-D closed for `gitPush`. (The identical
+  shape also exists at `decisionWrite`/`handoffSend`; only `councilConvene`
+  is in scope for this phase - see 20-D below for why.)
+
+**20-A: Render `AgentPerformance.llm_calls` in the agent performance row.**
+Add a small `N calls` stat next to `llm_error_rate` in `AgentPerformanceRow`
+(`AIManagerRoom.tsx:535-563`), same conditional-render pattern as its
+siblings. Pure rendering, no backend change.
+
+**20-B: Render `Project.completed_at` on the project detail header.** Add a
+conditional "Completed \<date\>" line next to the `StatusChip` in the
+project detail header (`AIManagerRoom.tsx:125-171`) when
+`selected.status === "completed" && selected.completed_at`, formatted with
+`new Date(...).toLocaleString()` to match how `HandoffCard`/decisions
+already render timestamps. No backend change.
+
+**20-C: Render `AuditEntry.executed` on audit rows.** Add a small "not
+executed" marker to `AuditTab`'s row list (`AuthorityRoom.tsx:578-604`),
+shown only when `executed === 0` to avoid visual noise on the common case -
+mirroring the existing `AIManagerRoom.tsx:263` precedent. No backend
+change.
+
+**20-D: Thread `ctx.projectId` into `councilConvene`'s fallback.** Give the
+`councilConvene` backend in `service-backends.ts:349` the `ctx` parameter
+`CouncilConveneFn` already declares, and pass
+`project_id: req.project_id ?? ctx.projectId` into `council.convene()` (no
+schema change - `decisions.project_id` already exists). Scoped to
+`councilConvene` only: it's the most user-visible of the three sites still
+carrying this shape (also reachable from the dashboard's "Ask the Council"
+button via `useAIManagerData.ts:388-405`, which already sends
+`project_id` explicitly - the gap is workflow-node-only). `decisionWrite`
+(`service-backends.ts:423-429`) and `handoffSend`
+(`service-backends.ts:359-378`) have the identical gap but are left as
+deferred candidates for a future phase rather than bundled in, per the
+one-contained-fix-per-item precedent every phase since 19-D has followed.
+
+**Deferred-list re-check (carried over from Phase 19):**
+
+- Inline-wait approval flow: still no concrete need - nothing in the
+  current `githubAction`/`202 pending` path (`useAIManagerData.ts:417-454`)
+  suggests friction. Stays deferred for a 5th phase running.
+- `project_id` threading through `sub-agent-runner.ts`/`orchestrator.ts`
+  (x2)/`deferred-executor.ts`: re-checked all four call sites directly:
+  none has a project id in local scope without larger context-plumbing
+  changes. Unchanged since Phase 18's original conclusion.
+- **New deferred candidates**: `decisionWrite`/`handoffSend`'s
+  `ctx.projectId`-dropped fallback (see 20-D above) - both real, both
+  small, but deliberately not bundled into this phase.
+
+**Suggested order: 20-A, then 20-B, then 20-C, then 20-D.** A/B/C are all
+pure UI rendering of already-fetched data, no shared code between them, so
+order among them doesn't matter - same reasoning as every prior phase. D is
+last because it's the only item touching backend code (a function
+signature + one call site), even though it's small.

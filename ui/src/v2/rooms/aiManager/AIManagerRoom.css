@@ -30,6 +30,7 @@
 .rk-aim__dh { display: flex; align-items: center; gap: 10px; }
 .rk-aim__dn { font-size: 15px; font-weight: 700; }
 .rk-aim__dm { font-family: var(--mono); font-size: 9px; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; }
+.rk-aim__dh-completed { font-family: var(--mono); font-size: 9px; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; }
 .rk-aim__desc { font-size: 12px; color: var(--ink2); line-height: 1.5; }
 .rk-aim__cost-select { font-size: 11px; font-weight: 600; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); cursor: pointer; font-family: var(--sans); text-transform: capitalize; }
 .rk-aim__sbtn { margin-left: auto; font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 7px 2px 7px 7px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); cursor: pointer; font-family: var(--sans); }
@@ -82,9 +83,12 @@
 
 /* ── agent performance ── */
 .rk-aim__perf { display: flex; flex-direction: column; gap: 6px; }
-.rk-aim__perf-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 7px 10px; font-size: 11px; }
+.rk-aim__perf-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; border: 1px solid var(--rule); border-radius: 8px 2px 8px 8px; background: var(--raise); padding: 7px 10px; font-size: 11px; }
 .rk-aim__perf-agent { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-aim__perf-stat { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); white-space: nowrap; }
+/* Phase 19-C: providers_used/models_used, computed but previously unrendered. */
+.rk-aim__perf-models { flex-basis: 100%; display: flex; gap: 8px; font-family: var(--mono); font-size: 9px; color: var(--ink3); opacity: 0.8; }
+.rk-aim__perf-models-item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
 /* ── council ── */
 .rk-aim__council-btn { font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 7px 2px 7px 7px; border: 1px solid var(--rule); background: var(--raise); color: var(--ink); cursor: pointer; font-family: var(--sans); }

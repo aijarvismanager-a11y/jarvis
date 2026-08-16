@@ -156,6 +156,10 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                   ))}
                 </select>
                 <StatusChip tone={PROJECT_STATUS_TONE[selected.status]} dot>{selected.status}</StatusChip>
+                {/* Phase 20-B: completed_at was already typed/fetched but never rendered. */}
+                {selected.status === "completed" && selected.completed_at && (
+                  <span className="rk-aim__dh-completed">Completed {new Date(selected.completed_at).toLocaleString()}</span>
+                )}
                 <button className="rk-aim__council-btn" onClick={() => setCouncilOpen(true)}>Ask the Council</button>
                 {selected.status === "active" && (
                   <button
@@ -535,13 +539,32 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
 function AgentPerformanceRow({ perf }: { perf: AgentPerformance }) {
   const successPct = perf.success_rate !== null ? `${Math.round(perf.success_rate * 100)}%` : "—";
   const avgDuration = perf.average_duration_ms !== null ? `${Math.round(perf.average_duration_ms / 1000)}s avg` : "";
+  // Phase 19-C: llm_error_rate/tasks_cancelled/providers_used/models_used
+  // were already computed by getAgentPerformance and typed here, but never
+  // rendered.
+  const llmErrorPct = perf.llm_error_rate !== null ? `${Math.round(perf.llm_error_rate * 100)}% LLM errors` : "";
+  // Phase 20-A: llm_calls was already computed by getAgentPerformance and
+  // typed here, but never rendered.
   return (
     <div className="rk-aim__perf-row">
       <span className="rk-aim__perf-agent">{perf.agent}</span>
       <span className="rk-aim__perf-stat">{perf.tasks_completed} done</span>
       {perf.tasks_failed > 0 && <span className="rk-aim__perf-stat">{perf.tasks_failed} failed</span>}
+      {perf.tasks_cancelled > 0 && <span className="rk-aim__perf-stat">{perf.tasks_cancelled} cancelled</span>}
       <span className="rk-aim__perf-stat">{successPct} success</span>
       {avgDuration && <span className="rk-aim__perf-stat">{avgDuration}</span>}
+      {perf.llm_calls > 0 && <span className="rk-aim__perf-stat">{perf.llm_calls} LLM calls</span>}
+      {llmErrorPct && <span className="rk-aim__perf-stat">{llmErrorPct}</span>}
+      {(perf.providers_used.length > 0 || perf.models_used.length > 0) && (
+        <div className="rk-aim__perf-models">
+          {perf.providers_used.length > 0 && (
+            <span className="rk-aim__perf-models-item">{perf.providers_used.join(", ")}</span>
+          )}
+          {perf.models_used.length > 0 && (
+            <span className="rk-aim__perf-models-item">{perf.models_used.join(", ")}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
