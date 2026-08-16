@@ -16,6 +16,15 @@ import { AIRouter, ManagerAgent, AICouncil, type CouncilSeat } from '../index.ts
 import type { LLMManager } from '../../llm/manager.ts';
 import type { TaskDispatcher } from '../../agents/conv/task-dispatcher.ts';
 import type { ApprovalManager } from '../../authority/approval.ts';
+import type { AuthorityEngine } from '../../authority/engine.ts';
+import type { AuditTrail } from '../../authority/audit.ts';
+import { getActionForTool } from '../../authority/tool-action-map.ts';
+import {
+  githubCreateIssueTool,
+  githubCreatePrTool,
+  githubPrStatusTool,
+  githubReviewTool,
+} from '../../actions/tools/github.ts';
 import {
   findProjects,
   getProject,
@@ -60,7 +69,33 @@ export type AIManagerApiContext = {
   getLLMManager: () => LLMManager;
   getTaskDispatcher: () => TaskDispatcher | null;
   getApprovalManager: () => ApprovalManager;
+  getAuthorityEngine: () => AuthorityEngine;
+  getAuditTrail: () => AuditTrail;
 };
+
+// Phase 16-C: a dashboard-triggered GitHub action has no agent identity to
+// check authority against, so it's given a synthetic actor with the top
+// authority level (10) - a human clicking a button in their own dashboard
+// is at least as trusted as any agent role could be. It still goes through
+// the same AuthorityEngine.checkAuthority + AuditTrail.log() sequence
+// src/agents/orchestrator.ts's executeTool() uses for agent-initiated
+// calls (src/authority/engine.ts, src/authority/audit.ts), so the same
+// context rules (e.g. a future git-push-style tool_name rule) would still
+// apply - it can't bypass a gate the conversational path enforces.
+const DASHBOARD_ACTOR_ID = 'dashboard';
+const DASHBOARD_ACTOR_NAME = 'Dashboard';
+const DASHBOARD_ACTOR_ROLE_ID = 'dashboard';
+const DASHBOARD_AUTHORITY_LEVEL = 10;
+
+const GITHUB_ACTION_TOOLS = {
+  github_create_issue: githubCreateIssueTool,
+  github_create_pr: githubCreatePrTool,
+  github_pr_status: githubPrStatusTool,
+  github_pr_review: githubReviewTool,
+} as const;
+type GitHubActionToolName = keyof typeof GITHUB_ACTION_TOOLS;
+const VALID_GITHUB_ACTION_TOOLS = Object.keys(GITHUB_ACTION_TOOLS) as GitHubActionToolName[];
+const VALID_REVIEW_EVENTS = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'] as const;
 
 /** All handoffs (structured JSON reports) filed for a project, newest first. */
 function listProjectHandoffs(projectId: string, limit: number): unknown[] {
@@ -277,6 +312,104 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
         const params = new URL(req.url).searchParams;
         const limit = Math.min(Number(params.get('limit')) || 50, 200);
         return json(listProjectHandoffs(req.params.id, limit));
+      },
+    },
+
+    // Phase 16-C: GitHub issue/PR actions triggerable from the dashboard,
+    // rather than only from inside an agent conversation. Wraps the same
+    // tool `execute()` functions an agent call would use
+    // (src/actions/tools/github.ts), gated through the same authority
+    // check + audit log as src/agents/orchestrator.ts's executeTool() -
+    // see the DASHBOARD_ACTOR_* comment above for the synthetic actor.
+    '/api/ai-manager/github/action': {
+      POST: async (req: Request) => {
+        try {
+          const body = (await req.json()) as {
+            tool?: string;
+            repo_path?: string;
+            title?: string;
+            body?: string;
+            head?: string;
+            base?: string;
+            number?: number;
+            event?: string;
+          };
+          if (!body.tool || !VALID_GITHUB_ACTION_TOOLS.includes(body.tool as GitHubActionToolName)) {
+            return error(`tool must be one of: ${VALID_GITHUB_ACTION_TOOLS.join(', ')}`, 400);
+          }
+          if (!body.repo_path || typeof body.repo_path !== 'string') {
+            return error('repo_path is required', 400);
+          }
+          const toolName = body.tool as GitHubActionToolName;
+          const tool = GITHUB_ACTION_TOOLS[toolName];
+
+          if ((toolName === 'github_create_issue' || toolName === 'github_create_pr') && !body.title) {
+            return error('title is required', 400);
+          }
+          if (toolName === 'github_create_pr' && (!body.head || !body.base)) {
+            return error('head and base are required', 400);
+          }
+          if ((toolName === 'github_pr_status' || toolName === 'github_pr_review') && typeof body.number !== 'number') {
+            return error('number is required', 400);
+          }
+          if (toolName === 'github_pr_review') {
+            if (!body.event || !VALID_REVIEW_EVENTS.includes(body.event as (typeof VALID_REVIEW_EVENTS)[number])) {
+              return error(`event must be one of: ${VALID_REVIEW_EVENTS.join(', ')}`, 400);
+            }
+          }
+
+          const actionCategory = getActionForTool(toolName, tool.category);
+          const decision = ctx.getAuthorityEngine().checkAuthority({
+            agentId: DASHBOARD_ACTOR_ID,
+            agentAuthorityLevel: DASHBOARD_AUTHORITY_LEVEL,
+            agentRoleId: DASHBOARD_ACTOR_ROLE_ID,
+            toolName,
+            toolCategory: tool.category,
+            actionCategory,
+            temporaryGrants: new Map(),
+          });
+
+          const decisionType = decision.allowed
+            ? decision.requiresApproval
+              ? ('approval_required' as const)
+              : ('allowed' as const)
+            : ('denied' as const);
+
+          ctx.getAuditTrail().log({
+            agent_id: DASHBOARD_ACTOR_ID,
+            agent_name: DASHBOARD_ACTOR_NAME,
+            tool_name: toolName,
+            action_category: actionCategory,
+            authority_decision: decisionType,
+            approval_id: null,
+            executed: decision.allowed && !decision.requiresApproval,
+            execution_time_ms: null,
+            channel: 'click',
+          });
+
+          if (!decision.allowed) {
+            return error(`Denied: ${decision.reason}`, 403);
+          }
+          if (decision.requiresApproval) {
+            return error(
+              `This action requires approval (${decision.reason}). Dashboard-triggered GitHub actions don't support the approval flow yet - ask the agent to do this from a conversation instead.`,
+              409,
+            );
+          }
+
+          const params: Record<string, unknown> = { repo_path: body.repo_path };
+          if (body.title !== undefined) params.title = body.title;
+          if (body.body !== undefined) params.body = body.body;
+          if (body.head !== undefined) params.head = body.head;
+          if (body.base !== undefined) params.base = body.base;
+          if (body.number !== undefined) params.number = body.number;
+          if (body.event !== undefined) params.event = body.event;
+
+          const result = await tool.execute(params);
+          return json({ result });
+        } catch (err) {
+          return errorFromException(err);
+        }
       },
     },
 

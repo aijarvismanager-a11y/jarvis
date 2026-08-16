@@ -45,6 +45,21 @@ export type ProjectTaskFields = {
   max_retries: number;
   /** Last QAAgent verdict for this task (JSON), or null if QA never ran. */
   qa_report: Record<string, unknown> | null;
+  /**
+   * Compact per-attempt summary of the self-healing loop (Phase 15-C) -
+   * `{ attempt, strategy, template, mode, failure_class }[]`, one entry per
+   * dispatch this task's final result took, in order. Empty when the
+   * subtask succeeded on its first attempt.
+   */
+  healing_attempts: HealingAttemptSummary[];
+};
+
+export type HealingAttemptSummary = {
+  attempt: number;
+  strategy: string;
+  template: string;
+  mode: string;
+  failure_class: string;
 };
 
 type ProjectTaskRow = {
@@ -64,6 +79,7 @@ type ProjectTaskRow = {
   retry_count: number;
   max_retries: number;
   qa_report: string | null;
+  healing_attempts: string | null;
 };
 
 function parseRow(row: ProjectTaskRow): ProjectTaskFields {
@@ -73,13 +89,14 @@ function parseRow(row: ProjectTaskRow): ProjectTaskFields {
     artifacts: row.artifacts ? JSON.parse(row.artifacts) : [],
     approval_required: row.approval_required === 1,
     qa_report: row.qa_report ? JSON.parse(row.qa_report) : null,
+    healing_attempts: row.healing_attempts ? JSON.parse(row.healing_attempts) : [],
   };
 }
 
 const PROJECT_TASK_COLUMNS = `
   id, project_id, parent_task_id, title, priority, project_status,
   assigned_agent, assigned_provider, assigned_model, dependencies, artifacts,
-  next_agent, approval_required, retry_count, max_retries, qa_report
+  next_agent, approval_required, retry_count, max_retries, qa_report, healing_attempts
 `;
 
 export function getProjectTaskFields(taskId: string): ProjectTaskFields | null {
@@ -110,7 +127,7 @@ export function setProjectTaskFields(
       project_id = ?, parent_task_id = ?, title = ?, priority = ?, project_status = ?,
       assigned_agent = ?, assigned_provider = ?, assigned_model = ?,
       dependencies = ?, artifacts = ?, next_agent = ?, approval_required = ?,
-      retry_count = ?, max_retries = ?, qa_report = ?
+      retry_count = ?, max_retries = ?, qa_report = ?, healing_attempts = ?
      WHERE id = ?`
   ).run(
     next.project_id,
@@ -128,6 +145,7 @@ export function setProjectTaskFields(
     next.retry_count,
     next.max_retries,
     next.qa_report ? JSON.stringify(next.qa_report) : null,
+    next.healing_attempts.length ? JSON.stringify(next.healing_attempts) : null,
     taskId
   );
 

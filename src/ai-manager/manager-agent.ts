@@ -420,6 +420,15 @@ export class ManagerAgent {
       artifacts: envelope.details_ref ? [envelope.details_ref] : [],
       retry_count: healing.attempts.length - 1,
       qa_report: healing.qa_report as unknown as Record<string, unknown> | null,
+      // Phase 15-C: the count alone (retry_count) doesn't say why a subtask
+      // needed retrying - keep the strategy/failure_class sequence too.
+      healing_attempts: healing.attempts.map((a) => ({
+        attempt: a.attempt,
+        strategy: a.strategy,
+        template: a.template,
+        mode: a.mode,
+        failure_class: a.failure_class,
+      })),
     });
 
     if (healing.exhausted && status === 'FAILED') {

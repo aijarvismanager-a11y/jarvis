@@ -41,6 +41,15 @@ export interface QAReport {
   ran_at: number;
 }
 
+/** Phase 15-C: one dispatch attempt in the self-healing loop (see self-healing.ts). */
+export interface HealingAttemptSummary {
+  attempt: number;
+  strategy: string;
+  template: string;
+  mode: string;
+  failure_class: string;
+}
+
 export interface ProjectTask {
   id: string;
   project_id: string | null;
@@ -58,6 +67,26 @@ export interface ProjectTask {
   retry_count: number;
   max_retries: number;
   qa_report: QAReport | null;
+  healing_attempts: HealingAttemptSummary[];
+}
+
+/**
+ * Phase 15-B: tool names the authority gate already tags `git_operation`/
+ * `read_data` for (src/authority/tool-action-map.ts) - not project-scoped,
+ * since audit_trail has no project_id column; this is recent activity
+ * across the whole daemon, not just the selected project.
+ */
+const GITHUB_TOOL_NAMES = [
+  "git_commit", "git_push", "git_force_push", "git_pull", "git_branch_create",
+  "github_create_issue", "github_create_pr", "github_pr_status", "github_pr_review",
+] as const;
+
+export interface GitHubActivityEntry {
+  id: string;
+  tool_name: string;
+  authority_decision: "allowed" | "denied" | "approval_required";
+  executed: 0 | 1;
+  created_at: number;
 }
 
 export interface Decision {
@@ -144,6 +173,7 @@ export function useAIManagerData() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [handoffs, setHandoffs] = useState<Handoff[]>([]);
   const [agentPerformance, setAgentPerformance] = useState<AgentPerformance[]>([]);
+  const [githubActivity, setGithubActivity] = useState<GitHubActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,16 +201,18 @@ export function useAIManagerData() {
   const refreshDetail = useCallback(async (projectId: string) => {
     setDetailLoading(true);
     try {
-      const [tasksResp, decisionsResp, handoffsResp, performanceResp] = await Promise.all([
+      const [tasksResp, decisionsResp, handoffsResp, performanceResp, githubResp] = await Promise.all([
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/tasks`),
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/decisions`),
         fetch(`/api/ai-manager/projects/${encodeURIComponent(projectId)}/handoffs`),
         fetch(`/api/ai-manager/agents/performance?project_id=${encodeURIComponent(projectId)}`),
+        fetch(`/api/authority/audit?tools=${GITHUB_TOOL_NAMES.join(",")}&limit=20`),
       ]);
       setTasks(tasksResp.ok ? ((await tasksResp.json()) as ProjectTask[]) : []);
       setDecisions(decisionsResp.ok ? ((await decisionsResp.json()) as Decision[]) : []);
       setHandoffs(handoffsResp.ok ? ((await handoffsResp.json()) as Handoff[]) : []);
       setAgentPerformance(performanceResp.ok ? ((await performanceResp.json()) as AgentPerformance[]) : []);
+      setGithubActivity(githubResp.ok ? ((await githubResp.json()) as GitHubActivityEntry[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project detail");
     } finally {
@@ -201,6 +233,7 @@ export function useAIManagerData() {
     if (!selectedId) {
       setTasks([]);
       setDecisions([]);
+      setGithubActivity([]);
       return;
     }
     refreshDetail(selectedId);
@@ -285,6 +318,44 @@ export function useAIManagerData() {
     [refreshProjects],
   );
 
+  /** Phase 15-A: live execution_mode edit, mirrors updateCostMode. */
+  const updateExecutionMode = useCallback(
+    async (id: string, execution_mode: ExecutionMode): Promise<ActionResult> => {
+      try {
+        const resp = await fetch(`/api/ai-manager/projects/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ execution_mode }),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        await refreshProjects();
+        return { ok: true, message: `Execution mode set to ${execution_mode}.` };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refreshProjects],
+  );
+
+  /** Phase 16-A: live rules edit, mirrors updateExecutionMode/updateCostMode. */
+  const updateProjectRules = useCallback(
+    async (id: string, rules: string[]): Promise<ActionResult> => {
+      try {
+        const resp = await fetch(`/api/ai-manager/projects/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rules }),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        await refreshProjects();
+        return { ok: true, message: "Rules updated." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refreshProjects],
+  );
+
   /** Phase 11-A: the only way back to running for a WAITING subtask. */
   const resumeTask = useCallback(
     async (projectId: string, taskId: string, input: string): Promise<ActionResult> => {
@@ -327,6 +398,41 @@ export function useAIManagerData() {
     [refreshDetail, selectedId],
   );
 
+  /**
+   * Phase 16-C: dashboard-triggered GitHub actions, wrapping the same
+   * `execute()` a `github_*` tool call would use, gated the same way
+   * (see routes.ts's `/api/ai-manager/github/action`). `repo_path` is a
+   * plain local filesystem path - projects have no persisted repo mapping
+   * yet, so the caller supplies it per call, same as an agent tool call.
+   */
+  const githubAction = useCallback(
+    async (input: {
+      tool: "github_create_issue" | "github_create_pr" | "github_pr_status" | "github_pr_review";
+      repo_path: string;
+      title?: string;
+      body?: string;
+      head?: string;
+      base?: string;
+      number?: number;
+      event?: string;
+    }): Promise<{ ok: true; result: string } | { ok: false; message: string }> => {
+      try {
+        const resp = await fetch("/api/ai-manager/github/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        const { result } = (await resp.json()) as { result: string };
+        if (selectedId) await refreshDetail(selectedId);
+        return { ok: true, result };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "GitHub action failed" };
+      }
+    },
+    [refreshDetail, selectedId],
+  );
+
   const addDecision = useCallback(
     async (projectId: string, statement: string, reason?: string): Promise<ActionResult> => {
       try {
@@ -353,6 +459,7 @@ export function useAIManagerData() {
     decisions,
     handoffs,
     agentPerformance,
+    githubActivity,
     loading,
     detailLoading,
     running,
@@ -361,8 +468,11 @@ export function useAIManagerData() {
     runProject,
     updateStatus,
     updateCostMode,
+    updateExecutionMode,
+    updateProjectRules,
     addDecision,
     resumeTask,
     askCouncil,
+    githubAction,
   };
 }

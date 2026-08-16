@@ -586,6 +586,18 @@ describe('AuditTrail', () => {
     expect(browserOnly[0]!.tool_name).toBe('browser_navigate');
   });
 
+  test('Phase 15-B: queries by a tool-name allowlist', () => {
+    const trail = new AuditTrail();
+
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'git_commit', action_category: 'git_operation', authority_decision: 'allowed', executed: true });
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'github_create_issue', action_category: 'git_operation', authority_decision: 'approval_required', executed: false });
+    trail.log({ agent_id: 'a1', agent_name: 'PA', tool_name: 'send_email', action_category: 'send_email', authority_decision: 'allowed', executed: true });
+
+    const githubOnly = trail.query({ tools: ['git_commit', 'github_create_issue'] });
+    expect(githubOnly.length).toBe(2);
+    expect(githubOnly.map((e) => e.tool_name).sort()).toEqual(['git_commit', 'github_create_issue']);
+  });
+
   test('getStats aggregates correctly', () => {
     const trail = new AuditTrail();
 

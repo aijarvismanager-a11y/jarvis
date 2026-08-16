@@ -914,6 +914,13 @@ function createTables(db: Database): void {
   try { db.run(`ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`); } catch { /* already present */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 3`); } catch { /* already present */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN qa_report TEXT`); } catch { /* already present */ }
+  // Migration: healing_attempts (Phase 15-C) - a compact per-attempt summary
+  // (strategy + failure_class, not the full TaskResultEnvelope) of the
+  // ERROR -> Classify -> Retry -> Alternative strategy -> Alternative Agent
+  // loop that produced this task's final result. retry_count already exposed
+  // the *count*; this exposes *why* each retry happened, kept on the winning
+  // task row for the same 1:1-with-a-task reason qa_report is.
+  try { db.run(`ALTER TABLE tasks ADD COLUMN healing_attempts TEXT`); } catch { /* already present */ }
 
   // Migration: handoff linkage on agent_messages, so a structured Handoff
   // envelope (spec section 14, stored JSON-encoded in the existing `content`

@@ -42,6 +42,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useAIManagerData();
   const [createOpen, setCreateOpen] = useState(false);
   const [councilOpen, setCouncilOpen] = useState(false);
+  const [githubActionOpen, setGithubActionOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
 
   useEffect(() => {
@@ -55,10 +56,28 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
     [data.projects, data.selectedId],
   );
 
+  // Phase 15-C: a superseded self-healing retry gets its own `tasks` row,
+  // CANCELLED with parent_task_id pointing at the winning task (see
+  // manager-agent.ts runSubtask), specifically so it stays queryable rather
+  // than project_id=NULL. It's not a real board item - nest it under the
+  // winning task instead of showing it as a loose CANCELLED card.
+  const priorAttemptsByParent = useMemo(() => {
+    const map = new Map<string, ProjectTask[]>();
+    for (const t of data.tasks) {
+      if (t.parent_task_id && t.project_status === "CANCELLED") {
+        const list = map.get(t.parent_task_id) ?? [];
+        list.push(t);
+        map.set(t.parent_task_id, list);
+      }
+    }
+    return map;
+  }, [data.tasks]);
+
   const byStatus = useMemo(() => {
     const map = new Map<ProjectTaskStatus, ProjectTask[]>();
     for (const s of TASK_COLUMNS) map.set(s, []);
     for (const t of data.tasks) {
+      if (t.parent_task_id && t.project_status === "CANCELLED") continue;
       if (t.project_status) map.get(t.project_status)?.push(t);
     }
     return map;
@@ -106,8 +125,22 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
               <div className="rk-aim__dh">
                 <div>
                   <div className="rk-aim__dn">{selected.name}</div>
-                  <div className="rk-aim__dm">{selected.template} · {selected.execution_mode}</div>
+                  <div className="rk-aim__dm">{selected.template}</div>
                 </div>
+                <select
+                  className="rk-aim__cost-select"
+                  value={selected.execution_mode}
+                  onChange={async (e) => {
+                    const r = await data.updateExecutionMode(selected.id, e.target.value as ExecutionMode);
+                    setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+                  }}
+                  aria-label="Execution mode"
+                  title="Auto/Assisted/Manual — how often the Manager pauses for confirmation"
+                >
+                  {EXECUTION_MODES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
                 <select
                   className="rk-aim__cost-select"
                   value={selected.cost_mode}
@@ -139,6 +172,14 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
 
               {selected.description && <div className="rk-aim__desc">{selected.description}</div>}
 
+              <RulesEditor
+                rules={selected.rules}
+                onSave={async (rules) => {
+                  const r = await data.updateProjectRules(selected.id, rules);
+                  setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+                }}
+              />
+
               {data.detailLoading && data.tasks.length === 0 ? (
                 <div className="rk-aim__empty"><Skeleton lines={4} /></div>
               ) : (
@@ -156,6 +197,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                               <TaskCard
                                 key={t.id}
                                 task={t}
+                                priorAttempts={priorAttemptsByParent.get(t.id) ?? []}
                                 onResume={async (input) => {
                                   const r = await data.resumeTask(selected.id, t.id, input);
                                   setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
@@ -202,6 +244,27 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                   ))}
                 </div>
               )}
+
+              <div className="rk-aim__handoffs">
+                <div className="rk-aim__dh">
+                  <div className="rk-aim__dlabel" title="Not project-scoped — audit_trail has no project_id, so this is recent git/GitHub tool activity daemon-wide.">
+                    recent github activity
+                  </div>
+                  <button className="rk-aim__sbtn" onClick={() => setGithubActionOpen(true)}>GitHub action</button>
+                </div>
+                {data.githubActivity.length === 0 ? (
+                  <div className="rk-aim__col-empty">No GitHub activity yet.</div>
+                ) : (
+                  data.githubActivity.map((g) => (
+                    <div key={g.id} className="rk-aim__decision">
+                      <div className="rk-aim__decision-statement">{g.tool_name}</div>
+                      <div className="rk-aim__decision-meta">
+                        {g.authority_decision}{g.executed ? "" : " · not executed"} · {new Date(g.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </>
           )}
         </div>
@@ -224,6 +287,13 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
         <CouncilDialog
           onClose={() => setCouncilOpen(false)}
           onAsk={(question) => data.askCouncil(selected.id, question)}
+        />
+      )}
+
+      {githubActionOpen && (
+        <GitHubActionDialog
+          onClose={() => setGithubActionOpen(false)}
+          onRun={data.githubAction}
         />
       )}
 
@@ -251,21 +321,69 @@ function ProjectRow({ project, selected, onClick }: { project: Project; selected
   );
 }
 
-function TaskCard({ task, onResume }: { task: ProjectTask; onResume: (input: string) => Promise<void> }) {
+function TaskCard({
+  task,
+  priorAttempts,
+  onResume,
+}: {
+  task: ProjectTask;
+  priorAttempts: ProjectTask[];
+  onResume: (input: string) => Promise<void>;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [resumeInput, setResumeInput] = useState("");
   const [resuming, setResuming] = useState(false);
   const hasQaReport = task.qa_report !== null;
   const isWaiting = task.project_status === "WAITING";
+  const hasHealingDetail = task.healing_attempts.length > 0;
+  const hasArtifacts = task.artifacts.length > 0;
 
   return (
-    <div className="rk-aim__card" onClick={() => (hasQaReport || isWaiting) && setExpanded((e) => !e)}>
+    <div className="rk-aim__card" onClick={() => (hasQaReport || isWaiting || hasHealingDetail || hasArtifacts) && setExpanded((e) => !e)}>
       <div className="rk-aim__card-t">{task.title ?? "Untitled task"}</div>
       <div className="rk-aim__card-meta">
         <StatusChip tone={task.project_status ? TASK_STATUS_TONE[task.project_status] : "mut"}>{task.priority}</StatusChip>
         {task.assigned_agent && <span className="rk-aim__asg">{task.assigned_agent}</span>}
+        {task.assigned_provider && (
+          <span className="rk-aim__asg">{task.assigned_provider}{task.assigned_model ? `/${task.assigned_model}` : ""}</span>
+        )}
         {task.retry_count > 0 && <span className="rk-aim__asg">retry {task.retry_count}/{task.max_retries}</span>}
       </div>
+
+      {expanded && hasArtifacts && (
+        <div className="rk-aim__card-qa">
+          {task.artifacts.map((path) => (
+            <div key={path} className="rk-aim__qa-check">
+              <span>·</span>
+              <span className="rk-aim__qa-check-name">{path}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {expanded && hasHealingDetail && (
+        <div className="rk-aim__card-qa">
+          {task.healing_attempts.map((a) => {
+            const isFinal = a.attempt === task.healing_attempts.length;
+            return (
+              <div key={a.attempt} className="rk-aim__qa-check">
+                <span>{a.attempt}</span>
+                <span className="rk-aim__qa-check-name">{a.strategy}</span>
+                <span className="rk-aim__qa-check-summary">
+                  {a.template}/{a.mode}
+                  {a.failure_class !== "none" ? ` — ${a.failure_class}` : ""}
+                  {isFinal ? "" : " (superseded)"}
+                </span>
+              </div>
+            );
+          })}
+          {priorAttempts.length > 0 && (
+            <div className="rk-aim__qa-check-summary">
+              {priorAttempts.length} prior attempt task{priorAttempts.length === 1 ? "" : "s"} kept for reference.
+            </div>
+          )}
+        </div>
+      )}
 
       {expanded && hasQaReport && task.qa_report && (
         <div className="rk-aim__card-qa">
@@ -312,6 +430,64 @@ function TaskCard({ task, onResume }: { task: ProjectTask; onResume: (input: str
       setResuming(false);
     }
   }
+}
+
+/** Phase 16-A: `project.rules` live-editable list, mirrors the decisions/handoffs list styling. */
+function RulesEditor({ rules, onSave }: { rules: string[]; onSave: (rules: string[]) => Promise<void> }) {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const addRule = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    try {
+      await onSave([...rules, trimmed]);
+      setDraft("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeRule = async (index: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onSave(rules.filter((_, i) => i !== index));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rk-aim__decisions">
+      <div className="rk-aim__dlabel">rules</div>
+      {rules.length === 0 ? (
+        <div className="rk-aim__col-empty">No rules set — the Manager follows only the project request.</div>
+      ) : (
+        rules.map((rule, i) => (
+          <div key={i} className="rk-aim__decision">
+            <div className="rk-aim__decision-statement">{rule}</div>
+            <button className="rk-aim__sbtn" style={{ marginTop: 6 }} disabled={busy} onClick={() => void removeRule(i)}>
+              Remove
+            </button>
+          </div>
+        ))
+      )}
+      <div className="rk-aim__resume-row">
+        <input
+          className="rk-aim__resume-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add a rule…"
+          onKeyDown={(e) => e.key === "Enter" && draft.trim() && !busy && void addRule()}
+        />
+        <button className="rk-aim__sbtn rk-aim__sbtn--pri" disabled={!draft.trim() || busy} onClick={() => void addRule()}>
+          Add
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function HandoffCard({ handoff }: { handoff: Handoff }) {
@@ -407,6 +583,156 @@ function CouncilDialog({
           {!verdict && (
             <button className="rk-aim__sbtn rk-aim__sbtn--pri" onClick={ask} disabled={busy || !question.trim()}>
               {busy ? "Convening…" : "Convene"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type GitHubActionTool = "github_create_issue" | "github_create_pr" | "github_pr_status" | "github_pr_review";
+const GITHUB_ACTION_TOOLS: readonly GitHubActionTool[] = [
+  "github_create_issue", "github_create_pr", "github_pr_status", "github_pr_review",
+];
+const GITHUB_ACTION_LABELS: Record<GitHubActionTool, string> = {
+  github_create_issue: "Create issue",
+  github_create_pr: "Create pull request",
+  github_pr_status: "Check PR status",
+  github_pr_review: "Submit PR review",
+};
+
+/** Phase 16-C: first interactive GitHub surface — 15-B only added a read-only activity log. */
+function GitHubActionDialog({
+  onClose,
+  onRun,
+}: {
+  onClose: () => void;
+  onRun: (input: {
+    tool: GitHubActionTool;
+    repo_path: string;
+    title?: string;
+    body?: string;
+    head?: string;
+    base?: string;
+    number?: number;
+    event?: string;
+  }) => Promise<{ ok: true; result: string } | { ok: false; message: string }>;
+}) {
+  const [tool, setTool] = useState<GitHubActionTool>("github_create_issue");
+  const [repoPath, setRepoPath] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [head, setHead] = useState("");
+  const [base, setBase] = useState("");
+  const [number, setNumber] = useState("");
+  const [event, setEvent] = useState<"APPROVE" | "REQUEST_CHANGES" | "COMMENT">("COMMENT");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const needsTitle = tool === "github_create_issue" || tool === "github_create_pr";
+  const needsHeadBase = tool === "github_create_pr";
+  const needsNumber = tool === "github_pr_status" || tool === "github_pr_review";
+  const needsEvent = tool === "github_pr_review";
+  const canRun =
+    repoPath.trim() &&
+    (!needsTitle || title.trim()) &&
+    (!needsHeadBase || (head.trim() && base.trim())) &&
+    (!needsNumber || number.trim());
+
+  const run = async () => {
+    if (!canRun || busy) return;
+    setBusy(true);
+    setError(null);
+    const r = await onRun({
+      tool,
+      repo_path: repoPath.trim(),
+      title: needsTitle ? title.trim() : undefined,
+      body: body.trim() || undefined,
+      head: needsHeadBase ? head.trim() : undefined,
+      base: needsHeadBase ? base.trim() : undefined,
+      number: needsNumber ? Number(number) : undefined,
+      event: needsEvent ? event : undefined,
+    });
+    if (r.ok) setResult(r.result);
+    else setError(r.message);
+    setBusy(false);
+  };
+
+  return (
+    <div className="rk-aim__overlay" onClick={() => !busy && onClose()}>
+      <div className="rk-aim__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="rk-aim__dialog-head">
+          <div className="rk-aim__dialog-title">GitHub action</div>
+          <div className="rk-aim__dialog-sub">Runs the same tool an agent would call, gated by the same authority check.</div>
+        </div>
+        <div className="rk-aim__dialog-body">
+          {result === null ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <div className="rk-aim__flab">action</div>
+                <select className="rk-aim__cost-select" value={tool} onChange={(e) => setTool(e.target.value as GitHubActionTool)}>
+                  {GITHUB_ACTION_TOOLS.map((t) => (
+                    <option key={t} value={t}>{GITHUB_ACTION_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div className="rk-aim__flab">repo path</div>
+                <input className="rk-aim__input" value={repoPath} onChange={(e) => setRepoPath(e.target.value)} placeholder="C:\path\to\repo" />
+              </div>
+              {needsTitle && (
+                <div>
+                  <div className="rk-aim__flab">title</div>
+                  <input className="rk-aim__input" value={title} onChange={(e) => setTitle(e.target.value)} />
+                </div>
+              )}
+              {needsHeadBase && (
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="rk-aim__flab">head</div>
+                    <input className="rk-aim__input" value={head} onChange={(e) => setHead(e.target.value)} placeholder="feature-branch" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="rk-aim__flab">base</div>
+                    <input className="rk-aim__input" value={base} onChange={(e) => setBase(e.target.value)} placeholder="main" />
+                  </div>
+                </div>
+              )}
+              {needsNumber && (
+                <div>
+                  <div className="rk-aim__flab">PR number</div>
+                  <input className="rk-aim__input" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="42" inputMode="numeric" />
+                </div>
+              )}
+              {needsEvent && (
+                <div>
+                  <div className="rk-aim__flab">review</div>
+                  <select className="rk-aim__cost-select" value={event} onChange={(e) => setEvent(e.target.value as typeof event)}>
+                    <option value="APPROVE">Approve</option>
+                    <option value="REQUEST_CHANGES">Request changes</option>
+                    <option value="COMMENT">Comment</option>
+                  </select>
+                </div>
+              )}
+              {(tool === "github_create_issue" || tool === "github_create_pr" || tool === "github_pr_review") && (
+                <div>
+                  <div className="rk-aim__flab">body</div>
+                  <textarea className="rk-aim__textarea" value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+                </div>
+              )}
+              {error && <div className="rk-aim__msg">{error}</div>}
+            </div>
+          ) : (
+            <div className="rk-aim__council-synthesis">{result}</div>
+          )}
+        </div>
+        <div className="rk-aim__dialog-acts">
+          <button className="rk-aim__sbtn" onClick={onClose}>{result !== null ? "Close" : "Cancel"}</button>
+          {result === null && (
+            <button className="rk-aim__sbtn rk-aim__sbtn--pri" onClick={run} disabled={busy || !canRun}>
+              {busy ? "Running…" : "Run"}
             </button>
           )}
         </div>

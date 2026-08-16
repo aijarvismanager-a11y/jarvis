@@ -90,6 +90,8 @@ export class AuditTrail {
     agentId?: string;
     action?: ActionCategory;
     tool?: string;
+    /** Phase 15-B: match any of several tool names (e.g. the git_/github_ tool family). */
+    tools?: string[];
     decision?: AuthorityDecisionType;
     since?: number;
     limit?: number;
@@ -109,6 +111,10 @@ export class AuditTrail {
     if (filters?.tool) {
       conditions.push('tool_name = ?');
       values.push(filters.tool);
+    }
+    if (filters?.tools && filters.tools.length > 0) {
+      conditions.push(`tool_name IN (${filters.tools.map(() => '?').join(', ')})`);
+      values.push(...filters.tools);
     }
     if (filters?.decision) {
       conditions.push('authority_decision = ?');

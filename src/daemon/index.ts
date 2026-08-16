@@ -4207,6 +4207,8 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         getLLMManager: () => agentService.getLLMManager(),
         getTaskDispatcher: () => agentService.getTaskDispatcher(),
         getApprovalManager: () => approvalManager,
+        getAuthorityEngine: () => authorityEngine,
+        getAuditTrail: () => auditTrail,
       }),
       ...createWorkflowRoutes({
         triggerManager,

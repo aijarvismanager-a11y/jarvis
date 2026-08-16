@@ -2989,6 +2989,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           agentId: params.get('agent_id') || undefined,
           action: (params.get('action') as ActionCategory) || undefined,
           tool: params.get('tool') || undefined,
+          tools: params.get('tools') ? params.get('tools')!.split(',').filter(Boolean) : undefined,
           decision: (params.get('decision') as AuthorityDecisionType) || undefined,
           since: params.get('since') ? parseInt(params.get('since')!) : undefined,
           limit: parseInt(params.get('limit') ?? '100') || 100,

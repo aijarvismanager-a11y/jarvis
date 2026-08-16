@@ -223,6 +223,39 @@ describe('ManagerAgent end-to-end: simple website creation', () => {
     expect(stepBTask.dependencies).toContain(waitingTaskId);
   });
 
+  it('Phase 15-C: persists healing_attempts for a subtask that fails once then succeeds', async () => {
+    const provider = new MockProvider([textResponse('not valid json, single fallback subtask')]);
+    const llm = makeLLM(provider);
+    const router = new AIRouter(llm);
+    const registry = new TaskRegistry({ db: () => getDb() });
+
+    let calls = 0;
+    const runner: TaskRunner = async ({ intent }) => {
+      calls++;
+      if (calls === 1) throw new Error('429 rate limit exceeded');
+      return { kind: 'completed', text: `${intent} done`, conversation: [] };
+    };
+    const dispatcher = new TaskDispatcher(llm, registry, runner);
+    const manager = new ManagerAgent(router, dispatcher, new ApprovalManager());
+
+    const result = await manager.handleRequest('Flaky Project', 'Do a thing.', { execution_mode: 'auto' });
+
+    expect(result.outcomes).toHaveLength(1);
+    expect(result.outcomes[0]!.status).toBe('COMPLETED');
+
+    const fields = getProjectTaskFields(result.outcomes[0]!.task_id)!;
+    expect(fields.retry_count).toBe(1);
+    expect(fields.healing_attempts).toHaveLength(2);
+    expect(fields.healing_attempts[0]).toMatchObject({ attempt: 1, strategy: 'initial', failure_class: 'transient' });
+    expect(fields.healing_attempts[1]).toMatchObject({ attempt: 2, strategy: 'retry', failure_class: 'none' });
+
+    // The superseded first-attempt task row is project-scoped and linked to
+    // the winning task, per manager-agent.ts's runSubtask.
+    const tasks = getProjectTasks(result.project.id);
+    const superseded = tasks.find((t) => t.project_status === 'CANCELLED' && t.parent_task_id === result.outcomes[0]!.task_id);
+    expect(superseded).toBeDefined();
+  });
+
   it('resumeSubtask rejects a task that is not currently WAITING', async () => {
     const provider = new MockProvider([textResponse('not valid json')]);
     const llm = makeLLM(provider);

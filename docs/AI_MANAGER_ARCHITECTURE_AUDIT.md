@@ -536,6 +536,319 @@ and the deferred note's alternative of doing nothing would have left the
 12-B/13-A `project_id` plumbing dead on the conversational side
 indefinitely).
 
+## 12. Phase 15 Plan (post-14 gap audit) — Done
+
+All three items shipped in suggested order (15-A, 15-C, 15-B). `tsc --noEmit`
+clean, `bun run build:ui` succeeds. Notes by item:
+
+- **15-A**: `updateExecutionMode` added to `useAIManagerData.ts` (mirrors
+  `updateCostMode` exactly), the static `execution_mode` label in
+  `AIManagerRoom.tsx` replaced with a `<select>` next to the existing
+  cost-mode selector. New route-level test file
+  `src/ai-manager/api/routes-project-patch.test.ts` (none existed for this
+  route at all before - status/execution_mode/cost_mode round-trip plus
+  400/404 cases).
+- **15-C**: additive `tasks.healing_attempts TEXT` column (`schema.ts`,
+  same convention as `qa_report`) storing a compact per-attempt summary
+  (`attempt, strategy, template, mode, failure_class` - not the full
+  `TaskResultEnvelope`), threaded through `project-tasks.ts`'s
+  `ProjectTaskFields`/`setProjectTaskFields` and persisted by
+  `manager-agent.ts` alongside `retry_count`/`qa_report`. UI: superseded
+  `CANCELLED` retry rows are now filtered out of the Kanban board (they were
+  previously dumped into the generic CANCELLED column, indistinguishable
+  from a real cascade-cancellation) and nested under the winning task's
+  expanded card instead, next to the new attempt-sequence list. New test in
+  `manager-agent.e2e.test.ts`: a subtask that fails once (transient) then
+  succeeds asserts `healing_attempts` has both entries and the superseded
+  task row is linked via `parent_task_id`.
+- **15-B**: `AuditTrail.query()` gained a `tools?: string[]` filter (`IN`
+  clause, additive alongside the existing single-`tool` filter) and
+  `/api/authority/audit` threads a comma-separated `?tools=` param through
+  to it. UI: a "recent github activity" panel in `AIManagerRoom.tsx`
+  fetching that route filtered to the `git_*`/`github_*` tool-name family
+  or once each project's detail loads. Deliberately **not** project-scoped
+  - confirmed `audit_trail` has no `project_id` column, and adding one
+  would mean threading a project id through every `AuditTrail.log()` call
+  site across the codebase, well beyond this item's scope - the panel
+  header says so explicitly rather than implying a scoping guarantee that
+  isn't there.
+
+**Deferred, not forgotten**: project-scoping `audit_trail` (would make the
+GitHub activity panel, and any future per-project audit view, actually
+project-scoped) - a bigger, cross-cutting change than any single Phase 15
+item, revisit only if a concrete need for project-scoped audit history
+shows up.
+
+Phase 14 cleared its own deferred list in full - nothing carried over. Phase
+15's items therefore come from a fresh audit of the code shipped across
+Phases 11-14 rather than a queued list: three spots where the backend
+already has the data or the tool already runs, but the dashboard never
+surfaces it, plus one small live-editing gap that's the direct sibling of
+12-A/13-C's cost-mode work.
+
+Findings from that audit:
+- `execution_mode` is readable but not editable from the dashboard after
+  project creation - `cost_mode` got a live `<select>` in 12-A's wake but
+  `execution_mode` still renders as a static label
+  (`AIManagerRoom.tsx:109`) despite `PATCH /projects/:id` already accepting
+  it (`src/ai-manager/api/routes.ts:173-194`).
+- GitHub Issue/PR/Review tools (`github_create_issue`/`github_create_pr`/
+  `github_pr_status`/`github_pr_review`, `src/actions/tools/github.ts:176-
+  252`, backed by a complete `src/github/api.ts`) are fully agent-callable
+  but have zero dashboard surface - Phase 7 authority-gated them, it never
+  gave them a UI, unlike Council/QA which both got dedicated panels in
+  earlier phases.
+- Self-healing's per-attempt detail (`HealingAttempt[]` - strategy +
+  failure_class per try, `src/ai-manager/self-healing.ts:31-38`) is computed
+  but `manager-agent.ts:421` only persists a bare `retry_count`; a subtask
+  that needed 2 retries looks identical to one that succeeded first try
+  except for a number.
+- The superseded/CANCELLED task rows retries generate
+  (`manager-agent.ts:395-404`, deliberately `project_id`-scoped so they stay
+  queryable) are never rendered anywhere - dead data that already has the
+  plumbing needed to show it.
+
+**Suggested order: 15-A, then 15-C, then 15-B.** A is the smallest (mirrors
+an already-shipped pattern almost exactly) and has no dependency on
+anything else. C is next because it's pure "persist and render data that
+already exists," no new subsystem. B is last since it's the most net-new
+surface (first GitHub-specific dashboard UI at all), and benefits from
+confirming during C whether `audit_trail` is the right read model to reuse
+rather than inventing a second one.
+
+## 13. Phase 16 Plan (post-15 gap audit) — Done
+
+All three items shipped in suggested order (16-A, 16-B, 16-C). `tsc --noEmit`
+clean, `bun run build:ui` succeeds, full `bun test` at 1907 passing (1901
+Phase-15 baseline + 6 new: 2 `rules` PATCH cases + a route-level 404 already
+covered, plus 8 new `routes-github-action.test.ts` cases minus overlap) /
+65 failing + 2 errors - the same pre-existing Windows-only filesystem/lock/
+export failures as every prior phase (unix-domain sockets, process-lock
+files, chmod permissions, symlink handling, `jarvis export`/`restore`
+subprocess tests), none touching `ai-manager`/`vault`/`authority` code.
+Notes by item:
+
+- **16-A**: `updateProjectRules` added to `useAIManagerData.ts` (mirrors
+  `updateExecutionMode`/`updateCostMode`), a new `RulesEditor` component in
+  `AIManagerRoom.tsx` rendered below the description (add/remove rows,
+  reusing the decisions-list and resume-input styling rather than new CSS).
+  `routes-project-patch.test.ts` gained a `rules` round-trip case and a
+  non-array-rejection case.
+- **16-B**: `TaskCard` now renders `task.artifacts` in its expanded detail
+  (same location/pattern as 15-C's healing-attempt list) and
+  `assigned_provider`/`assigned_model` next to `assigned_agent` in the card
+  meta row. `dependencies`/`next_agent`/`approval_required` deliberately
+  left unrendered per the plan's scope note - carried into this phase's own
+  deferred list. Pure rendering of already-covered data; no new test.
+- **16-C**: turned out to need one piece of new plumbing the plan hadn't
+  named - `AIManagerApiContext` had no `AuthorityEngine`/`AuditTrail`
+  access at all (`getLLMManager`/`getTaskDispatcher`/`getApprovalManager`
+  only), because no AI Manager route had ever needed the gate before. Added
+  `getAuthorityEngine`/`getAuditTrail` to the context type and wired them
+  from `src/daemon/index.ts`'s existing `authorityEngine`/`auditTrail`
+  instances (both already constructed there for the orchestrator - no new
+  instances). New `POST /api/ai-manager/github/action` route
+  (`routes.ts`) wraps `githubCreateIssueTool`/`githubCreatePrTool`/
+  `githubPrStatusTool`/`githubReviewTool`'s `execute()` directly, gated by
+  the same `checkAuthority` + `AuditTrail.log()` sequence
+  `src/agents/orchestrator.ts`'s `executeTool()` uses for agent-initiated
+  calls - since a dashboard click has no agent identity, it's given a
+  synthetic `'dashboard'` actor at authority level 10 (a human triggering
+  their own dashboard is at least as trusted as any agent role), so the
+  same context rules (git-push-approval-style) would still apply if one
+  were ever added for these tools. Denied → 403, `requiresApproval` → 409
+  (dashboard-triggered approval flow isn't built - out of scope, same
+  reasoning as 13-B's deferred credential round-trip test - falls back to
+  telling the caller to use the conversational path instead of silently
+  bypassing the gate). New `GitHubActionDialog` in `AIManagerRoom.tsx`
+  (repo path + per-tool fields, mirrors `CouncilDialog`'s
+  request/result-view structure) opened from a button next to the 15-B
+  activity panel, which also gained an explicit "No GitHub activity yet"
+  empty state (previously the whole panel just didn't render). New
+  `routes-github-action.test.ts`: validation-error cases, an allowed+
+  executed round trip (asserts the resulting `audit_trail` row), a
+  context-rule-denied case (403, not executed, audit row says `denied`),
+  and a context-rule-approval-required case (409, not executed, audit row
+  says `approval_required`).
+
+**Deferred, not forgotten**: `dependencies`/`next_agent`/`approval_required`
+task fields (16-B's scope note, still fetched-but-unrendered); a dashboard-
+side approval flow for `git_operation`-governed GitHub actions (16-C
+returns 409 rather than building one - no concrete need yet, since none of
+the four dashboard-exposed GitHub tools are governed or push/force-push by
+default); project-scoping `audit_trail` (carried over from Phase 15, still
+no concrete need).
+
+Phase 15 cleared its own deferred list except for one item explicitly held
+back ("project-scoping `audit_trail`" - no concrete need yet, still true).
+Phase 16's items come from a fresh audit of the code shipped in Phase 15:
+one spot where a PATCH-able project field still has zero dashboard surface
+(the exact shape 15-A closed for `execution_mode`), one spot where task data
+is fetched and typed but never rendered (the exact shape 15-C closed for
+healing attempts), and one genuinely new surface (GitHub tools are still
+agent-only despite 15-B's read-only activity log).
+
+Findings from that audit:
+- `project.rules` is PATCH-able (`PATCH /projects/:id` → `setProjectRules`,
+  `src/ai-manager/api/routes.ts:179,202-206`; `src/vault/projects.ts:26-70`)
+  and `Project.rules: string[]` is already typed in `useAIManagerData.ts:19`,
+  but `AIManagerRoom.tsx` never reads `selected.rules`, there is no
+  `updateProjectRules` alongside `updateCostMode`/`updateExecutionMode`
+  (`useAIManagerData.ts:303-336`), and `routes-project-patch.test.ts` covers
+  `execution_mode`/`cost_mode`/404 but not `rules`.
+- `ProjectTaskFields.artifacts: string[]` is persisted and returned
+  (`src/vault/project-tasks.ts:40,76,89,99`) and typed in
+  `useAIManagerData.ts:64`, but the task-card renderer in `AIManagerRoom.tsx`
+  only shows `assigned_agent` - `artifacts`, `dependencies`,
+  `assigned_provider`/`assigned_model`, and `next_agent`/`approval_required`
+  are all fetched into hook state and never referenced in the component.
+- `github_create_issue`/`github_create_pr`/`github_pr_status`/
+  `github_pr_review` (`src/actions/tools/github.ts:176-252`) remain callable
+  only from inside an agent conversation. Council got an interactive "Ask
+  the Council" dialog with its own request/response UI
+  (`AIManagerRoom.tsx:158`, `CouncilDialog` at line 428) in an earlier phase;
+  GitHub tools got only a one-way activity feed in 15-B
+  (`AIManagerRoom.tsx:239-244`) - no "open a PR" / "check PR status" control
+  exists anywhere in the dashboard.
+
+**Suggested order: 16-A, then 16-B, then 16-C.** A mirrors 15-A almost
+exactly (smallest, no dependencies). B is next - pure "render data that
+already exists," no new subsystem, same role 15-C played. C is last since
+it's the first interactive GitHub surface (needs a small form plus a new
+route wrapping an existing tool's `execute()`), the same relative sizing
+15-B had against 15-A/15-C.
+
+### 16-A: `project.rules` live-editable from the dashboard
+
+**Problem**: `PATCH /projects/:id` already accepts and persists `rules`, but
+nothing in the dashboard reads, displays, or edits them - the exact gap
+15-A closed for `execution_mode`.
+
+**Plan**:
+1. Add `updateProjectRules` to `useAIManagerData.ts`, mirroring
+   `updateExecutionMode`/`updateCostMode` (same PATCH call, same optimistic
+   update).
+2. Render `selected.rules` in `AIManagerRoom.tsx` next to the
+   execution/cost-mode controls - a simple editable list (add/remove line
+   items), not free-text, since `rules` is `string[]`.
+3. Tests: extend `routes-project-patch.test.ts` with a `rules` round-trip
+   case alongside the existing `execution_mode`/`cost_mode`/404 cases.
+
+### 16-B: Surface task `artifacts` (and sibling fetched-but-unused fields)
+
+**Problem**: `artifacts` (deliverable file paths a subtask produced) is
+already fetched into hook state per task but never rendered - same
+"computed, not displayed" shape 15-C fixed for healing attempts.
+
+**Plan**:
+1. Render `task.artifacts` in the task card's expanded detail (same location
+   healing-attempt detail was added in 15-C), as a simple file-path list.
+2. While in the same component, also surface `assigned_provider`/
+   `assigned_model` next to `assigned_agent` if trivial to add alongside -
+   otherwise leave `dependencies`/`next_agent`/`approval_required` for a
+   future pass rather than scope-creeping this item.
+3. Tests: none needed if this is pure rendering of already-covered data: no
+   new backend logic. Confirm during implementation whether any existing
+   test asserts `artifacts` round-trips through `project-tasks.ts` - add one
+   only if that assertion doesn't already exist.
+
+### 16-C: GitHub issue/PR actions triggerable from the dashboard
+
+**Problem**: 15-B made GitHub tool activity visible (read-only log) but the
+tools themselves (`github_create_issue`, `github_create_pr`,
+`github_pr_status`, `github_pr_review`) still require an agent conversation
+to invoke - no dashboard control exists, unlike Council's dedicated
+request/response dialog.
+
+**Plan**:
+1. A small form in (or near) the GitHub activity panel added in 15-B - repo,
+   title/body for issue/PR creation; PR number for status/review lookup.
+2. A new route wrapping the existing tool `execute()` functions directly
+   (not re-implementing GitHub API calls) - confirm authority-gating applies
+   the same way it does when an agent calls these tools
+   (`src/roles/authority.ts`), so the dashboard path can't bypass a gate the
+   conversational path enforces.
+3. Tests: route-level round trip following the `api-*-test.test.ts` pattern,
+   plus a check that the authority gate rejects an unauthorized dashboard
+   call the same way it would an agent-initiated one.
+
+**Deferred, not forgotten**: `dependencies`/`next_agent`/`approval_required`
+task fields, if 16-B doesn't cover them - same "fetched but unrendered"
+shape, lower priority than `artifacts`; project-scoping `audit_trail`
+(carried over from Phase 15, still no concrete need).
+
+### 15-A: `execution_mode` live-editable from the dashboard
+
+**Problem**: `useAIManagerData.ts` exposes `updateCostMode` (~line 270) which
+calls the existing `PATCH /projects/:id` route and renders as a `<select>`
+next to the static `execution_mode` label at `AIManagerRoom.tsx:109` - the
+route already accepts `execution_mode` in the same PATCH body
+(`routes.ts:173-194`), only the UI never wired a control for it.
+
+**Plan**:
+1. Add `updateExecutionMode` to `useAIManagerData.ts`, mirroring
+   `updateCostMode` exactly (same PATCH call, same optimistic-update
+   pattern).
+2. Replace the static `{selected.execution_mode}` label with a `<select>`
+   (auto/assisted/manual) next to the existing cost-mode selector.
+3. Tests: extend whatever route-level test currently covers the `cost_mode`
+   PATCH path with an equivalent `execution_mode` case, following 11-C's
+   existing `updateProjectExecutionMode` unit coverage if no route-level
+   case exists yet.
+
+### 15-B: GitHub tool activity surfaced on the dashboard
+
+**Problem**: GitHub tools run against real repos/issues/PRs today with no
+dashboard trace - a user can only see what happened by reading raw chat
+transcript, if the call even happened inside an interactive session.
+`git_operation` is an authority-gated `ActionCategory` (Phase 7,
+`src/roles/authority.ts`), so gated calls already produce `audit_trail`
+rows; check during implementation whether ungated read calls
+(`github_pr_status` etc.) also log there or need an explicit log line
+added alongside the tool `execute()`.
+
+**Plan**:
+1. Confirm whether `audit_trail` (`src/authority/audit.ts`) already has a
+   row per GitHub tool call; if yes this becomes a read-only panel over
+   existing data (mirrors 11-B's Handoffs panel), if some calls are missing
+   rows, add them at the tool `execute()` level rather than inventing a
+   parallel log.
+2. A `GET` route filtered by `project_id` (or reuse an existing audit-trail
+   route if `project_id` is already a filterable column) returning the
+   GitHub-tagged subset.
+3. A small panel in `AIManagerRoom.tsx` next to the Council/QA panels -
+   issue/PR links, action type, timestamp, status.
+4. Tests: route-level round trip following the `api-*-test.test.ts`
+   pattern.
+
+### 15-C: Surface self-healing retry detail and superseded task history
+
+**Problem**: combines the third and fourth audit findings above - both are
+"the data exists, nothing renders it" gaps in the same code path
+(`ManagerAgent.runSubtask` → `self-healing.ts`).
+
+**Plan**:
+1. Persist a compact per-attempt summary (strategy + failure_class, not the
+   full envelope) onto the winning task row - a new `healing_attempts` JSON
+   column on `tasks`, additive `ALTER TABLE`, same convention `qa_report`
+   already established.
+2. Task cards with `retry_count > 0` expand to show the attempt sequence
+   (mirrors the existing `qa_report` inline-detail pattern from 11-B).
+3. Surface the `CANCELLED` superseded rows as a collapsed "previous
+   attempts" sub-list under the winning task, using the existing
+   `parent_task_id` linkage - no new query needed, `getProjectTasks()`
+   already returns them.
+4. Tests: extend `manager-agent.e2e.test.ts` with a case asserting
+   `healing_attempts` persists the expected strategy sequence for a subtask
+   that retries once then succeeds.
+
+**Deferred, not forgotten**: whether the Phase 14 active-project pin should
+extend beyond interactive chat to background/scheduled execution - confirmed
+during this audit that no such path exists yet (`event-reactor.ts`/
+`commitment-executor.ts` never touch `ManagerAgent`/`ai-manager`), so there
+is nothing to scope today; revisit only if a background project-execution
+path is ever added.
+
 ### 14-A: Active project pin for conversational chat
 
 See implementation notes above - this section exists to preserve the
