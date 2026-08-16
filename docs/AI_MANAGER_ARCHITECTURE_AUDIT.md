@@ -1870,3 +1870,73 @@ every phase since at least Phase 21 has hit, unrelated to this phase's
 one-line change. No UI diff, so no browser verification needed for this
 phase - the change is backend-only (a function signature and one call
 site), identical in shape and risk profile to 20-D/21-C.
+
+## 20. Phase 23 Plan (post-22 gap audit) — Done
+
+Same fresh-audit methodology as every prior phase. The backend-field/
+frontend-render sweep and the `Fn`-type `ctx` sweep both came back clean
+again for every site checked in Phases 15-22 (nothing regressed). One new
+gap surfaced, one step earlier in the git-operation chain than the
+`ctx.projectId`-dropped pattern 19-D/20-D/21-C/22-A closed:
+
+- `gitCommit`'s `GitCommitFn` type (`jarvis-git.ts:29-32`) declares
+  `ctx: { runId: string; projectId: string }`, and the route
+  (`jarvis-git.ts:70-73`) already resolves and passes it - but the backend
+  implementation (`service-backends.ts:443-445`, pre-fix) ignored the
+  second parameter *and* never called `checkAuthority`/`auditTrail.log` at
+  all. `git_commit` maps to the same `git_operation` action category as
+  `git_push` (`tool-action-map.ts:55-56`); the agent-tool path
+  (`orchestrator.ts:769`) and the `gitPush` workflow backend
+  (`service-backends.ts:489-499`, fixed in 19-D) both write an audit-trail
+  row for every attempt. The `gitCommit` workflow backend was the one path
+  producing zero record of a workflow-triggered commit - not a missing
+  `project_id` on an existing row like the four sites 19-D/20-D/21-C/22-A
+  fixed, but no row at all, invisible in the Authority Audit tab.
+
+**23-A: Give `gitCommit` the same authority-check + audit-log block
+`gitPush` already has.** `service-backends.ts`'s `gitCommit` now takes its
+`ctx` parameter, runs the emergency-controller check, calls
+`checkAuthority` for `git_commit`/`git_operation` (agent id `"workflow"`,
+authority level 0, same floor `gitPush` uses), logs to `auditTrail` with
+`project_id: ctx.projectId`, and short-circuits on `[AUTHORITY DENIED]`.
+Unlike `gitPush`, `gitCommit` isn't gated behind
+`opts.authorityEngine && opts.approvalManager` at definition time - it's
+AUTO by default (`actions/tools/github.ts:85-86`) and stays registered even
+when those deps are absent, running the check only `if (opts.
+authorityEngine)`. The `requiresApproval` branch (reachable only if a
+context-rule override ever adds one for `git_commit`) denies with
+`[AUTHORITY DENIED] Approval required but no approval manager configured.`
+when `opts.approvalManager` is absent, rather than silently committing -
+same fail-closed posture as every other governed path in this file.
+
+**Deferred-list re-check (unchanged from Phase 22):**
+
+- Inline-wait approval flow: `githubAction`'s `202 pending` branch
+  (`useAIManagerData.ts:448-450`) still just returns `{ pending: true,
+  approvalId }`. Stays deferred for a 9th phase running.
+- `project_id` threading through `sub-agent-runner.ts:153`/
+  `orchestrator.ts:769,929`/`deferred-executor.ts:80`: re-checked all four,
+  plus traced whether `agentDelegate`'s dropped `ctx.projectId`
+  (`service-backends.ts:269-276`) could close it from that side - it
+  can't, since `PieceAgentDelegateInput`/`RunSubAgentOptions` have no
+  `projectId` field. Unchanged since Phase 18's original conclusion.
+- `agentDelegate`/`toolsInvoke`/`qaRun`/`managerAssignAgent` all drop
+  `ctx` the same way `gitCommit` did, but each lacks a downstream sink
+  that already accepts a project id (`QAAgent.run`, `ToolRegistry.
+  execute`, `AIRouter.route` take none) - no minimal fix exists the way
+  `gitPush`'s block gave `gitCommit` a direct template. Newly added to the
+  deferred list, not closed this phase.
+- Three `auditTrail.log()` calls in `ws-service.ts:1881,1899,1925` (voice
+  approve/deny) also omit `project_id`, but `ApprovalRequest` has no
+  `project_id` field at all - same "no local scope" conclusion, not a
+  one-line fix. Newly added to the deferred list.
+
+Shipped: `bunx tsc --noEmit` clean, `bun test src/ai-manager`: 34/34
+passing, `bun test src/workflows`: 382 passing / 4 failing - the same
+pre-existing `shared-runtime-paths.test.ts` Windows-path-separator
+failures every phase since at least Phase 21 has hit, unrelated to this
+phase's change. No UI diff (this phase closes a missing audit-trail write,
+not a rendering gap), so no browser verification needed - same backend-
+only risk profile as 19-D/20-D/21-C/22-A, scaled up slightly since this
+gap required restoring a whole authority-check block rather than a single
+fallback expression.

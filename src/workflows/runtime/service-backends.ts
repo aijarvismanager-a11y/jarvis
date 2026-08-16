@@ -440,7 +440,72 @@ export function buildSandboxServiceBackends(
     });
   };
 
-  const gitCommit: GitCommitFn = async (req) => {
+  // Phase 23-A: gitCommit dropped its ctx entirely and never wrote to the
+  // audit trail - unlike every other governed git_operation path (the
+  // agent-tool path in orchestrator.ts:769, and gitPush below), a
+  // workflow-initiated commit was invisible in the Authority Audit tab.
+  // git_commit is AUTO by default (src/actions/tools/github.ts:85-86), so
+  // this mirrors gitPush's authority-check + audit-log block but only
+  // blocks on approval if a context-rule override ever sets
+  // requiresApproval for it.
+  const gitCommit: GitCommitFn = async (req, ctx) => {
+    if (opts.emergencyController && !opts.emergencyController.canExecute()) {
+      const state = opts.emergencyController.getState();
+      return { ok: false, output: "", error: `[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.` };
+    }
+
+    if (opts.authorityEngine) {
+      const actionCategory = getActionForTool("git_commit", "github");
+      const decision = opts.authorityEngine.checkAuthority({
+        agentId: "workflow",
+        agentAuthorityLevel: 0,
+        agentRoleId: "workflow",
+        toolName: "git_commit",
+        toolCategory: "github",
+        actionCategory,
+        temporaryGrants: new Map(),
+      });
+
+      const decisionType = decision.allowed
+        ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
+        : "denied" as const;
+      opts.auditTrail?.log({
+        agent_id: "workflow",
+        agent_name: "Workflow",
+        tool_name: "git_commit",
+        action_category: actionCategory,
+        authority_decision: decisionType,
+        approval_id: null,
+        executed: decision.allowed && !decision.requiresApproval,
+        execution_time_ms: null,
+        project_id: ctx.projectId,
+      });
+
+      if (!decision.allowed) {
+        return { ok: false, output: "", error: `[AUTHORITY DENIED] ${decision.reason}` };
+      }
+      if (decision.requiresApproval) {
+        if (!opts.approvalManager) {
+          return { ok: false, output: "", error: `[AUTHORITY DENIED] Approval required but no approval manager configured.` };
+        }
+        const request = opts.approvalManager.createRequest({
+          agentId: "workflow",
+          agentName: "Workflow",
+          toolName: "git_commit",
+          toolArguments: { repo_path: req.repoPath, message: req.message },
+          actionCategory,
+          urgency: "normal",
+          reason: decision.reason,
+          context: `Workflow-initiated git commit in ${req.repoPath}`,
+          executionMode: "inline",
+        });
+        const resolved = await opts.approvalManager.waitForResolution(request.id);
+        if (resolved.status !== "approved") {
+          return { ok: false, output: "", error: `[APPROVAL ${resolved.status.toUpperCase()}]` };
+        }
+      }
+    }
+
     return gitCommitImpl(req.repoPath, req.message, { all: req.all });
   };
 
