@@ -1808,3 +1808,65 @@ between them, so their relative order doesn't matter - grouped first as the
 lowest-risk, highest-value-per-line items, same reasoning as every prior
 phase's ordering. C is last because it's the only item touching backend
 code (a function signature + one call site), even though it's small.
+
+## 19. Phase 22 Plan (post-21 gap audit) — Done
+
+A fresh audit of the code shipped through Phase 21 (same methodology as
+every prior phase: every backend-computed/typed field checked against its
+frontend render function, every `Fn` type's `ctx` parameter checked against
+what the implementing backend actually consumes) found the entire surface
+21-A/B closed already fully rendered (`Handoff.handoff.instructions/
+artifacts/decisions` all render in `HandoffCard`; `QAReport.ran_at` renders
+in the task card's QA section) and every other UI-facing type in
+`useAIManagerData.ts`/`useAuthorityData.ts` (`ProjectTask.next_agent/
+approval_required/healing_attempts/assigned_provider/assigned_model`,
+`AgentPerformance.llm_calls`, `Project.completed_at`, `AuditEntry.executed/
+channel`, `CouncilVerdict.contradictions`) already has a render site -
+confirming 15-C through 21-B have genuinely closed out that entire category
+of gap. The one item still open was the one flagged as a deferred candidate
+in each of the last three phases:
+
+- `handoffSend`'s `HandoffSendFn` type (`jarvis-handoff.ts:34-37`) declares
+  `ctx: { runId: string; projectId: string }`, and the route
+  (`jarvis-handoff.ts:111-114`) already resolves and passes
+  `ctx.claims.projectId` - but the backend implementation
+  (`service-backends.ts:362`, `async (req) => {...}`) ignored the second
+  parameter entirely and only forwarded the caller-supplied, optional
+  `req.project_id` into `sendHandoff()`. Identical shape to `councilConvene`
+  (closed by 20-D) and `decisionWrite` (closed by 21-C) - a workflow-
+  triggered "Handoff" node running inside a known project run silently filed
+  an unscoped handoff (`project_id: null`) unless the workflow author also
+  wired `project_id` into the node's own input.
+
+**22-A: Thread `ctx.projectId` into `handoffSend`'s fallback.** Give the
+`handoffSend` backend in `service-backends.ts:362` the `ctx` parameter
+`HandoffSendFn` already declares, and pass
+`project_id: req.project_id ?? ctx.projectId` into `sendHandoff()` - the
+identical fallback shape 20-D/21-C used for `councilConvene`/`decisionWrite`.
+This closes out the last of the three sites that carried this shape; no
+further deferred candidates of this pattern remain.
+
+**Deferred-list re-check (carried over from Phase 21):**
+
+- Inline-wait approval flow: still no concrete need - `githubAction`'s `202
+  pending` branch (`useAIManagerData.ts`) still just returns `{ pending:
+  true, approvalId }` and the room still just points the user at the
+  Authority tab. Stays deferred for an 8th phase running.
+- `project_id` threading through `sub-agent-runner.ts:153`/
+  `orchestrator.ts:769,929`/`deferred-executor.ts:80`: re-checked all four
+  call sites directly, none has a `project_id` in local scope without
+  larger context-plumbing changes. Unchanged since Phase 18's original
+  conclusion.
+- No new deferred candidates surfaced this phase - this is the first phase
+  since 15-C where the fresh-audit sweep found nothing new to add to the
+  list.
+
+Shipped: `bunx tsc --noEmit` clean, `bun build ui/index.html ui/pebble.html
+--outdir ui/dist` succeeds (same pre-existing Tailwind-4 `@theme`/`@tailwind`
+at-rule warnings as every prior phase), `bun test src/ai-manager`: 34/34
+passing, `bun test src/workflows`: 382 passing / 4 failing - the same
+pre-existing `shared-runtime-paths.test.ts` Windows-path-separator failures
+every phase since at least Phase 21 has hit, unrelated to this phase's
+one-line change. No UI diff, so no browser verification needed for this
+phase - the change is backend-only (a function signature and one call
+site), identical in shape and risk profile to 20-D/21-C.

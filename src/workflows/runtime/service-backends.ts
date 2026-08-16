@@ -359,7 +359,7 @@ export function buildSandboxServiceBackends(
     });
   };
 
-  const handoffSend: HandoffSendFn = async (req) => {
+  const handoffSend: HandoffSendFn = async (req, ctx) => {
     const handoff: Handoff = {
       task_id: req.task_id,
       from_agent: req.from_agent,
@@ -373,8 +373,13 @@ export function buildSandboxServiceBackends(
       open_questions: req.open_questions ?? [],
       next_action: req.next_action,
     };
+    // Phase 22-A: ctx.projectId was already resolved and passed by the route
+    // (jarvis-handoff.ts) but dropped here - the last of the three
+    // councilConvene/decisionWrite/handoffSend sites carrying this shape
+    // (20-D, 21-C closed the other two).
+    const project_id = req.project_id ?? ctx.projectId;
     const message = sendHandoff(handoff, {
-      ...(req.project_id !== undefined ? { project_id: req.project_id } : {}),
+      ...(project_id !== undefined ? { project_id } : {}),
       ...(req.priority !== undefined ? { priority: req.priority } : {}),
     });
     return { id: message.id };
