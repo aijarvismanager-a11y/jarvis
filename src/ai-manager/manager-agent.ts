@@ -234,6 +234,7 @@ export class ManagerAgent {
       urgency: 'normal',
       reason: `Project "${project.name}" is in ${project.execution_mode} mode - subtask "${subtask.title}" (${subtask.template}) requires approval before running.`,
       context: project.description,
+      projectId: project.id,
     });
     const resolved = await this.approvals.waitForResolution(request.id);
     return resolved.status === 'approved';
