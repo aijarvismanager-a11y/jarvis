@@ -112,6 +112,12 @@ export interface Handoff {
   handoff: {
     status: "completed" | "failed" | "needs_input";
     summary: string;
+    // Phase 21-A: instructions/artifacts/decisions were already on the wire
+    // (listProjectHandoffs returns the full parsed Handoff payload verbatim)
+    // but this type didn't declare them, so HandoffCard couldn't render them.
+    instructions: string[];
+    artifacts: string[];
+    decisions: string[];
     warnings: string[];
     open_questions: string[];
     next_action: string;

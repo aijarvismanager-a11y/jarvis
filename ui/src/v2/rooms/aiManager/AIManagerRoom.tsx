@@ -412,6 +412,9 @@ function TaskCard({
 
       {expanded && hasQaReport && task.qa_report && (
         <div className="rk-aim__card-qa">
+          {/* Phase 21-B: ran_at was already fetched/typed on qa_report but
+              never rendered - no indication anywhere of when QA last ran. */}
+          <div className="rk-aim__qa-ran-at">QA ran {new Date(task.qa_report.ran_at).toLocaleString()}</div>
           {task.qa_report.checks.map((c) => (
             <div key={c.name} className={`rk-aim__qa-check ${c.automated && !c.passed ? "rk-aim__qa-check--fail" : "rk-aim__qa-check--pass"}`}>
               <span>{c.automated ? (c.passed ? "✓" : "✗") : "–"}</span>
@@ -527,6 +530,17 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
     <div className="rk-aim__handoff">
       <div className="rk-aim__handoff-route">{handoff.from_agent} → {handoff.to_agent}</div>
       <div className="rk-aim__handoff-summary">{h?.summary ?? "(non-handoff report)"}</div>
+      {/* Phase 21-A: instructions/artifacts/decisions were already returned
+          by the server on every handoff but the type didn't declare them. */}
+      {h && h.instructions.length > 0 && (
+        <div className="rk-aim__handoff-meta">Instructions: {h.instructions.join("; ")}</div>
+      )}
+      {h && h.artifacts.length > 0 && (
+        <div className="rk-aim__handoff-meta">Artifacts: {h.artifacts.join("; ")}</div>
+      )}
+      {h && h.decisions.length > 0 && (
+        <div className="rk-aim__handoff-meta">Decisions: {h.decisions.join("; ")}</div>
+      )}
       {h && h.open_questions.length > 0 && (
         <div className="rk-aim__handoff-meta">Open question: {h.open_questions.join("; ")}</div>
       )}

@@ -423,9 +423,13 @@ export function buildSandboxServiceBackends(
     });
   };
 
-  const decisionWrite: DecisionWriteFn = async (req) => {
+  const decisionWrite: DecisionWriteFn = async (req, ctx) => {
+    // Phase 21-C: the route already resolves ctx.claims.projectId and
+    // passes it here (jarvis-decision.ts:44-47) - it was just dropped
+    // because this backend only forwarded the caller-supplied, optional
+    // req.project_id. Same fallback shape 20-D used for councilConvene.
     return createDecision(req.statement, {
-      project_id: req.project_id,
+      project_id: req.project_id ?? ctx.projectId,
       reason: req.reason,
       made_by: req.made_by,
     });

@@ -1689,3 +1689,122 @@ pure UI rendering of already-fetched data, no shared code between them, so
 order among them doesn't matter - same reasoning as every prior phase. D is
 last because it's the only item touching backend code (a function
 signature + one call site), even though it's small.
+
+## 18. Phase 21 Plan (post-20 gap audit) — Done
+
+All three items shipped in the suggested order (21-A, 21-B, 21-C).
+`bunx tsc --noEmit` clean, `bun build ui/index.html ui/pebble.html --outdir
+ui/dist` succeeds (only the pre-existing `@theme`/`@tailwind` Tailwind-4
+at-rule warnings). `bun test src/ai-manager`: 34/34 passing. `bun test
+src/authority src/workflows`: 437 passing / 4 failing, all 4 in
+`shared-runtime-paths.test.ts` - the same pre-existing Windows-path-separator
+category every prior phase has hit, unrelated to this phase's code. Notes by
+item:
+
+- **21-A**: `Handoff.handoff` (`useAIManagerData.ts`) gained
+  `instructions: string[]` and `artifacts: string[]` (`decisions` was
+  already effectively redundant with the project-level Decision list so it
+  was included too, for parity with the other three string-array fields the
+  backend's `Handoff` type carries). `HandoffCard` (`AIManagerRoom.tsx`) now
+  renders both as additional `.rk-aim__handoff-meta` lines, conditional on
+  non-empty, in the same style as the existing `warnings`/`open_questions`
+  lines. No route/schema change - `listProjectHandoffs` (`routes.ts`) already
+  returns the full parsed JSON payload; only the frontend type was narrower
+  than what the server sends.
+- **21-B**: `QAReport.ran_at` now renders as a small timestamp line above the
+  check list in the task card's expanded QA section (`AIManagerRoom.tsx`,
+  new `.rk-aim__qa-ran-at` class), formatted with `toLocaleString()` to match
+  every other timestamp in the room. No backend change - `ran_at` was already
+  set by `QAAgent.run()` and typed in `useAIManagerData.ts`.
+- **21-C**: `decisionWrite` (`service-backends.ts`) now accepts the `ctx:
+  { runId, projectId }` second parameter `DecisionWriteFn` always declared
+  (and which `jarvis-decision.ts`'s route already supplied), passing
+  `project_id: req.project_id ?? ctx.projectId` into `createDecision()` -
+  the same fallback shape 20-D used for `councilConvene`. Closes the
+  `decisionWrite` instance of the declared-but-dropped `ctx.projectId` shape;
+  `handoffSend` still has the identical gap and is left as a deferred
+  candidate, per the one-contained-fix-per-item precedent every phase since
+  19-D has followed.
+
+**Deferred, not forgotten**: a dashboard-side inline-wait approval flow
+(unchanged since Phase 16 - still no concrete need, now a 7th phase
+running: `githubAction`'s `202 pending` branch, `useAIManagerData.ts:442-444`,
+still just returns `{ pending: true, approvalId }` and
+`AIManagerRoom.tsx:716` still just tells the user to "resolve it from the
+Authority tab" with no live-resolving affordance); `project_id` threading
+through `sub-agent-runner.ts:153`/`orchestrator.ts:769,929`/
+`deferred-executor.ts:80` (re-checked directly this phase - none has a
+project id in local scope without larger context-plumbing changes, unchanged
+since Phase 18's original conclusion); `handoffSend`'s `ctx.projectId`-
+dropped fallback in `service-backends.ts:362-381` (identical shape to the
+`decisionWrite` fix above, deliberately left for a future phase rather than
+bundled into 21-C).
+
+Phase 20 cleared all four of its own items. Its "deferred, not forgotten"
+list carried over three items, re-checked against the code shipped through
+Phase 20:
+
+- **Inline-wait approval flow**: still no concrete need, confirmed above.
+- **`project_id` threading through the remaining `AuditTrail.log()` call
+  sites**: re-checked all four (`sub-agent-runner.ts:153`,
+  `orchestrator.ts:769,929`, `deferred-executor.ts:80`) - none has a
+  `project_id` in local scope. Unchanged.
+- **`decisionWrite`/`handoffSend`'s dropped `ctx.projectId`**: both still
+  present in `service-backends.ts` (confirmed at lines 362 and 426). Per the
+  plan's own suggestion to fix one or both this phase, `decisionWrite` was
+  picked - see 21-C below for why.
+
+A fresh audit of the code shipped through Phase 20 (same methodology as
+every prior phase: every backend-computed/typed field checked against its
+frontend render function, and every `Fn` type's `ctx` parameter checked
+against what the implementing backend actually consumes) turned up two more
+"fetched/computed but never rendered" items, the same recurring pattern
+15-C through 20-C have each closed instances of:
+
+- `Handoff.handoff`'s frontend type (`useAIManagerData.ts:112-118`) declares
+  only `status`/`summary`/`warnings`/`open_questions`/`next_action`, but the
+  backend `Handoff` record it's parsed from (`src/agents/handoff.ts:21-33`)
+  also carries `instructions: string[]` and `artifacts: string[]` (plus
+  `decisions: string[]`) - and `listProjectHandoffs` (`routes.ts:118-134`)
+  returns the entire parsed JSON payload verbatim as `handoff`, so the server
+  already sends these fields on every response. `HandoffCard`
+  (`AIManagerRoom.tsx:524-537`) only reads `h.summary`/`h.open_questions`/
+  `h.warnings`/`h.status` - the frontend type is narrower than what's on the
+  wire, so `instructions`/`artifacts`/`decisions` can't be rendered even
+  though the data already arrives with every handoff.
+- `QAReport.ran_at` (`useAIManagerData.ts:41`, set at `src/ai-manager/
+  qa.ts:108` when `QAAgent.run()` completes) is typed and fetched onto every
+  task's `qa_report`, but `TaskCard`'s expanded QA section
+  (`AIManagerRoom.tsx:413-429`) only iterates `qa_report.checks` - there's no
+  indication anywhere in the UI of when a task's QA pass actually ran.
+
+**21-A: Add `instructions`/`artifacts`/`decisions` to the `Handoff` type and
+render them.** Widen `Handoff.handoff` in `useAIManagerData.ts:112-118` to
+include the two (or three) missing `string[]` fields the backend already
+sends, and add matching conditional lines to `HandoffCard`
+(`AIManagerRoom.tsx:524-537`), reusing the existing `.rk-aim__handoff-meta`
+class the `warnings`/`open_questions` lines already use. Pure rendering
+against data already on the wire - no route change, matches how 19-A added
+`channel` to `AuditEntry` when the server already wrote it.
+
+**21-B: Render `QAReport.ran_at` in the task card's QA section.** Add a
+small timestamp line above the check list in `AIManagerRoom.tsx`'s expanded
+QA block (`:413-429`), formatted with `toLocaleString()` to match every
+other timestamp in the room (e.g. `HandoffCard`'s `created_at` line, `20-B`'s
+`completed_at` line). Trivial, no backend change.
+
+**21-C: Thread `ctx.projectId` into `decisionWrite`'s fallback.** Give the
+`decisionWrite` backend in `service-backends.ts:426` the `ctx` parameter
+`DecisionWriteFn` already declares (`jarvis-decision.ts:19-22`), and pass
+`project_id: req.project_id ?? ctx.projectId` into `createDecision()` - the
+identical fallback shape 20-D used for `councilConvene`. Scoped to
+`decisionWrite` only, matching the one-contained-fix-per-item precedent:
+`handoffSend` (`service-backends.ts:362-381`) has the same gap and is left
+as a deferred candidate for a future phase.
+
+**Suggested order: 21-A, then 21-B, then 21-C.** A and B are both pure UI
+rendering of already-fetched/already-on-the-wire data, no shared code
+between them, so their relative order doesn't matter - grouped first as the
+lowest-risk, highest-value-per-line items, same reasoning as every prior
+phase's ordering. C is last because it's the only item touching backend
+code (a function signature + one call site), even though it's small.

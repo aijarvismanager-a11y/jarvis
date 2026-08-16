@@ -69,6 +69,8 @@
 .rk-aim__qa-check-summary { color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Phase 18-B: failed-check diagnostic detail, wraps onto its own line. */
 .rk-aim__qa-check-detail { flex-basis: 100%; color: var(--fail-tx, #c0392b); white-space: normal; opacity: 0.85; }
+/* Phase 21-B: when the QA pass last ran. */
+.rk-aim__qa-ran-at { font-family: var(--mono); font-size: 8px; color: var(--ink3); }
 .rk-aim__resume { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--rule); padding-top: 6px; }
 .rk-aim__resume-q { font-size: 11px; color: var(--ink2); }
 .rk-aim__resume-row { display: flex; gap: 6px; }
