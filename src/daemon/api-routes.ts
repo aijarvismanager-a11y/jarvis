@@ -1575,6 +1575,40 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
       },
     },
 
+    // --- Active-project pin for classic chat (Phase 14-A). Session-scoped,
+    // in-memory only (AgentService.activeProjectId) - the daemon is
+    // single-user/single-session, so there's nothing to key per-connection
+    // state by. Pinning an AI Manager project here makes ordinary
+    // conversation turns retrieve that project's vault memory (facts/
+    // entities) alongside global memory, the same scoping ManagerAgent's
+    // task-tier subtask execution already gets (Phase 13-A). Named
+    // "active-project" (not "projectId") to avoid colliding with the
+    // unrelated Site Builder `projectId` already sent per-chat-message.
+    '/api/chat/active-project': {
+      GET: () => {
+        return json({ project_id: ctx.agentService.getActiveProject() });
+      },
+      POST: async (req: Request) => {
+        try {
+          const body = await req.json() as { project_id?: string | null };
+          const projectId = body.project_id;
+          if (projectId !== null && projectId !== undefined) {
+            if (typeof projectId !== 'string' || !projectId) {
+              return error('project_id must be a non-empty string or null', 400);
+            }
+            const { getProject } = await import('../vault/projects.ts');
+            if (!getProject(projectId)) {
+              return error(`Project not found: ${projectId}`, 404);
+            }
+          }
+          ctx.agentService.setActiveProject(projectId ?? null);
+          return json({ ok: true, project_id: ctx.agentService.getActiveProject() });
+        } catch (err) {
+          return errorFromException(err);
+        }
+      },
+    },
+
     // Live model catalog for NVIDIA. NVIDIA's `/v1/models` is publicly
     // readable, so this works during onboarding before any key is stored.
     // We pass the user's key through when available so the call still

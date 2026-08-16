@@ -101,6 +101,14 @@ export class AgentService implements Service, IAgentService {
   private convOrchestrator: ConvOrchestrator | null = null;
   private convTaskEventListener: ((event: ConvTaskEvent) => void) | null = null;
   private dialogueCompactor: DialogueCompactor | null = null;
+  // Phase 14-A: the AI Manager project a user has pinned to the classic chat
+  // session, so ambient vault memory (facts/entities) in ordinary
+  // conversation can be scoped to it the same way ManagerAgent's task-tier
+  // execution already scopes memory to a project (Phase 13-A). Single
+  // in-memory field, not persisted — the daemon is single-user/single-session
+  // today (see AgentService's own singleton construction in daemon/index.ts),
+  // so there is no per-connection state to key this by.
+  private activeProjectId: string | null = null;
 
   constructor(config: JarvisConfig) {
     this.config = config;
@@ -322,7 +330,7 @@ export class AgentService implements Service, IAgentService {
       return this.streamMessageConv(text, channel);
     }
 
-    const systemPrompt = this.buildFullSystemPromptParts(channel, text);
+    const systemPrompt = this.buildFullSystemPromptParts(channel, text, this.activeProjectId ?? undefined);
     if (siteContext) {
       systemPrompt.dynamic += '\n\n' + siteContext;
     }
@@ -367,7 +375,7 @@ export class AgentService implements Service, IAgentService {
         const identity = self.buildUserIdentityBlock();
         const userProfile = self.buildUserProfileBlock();
         const recentDialogue = await self.loadRecentDialogue(channel);
-        const ambient = self.buildAmbientFactsBlock(text);
+        const ambient = self.buildAmbientFactsBlock(text, self.activeProjectId ?? undefined);
 
         // Task lifecycle events go through the listener IN REAL TIME (during
         // the dispatcher's await), independent of the text stream. The
@@ -536,7 +544,7 @@ export class AgentService implements Service, IAgentService {
         userIdentity: identity,
         userProfile: this.buildUserProfileBlock(),
         recentDialogue,
-        ambientFacts: this.buildAmbientFactsBlock(text),
+        ambientFacts: this.buildAmbientFactsBlock(text, this.activeProjectId ?? undefined),
       },
       this.convTaskEventListener ?? undefined,
     );
@@ -607,10 +615,10 @@ export class AgentService implements Service, IAgentService {
    * already entity-match-driven so it stays empty when the message doesn't
    * mention anything we remember (zero-cost on small-talk turns).
    */
-  private buildAmbientFactsBlock(text: string): string {
+  private buildAmbientFactsBlock(text: string, projectId?: string): string {
     const parts: string[] = [];
     try {
-      const knowledge = getKnowledgeForMessage(text);
+      const knowledge = getKnowledgeForMessage(text, projectId);
       if (knowledge && knowledge.trim().length > 0) {
         parts.push('Relevant knowledge about entities in this message:');
         parts.push(knowledge);
@@ -647,6 +655,21 @@ export class AgentService implements Service, IAgentService {
    */
   getTaskDispatcher(): TaskDispatcher | null {
     return this.taskDispatcher;
+  }
+
+  /**
+   * Pin (or clear, with null) an AI Manager project to the classic chat
+   * session (Phase 14-A). Once set, ordinary conversation turns retrieve
+   * project-scoped + global vault memory instead of global-only, mirroring
+   * what ManagerAgent-run subtasks already get. Purely a UI convenience -
+   * does not change authority, tools, or which agent handles the turn.
+   */
+  setActiveProject(projectId: string | null): void {
+    this.activeProjectId = projectId;
+  }
+
+  getActiveProject(): string | null {
+    return this.activeProjectId;
   }
 
   // --- Private methods ---

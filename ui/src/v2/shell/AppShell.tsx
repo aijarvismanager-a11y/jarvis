@@ -15,6 +15,7 @@ import { navKeyToObjectType } from "../palette/types";
 import { usePaletteHotkey } from "../palette/usePaletteHotkey";
 import { SystemTakeover, SystemBanners, useSystemStateOverride, type TakeoverKind } from "./SystemStates";
 import { useChatDisplayMode, type ChatDisplayMode } from "./useChatDisplayMode";
+import { useActiveProject } from "./useActiveProject";
 import { BillingBanner } from "../billing/BillingBanner";
 import { closeRoom, openRoom, useV2Route, ROOM_KEYS, type RoomKey } from "../router";
 import { getRoomBody } from "../rooms/RoomBodyRegistry";
@@ -849,6 +850,7 @@ function ShellLayout({
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkIn, setTalkIn] = useState(false);
   const [chatDisplayMode, setChatDisplayMode] = useChatDisplayMode();
+  const { projects: activeProjectOptions, activeProjectId, setActiveProject } = useActiveProject();
 
   // awaiting-approval renders as the "asking" (amber) pebble state.
   const dataState = voiceState === "awaiting-approval" ? "asking" : voiceState;
@@ -976,6 +978,20 @@ function ShellLayout({
               <option value="detailed">Detailed</option>
               <option value="developer">Developer</option>
             </select>
+            {activeProjectOptions.length > 0 && (
+              <select
+                className="rs-talk-density"
+                value={activeProjectId ?? ""}
+                onChange={(e) => setActiveProject(e.target.value || null)}
+                aria-label="Pinned AI Manager project"
+                title="Pin a project so chat sees its facts/memory"
+              >
+                <option value="">No pinned project</option>
+                {activeProjectOptions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
             <button className="esc" onClick={() => setTalkOpen(false)} aria-label="Close Talk">⌘J · esc</button>
           </div>
 

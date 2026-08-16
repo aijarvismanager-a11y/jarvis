@@ -465,6 +465,96 @@ missing route or a missing UI field, it's "does the conversational path get
 a project concept at all, and if so how" - worth doing once, deliberately,
 not squeezed in alongside three smaller items.
 
+## 11. Phase 14 Plan (clearing the 13-deferred list) — Done
+
+Both items shipped: `tsc --noEmit` clean, full `bun test` at 1889 passing / 65
+failing / 2 errors - the same pre-existing Windows-only failures as every
+prior phase (file-permission/chmod tests, PID/process-lock tests, Unix
+domain sockets, `EBUSY` temp-dir cleanup races, symlink `O_NOFOLLOW` tests -
+none touch anything Phase 14 changed), plus 17 new passing tests, `bun run
+build:ui` succeeds. Notes by item:
+
+- **14-A**: `AgentService` gained a single in-memory `activeProjectId` field
+  + `setActiveProject`/`getActiveProject` (`src/daemon/agent-service.ts`,
+  next to `setConvTaskEventListener`/`getTaskDispatcher`) - no DB table,
+  since the daemon is still single-user/single-session (confirmed nothing
+  changed about that assumption since 13-A). Threaded into the two ambient-
+  memory call sites the interactive chat UI actually uses:
+  `buildAmbientFactsBlock` (conv-tier, now takes an optional `projectId` and
+  passes it to `getKnowledgeForMessage`) and the classic
+  (no-conversation-tier) branch of `streamMessageInner`'s
+  `buildFullSystemPromptParts` call - both only reachable from
+  `streamMessage`, which is what `ws-service.ts`'s interactive chat handler
+  and the pebble voice path call. Deliberately did **not** thread it into
+  `handleMessage`'s classic branch, since that non-streaming entry point is
+  shared by `event-reactor.ts`/`commitment-executor.ts`/`channel-service.ts`
+  for background/scheduled/external-channel turns that aren't the
+  interactive session the pin is scoped to - scoping those too would have
+  been silent behavior change with no caller asking for it, the same trap
+  12-B's plan explicitly flagged. New route `/api/chat/active-project`
+  (`GET`/`POST` in `api-routes.ts`, deliberately not reusing the `projectId`
+  field already used in chat WS payloads - that field is the unrelated Site
+  Builder filesystem-project concept, confirmed by `ws-service.ts`'s
+  `siteBuilderService` branch). `POST` validates the id against
+  `getProject()` (404 if unknown, 400 if empty/wrong type) before pinning,
+  `null` clears it. UI: a project picker `<select>` next to the existing
+  chat-density selector in `AppShell.tsx`'s "Talk" panel header (same spot
+  `useChatDisplayMode`'s control lives), backed by a new
+  `useActiveProject.ts` hook that fetches `GET /api/ai-manager/projects` for
+  the option list and round-trips the pin through the new route with
+  optimistic-then-revert-on-failure state - unlike `useChatDisplayMode`,
+  this can't be a localStorage-only preference since the pin changes what
+  the daemon retrieves, not just how the UI renders. Only rendered when at
+  least one active project exists, so users with no AI Manager projects see
+  no new UI. Tests: `agent-service-active-project.test.ts` (plumbing -
+  `getKnowledgeForMessage` receives the pinned id, or `undefined` when
+  nothing's pinned) and `api-active-project.test.ts` (route-level round-trip
+  + 404/400 validation), following 13-A's precedent of testing at the layer
+  where the id is actually forwarded rather than through a full daemon
+  harness.
+- **14-B**: `api-config-credentials.test.ts` added, mocking
+  `../vault/keychain.ts` via `mock.module` (resolved-path interception, so
+  both `src/image/config-binding.ts` and `src/github/api.ts`'s existing
+  `../vault/keychain.ts` imports pick up the mock without touching either
+  module) rather than calling the real AES-256-GCM file-backed keychain -
+  this was exactly the gap 13-B's own plan flagged as "would need
+  `keychain.ts` mocked, not called for real, to avoid writing into a
+  developer's actual secrets file." Covers both routes: empty-state GET,
+  POST-then-GET round-trip asserting `has_api_key`/`has_token` flips to
+  `true` and the raw secret never appears in any response body, invalid-
+  provider/missing-key/missing-token 400s, and (image only) that a saved key
+  re-registers onto a live `ImageManager` instance without a restart -
+  the exact behavior 13-B's `registerImageProviders()` re-call was for.
+
+**Suggested order: 14-B, then 14-A.** B is fully self-contained (one new
+test file, no production code change) and closes out Phase 13's last
+loose end regardless of any product decision. A depended on the "should
+chat be able to pin a project" question the Phase 13 doc explicitly left
+open - resolved before implementation (pin it, since project-scoped memory
+in ordinary conversation is worth more than the small UI surface it costs,
+and the deferred note's alternative of doing nothing would have left the
+12-B/13-A `project_id` plumbing dead on the conversational side
+indefinitely).
+
+### 14-A: Active project pin for conversational chat
+
+See implementation notes above - this section exists to preserve the
+original "Problem" framing from the Phase 13 audit for future reference:
+Phase 13-A resolved project-scoped memory for `ManagerAgent`'s task-tier
+subtask execution (task_request.project_id → `getKnowledgeForMessage`), but
+left classic conversational chat (outside any AI Manager project) with no
+way to say "I'm currently working on project X," so ambient facts in
+ordinary conversation stayed global-only even when a user was mid-project.
+14-A closes that gap with the smallest change that does so: a pinnable
+session-level project id, not a new persistent "current project" concept
+tied to conversations/channels in the schema.
+
+### 14-B: `/api/config/image`/`/api/config/github` round-trip tests
+
+See implementation notes above - both routes existed and worked correctly
+since Phase 13-B; this item only closes the automated-coverage gap that
+phase's plan explicitly deferred.
+
 ### 13-A: Project-scoped memory in the conversational path
 
 **Problem**: Phase 12-B added `project_id` scoping to `entities`/`facts`/
