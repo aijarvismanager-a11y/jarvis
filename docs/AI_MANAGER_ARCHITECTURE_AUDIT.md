@@ -2025,3 +2025,54 @@ Phase 21 has hit, unrelated to this change. `bun test src/github`: 3/3
 passing (covers `ApprovalManager.createRequest`/`waitForResolution` via
 the project-push e2e path). No UI diff, so no browser verification
 needed - same backend-only risk profile as 19-D/20-D/21-C/22-A/23-A.
+
+## 22. Phase 25 (thread `project.id` into `requestSubtaskApproval`) — Done
+
+Not written up as its own plan doc at the time it shipped (`d2826e1`); noted
+here for continuity since Phase 26's audit re-checks its ground. Manager
+Agent's own manual/assisted-mode subtask-approval gate
+(`manager-agent.ts:227` `requestSubtaskApproval`) called
+`ApprovalManager.createRequest` with `project.id` already in scope but
+never passed it, leaving those `approval_requests` rows unscoped despite
+the `project_id` column existing since 24-A. One-line fix: pass
+`projectId: project.id`.
+
+## 23. Phase 26 Plan (post-25 gap audit) — Done
+
+Same fresh-audit methodology as every prior phase. Re-verified the four
+items on Phase 24's deferred list against the code shipped through Phase
+25 (unchanged since Phase 24's own commit `a946f76`, plus Phase 25's
+one-line `requestSubtaskApproval` fix above) - three came back with no new
+sink, unchanged from Phase 24; the fourth had a concrete, minimal fix
+Phase 24 had explicitly flagged as a template for "the next phase":
+
+**26-A: Voice approve/deny audit rows in `ws-service.ts` weren't carrying
+`project_id`.** `resolveLatestPendingByVoice` (`src/daemon/ws-service.ts`)
+already loads the full `ApprovalRequest` as `latest` before logging three
+separate `auditTrail.log()` calls for the gated/approved/denied outcomes
+(lines ~1881, ~1899, ~1925) - and `latest.project_id` has existed since
+24-A. None of the three log calls forwarded it. Added `project_id:
+latest.project_id` to all three - no new resolution logic, exactly the
+"fetch the request, forward its `project_id`" fix Phase 24 previewed.
+
+**Deferred-list re-check (unchanged from Phase 24):**
+
+- Inline-wait approval flow (`useAIManagerData.ts:448-450`'s `202
+  pending` branch): still just returns `{ pending: true, approvalId }`
+  with no polling UI. Stays deferred.
+- `project_id` threading through `sub-agent-runner.ts:153`/
+  `orchestrator.ts:769,929`/`deferred-executor.ts:80`: re-checked, still
+  no sink (`RunSubAgentOptions`/`PieceAgentDelegateInput` still have no
+  `projectId` field). Unchanged since Phase 18.
+- `agentDelegate`/`toolsInvoke`/`qaRun`/`managerAssignAgent` dropping
+  `ctx`: re-checked all four downstream sinks - none gained a project id
+  field. Unchanged since Phase 22/23.
+
+Shipped: `bunx tsc --noEmit` clean, no fixture changes needed (no full
+`AuditEntry` literal elsewhere requiring the new field). `bun test
+src/daemon src/authority src/ai-manager`: 292 passing / 16 failing - all
+16 are the pre-existing `Process Lock Manager` cross-process/file-lock
+suite, unrelated to this change (same category of environment-specific
+failure the doc has tracked under `shared-runtime-paths.test.ts` since
+Phase 21). No UI diff, so no browser verification needed - same
+backend-only risk profile as 19-D/20-D/21-C/22-A/23-A/24-A.

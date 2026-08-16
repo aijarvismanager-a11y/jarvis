@@ -1887,6 +1887,7 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
             approval_id: latest.id,
             executed: false,
             channel: 'voice',
+            project_id: latest.project_id,
           });
           return { kind: 'gated', label, message: gate.message };
         }
@@ -1905,6 +1906,7 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
             approval_id: latest.id,
             executed: false,
             channel: 'voice',
+            project_id: latest.project_id,
           });
           // Same skip-on-intent-only and skip-on-inline path as the REST
           // endpoint: inline requests are executed by the blocked gate.
@@ -1931,6 +1933,7 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
           approval_id: latest.id,
           executed: false,
           channel: 'voice',
+          project_id: latest.project_id,
         });
         if (this.deferredExecutor) {
           this.deferredExecutor.recordDenial(denied);
