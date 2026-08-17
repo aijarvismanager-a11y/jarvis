@@ -33,7 +33,8 @@ export type RoomKey =
   | "workspaces"
   | "usage"
   | "settings"
-  | "ai_manager";
+  | "ai_manager"
+  | "workers";
 
 export type V2Route =
   | { kind: "home" }
@@ -63,6 +64,7 @@ export const ROOM_KEYS: ReadonlySet<RoomKey> = new Set([
   "usage",
   "settings",
   "ai_manager",
+  "workers",
 ]);
 
 export function getV2Route(): V2Route {

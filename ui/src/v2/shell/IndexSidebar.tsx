@@ -24,6 +24,7 @@ const ROWS: Row[] = [
   { kind: "room", key: "agents", label: "Agents", kbd: "⌘3" },
   { kind: "room", key: "tasks", label: "Tasks", kbd: "⌘4" },
   { kind: "room", key: "ai_manager", label: "AI Manager" },
+  { kind: "room", key: "workers", label: "Workers" },
   { kind: "heading", label: "know" },
   { kind: "room", key: "memory", label: "Memory", kbd: "⌘5" },
   { kind: "room", key: "goals", label: "Goals", kbd: "⌘6" },
@@ -43,7 +44,7 @@ const ROWS: Row[] = [
 const CLUSTERS: { id: string; ic: string; label: string; lead: RoomKey | "now"; rooms: { key: RoomKey; label: string }[] }[] = [
   { id: "now", ic: "◉", label: "Now", lead: "now", rooms: [] },
   { id: "run", ic: "▶", label: "Run", lead: "workflows", rooms: [
-    { key: "workflows", label: "Workflows" }, { key: "agents", label: "Agents" }, { key: "tasks", label: "Tasks" }, { key: "ai_manager", label: "AI Manager" } ] },
+    { key: "workflows", label: "Workflows" }, { key: "agents", label: "Agents" }, { key: "tasks", label: "Tasks" }, { key: "ai_manager", label: "AI Manager" }, { key: "workers", label: "Workers" } ] },
   { id: "know", ic: "◆", label: "Know", lead: "memory", rooms: [
     { key: "memory", label: "Memory" }, { key: "goals", label: "Goals" }, { key: "calendar", label: "Calendar" }, { key: "content", label: "Content" } ] },
   { id: "guard", ic: "▣", label: "Guard", lead: "authority", rooms: [

@@ -239,4 +239,11 @@ const ROOM_META: Record<RoomKey, RoomMeta> = {
     description:
       "Projects run by the Manager Agent: task kanban, handoffs, agent performance, decisions, and the AI Council.",
   },
+  workers: {
+    title: "Workers",
+    subtitle: "AI status · task · handoff",
+    phaseTag: "AI統合司令塔",
+    description:
+      "External AI Workers (Claude Code, Gemini, ...) JARVIS delegates tasks to. Enable a Worker, run a task, and see the Handoff it files back.",
+  },
 };

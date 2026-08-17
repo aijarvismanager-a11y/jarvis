@@ -19,6 +19,7 @@ const ROOM_KEYS = new Set<RoomKey>([
   "workspaces",
   "settings",
   "ai_manager",
+  "workers",
 ]);
 
 function readRoomKeyFromHash(): RoomKey | null {

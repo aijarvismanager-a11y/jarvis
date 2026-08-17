@@ -53,6 +53,7 @@ ${c.bold('Commands:')}
   ${c.cyan('revoke')}    Revoke an enrolled device by sid
   ${c.cyan('export')}    Export user data as a tar archive (export [--out <path>|-] [--full])
   ${c.cyan('restore')}   Restore user data from an export archive (restore <archive|->)
+  ${c.cyan('worker')}    Run a task through an external AI Worker (worker list|run --help)
   ${c.cyan('version')}   Print version number
   ${c.cyan('help')}      Show this help message
 
@@ -92,6 +93,7 @@ function assertSupportedPlatform(): void {
 }
 
 async function cmdStart(args: string[]): Promise<void> {
+  assertSupportedPlatform();
   const detach = args.includes('--detach') || args.includes('-d');
   const noOpen = args.includes('--no-open');
   const noLocalTools = args.includes('--no-local-tools');
@@ -403,8 +405,6 @@ function openDashboard(port: number): void {
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-assertSupportedPlatform();
-
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
 const commandArgs = args.slice(1);
@@ -463,6 +463,11 @@ switch (command) {
   case 'restore': {
     const { cmdRestore } = await import('../src/cli/backup.ts');
     process.exit(await cmdRestore(commandArgs));
+  }
+  case 'worker': {
+    const { runWorkerCommand } = await import('../src/cli/worker.ts');
+    await runWorkerCommand(commandArgs);
+    break;
   }
   case 'uninstall':
     await cmdUninstall();

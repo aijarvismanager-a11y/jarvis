@@ -20,6 +20,7 @@ const ROOM_TITLE: Record<RoomKey, string> = {
   usage: "Usage",
   settings: "Settings",
   ai_manager: "AI Manager",
+  workers: "Workers",
 };
 
 export interface RoomWindowProps {

@@ -30,6 +30,14 @@ import { CommitmentExecutor } from "./commitment-executor.ts";
 import { classifyEvent } from "./event-classifier.ts";
 import { createApiRoutes, setCorsOrigin } from "./api-routes.ts";
 import { createAIManagerRoutes } from "../ai-manager/api/routes.ts";
+import { ensureWorkspace } from "../orchestrator/workspace.ts";
+import { createDefaultWorkerRegistry } from "../workers/index.ts";
+import { loadWorkerSettings, applyWorkerSettings } from "../workers/settings.ts";
+import { loadCustomWorkers } from "../workers/custom-registry.ts";
+import { CommandWorker } from "../workers/command-worker.ts";
+import { TaskWorkerRunner } from "../orchestrator/task-runner.ts";
+import { createOrchestratorRoutes } from "../orchestrator/api/routes.ts";
+import { sendHandoff } from "../agents/handoff.ts";
 import { GoogleAuth } from "../integrations/google-auth.ts";
 import { ResearchQueue } from "./research-queue.ts";
 import { researchQueueTool, setResearchQueueRef } from "../actions/tools/research.ts";
@@ -4152,6 +4160,36 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       ...(workflowEngineRuntime ? { engineRuntime: workflowEngineRuntime } : {}),
     });
 
+    // External AI Worker layer (JARVIS AI統合司令塔 spec, sections 3/10/14/17).
+    // Workers are disabled by default (see createDefaultWorkerRegistry) - no
+    // subprocess/CLI is ever spawned unless a user explicitly enables a
+    // worker from the dashboard.
+    const orchestratorWorkspace = ensureWorkspace(dataDir);
+    const workerRegistry = createDefaultWorkerRegistry(orchestratorWorkspace.root);
+    for (const custom of loadCustomWorkers(dataDir)) {
+      workerRegistry.register(new CommandWorker({ ...custom, workspace: orchestratorWorkspace.root }));
+    }
+    applyWorkerSettings(workerRegistry, loadWorkerSettings(dataDir));
+    const taskWorkerRunner = new TaskWorkerRunner(workerRegistry, orchestratorWorkspace, (args) => {
+      try {
+        sendHandoff({
+          task_id: args.task_id,
+          from_agent: args.from_agent,
+          to_agent: args.to_agent,
+          status: args.status,
+          summary: args.summary,
+          instructions: [],
+          artifacts: args.files,
+          decisions: [],
+          warnings: [],
+          open_questions: [],
+          next_action: args.status === 'completed' ? 'review' : 'retry_or_escalate',
+        });
+      } catch (err) {
+        console.error('[Daemon] Failed to record internal handoff for external worker task:', err);
+      }
+    });
+
     // Mount the daemon's existing routes plus the workflow runtime's routes.
     // The legacy in-house workflow routes that lived at /api/workflows/* were
     // removed in the Phase 6 cutover; the new runtime now owns those paths.
@@ -4219,6 +4257,12 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         sharedPiecesDir: sharedRuntime.piecesDir,
         ...(onPieceLibraryChanged ? { onPieceLibraryChanged } : {}),
         getEventBufferDropped: () => workflowEventBuffer.dropped(),
+      }),
+      ...createOrchestratorRoutes({
+        getRegistry: () => workerRegistry,
+        getRunner: () => taskWorkerRunner,
+        getWorkspace: () => orchestratorWorkspace,
+        getDataDir: () => dataDir,
       }),
     };
     wsService.setApiRoutes(apiRoutes);
