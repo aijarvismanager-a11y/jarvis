@@ -2,13 +2,18 @@ import React, { useMemo, useState } from "react";
 import { useJarvisState } from "../JarvisStateContext";
 import { BootSplash } from "../BootSplash";
 import { AgentOrbit } from "./AgentOrbit";
+import { TaskFlowStepper } from "./TaskFlowStepper";
 import { deriveCoreStatus } from "./coreStatus";
 import "./CinematicShell.css";
 
 /**
- * Cinematic UI Phase 31/32 — Cinematic Shell, Central Core, and Agent Orbit
- * (spec §7-13, §36-38). Renders in place of the Normal Mode main surface
- * when `useCinematicMode()` reports `"cinematic"` (wired in `AppShell.tsx`).
+ * Cinematic UI Phase 31/32 — Cinematic Shell, Central Core, Agent Orbit, and
+ * Task Flow (spec §7-13, §36-38). Renders in place of the Normal Mode main
+ * surface when `useCinematicMode()` reports `"cinematic"` (wired in
+ * `AppShell.tsx`). The Task Flow stepper (`TaskFlowStepper.tsx`) shows the
+ * pinned project's real per-status task counts as a pipeline — it was added
+ * after the initial Phase 31/32 landing to close the last gap the spec-diff
+ * audit found in §7-13 (no distinct Task Flow element existed yet).
  *
  * Deliberately thin: every number shown here is read from
  * `useJarvisState()`/`useAgentsData()` — no dummy data, no placeholder
@@ -79,6 +84,11 @@ export function CinematicShell() {
       </div>
 
       <AgentOrbit coreStatus={status} projectId={activeProjectId} />
+
+      <TaskFlowStepper
+        taskCounts={activeProjectDetail?.taskCounts ?? {}}
+        totalTasks={activeProjectDetail?.totalTasks ?? 0}
+      />
 
       <div className="cin-readout">
         <div className="cin-stat">
