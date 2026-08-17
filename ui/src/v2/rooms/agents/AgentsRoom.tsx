@@ -24,6 +24,7 @@ import { RoomShell } from "../RoomShell";
 import { openRoom } from "../../router";
 import { useRoomActions } from "../useRoomActionBus";
 import { useRovingTabs } from "../useRovingTabs";
+import { specLevelLabel } from "./specLevel";
 import {
   useAgentsData,
   useFullTaskResponse,
@@ -717,7 +718,7 @@ function SpawnDialog({
           {selectedMeta && (
             <div className="v2-agents__specialist-meta">
               {selectedMeta.description}
-              {" · "}Auth {selectedMeta.authority_level} · {selectedMeta.tools.length} tools
+              {" · "}Auth {selectedMeta.authority_level} ({specLevelLabel(selectedMeta.authority_level)}) · {selectedMeta.tools.length} tools
             </div>
           )}
 

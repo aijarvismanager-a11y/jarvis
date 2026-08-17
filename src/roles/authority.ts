@@ -210,6 +210,48 @@ export function describeAuthorityLevel(level: number): string {
 }
 
 /**
+ * spec §30's UI describes a 6-band "LEVEL 0-5" model. This is a pure DISPLAY
+ * compression of the existing 1-10 `authority_level` scale for surfaces that
+ * want to show that framing — it does NOT replace `authority_level`
+ * anywhere. Every actual authority check (`canPerform`, `AuthorityEngine.
+ * checkAuthority`, `context_rules`, role YAMLs, `AUTHORITY_REQUIREMENTS`
+ * above) keeps using the 1-10 scale unchanged. Band boundaries mirror the
+ * ones `describeAuthorityLevel()` has always used, plus LEVEL 0 for "no
+ * authority granted yet" (authority_level <= 0, e.g. a role that hasn't
+ * been assigned a level, or the emergency-killed state).
+ *
+ * This mapping was deliberately kept additive rather than migrating stored
+ * `authority_level` values to 0-5 directly: a real migration would touch
+ * every role YAML and `AUTHORITY_REQUIREMENTS` and risks silently
+ * under/over-gating destructive actions if the compression loses precision
+ * anywhere (see docs/AI_MANAGER_ARCHITECTURE_AUDIT.md §6's warning on this
+ * exact point).
+ */
+export type SpecLevel = 0 | 1 | 2 | 3 | 4 | 5;
+
+export const SPEC_LEVEL_LABELS: Record<SpecLevel, string> = {
+  0: 'No access',
+  1: 'Read only',
+  2: 'Read + write',
+  3: 'Command execution',
+  4: 'Agent management',
+  5: 'Full access',
+};
+
+export function toSpecLevel(authorityLevel: number): SpecLevel {
+  if (authorityLevel <= 0) return 0;
+  if (authorityLevel <= 2) return 1;
+  if (authorityLevel <= 4) return 2;
+  if (authorityLevel <= 6) return 3;
+  if (authorityLevel <= 8) return 4;
+  return 5;
+}
+
+export function specLevelLabel(authorityLevel: number): string {
+  return SPEC_LEVEL_LABELS[toSpecLevel(authorityLevel)];
+}
+
+/**
  * Get a summary of a role's permissions
  */
 export function getRolePermissionsSummary(role: RoleDefinition): {

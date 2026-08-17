@@ -4,6 +4,10 @@ import {
   impactFromCategory,
   gateVoiceApprovalResolution,
   VOICE_APPROVAL_CONFIDENCE_FLOOR,
+  toSpecLevel,
+  specLevelLabel,
+  SPEC_LEVEL_LABELS,
+  AUTHORITY_REQUIREMENTS,
   type ActionCategory,
 } from './authority.ts';
 
@@ -121,6 +125,49 @@ describe('gateVoiceApprovalResolution — security gate for voice approvals', ()
       if (gate.kind === 'clarify') {
         expect(gate.message.length).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('toSpecLevel — display-only 1-10 → 0-5 compression (spec §30)', () => {
+  test('boundaries match describeAuthorityLevel()\'s existing bands exactly', () => {
+    expect(toSpecLevel(0)).toBe(0);
+    expect(toSpecLevel(-1)).toBe(0);
+    expect(toSpecLevel(1)).toBe(1);
+    expect(toSpecLevel(2)).toBe(1);
+    expect(toSpecLevel(3)).toBe(2);
+    expect(toSpecLevel(4)).toBe(2);
+    expect(toSpecLevel(5)).toBe(3);
+    expect(toSpecLevel(6)).toBe(3);
+    expect(toSpecLevel(7)).toBe(4);
+    expect(toSpecLevel(8)).toBe(4);
+    expect(toSpecLevel(9)).toBe(5);
+    expect(toSpecLevel(10)).toBe(5);
+  });
+
+  test('every SpecLevel band (1-5) has a non-empty label', () => {
+    for (const level of [0, 1, 2, 3, 4, 5] as const) {
+      expect(SPEC_LEVEL_LABELS[level].length).toBeGreaterThan(0);
+    }
+  });
+
+  test('specLevelLabel is consistent with toSpecLevel for every AUTHORITY_REQUIREMENTS floor', () => {
+    // Regression guard: every actual gating floor in use today must map to
+    // a real, defined label — no silent gaps in the compression.
+    for (const requiredLevel of Object.values(AUTHORITY_REQUIREMENTS)) {
+      const label = specLevelLabel(requiredLevel);
+      expect(label).toBe(SPEC_LEVEL_LABELS[toSpecLevel(requiredLevel)]);
+      expect(label.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('the destructive-action floor (level 9) compresses to the top spec band (5)', () => {
+    // Pinning the security-relevant boundary the audit worried about: a
+    // mistake here could under-gate destructive actions. make_payment,
+    // modify_settings, delete_data, terminate_agent all require level 9 —
+    // confirm none of them silently drop to a lower spec band.
+    for (const cat of ['make_payment', 'modify_settings', 'delete_data', 'terminate_agent'] as ActionCategory[]) {
+      expect(toSpecLevel(AUTHORITY_REQUIREMENTS[cat])).toBe(5);
     }
   });
 });
