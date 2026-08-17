@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,7 +54,12 @@ type SidecarClient struct {
 	// (c.mu intentionally does not cover conn).
 	conn            atomic.Pointer[websocket.Conn]
 	reconnectDelay  time.Duration
-	stopped         bool
+	// stopped is read by Start() (main goroutine) and written by Stop(),
+	// which callers invoke from other goroutines (SIGINT handler in main.go,
+	// tray "Close" menu handlers) - same cross-goroutine access pattern conn
+	// already documents needing atomic access for, so this needs the same
+	// treatment (a plain bool here is a data race under `go build -race`).
+	stopped         atomic.Bool
 	incompatible    bool         // brain hard-blocked us (version < MIN); do not reconnect
 	connState       atomic.Int32 // connConnecting/connConnected/connError (tray icon + status)
 	alertOnce       sync.Once    // show the invalid-token pop-up at most once
@@ -190,10 +196,10 @@ func normalizeBrainOverride(raw string) string {
 }
 
 func (c *SidecarClient) Start(ctx context.Context) {
-	c.stopped = false
-	for !c.stopped {
+	c.stopped.Store(false)
+	for !c.stopped.Load() {
 		err := c.connectAndServe(ctx)
-		if c.stopped {
+		if c.stopped.Load() {
 			return
 		}
 		if c.incompatible {
@@ -233,7 +239,7 @@ func (c *SidecarClient) Start(ctx context.Context) {
 }
 
 func (c *SidecarClient) Stop() {
-	c.stopped = true
+	c.stopped.Store(true)
 	if c.panels != nil {
 		c.panels.Stop()
 	}
@@ -1035,6 +1041,38 @@ func (c *SidecarClient) connectAndServe(ctx context.Context) error {
 		}
 	}
 
+	// Keepalive: the brain's WS server reaps sockets idle >30s (the same
+	// reason the dedicated audio channel above pings every 20s), but the
+	// main control connection can legitimately go quiet for that long
+	// whenever the clipboard/screen/window observers have nothing to report
+	// - unlike audio, it had no periodic traffic of its own to keep the
+	// idle timer from firing. Ping until the conn dies or the connection
+	// ends; each write is bounded so a wedged TCP conn can't park the
+	// goroutine forever.
+	//
+	// Uses obsCtx (scoped to THIS connection, cancelled via the `defer
+	// obsCancel()` above when connectAndServe returns), not the outer `ctx`
+	// (which spans every reconnect attempt for the whole process lifetime).
+	// With `ctx` this goroutine would only notice a dropped connection on
+	// its next 20s tick instead of promptly on reconnect.
+	go func() {
+		t := time.NewTicker(20 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-obsCtx.Done():
+				return
+			case <-t.C:
+				wctx, cancel := context.WithTimeout(obsCtx, 5*time.Second)
+				err := conn.Ping(wctx)
+				cancel()
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
 	return c.readLoop(ctx)
 }
 
@@ -1153,15 +1191,27 @@ func (c *SidecarClient) readLoop(ctx context.Context) error {
 			continue
 		}
 
-		// Run handler in goroutine to not block the read loop
-		go func(id string, h RPCHandler, params map[string]any) {
+		// Run handler in goroutine to not block the read loop. Guarded by
+		// recover() the same way goSafeObserver protects observer goroutines
+		// (observers.go) - without it, a panic in any one of the dozens of
+		// RPC handlers (handlers.go, browser.go, panel_handlers.go,
+		// pebble_handlers.go, ...) - e.g. a nil dereference or out-of-range
+		// index on unexpected params - crashes the whole sidecar process
+		// instead of just failing that one RPC call.
+		go func(id string, method string, h RPCHandler, params map[string]any) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[rpc handler panic] %s: %v\n%s", method, r, debug.Stack())
+					c.sendResult(ctx, id, nil, &rpcError{Code: "HANDLER_PANIC", Message: fmt.Sprintf("handler panicked: %v", r)})
+				}
+			}()
 			result, err := h(params)
 			if err != nil {
 				c.sendResult(ctx, id, nil, &rpcError{Code: "HANDLER_ERROR", Message: err.Error()})
 				return
 			}
 			c.sendResult(ctx, id, result, nil)
-		}(req.ID, handler, req.Params)
+		}(req.ID, req.Method, handler, req.Params)
 	}
 }
 

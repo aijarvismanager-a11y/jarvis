@@ -188,9 +188,26 @@ func makeRunCommandHandler(cfg *SidecarConfig) RPCHandler {
 
 func isBlockedPath(filePath string, blockedPaths []string) bool {
 	resolved, _ := filepath.Abs(filePath)
+	// Windows (NTFS) and the default macOS filesystem (APFS/HFS+) are
+	// case-insensitive, so a case-sensitive prefix check here can be
+	// bypassed by requesting the same blocked path with different casing
+	// (e.g. C:\Users\bob\.ssh vs C:\USERS\bob\.SSH). Compare case-folded on
+	// those platforms; Linux's default filesystems are case-sensitive, so
+	// behavior there is unchanged.
+	caseInsensitive := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	if caseInsensitive {
+		resolved = strings.ToLower(resolved)
+	}
 	for _, bp := range blockedPaths {
 		abs, _ := filepath.Abs(bp)
-		if strings.HasPrefix(resolved, abs) {
+		if caseInsensitive {
+			abs = strings.ToLower(abs)
+		}
+		// A bare HasPrefix also blocks sibling paths that merely share a
+		// name prefix (e.g. a blocked "C:\Users\bob\.ssh" would also match
+		// "C:\Users\bob\.sshfoo"). Require the match to land exactly on the
+		// blocked dir or be followed by a path separator.
+		if resolved == abs || strings.HasPrefix(resolved, abs+string(filepath.Separator)) {
 			return true
 		}
 	}

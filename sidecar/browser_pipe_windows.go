@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -162,6 +163,15 @@ func startBrowserPipe(exe string, args []string) (*browserProc, error) {
 	si.CbReserved2 = uint16(len(block))
 	si.LpReserved2 = &block[0]
 
+	// Launch suspended so the process can be placed in a Job Object with
+	// KILL_ON_JOB_CLOSE before any of its code (including the code that
+	// spawns Chromium's renderer/GPU/crashpad child processes) runs. Without
+	// this, TerminateProcess below only ends the main chrome.exe -- its
+	// children have no controlling process group on Windows (unlike the
+	// Unix path in browser_pipe_unix.go, which SIGKILLs the whole process
+	// group) and are left running, locking the profile directory. A Job
+	// Object is the standard Windows replacement for a process group for
+	// exactly this purpose (same technique Node/Puppeteer/Playwright use).
 	var pi windows.ProcessInformation
 	r1, _, callErr := procCreateProcessW.Call(
 		0,                                       // lpApplicationName (parsed from cmdline)
@@ -169,11 +179,11 @@ func startBrowserPipe(exe string, args []string) (*browserProc, error) {
 		0,                                       // lpProcessAttributes
 		0,                                       // lpThreadAttributes
 		1,                                       // bInheritHandles = TRUE
-		uintptr(windows.CREATE_NO_WINDOW),       // dwCreationFlags
-		0,                                       // lpEnvironment (inherit)
-		0,                                       // lpCurrentDirectory
-		uintptr(unsafe.Pointer(&si)),            // lpStartupInfo
-		uintptr(unsafe.Pointer(&pi)),            // lpProcessInformation
+		uintptr(windows.CREATE_NO_WINDOW|windows.CREATE_SUSPENDED), // dwCreationFlags
+		0,                             // lpEnvironment (inherit)
+		0,                             // lpCurrentDirectory
+		uintptr(unsafe.Pointer(&si)), // lpStartupInfo
+		uintptr(unsafe.Pointer(&pi)), // lpProcessInformation
 	)
 	runtime.KeepAlive(block)
 	runtime.KeepAlive(cmdlineU16)
@@ -182,16 +192,70 @@ func startBrowserPipe(exe string, args []string) (*browserProc, error) {
 		return nil, fmt.Errorf("CreateProcess %s: %w", exe, callErr)
 	}
 
-	// The child holds inherited copies; drop ours and the thread handle.
-	closeHandles(cmdR, respW, pi.Thread)
-
 	hProc := pi.Process
+	hThread := pi.Thread
+
+	// Best-effort: if the Job Object setup fails for any reason, fall back
+	// to the old single-process TerminateProcess behavior rather than
+	// leaving the suspended process stuck forever.
+	job, jobErr := createKillOnCloseJob()
+	if jobErr != nil {
+		log.Printf("[browser] Job Object setup failed, child processes may not be fully cleaned up on close: %v", jobErr)
+	} else if err := windows.AssignProcessToJobObject(job, hProc); err != nil {
+		log.Printf("[browser] AssignProcessToJobObject failed, child processes may not be fully cleaned up on close: %v", err)
+		windows.CloseHandle(job)
+		job = 0
+	}
+	if _, err := windows.ResumeThread(hThread); err != nil {
+		closeHandles(cmdR, cmdW, respR, respW, hProc, hThread)
+		if job != 0 {
+			windows.CloseHandle(job)
+		}
+		return nil, fmt.Errorf("ResumeThread: %w", err)
+	}
+
+	// The child holds inherited copies; drop ours and the thread handle.
+	closeHandles(cmdR, respW, hThread)
+
 	return &browserProc{
 		write: &winPipe{h: cmdW},
 		read:  &winPipe{h: respR},
 		kill: func() {
-			windows.TerminateProcess(hProc, 0)
+			if job != 0 {
+				// Terminating the job kills every process assigned to it
+				// (main process + all descendants), not just hProc.
+				windows.TerminateJobObject(job, 0)
+				windows.CloseHandle(job)
+			} else {
+				windows.TerminateProcess(hProc, 0)
+			}
 			windows.CloseHandle(hProc)
 		},
 	}, nil
+}
+
+// createKillOnCloseJob creates a Windows Job Object configured so that all
+// processes assigned to it are terminated automatically when the job handle
+// is closed (or TerminateJobObject is called) - this is what makes closing
+// one browser session also clean up its renderer/GPU/crashpad children.
+func createKillOnCloseJob() (windows.Handle, error) {
+	job, err := windows.CreateJobObject(nil, nil)
+	if err != nil {
+		return 0, fmt.Errorf("CreateJobObject: %w", err)
+	}
+	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
+		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{
+			LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+		},
+	}
+	if _, err := windows.SetInformationJobObject(
+		job,
+		windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)),
+		uint32(unsafe.Sizeof(info)),
+	); err != nil {
+		windows.CloseHandle(job)
+		return 0, fmt.Errorf("SetInformationJobObject: %w", err)
+	}
+	return job, nil
 }
