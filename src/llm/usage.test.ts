@@ -158,6 +158,16 @@ describe('getProviderStatus', () => {
     const db = initDatabase(':memory:');
     setUsageDatabase(() => db);
     seed();
+
+    // Backdate rows per their intended msAgo — seed() itself inserts all
+    // rows at the real current time, so without this every row lands
+    // within the same tick and "most recent" ends up reflecting insertion
+    // order instead of the msAgo each sample claims to be at.
+    const now = Date.now();
+    const offsets = [0, 60_000, 120_000, 180_000, 240_000, 8 * 86400000];
+    for (let i = 0; i < offsets.length; i++) {
+      db.run(`UPDATE llm_usage SET ts = ? WHERE id = ?`, [now - offsets[i]!, i + 1]);
+    }
   });
 
   it("'online' for a provider whose most recent call had no error", () => {
@@ -268,7 +278,19 @@ describe('llm_usage cache column migration', () => {
     } finally {
       closeDb();
       setUsageDatabase(() => null);
-      await import('node:fs/promises').then((fs) => fs.rm(path, { force: true }));
+      // On Windows, SQLite's file mapping isn't always released the instant
+      // close() returns, so an immediate rm() can hit a transient EBUSY.
+      // Retry briefly instead of failing the test over cleanup timing.
+      const fs = await import('node:fs/promises');
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await fs.rm(path, { force: true });
+          break;
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'EBUSY' || attempt >= 5) throw err;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
     }
   });
 });

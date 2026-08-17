@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import { resolveSharedRuntimePaths } from "./shared-runtime-paths";
 
 describe("resolveSharedRuntimePaths", () => {
@@ -24,9 +25,9 @@ describe("resolveSharedRuntimePaths", () => {
       }),
       { JARVIS_SHARED_PIECES_DIR: "/somewhere/else" },
     );
-    expect(paths.engineCacheRoot).toBe("/srv/engine");
-    expect(paths.piecesDir).toBe("/srv/pieces");
-    expect(paths.metadataCacheFile).toBe("/srv/piece-metadata.json");
+    expect(paths.engineCacheRoot).toBe(resolve("/srv/engine"));
+    expect(paths.piecesDir).toBe(resolve("/srv/pieces"));
+    expect(paths.metadataCacheFile).toBe(resolve("/srv/piece-metadata.json"));
     expect(paths.warnings).toEqual([]);
   });
 
@@ -39,9 +40,9 @@ describe("resolveSharedRuntimePaths", () => {
       }),
       { JARVIS_VERSION: "1.2.3" },
     );
-    expect(paths.engineCacheRoot).toBe("/opt/jarvis-engine/1.2.3");
-    expect(paths.piecesDir).toBe("/opt/jarvis-pieces/1.2.3");
-    expect(paths.metadataCacheFile).toBe("/opt/jarvis-cache/1.2.3/piece-metadata.json");
+    expect(paths.engineCacheRoot).toBe(resolve("/opt/jarvis-engine/1.2.3"));
+    expect(paths.piecesDir).toBe(resolve("/opt/jarvis-pieces/1.2.3"));
+    expect(paths.metadataCacheFile).toBe(resolve("/opt/jarvis-cache/1.2.3/piece-metadata.json"));
     expect(paths.warnings).toEqual([]);
   });
 
@@ -59,8 +60,8 @@ describe("resolveSharedRuntimePaths", () => {
       );
       // Placeholder path is dropped (env fallback used); plain path is fine.
       expect(paths.warnings.length).toBe(1);
-      expect(paths.engineCacheRoot).toBe("/env/engine");
-      expect(paths.piecesDir).toBe("/plain/pieces");
+      expect(paths.engineCacheRoot).toBe(resolve("/env/engine"));
+      expect(paths.piecesDir).toBe(resolve("/plain/pieces"));
     }
   });
 
@@ -73,9 +74,9 @@ describe("resolveSharedRuntimePaths", () => {
         JARVIS_PIECE_METADATA_CACHE: "/env/cache/piece-metadata.json",
       },
     );
-    expect(fromEnv.engineCacheRoot).toBe("/env/engine");
-    expect(fromEnv.piecesDir).toBe("/env/pieces");
-    expect(fromEnv.metadataCacheFile).toBe("/env/cache/piece-metadata.json");
+    expect(fromEnv.engineCacheRoot).toBe(resolve("/env/engine"));
+    expect(fromEnv.piecesDir).toBe(resolve("/env/pieces"));
+    expect(fromEnv.metadataCacheFile).toBe(resolve("/env/cache/piece-metadata.json"));
 
     expect(resolveSharedRuntimePaths({}, {})).toEqual({
       engineCacheRoot: null,

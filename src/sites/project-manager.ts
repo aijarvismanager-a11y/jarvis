@@ -7,7 +7,7 @@
 import type { Project, ProjectMeta, FileEntry, SiteBuilderConfig } from './types.ts';
 import { GitManager } from './git-manager.ts';
 import { TEMPLATES, generateMakefile, scaffoldBunReact } from './templates.ts';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { readdirSync, statSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { isWithin } from '../util/path.ts';
@@ -240,7 +240,7 @@ export class ProjectManager {
     const filePath = this.safeJoin(projectPath, relativePath);
 
     // Ensure parent directory exists
-    const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+    const dir = dirname(filePath);
     mkdirSync(dir, { recursive: true });
 
     await Bun.write(filePath, content);

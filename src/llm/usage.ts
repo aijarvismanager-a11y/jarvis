@@ -360,7 +360,7 @@ export function getProviderStatus(providerNames: string[]): ProviderStatusEntry[
         .query<{ ts: number; error_code: string | null; latency_ms: number }, [string]>(
           `SELECT ts, error_code, latency_ms FROM llm_usage
            WHERE provider = ?
-           ORDER BY ts DESC
+           ORDER BY ts DESC, id DESC
            LIMIT 1`,
         )
         .get(provider);
