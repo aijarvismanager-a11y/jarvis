@@ -3,6 +3,7 @@ import { useInterviewSession } from "./useInterviewSession";
 import type { OnboardingStatus } from "./useOnboardingStatus";
 import "./OnboardingWizard.css";
 import { modelForOnboardingTest, onboardingDefaultModelRef } from "./llm-setup";
+import { useTheme } from "../shell/useTheme";
 
 /* ═══════════════════ Onboarding · the nine-screen first-run flow ═══════════
    Faithful to the design (usejarvis-onboarding.html): Welcome · Permissions
@@ -128,15 +129,10 @@ export function OnboardingWizard({
   // so the recap must not print those defaults as if they were saved.
   const configuredThisSession = startStep === 0;
 
-  // welcome
-  const [theme, setTheme] = useState<"light" | "dark">(
-    () => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light"),
-  );
-  const applyTheme = (t: "light" | "dark") => {
-    setTheme(t);
-    document.documentElement.setAttribute("data-theme", t);
-    try { localStorage.setItem("jarvis-theme", t); } catch { /* ignore */ }
-  };
+  // welcome — same hook TopBar/Settings use, so an onboarding pick stays in
+  // sync with the app's theme mechanism instead of a parallel light/dark-only
+  // implementation.
+  const [, themePreference, setThemePreference] = useTheme();
 
   // permissions
   // brain
@@ -566,8 +562,9 @@ export function OnboardingWizard({
           <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 11, alignItems: "center" }}>
             <div className="obw-themelab">Choose your look</div>
             <div className="obw-themeseg">
-              <button className={theme === "light" ? "on" : ""} onClick={() => applyTheme("light")}>Light</button>
-              <button className={theme === "dark" ? "on" : ""} onClick={() => applyTheme("dark")}>Dark</button>
+              <button className={themePreference === "light" ? "on" : ""} onClick={() => setThemePreference("light")}>Light</button>
+              <button className={themePreference === "dark" ? "on" : ""} onClick={() => setThemePreference("dark")}>Dark</button>
+              <button className={themePreference === "system" ? "on" : ""} onClick={() => setThemePreference("system")}>System</button>
             </div>
             <button className="obw-btn obw-btn-pri" style={{ minWidth: 208, marginTop: 8 }} onClick={next}>Set up Jarvis</button>
             <button className="obw-skip" disabled={busy} onClick={skipAll}>I’ll do this later</button>

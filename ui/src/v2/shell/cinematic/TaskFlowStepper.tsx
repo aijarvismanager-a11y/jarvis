@@ -10,7 +10,7 @@ import "./TaskFlowStepper.css";
  * taskFlow.ts's doc comment for why this shows per-step counts rather than
  * a single "current step" — tasks run in parallel waves, not one at a time.
  */
-export function TaskFlowStepper({ taskCounts, totalTasks }: { taskCounts: TaskStatusCounts; totalTasks: number }) {
+function TaskFlowStepperImpl({ taskCounts, totalTasks }: { taskCounts: TaskStatusCounts; totalTasks: number }) {
   if (totalTasks === 0) return null;
 
   const { steps, exceptions } = deriveTaskFlow(taskCounts);
@@ -38,3 +38,18 @@ export function TaskFlowStepper({ taskCounts, totalTasks }: { taskCounts: TaskSt
     </div>
   );
 }
+
+// activeProjectDetail (the source of taskCounts) is a freshly-allocated
+// object on every poll tick even when the counts themselves haven't
+// changed, so memoize on the actual scalar values rather than object
+// identity — otherwise this re-renders/recomputes every poll indefinitely
+// while Cinematic mode is open.
+export const TaskFlowStepper = React.memo(TaskFlowStepperImpl, (prev, next) => {
+  if (prev.totalTasks !== next.totalTasks) return false;
+  const keys = new Set([...Object.keys(prev.taskCounts), ...Object.keys(next.taskCounts)]);
+  for (const k of keys) {
+    const key = k as keyof TaskStatusCounts;
+    if (prev.taskCounts[key] !== next.taskCounts[key]) return false;
+  }
+  return true;
+});

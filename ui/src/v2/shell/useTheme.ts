@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * Three-way preference: light/dark/system (spec §42). `data-theme` on
@@ -41,36 +41,49 @@ function applyResolved(t: ResolvedTheme) {
 
 export function useTheme(): [ResolvedTheme, ThemePreference, (next?: ThemePreference) => void] {
   const [preference, setPreferenceState] = useState<ThemePreference>(storedPreference);
-  const [resolved, setResolved] = useState<ResolvedTheme>(() => resolve(storedPreference()));
+  const [systemDark, setSystemDark] = useState<boolean>(systemPrefersDark);
 
   // Re-sync on mount in case the bootstrap resolved a different value.
   useEffect(() => {
-    const pref = storedPreference();
-    setPreferenceState(pref);
-    setResolved(resolve(pref));
+    setPreferenceState(storedPreference());
   }, []);
 
   // Live-track OS changes while following system — the old implementation
-  // only ever resolved once at page load.
+  // only ever resolved once at page load. Only attach while `preference`
+  // is actually "system": otherwise every OS light/dark toggle would call
+  // setSystemDark() (and force a re-render of every useTheme() consumer)
+  // for a user who explicitly picked light or dark and will never observe
+  // a different `resolved` value.
   useEffect(() => {
     if (preference !== "system" || typeof matchMedia === "undefined") return;
     const mq = matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      const next: ResolvedTheme = mq.matches ? "dark" : "light";
-      setResolved(next);
-      applyResolved(next);
-    };
+    // The listener is detached while `preference !== "system"` (see above),
+    // so `systemDark` can go stale if the OS setting changed during that
+    // window. Re-sync it the moment "system" is (re-)selected, instead of
+    // waiting for the next OS-level toggle to happen to fire.
+    setSystemDark(mq.matches);
+    const onChange = () => setSystemDark(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [preference]);
+
+  // Derived, not manually synced — the previous implementation stored
+  // `resolved` as its own state set from three separate places (mount,
+  // matchMedia listener, and set()), which could drift out of sync with
+  // `preference`/`systemDark` if any one of them missed an update.
+  const resolved = useMemo<ResolvedTheme>(
+    () => (preference === "system" ? (systemDark ? "dark" : "light") : preference),
+    [preference, systemDark],
+  );
+
+  useEffect(() => {
+    applyResolved(resolved);
+  }, [resolved]);
 
   const set = useCallback((next?: ThemePreference) => {
     setPreferenceState((prev) => {
       const p = next ?? CYCLE[(CYCLE.indexOf(prev) + 1) % CYCLE.length]!;
       try { localStorage.setItem(KEY, p); } catch { /* ignore */ }
-      const r = resolve(p);
-      setResolved(r);
-      applyResolved(r);
       return p;
     });
   }, []);

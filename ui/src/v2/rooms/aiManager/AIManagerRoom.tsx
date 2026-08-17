@@ -26,7 +26,8 @@ const PROJECT_STATUS_TONE: Record<ProjectStatus, Tone> = {
   archived: "mut",
 };
 
-const TASK_COLUMNS: ProjectTaskStatus[] = [
+/** Shared with the Cinematic Shell's Task Flow stepper (spec §7-13) so both surfaces use one status order. */
+export const TASK_COLUMNS: ProjectTaskStatus[] = [
   "PENDING", "PLANNING", "READY", "RUNNING", "WAITING", "BLOCKED", "REVIEW", "QA", "COMPLETED", "FAILED", "CANCELLED",
 ];
 

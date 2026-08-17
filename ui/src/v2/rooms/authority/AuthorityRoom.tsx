@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { specLevelLabel } from "../agents/specLevel";
 import {
   AlertTriangle,
   BarChart3,
@@ -130,7 +131,7 @@ export function AuthorityRoomBody({ mode }: { mode: RoomBodyMode }) {
       {/* Stats strip */}
       <div className="v2-auth__stats">
         <StatCard label="Pending" value={data.stats.pending} sub="awaiting decision" tone={data.stats.pending > 0 ? "accent" : "neutral"} />
-        <StatCard label="Default level" value={data.config?.default_level ?? "—"} sub="1-10 authority floor" />
+        <StatCard label="Default level" value={data.config?.default_level ?? "—"} sub={data.config ? `1-10 authority floor · ${specLevelLabel(data.config.default_level)}` : "1-10 authority floor"} />
         <StatCard label="Allowed (recent)" value={data.stats.allowed} sub={`of ${data.stats.total}`} />
         <StatCard label="Denied (recent)" value={data.stats.denied} sub="last 20 decisions" />
       </div>
@@ -631,7 +632,7 @@ function GrantsTab({
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
           <h3 className="v2-auth__section-title">Default authority level</h3>
-          <span className="v2-auth__section-count">{config.default_level} / 10</span>
+          <span className="v2-auth__section-count">{config.default_level} / 10 ({specLevelLabel(config.default_level)})</span>
         </div>
         <input
           type="range"

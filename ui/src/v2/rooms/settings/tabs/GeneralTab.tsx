@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { SettingsHook } from "../useSettingsData";
+import { specLevelLabel } from "../../agents/specLevel";
 import { confirmDialog } from "../../../ui/ConfirmDialog";
 import {
   resetOnboarding,
@@ -234,7 +235,7 @@ export function GeneralTab({
             </div>
             <div className="v2-set__row">
               <span className="v2-set__row-label">Authority</span>
-              <span className="v2-set__row-value">{role.role.authority_level}/10</span>
+              <span className="v2-set__row-value">{role.role.authority_level}/10 ({specLevelLabel(role.role.authority_level)})</span>
             </div>
             <div className="v2-set__field">
               <span className="v2-set__field-label">Tools</span>
