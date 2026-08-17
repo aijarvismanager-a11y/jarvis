@@ -199,7 +199,23 @@ export function configureLLMTiers(manager: LLMManager, llm: LLMConfig): void {
         );
         continue;
       }
-      tierMap[tier] = ref;
+      // Fallback refs that don't parse or reference an unregistered provider
+      // are dropped here (not fatal to the tier) - setTierMap also filters
+      // unregistered ones defensively, but resolving up front keeps the
+      // warning message tier-specific and avoids passing junk entries down.
+      const fallbackRefs = (llm.tiers.fallback?.[tier] ?? [])
+        .map((raw) => parseModelRef(raw))
+        .filter((fb): fb is NonNullable<typeof fb> => {
+          if (!fb) return false;
+          if (!manager.getProvider(fb.provider)) {
+            console.warn(
+              `[LLM] Tier '${tier}' fallback references unregistered provider '${fb.provider}' - skipping.`,
+            );
+            return false;
+          }
+          return true;
+        });
+      tierMap[tier] = { ...ref, ...(fallbackRefs.length ? { fallback: fallbackRefs } : {}) };
     }
   }
 

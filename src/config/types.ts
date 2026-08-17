@@ -319,6 +319,19 @@ export type LLMTiersConfig = {
   high?: LLMModelRef;
   medium?: LLMModelRef;
   low?: LLMModelRef;
+  /**
+   * Ordered "provider:model" fallback chain per tier, tried in order only
+   * after the tier's primary model is exhausted (JARVIS spec §7.3/§66 — e.g.
+   * an "omniroute:auto" primary with a direct-provider fallback such as
+   * "anthropic:claude-..."). A tier with no fallback list behaves exactly as
+   * before this field existed.
+   */
+  fallback?: {
+    conversation?: LLMModelRef[];
+    high?: LLMModelRef[];
+    medium?: LLMModelRef[];
+    low?: LLMModelRef[];
+  };
 };
 
 export type LLMConfig = {

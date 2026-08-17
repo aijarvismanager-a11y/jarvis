@@ -451,3 +451,13 @@
   justify-content: flex-end;
   background: rgba(0, 0, 0, 0.018);
 }
+
+/* Phase 36 — systemic reduced-motion pass (this file had no coverage at all). */
+@media (prefers-reduced-motion: reduce) {
+  .agent-strip__head-pulse--on,
+  .agent-strip__empty-dot,
+  .agent-strip__dot--running,
+  .agent-strip__progress-bar {
+    animation: none !important;
+  }
+}

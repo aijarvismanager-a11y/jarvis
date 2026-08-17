@@ -1686,3 +1686,24 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* Phase 36 — systemic reduced-motion pass. This legacy OfficePage sheet
+   (loaded globally via main.tsx) had no reduced-motion coverage at all;
+   every continuous/looping animation it defines is disabled here rather
+   than piecemeal, matching the blanket-disable convention already used by
+   BootSplash.css/SystemStates.css. */
+@media (prefers-reduced-motion: reduce) {
+  .ag-card,
+  .ag-status-badge.active .ag-status-dot,
+  .ag-status-badge.primary-status .ag-status-dot,
+  .ag-activity-scroll,
+  .ag-orb-ring-outer,
+  .ag-orb-ring-inner,
+  .ag-orb-core,
+  .ag-node-bubble.active-node,
+  .ag-detail-card,
+  .ag-dc-dot.active,
+  .ag-ticker-scroll {
+    animation: none !important;
+  }
+}

@@ -2746,3 +2746,77 @@ limitation every prior UI phase in this series has hit. Interactive verification
 Previous/Next across a real project's tasks, resuming a real WAITING task through Focus Mode's
 own input, confirming the urgency-ranked default selection against real task statuses) is
 deferred to whichever future phase first removes that access barrier.
+
+## 34. Phase 36 (Accessibility + Performance pass) — Done
+
+"Close the systemic reduced-motion gap across all five animated surfaces... in one pass rather
+than piecemeal, plus the GPU/performance-mode work spec §59 asks for" (Phase 28 plan). Started
+with a full repo sweep (`grep` every `.css` under `ui/src` for `@keyframes`/`animation:`, cross-
+checked against `prefers-reduced-motion` presence) rather than trusting the Phase 28 audit's
+four-surfaces list at face value - it was written before Phase 31-35 existed and, it turned out,
+was already partly stale for two of its four named surfaces.
+
+**Re-verified the four originally-named surfaces**: `BootSplash.css` and `SystemStates.css`
+already had complete reduced-motion coverage (confirmed by reading their existing `@media` blocks
+against every `animation:` declaration in each file - no gaps found, contradicting the Phase 28
+audit's claim for these two). `AgentsRoom.css`'s "orbital rings" have no animation at all (static
+dashed circles); the file's one real continuous animation (`.v2-agents__ticker-scroll`) was
+already gated. **`Pebble.tsx`'s cursor-follow physics was the one real, confirmed gap** among the
+four - a `requestAnimationFrame` elastic-follow loop with no motion-preference check at all
+(CSS-only greps can't see this - it's JS). Fixed: the position tracking itself stays (the pebble
+functionally has to follow the cursor), but the lerp factor is forced to `1` under
+`matchMedia("(prefers-reduced-motion: reduce)")`, so it snaps straight to target each frame
+instead of chasing it smoothly - motion removed, function kept. (This path only runs in the
+browser-dev-mode reference build per the component's own comment - production native Pebble is
+sidecar-rendered - so the fix is real but low-traffic.)
+
+**Phase 31-35 additions**: `AgentOrbit.css` and `HandoffPacket.css` already had complete coverage
+(verified diligently at write-time each phase, confirmed again here); `roomShell.css` had one
+partial gap found this pass - `.gdrop.live`'s own `rs-askGlow` box-shadow pulse (the "asking"
+state's amber glow) wasn't included in the existing reduced-motion selector list (which covered
+`.gdrop.live .in`/`.ring` but not the parent element's own animation) - added.
+`CinematicShell.css` and `FocusMode.css` have no animations needing a gate (`FocusMode.css`'s one
+`foc-fade` is a 180ms one-shot opacity fade, not the kind of continuous/vestibular motion
+`prefers-reduced-motion` targets - documented as an intentional exception in Phase 35's entry
+above, re-confirmed here).
+
+**Beyond the four+Phase-31-35 scope, found and closed while sweeping "systemically" rather than
+piecemeal** (all loaded globally via `main.tsx`/mounted in the live Room tree, so all real, not
+theoretical): `ui/src/styles/agents.css` (legacy OfficePage sheet, 11 animated selectors, zero
+prior coverage), `ui/src/v2/rooms/agentStrip/AgentStripRoom.css` (4 selectors), `ui/src/v2/rooms/
+taskResult/TaskResultRoom.css` (2 selectors), `ui/src/v2/rooms/workflows/WorkflowEditor.css` (3
+selectors) - each gained one `@media (prefers-reduced-motion: reduce)` block disabling every
+animation the file defines, matching the blanket-disable convention `BootSplash.css`/
+`SystemStates.css` already established rather than hand-picking which animations "count."
+`ui/src/styles/globals.css`'s `taskPulse` keyframe is dead code (defined, never referenced
+anywhere in `ui/src`) - left alone, out of scope for an accessibility pass.
+
+**GPU/performance discipline (spec §59)**: audited every animation added in Phase 31-35 for
+GPU-compositable properties (`transform`/`opacity` only, not layout-triggering properties like
+`top`/`width` in a *continuous* loop). All of them qualify except one reviewed exception:
+`HandoffPacket.css`'s `cin-pkt-in`/`cin-pkt-out` animate `top` (6%→48% across the orbit canvas)
+rather than a `transform`. Converting it would need either a fixed pixel distance (the canvas is
+responsive, so there isn't one) or CSS container-query units (`cqh`) needing `container-type` on
+`.cin-orbit-canvas` - added complexity for a 1.4s one-shot animation on one 10px element, fired
+only per real handoff event (bounded, low-frequency), not a continuous per-frame cost. Judged not
+worth the added CSS complexity; documented here rather than silently left as an unreviewed gap.
+No new "performance mode" toggle was built - the concrete, real problem (non-GPU animations) had
+exactly one instance, and it didn't justify a whole new user-facing settings surface on top of
+the `prefers-reduced-motion` handling this same phase completed; revisit only if profiling ever
+shows Cinematic Mode animation actually costing frames at scale, not preemptively.
+
+Remaining per the Phase 28 plan: Phase 37 (the spec's functional/visual/performance test matrix)
+- the last phase in the Phase 28→37 sequence.
+
+Shipped: `bunx tsc --noEmit` clean. `bun run build:ui` succeeds (708 modules, unchanged count -
+this phase only edited existing files, no new source files). `bun test src/llm src/daemon`: 351
+passing / 17 failing - identical to every prior phase's baseline (this phase touched no backend
+logic at all, CSS/one small JS-timing-only change, so a clean rerun here is a pure sanity check).
+Live browser verification: daemon boots cleanly (`jarvis-daemon` launch config, no startup or
+console errors); dashboard still returns "Unauthorized" (JWT-only access), the same pre-existing
+limitation every prior UI phase in this series has hit - interactive verification (toggling OS-
+level reduced-motion and confirming each fixed surface actually stops animating, watching
+`Pebble.tsx`'s browser-dev-mode follow behavior snap instead of lerp) is deferred to whichever
+future phase first removes that access barrier; the fixes themselves were verified statically by
+re-grepping every touched file's `animation:` declarations against its new `@media` block's
+selector list to confirm complete (not partial) coverage.

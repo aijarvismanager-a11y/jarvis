@@ -101,6 +101,23 @@ describe('spawnSubAgent authority gate', () => {
 
     expect(() => orch.spawnSubAgent(primary.id, someRole)).toThrow(/leaf-role/);
   });
+
+  it('caps total live agents in the hierarchy to guard against runaway spawn loops', () => {
+    const pa = makeRole({ id: 'pa', tools: ['delegation'], authority_level: 9 });
+    const specialist = makeRole({ id: 'spec', tools: [] });
+
+    const orch = new AgentOrchestrator();
+    const primary = orch.createPrimary(pa);
+
+    // MAX_TOTAL_AGENTS is 25, primary already counts as 1.
+    for (let i = 0; i < 24; i++) {
+      orch.spawnSubAgent(primary.id, specialist);
+    }
+
+    expect(() => orch.spawnSubAgent(primary.id, specialist)).toThrow(
+      /already has 25 active\/idle agents/,
+    );
+  });
 });
 
 describe('authority engine as prime decider for spawning', () => {

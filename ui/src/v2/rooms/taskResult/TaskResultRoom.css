@@ -372,3 +372,11 @@
   padding: 14px 0;
   text-align: center;
 }
+
+/* Phase 36 — systemic reduced-motion pass (this file had no coverage at all). */
+@media (prefers-reduced-motion: reduce) {
+  .task-result__loading-dot,
+  .task-result__dot--running {
+    animation: none !important;
+  }
+}

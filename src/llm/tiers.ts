@@ -25,6 +25,20 @@ export type TierAssignment = {
   provider: string;
   /** Optional per-tier model override. Falls back to the provider's default model. */
   model?: string;
+  /**
+   * Ordered list of additional (provider, model) pairs to try, in order, if
+   * `provider` fails after exhausting its own retries. This is what lets a
+   * tier be configured as "OmniRoute primary, direct-provider fallback" (or
+   * any other provider-level failover chain, per JARVIS spec §7.3/§66)
+   * without JARVIS Core depending on any specific gateway — LLMManager only
+   * ever deals in registered provider names.
+   */
+  fallback?: TierFallbackEntry[];
+};
+
+export type TierFallbackEntry = {
+  provider: string;
+  model?: string;
 };
 
 export type TierMap = Partial<Record<Tier, TierAssignment>>;

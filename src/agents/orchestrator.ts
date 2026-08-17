@@ -41,6 +41,15 @@ function toSystemMessages(systemPrompt: string | SystemPromptParts): LLMMessage[
 }
 
 const MAX_TOOL_ITERATIONS = 200;
+// Hard cap on concurrently live (active or idle, i.e. not yet terminated)
+// agents across the whole hierarchy, primary included. Per-lineage depth is
+// already bounded by authority-level decay (spawnSubAgent below floors each
+// child's max_authority_level at parent-1, and the authority engine denies
+// spawn_agent once level hits 0), but nothing previously bounded breadth: a
+// runaway or malicious loop calling manage_agents:spawn repeatedly across
+// turns/tasks (not covered by the single-turn MAX_TOOL_ITERATIONS above)
+// could grow the hierarchy unboundedly, exhausting memory and LLM spend.
+const MAX_TOTAL_AGENTS = 25;
 const MAX_TOOL_RESULT_CHARS = 6000; // Cap individual tool results to control context size
 // How long the authority gate blocks waiting for the user to approve a
 // gated tool call before falling back to the deferred (fire-and-forget)
@@ -211,6 +220,15 @@ export class AgentOrchestrator {
     const parent = this.hierarchy.getAgent(parentId);
     if (!parent) {
       throw new Error(`Parent agent not found: ${parentId}`);
+    }
+
+    const liveAgentCount = this.hierarchy
+      .getAllAgents()
+      .filter((a) => a.status !== 'terminated').length;
+    if (liveAgentCount >= MAX_TOTAL_AGENTS) {
+      throw new Error(
+        `Cannot spawn sub-agent: the hierarchy already has ${liveAgentCount} active/idle agents (max ${MAX_TOTAL_AGENTS}). Terminate unused agents before spawning more.`,
+      );
     }
 
     // The authority engine is the PRIME decider for spawning. The user's

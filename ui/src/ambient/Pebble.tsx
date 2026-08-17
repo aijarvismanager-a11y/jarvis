@@ -142,6 +142,15 @@ export function Pebble() {
       return;
     }
 
+    // Phase 36 — this loop's elastic follow (interpolating toward the
+    // cursor every frame) is exactly the kind of continuous, non-essential
+    // motion prefers-reduced-motion exists for. The positioning itself is
+    // functional (the pebble has to track the cursor), so reduced motion
+    // doesn't disable tracking — it snaps straight to the target each
+    // frame (factor 1) instead of chasing it smoothly.
+    const reduceMotion = typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     let raf = 0;
     function tick() {
       const locked = LOCKED.has(stateRef.current);
@@ -151,7 +160,7 @@ export function Pebble() {
       const targetY = locked
         ? lockedY.current
         : ty.current + CURSOR_OFFSET_Y;
-      const factor = locked ? SETTLE_FACTOR : FOLLOW_FACTOR;
+      const factor = reduceMotion ? 1 : locked ? SETTLE_FACTOR : FOLLOW_FACTOR;
 
       x.current += (targetX - x.current) * factor;
       y.current += (targetY - y.current) * factor;

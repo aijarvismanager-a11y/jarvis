@@ -2083,3 +2083,12 @@
 /* focus → blue, not the danger-red accent */
 .wf-editor :focus-visible,
 .react-flow :focus-visible { outline-color: var(--speak); }
+
+/* Phase 36 — systemic reduced-motion pass (this file had no coverage at all). */
+@media (prefers-reduced-motion: reduce) {
+  .wf-node--run-running,
+  .wf-editor__running-banner-pulse,
+  .wf-library__spinner {
+    animation: none !important;
+  }
+}

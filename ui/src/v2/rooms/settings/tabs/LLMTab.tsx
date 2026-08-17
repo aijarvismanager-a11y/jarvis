@@ -792,6 +792,19 @@ function MultiTierSection({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           />
+          {llm.tiers[t.id] && (
+            <TierFallbackEditor
+              tier={t.id}
+              chain={llm.tier_fallback[t.id]}
+              providers={llm.providers}
+              ollamaModels={ollamaModels}
+              providerCatalogs={providerCatalogs}
+              onSave={async (refs) => {
+                const r = await data.setTierFallback(t.id, refs);
+                onToast(r.message, r.ok ? "ok" : "warn");
+              }}
+            />
+          )}
         </div>
       ))}
 
@@ -814,6 +827,110 @@ function MultiTierSection({
         />
       </div>
     </section>
+  );
+}
+
+// ─── Tier fallback chain editor ─────────────────────────────────────────────
+
+/**
+ * Ordered "provider:model" fallback chain for one tier — tried, in order,
+ * only after the tier's primary model above has exhausted its own retries
+ * (e.g. an "omniroute:auto" primary with a direct provider as backup, per
+ * JARVIS spec §7.3/§66). Only rendered when the tier itself has a primary
+ * model set, since a fallback with nothing to fall back FROM is meaningless.
+ */
+function TierFallbackEditor({
+  tier,
+  chain,
+  providers,
+  ollamaModels,
+  providerCatalogs,
+  onSave,
+}: {
+  tier: LLMTier;
+  chain: string[];
+  providers: Record<string, LLMConfigProviderView>;
+  ollamaModels: string[] | null;
+  providerCatalogs: Record<string, string[]>;
+  onSave: (refs: string[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [pendingRef, setPendingRef] = useState<string | null>(null);
+
+  const removeAt = (idx: number) => {
+    onSave(chain.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div style={{ marginTop: "var(--s-2)", paddingLeft: "var(--s-3)", borderLeft: "2px solid var(--border-2, rgba(255,255,255,0.08))" }}>
+      <div className="v2-set__hint">
+        Fallback chain — tried in order only if {tier}&apos;s model above fails after its own retries.
+      </div>
+
+      {chain.length > 0 && (
+        <div className="v2-set__provider-models" style={{ marginTop: "var(--s-2)", marginBottom: "var(--s-2)" }}>
+          {chain.map((ref, idx) => (
+            <span className="v2-set__chip" key={`${ref}-${idx}`}>
+              {idx + 1}. {ref}
+              <button
+                type="button"
+                aria-label={`Remove ${ref} from ${tier} fallback chain`}
+                onClick={() => removeAt(idx)}
+                style={{ marginLeft: 6, cursor: "pointer", background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}
+              >
+                <Icon icon={Trash2} size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <div style={{ display: "flex", gap: "var(--s-2)", alignItems: "flex-start", flexWrap: "wrap", marginTop: "var(--s-2)" }}>
+          <div style={{ flex: "1 1 260px" }}>
+            <ModelSelector
+              label=""
+              value={pendingRef}
+              providers={providers}
+              ollamaModels={ollamaModels}
+              providerCatalogs={providerCatalogs}
+              onChange={setPendingRef}
+            />
+          </div>
+          <button
+            type="button"
+            className="v2-set__btn v2-set__btn--primary"
+            disabled={!pendingRef || chain.includes(pendingRef)}
+            onClick={() => {
+              if (pendingRef) onSave([...chain, pendingRef]);
+              setAdding(false);
+              setPendingRef(null);
+            }}
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            className="v2-set__btn"
+            onClick={() => {
+              setAdding(false);
+              setPendingRef(null);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="v2-set__btn"
+          style={{ marginTop: "var(--s-2)" }}
+          onClick={() => setAdding(true)}
+        >
+          <Icon icon={Plus} size={14} /> Add fallback
+        </button>
+      )}
+    </div>
   );
 }
 

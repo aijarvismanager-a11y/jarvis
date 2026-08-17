@@ -125,6 +125,17 @@ export interface LLMConfig {
     medium: string | null;
     low: string | null;
   };
+  /**
+   * Ordered "provider:model" fallback chain per tier, tried in order only
+   * after the tier's primary model is exhausted (e.g. an "omniroute:auto"
+   * primary with a direct-provider fallback). Empty array = none configured.
+   */
+  tier_fallback: {
+    conversation: string[];
+    high: string[];
+    medium: string[];
+    low: string[];
+  };
   available_kinds: LLMProviderKind[];
 }
 
@@ -579,6 +590,31 @@ export function useSettingsData() {
   );
 
   /**
+   * Replace a tier's fallback chain wholesale (empty array clears it). The
+   * chain is tried, in order, only after the tier's primary model has
+   * exhausted its own retries — e.g. an "omniroute:auto" primary with
+   * ["anthropic:claude-sonnet-4-6"] as its direct-provider fallback.
+   */
+  const setTierFallback = useCallback(
+    async (tier: LLMTier, refs: string[]): Promise<ActionResult> => {
+      try {
+        const r = await postJson<{ ok: boolean; message: string }>(
+          "/api/config/llm",
+          { tier_fallback: { [tier]: refs } },
+        );
+        await refresh();
+        return {
+          ok: true,
+          message: r.message || (refs.length ? `${tier} fallback chain updated.` : `${tier} fallback chain cleared.`),
+        };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      }
+    },
+    [refresh],
+  );
+
+  /**
    * Clear every tier slot in a single request. Used by the LLM mode-switch
    * (multi-tier -> single LLM) so the transition is atomic from the user's
    * perspective: one button click, one network round-trip, one refresh.
@@ -1010,6 +1046,7 @@ export function useSettingsData() {
     removeProvider,
     setDefaultModel,
     setTierModel,
+    setTierFallback,
     clearAllTiers,
     setLLMMode,
     testProvider,

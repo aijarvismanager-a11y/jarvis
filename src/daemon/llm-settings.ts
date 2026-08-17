@@ -35,6 +35,13 @@ const SETTING_TIER_CONVERSATION = 'llm.tiers.conversation';
 const SETTING_TIER_HIGH = 'llm.tiers.high';
 const SETTING_TIER_MEDIUM = 'llm.tiers.medium';
 const SETTING_TIER_LOW = 'llm.tiers.low';
+// Fallback chains are stored as JSON arrays of "provider:model" strings
+// (one setting per tier) rather than reusing the plain-string tier keys,
+// since a tier can have zero or many fallback entries.
+const SETTING_TIER_FALLBACK_CONVERSATION = 'llm.tiers.fallback.conversation';
+const SETTING_TIER_FALLBACK_HIGH = 'llm.tiers.fallback.high';
+const SETTING_TIER_FALLBACK_MEDIUM = 'llm.tiers.fallback.medium';
+const SETTING_TIER_FALLBACK_LOW = 'llm.tiers.fallback.low';
 const SETTING_PROMPT_CACHE = 'llm.prompt_cache';
 
 /** Keychain key for a provider's API key, by provider NAME (not kind). */
@@ -72,6 +79,16 @@ export type LLMSettingsResponse = {
     medium: string | null;
     low: string | null;
   };
+  /**
+   * Ordered "provider:model" fallback chain per tier, tried only after the
+   * tier's primary is exhausted. Empty array = no fallback configured.
+   */
+  tier_fallback: {
+    conversation: string[];
+    high: string[];
+    medium: string[];
+    low: string[];
+  };
   /** Provider classes the system can instantiate. UI dropdowns use this. */
   available_kinds: LLMProviderKind[];
   /** Provider-side prompt caching. Defaults to true; only explicit false disables. */
@@ -92,6 +109,13 @@ export type LLMSettingsRequest = {
     high?: string | null;
     medium?: string | null;
     low?: string | null;
+  };
+  /** Partial update; a tier key present with an array (possibly empty) replaces that tier's fallback chain. Omitted keys are left untouched. */
+  tier_fallback?: {
+    conversation?: string[];
+    high?: string[];
+    medium?: string[];
+    low?: string[];
   };
   prompt_cache?: boolean;
 };
@@ -130,6 +154,13 @@ export function getLLMSettings(config: JarvisConfig): LLMSettingsResponse {
     low: config.llm.tiers?.low ?? null,
   };
 
+  const tier_fallback = {
+    conversation: config.llm.tiers?.fallback?.conversation ?? [],
+    high: config.llm.tiers?.fallback?.high ?? [],
+    medium: config.llm.tiers?.fallback?.medium ?? [],
+    low: config.llm.tiers?.fallback?.low ?? [],
+  };
+
   // Mode is read from its own setting. For installs that pre-date this field
   // (no stored value), fall back to inferring it from tier presence so the
   // upgrade is seamless.
@@ -147,6 +178,7 @@ export function getLLMSettings(config: JarvisConfig): LLMSettingsResponse {
     default: config.llm.default ?? null,
     mode,
     tiers,
+    tier_fallback,
     available_kinds: AVAILABLE_KINDS,
     prompt_cache: config.llm.prompt_cache !== false,
   };
@@ -253,6 +285,20 @@ export function saveLLMSettings(
     }
   }
 
+  if (body.tier_fallback) {
+    if (!config.llm.tiers.fallback) config.llm.tiers.fallback = {};
+    for (const tier of ['conversation', 'high', 'medium', 'low'] as const) {
+      if (tier in body.tier_fallback) {
+        const value = body.tier_fallback[tier];
+        if (!value || value.length === 0) {
+          delete config.llm.tiers.fallback[tier];
+        } else {
+          config.llm.tiers.fallback[tier] = value;
+        }
+      }
+    }
+  }
+
   // Persist non-secret state to DB. CRITICAL: strip api_key from every
   // provider entry before serializing - the in-memory entries carry secrets
   // injected from the keychain (see mergeLLMSettingsIntoConfig), and the
@@ -263,6 +309,10 @@ export function saveLLMSettings(
   setSetting(SETTING_TIER_HIGH, config.llm.tiers.high ?? '');
   setSetting(SETTING_TIER_MEDIUM, config.llm.tiers.medium ?? '');
   setSetting(SETTING_TIER_LOW, config.llm.tiers.low ?? '');
+  setSetting(SETTING_TIER_FALLBACK_CONVERSATION, JSON.stringify(config.llm.tiers.fallback?.conversation ?? []));
+  setSetting(SETTING_TIER_FALLBACK_HIGH, JSON.stringify(config.llm.tiers.fallback?.high ?? []));
+  setSetting(SETTING_TIER_FALLBACK_MEDIUM, JSON.stringify(config.llm.tiers.fallback?.medium ?? []));
+  setSetting(SETTING_TIER_FALLBACK_LOW, JSON.stringify(config.llm.tiers.fallback?.low ?? []));
 
   if (body.prompt_cache !== undefined) {
     config.llm.prompt_cache = body.prompt_cache;
@@ -334,6 +384,25 @@ export function mergeLLMSettingsIntoConfig(config: JarvisConfig): void {
   ] as const) {
     const value = getSetting(key);
     if (value) config.llm.tiers[tier] = value;
+  }
+
+  for (const [tier, key] of [
+    ['conversation', SETTING_TIER_FALLBACK_CONVERSATION],
+    ['high', SETTING_TIER_FALLBACK_HIGH],
+    ['medium', SETTING_TIER_FALLBACK_MEDIUM],
+    ['low', SETTING_TIER_FALLBACK_LOW],
+  ] as const) {
+    const raw = getSetting(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string') && parsed.length > 0) {
+        if (!config.llm.tiers.fallback) config.llm.tiers.fallback = {};
+        config.llm.tiers.fallback[tier] = parsed as string[];
+      }
+    } catch (err) {
+      console.warn(`[LLM] Failed to parse stored tier fallback for '${tier}':`, err);
+    }
   }
 
   // Prompt caching: only override when a DB setting exists, so a value

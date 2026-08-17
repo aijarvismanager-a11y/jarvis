@@ -378,5 +378,6 @@ button.rs-chip:disabled { opacity: .5; cursor: default; }
   .rshell, .rs-talk, .rs-peek { transition: none; }
   .rs-talk { transition: none; }
   .gdrop.live .in, .gdrop.live .ring { animation: none !important; opacity: 1; }
+  .gdrop.live { animation: none !important; }
   .rs-peek { animation: none; }
 }
