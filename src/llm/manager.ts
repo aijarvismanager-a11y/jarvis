@@ -74,15 +74,20 @@ export class LLMManager {
     if (!this.providers.has(assignment.provider)) {
       throw new Error(`Provider '${assignment.provider}' not registered (tier '${tier}')`);
     }
-    for (const fb of assignment.fallback ?? []) {
-      if (!this.providers.has(fb.provider)) {
-        throw new Error(`Fallback provider '${fb.provider}' not registered (tier '${tier}')`);
-      }
-    }
+    // Fallback entries are the safety net, not the requirement — same
+    // filter-and-warn behavior as setTierMap()/resolveProviderChainOrThrow(),
+    // so a single-tier save doesn't fail where a bulk config reload wouldn't.
+    const fallback = (assignment.fallback ?? []).filter((fb) => {
+      if (this.providers.has(fb.provider)) return true;
+      console.warn(
+        `[LLM] Tier '${tier}' fallback references unregistered provider '${fb.provider}' - skipping.`,
+      );
+      return false;
+    });
     this.tierMap[tier] = {
       provider: assignment.provider,
       model: assignment.model,
-      fallback: assignment.fallback?.map((fb) => ({ provider: fb.provider, model: fb.model })),
+      ...(fallback.length ? { fallback: fallback.map((fb) => ({ provider: fb.provider, model: fb.model })) } : {}),
     };
   }
 
