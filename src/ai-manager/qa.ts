@@ -19,8 +19,6 @@ import { readFileSync, existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join, dirname, resolve, extname } from 'node:path';
 
-const REPO_ROOT = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..');
-
 export type QACheckName =
   | 'typescript'
   | 'lint'
@@ -86,21 +84,47 @@ async function timed<T>(fn: () => Promise<T>): Promise<{ result: T; duration_ms:
 }
 
 export class QAAgent {
-  /** Run the full QA suite and return a structured pass/fail report. */
+  /**
+   * Run the full QA suite and return a structured pass/fail report.
+   *
+   * `opts.cwd` must name the actual project/repo being checked. Previously
+   * this defaulted to REPO_ROOT (JARVIS's own daemon repo) when omitted -
+   * both call sites (ManagerAgent's Self-Healing QA gate and the workflow
+   * "QA" node) check arbitrary user projects, never JARVIS itself, so that
+   * default silently ran tsc/lint/bun test against unrelated code and let
+   * JARVIS's own repo state produce a pass/fail verdict that had nothing to
+   * do with the task actually being graded. Report the code-dependent
+   * checks honestly as not-yet-automatable instead, matching this file's
+   * existing convention for ui_tests/runtime_errors.
+   */
   async run(opts?: QAOptions): Promise<QAReport> {
-    const cwd = opts?.cwd ?? REPO_ROOT;
+    const cwd = opts?.cwd;
     const checks: QACheckResult[] = [];
+    const noCwdReason = 'No project repository path configured - skipping to avoid checking unrelated code.';
 
-    checks.push(await this.checkTypescript(cwd));
-    checks.push(await this.checkLint(cwd, opts?.lintScripts ?? DEFAULT_LINT_SCRIPTS));
-    if (opts?.includeBuild) checks.push(await this.checkBuild(cwd));
-    checks.push(await this.checkUnitTests(cwd));
-    checks.push(this.checkIntegrationTests(checks));
+    if (cwd) {
+      checks.push(await this.checkTypescript(cwd));
+      checks.push(await this.checkLint(cwd, opts?.lintScripts ?? DEFAULT_LINT_SCRIPTS));
+      if (opts?.includeBuild) checks.push(await this.checkBuild(cwd));
+      checks.push(await this.checkUnitTests(cwd));
+      checks.push(this.checkIntegrationTests(checks));
+    } else {
+      checks.push(this.notAutomated('typescript', noCwdReason));
+      checks.push(this.notAutomated('lint', noCwdReason));
+      checks.push(this.notAutomated('unit_tests', noCwdReason));
+      checks.push(this.notAutomated('integration_tests', noCwdReason));
+    }
     checks.push(this.notAutomated('ui_tests', 'No UI test runner is configured for ui/ - verify manually in a browser.'));
     checks.push(this.notAutomated('runtime_errors', 'No runtime smoke harness exists yet - start the daemon and check logs manually.'));
-    checks.push(await this.checkBrokenLinks(cwd));
-    checks.push(await this.checkMissingFiles(cwd));
-    checks.push(await this.checkConfiguration(cwd));
+    if (cwd) {
+      checks.push(await this.checkBrokenLinks(cwd));
+      checks.push(await this.checkMissingFiles(cwd));
+      checks.push(await this.checkConfiguration(cwd));
+    } else {
+      checks.push(this.notAutomated('broken_links', noCwdReason));
+      checks.push(this.notAutomated('missing_files', noCwdReason));
+      checks.push(this.notAutomated('configuration_errors', noCwdReason));
+    }
 
     return {
       passed: checks.every((c) => !c.automated || c.passed),

@@ -189,11 +189,78 @@ export function buildSandboxServiceBackends(
   const toolAdapter = opts.toolRegistry
     ? new JarvisToolRegistryAdapter(opts.toolRegistry)
     : null;
+  // Same Emergency -> Authority -> Approval -> Audit gate gitCommit/gitPush
+  // apply below, and the one AgentOrchestrator.executeTool applies for
+  // agent-tool-initiated calls (src/agents/orchestrator.ts) - a "Tool" node
+  // is another way to reach an arbitrary tool (including run_command,
+  // git_push, etc, per the jarvis-tool piece's own description), so it must
+  // not be able to skip the gate agent-initiated calls can't skip.
   const toolsInvoke: ToolsInvokeFn | undefined = toolAdapter
-    ? async (req) => {
-        if (!toolAdapter.has(req.toolName)) {
+    ? async (req, ctx) => {
+        const description = toolAdapter.describe(req.toolName);
+        if (!description) {
           throw new Error(`tool not found: ${req.toolName}`);
         }
+
+        if (opts.emergencyController && !opts.emergencyController.canExecute()) {
+          const state = opts.emergencyController.getState();
+          throw new Error(`[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.`);
+        }
+
+        if (opts.authorityEngine) {
+          const category = description.category;
+          const actionCategory = getActionForTool(req.toolName, category);
+          const decision = opts.authorityEngine.checkAuthority({
+            agentId: "workflow",
+            agentAuthorityLevel: 0,
+            agentRoleId: "workflow",
+            toolName: req.toolName,
+            toolCategory: category,
+            actionCategory,
+            temporaryGrants: new Map(),
+          });
+
+          const decisionType = decision.allowed
+            ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
+            : "denied" as const;
+          opts.auditTrail?.log({
+            agent_id: "workflow",
+            agent_name: "Workflow",
+            tool_name: req.toolName,
+            action_category: actionCategory,
+            authority_decision: decisionType,
+            approval_id: null,
+            executed: decision.allowed && !decision.requiresApproval,
+            execution_time_ms: null,
+            project_id: ctx.projectId,
+          });
+
+          if (!decision.allowed) {
+            throw new Error(`[AUTHORITY DENIED] ${decision.reason}`);
+          }
+          if (decision.requiresApproval) {
+            if (!opts.approvalManager) {
+              throw new Error(`[AUTHORITY DENIED] Approval required but no approval manager configured.`);
+            }
+            const request = opts.approvalManager.createRequest({
+              agentId: "workflow",
+              agentName: "Workflow",
+              toolName: req.toolName,
+              toolArguments: req.params,
+              actionCategory,
+              urgency: "normal",
+              reason: decision.reason,
+              context: `Workflow-initiated tool call: ${req.toolName}`,
+              executionMode: "inline",
+              projectId: ctx.projectId,
+            });
+            const resolved = await opts.approvalManager.waitForResolution(request.id);
+            if (resolved.status !== "approved") {
+              throw new Error(`[APPROVAL ${resolved.status.toUpperCase()}]`);
+            }
+          }
+        }
+
         const result = await toolAdapter.execute(req.toolName, req.params);
         return { result, toolName: req.toolName };
       }
@@ -344,6 +411,7 @@ export function buildSandboxServiceBackends(
         return manager.handleRequest(req.name, req.request, {
           ...(req.template !== undefined ? { template: req.template as ProjectTemplate } : {}),
           ...(req.execution_mode !== undefined ? { execution_mode: req.execution_mode } : {}),
+          ...(req.repo_path !== undefined ? { repo_path: req.repo_path } : {}),
         });
       }
     : undefined;
@@ -462,67 +530,75 @@ export function buildSandboxServiceBackends(
   // this mirrors gitPush's authority-check + audit-log block but only
   // blocks on approval if a context-rule override ever sets
   // requiresApproval for it.
-  const gitCommit: GitCommitFn = async (req, ctx) => {
-    if (opts.emergencyController && !opts.emergencyController.canExecute()) {
-      const state = opts.emergencyController.getState();
-      return { ok: false, output: "", error: `[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.` };
-    }
-
-    if (opts.authorityEngine) {
-      const actionCategory = getActionForTool("git_commit", "github");
-      const decision = opts.authorityEngine.checkAuthority({
-        agentId: "workflow",
-        agentAuthorityLevel: 0,
-        agentRoleId: "workflow",
-        toolName: "git_commit",
-        toolCategory: "github",
-        actionCategory,
-        temporaryGrants: new Map(),
-      });
-
-      const decisionType = decision.allowed
-        ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
-        : "denied" as const;
-      opts.auditTrail?.log({
-        agent_id: "workflow",
-        agent_name: "Workflow",
-        tool_name: "git_commit",
-        action_category: actionCategory,
-        authority_decision: decisionType,
-        approval_id: null,
-        executed: decision.allowed && !decision.requiresApproval,
-        execution_time_ms: null,
-        project_id: ctx.projectId,
-      });
-
-      if (!decision.allowed) {
-        return { ok: false, output: "", error: `[AUTHORITY DENIED] ${decision.reason}` };
-      }
-      if (decision.requiresApproval) {
-        if (!opts.approvalManager) {
-          return { ok: false, output: "", error: `[AUTHORITY DENIED] Approval required but no approval manager configured.` };
+  //
+  // Fail-closed like gitPush below, not fail-open: the service is only
+  // registered when an authorityEngine is wired (services.gitCommit stays
+  // undefined -> 503 otherwise), rather than defining the function
+  // unconditionally and skipping the gate internally when the engine is
+  // missing. The previous fail-open shape meant a boot path/test config
+  // that forgot to wire authorityEngine would let git_commit run with no
+  // authority check and no audit log at all.
+  const gitCommit: GitCommitFn | undefined = opts.authorityEngine
+    ? async (req, ctx) => {
+        if (opts.emergencyController && !opts.emergencyController.canExecute()) {
+          const state = opts.emergencyController.getState();
+          return { ok: false, output: "", error: `[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.` };
         }
-        const request = opts.approvalManager.createRequest({
+
+        const actionCategory = getActionForTool("git_commit", "github");
+        const decision = opts.authorityEngine!.checkAuthority({
           agentId: "workflow",
-          agentName: "Workflow",
+          agentAuthorityLevel: 0,
+          agentRoleId: "workflow",
           toolName: "git_commit",
-          toolArguments: { repo_path: req.repoPath, message: req.message },
+          toolCategory: "github",
           actionCategory,
-          urgency: "normal",
-          reason: decision.reason,
-          context: `Workflow-initiated git commit in ${req.repoPath}`,
-          executionMode: "inline",
-          projectId: ctx.projectId,
+          temporaryGrants: new Map(),
         });
-        const resolved = await opts.approvalManager.waitForResolution(request.id);
-        if (resolved.status !== "approved") {
-          return { ok: false, output: "", error: `[APPROVAL ${resolved.status.toUpperCase()}]` };
-        }
-      }
-    }
 
-    return gitCommitImpl(req.repoPath, req.message, { all: req.all });
-  };
+        const decisionType = decision.allowed
+          ? (decision.requiresApproval ? "approval_required" as const : "allowed" as const)
+          : "denied" as const;
+        opts.auditTrail?.log({
+          agent_id: "workflow",
+          agent_name: "Workflow",
+          tool_name: "git_commit",
+          action_category: actionCategory,
+          authority_decision: decisionType,
+          approval_id: null,
+          executed: decision.allowed && !decision.requiresApproval,
+          execution_time_ms: null,
+          project_id: ctx.projectId,
+        });
+
+        if (!decision.allowed) {
+          return { ok: false, output: "", error: `[AUTHORITY DENIED] ${decision.reason}` };
+        }
+        if (decision.requiresApproval) {
+          if (!opts.approvalManager) {
+            return { ok: false, output: "", error: `[AUTHORITY DENIED] Approval required but no approval manager configured.` };
+          }
+          const request = opts.approvalManager.createRequest({
+            agentId: "workflow",
+            agentName: "Workflow",
+            toolName: "git_commit",
+            toolArguments: { repo_path: req.repoPath, message: req.message },
+            actionCategory,
+            urgency: "normal",
+            reason: decision.reason,
+            context: `Workflow-initiated git commit in ${req.repoPath}`,
+            executionMode: "inline",
+            projectId: ctx.projectId,
+          });
+          const resolved = await opts.approvalManager.waitForResolution(request.id);
+          if (resolved.status !== "approved") {
+            return { ok: false, output: "", error: `[APPROVAL ${resolved.status.toUpperCase()}]` };
+          }
+        }
+
+        return gitCommitImpl(req.repoPath, req.message, { all: req.all });
+      }
+    : undefined;
 
   // "Git Push" -- the safety-critical node. Runs the same authority-gate
   // sequence AgentOrchestrator.executeTool applies to the git_push tool
@@ -623,12 +699,12 @@ export function buildSandboxServiceBackends(
     qaRun,
     memoryWrite,
     decisionWrite,
-    gitCommit,
     ...(opts.resumeUrlPrefix !== undefined ? { resumeUrlPrefix: opts.resumeUrlPrefix } : {}),
   };
   if (toolsInvoke) services.toolsInvoke = toolsInvoke;
   if (managerRunProject) services.managerRunProject = managerRunProject;
   if (approvalRequest) services.approvalRequest = approvalRequest;
+  if (gitCommit) services.gitCommit = gitCommit;
   if (gitPush) services.gitPush = gitPush;
   return services;
 }

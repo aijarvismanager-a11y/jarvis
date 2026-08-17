@@ -11,6 +11,7 @@ import { initDatabase, getDb } from '../../vault/schema.ts';
 import { AuthorityEngine, type AuthorityConfig } from '../../authority/engine.ts';
 import { AuditTrail } from '../../authority/audit.ts';
 import { ApprovalManager } from '../../authority/approval.ts';
+import { EmergencyController } from '../../authority/emergency.ts';
 import { createProject } from '../../vault/projects.ts';
 
 type Handler = (req: Request) => Response | Promise<Response>;
@@ -26,7 +27,7 @@ function baseConfig(): AuthorityConfig {
   };
 }
 
-function makeCtx(config: AuthorityConfig): AIManagerApiContext {
+function makeCtx(config: AuthorityConfig, emergencyController?: EmergencyController): AIManagerApiContext {
   const authorityEngine = new AuthorityEngine(config);
   const auditTrail = new AuditTrail();
   return {
@@ -35,6 +36,7 @@ function makeCtx(config: AuthorityConfig): AIManagerApiContext {
     getApprovalManager: () => new ApprovalManager(),
     getAuthorityEngine: () => authorityEngine,
     getAuditTrail: () => auditTrail,
+    ...(emergencyController ? { getEmergencyController: () => emergencyController } : {}),
   };
 }
 
@@ -101,6 +103,17 @@ describe('POST /api/ai-manager/github/action', () => {
     expect(rows[0]!.tool_name).toBe('github_create_issue');
     expect(rows[0]!.authority_decision).toBe('allowed');
     expect(rows[0]!.executed).toBe(1);
+  });
+
+  it('blocks the action and does not check authority when the system is paused (Emergency Stop)', async () => {
+    const emergencyController = new EmergencyController();
+    emergencyController.pause();
+    const ctx = makeCtx(baseConfig(), emergencyController);
+    const res = await postAction(ctx, { tool: 'github_create_issue', repo_path: '.', title: 'Bug report' });
+    expect(res.status).toBe(423);
+
+    const rows = getDb().prepare('SELECT * FROM audit_trail').all();
+    expect(rows.length).toBe(0);
   });
 
   it('denies the action and does not execute when a context rule blocks it', async () => {

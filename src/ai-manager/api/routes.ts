@@ -18,6 +18,7 @@ import type { TaskDispatcher } from '../../agents/conv/task-dispatcher.ts';
 import type { ApprovalManager } from '../../authority/approval.ts';
 import type { AuthorityEngine } from '../../authority/engine.ts';
 import type { AuditTrail } from '../../authority/audit.ts';
+import type { EmergencyController } from '../../authority/emergency.ts';
 import type { WebSocketService } from '../../daemon/ws-service.ts';
 import type { Handoff } from '../../agents/handoff.ts';
 import { getActionForTool } from '../../authority/tool-action-map.ts';
@@ -33,6 +34,7 @@ import {
   updateProjectStatus,
   updateProjectExecutionMode,
   updateProjectCostMode,
+  updateProjectRepoPath,
   setProjectRules,
   type ProjectStatus,
   type ExecutionMode,
@@ -73,6 +75,16 @@ export type AIManagerApiContext = {
   getApprovalManager: () => ApprovalManager;
   getAuthorityEngine: () => AuthorityEngine;
   getAuditTrail: () => AuditTrail;
+  /**
+   * Optional so existing callers/tests that construct this context without
+   * daemon emergency-stop wiring keep working unchanged. When present, the
+   * GitHub action route checks it before executing/deferring a tool call —
+   * every other tool-execution path (AgentOrchestrator.executeTool, the
+   * workflow gitCommit/gitPush/toolsInvoke backends) already does the same
+   * check, and this route was the one gap that let a paused/killed system
+   * still run GitHub actions from the dashboard.
+   */
+  getEmergencyController?: () => EmergencyController;
   /**
    * Phase 33 — optional so existing callers/tests that construct this
    * context without daemon WS access keep working unchanged. When present,
@@ -191,9 +203,14 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             template?: ProjectTemplate;
             execution_mode?: ExecutionMode;
             cost_mode?: CostMode;
+            /** Absolute path to the project's own repository - see src/ai-manager/qa.ts. Without this the Self-Healing QA gate can't check the project's actual code. */
+            repo_path?: string;
           };
           if (!body.name || typeof body.name !== 'string') return error('name is required', 400);
           if (!body.request || typeof body.request !== 'string') return error('request is required', 400);
+          if (body.repo_path !== undefined && typeof body.repo_path !== 'string') {
+            return error('repo_path must be a string', 400);
+          }
           if (body.template && !VALID_TEMPLATES.includes(body.template)) {
             return error(`template must be one of: ${VALID_TEMPLATES.join(', ')}`, 400);
           }
@@ -216,6 +233,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             template: body.template,
             execution_mode: body.execution_mode,
             cost_mode: body.cost_mode,
+            repo_path: body.repo_path,
           });
           return json(result, 201);
         } catch (err) {
@@ -237,6 +255,7 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             execution_mode?: ExecutionMode;
             cost_mode?: CostMode;
             rules?: string[];
+            repo_path?: string | null;
           };
           let project = getProject(req.params.id);
           if (!project) return error('Project not found', 404);
@@ -264,6 +283,12 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
               return error('rules must be an array of strings', 400);
             }
             project = setProjectRules(req.params.id, body.rules);
+          }
+          if (body.repo_path !== undefined) {
+            if (body.repo_path !== null && typeof body.repo_path !== 'string') {
+              return error('repo_path must be a string or null', 400);
+            }
+            project = updateProjectRepoPath(req.params.id, body.repo_path);
           }
           return json(project);
         } catch (err) {
@@ -386,6 +411,11 @@ export function createAIManagerRoutes(ctx: AIManagerApiContext): Record<string, 
             if (!body.event || !VALID_REVIEW_EVENTS.includes(body.event as (typeof VALID_REVIEW_EVENTS)[number])) {
               return error(`event must be one of: ${VALID_REVIEW_EVENTS.join(', ')}`, 400);
             }
+          }
+
+          if (ctx.getEmergencyController && !ctx.getEmergencyController().canExecute()) {
+            const state = ctx.getEmergencyController().getState();
+            return error(`[SYSTEM ${state.toUpperCase()}] All tool execution is currently suspended.`, 423);
           }
 
           const actionCategory = getActionForTool(toolName, tool.category);

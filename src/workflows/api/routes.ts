@@ -610,7 +610,14 @@ export function createWorkflowRoutes(opts: CreateWorkflowRoutesOptions = {}): Wo
           } catch {
             // Non-JSON or empty body -- use {} as the payload.
           }
-          markWaitpointResumed(id);
+          // The `wp.resumedAt !== null` check above is TOCTOU-racy on its
+          // own (two near-simultaneous webhook hits can both pass it before
+          // either writes) -- markWaitpointResumed's `WHERE resumed_at IS
+          // NULL` is the atomic decider, same as timer-scheduler.ts's
+          // "lost the race" pattern. Only enqueue RESUME if this call
+          // actually won it, so a retried/duplicate webhook delivery can't
+          // enqueue two RESUME jobs for the same run.
+          if (!markWaitpointResumed(id)) return err("waitpoint already resumed", 410);
           enqueue({
             jobType: "RUN_FLOW",
             payload: {

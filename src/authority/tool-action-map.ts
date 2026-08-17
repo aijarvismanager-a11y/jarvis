@@ -44,6 +44,12 @@ export const TOOL_ACTION_MAP: Record<string, ActionCategory> = {
   commitments: 'write_data',
   research_queue: 'read_data',
 
+  // Documents / Goals — both support delete/replan/update_status actions,
+  // so they're write_data (not the read_data fallback that previously
+  // applied since neither tool name nor category was mapped here).
+  create_document: 'write_data',
+  manage_goals: 'write_data',
+
   // Git / GitHub (spec section 28-29). Reads stay read_data (AUTO); every
   // mutating git/GitHub operation is git_operation (level 4) - push and
   // force_push get their distinct per-operation treatment via context_rules
@@ -71,6 +77,15 @@ export const TOOL_ACTION_MAP: Record<string, ActionCategory> = {
   // authority check (it IS the authority mechanism). Mapped here anyway for
   // audit trail completeness — it's effectively a read of the user's will.
   request_approval: 'read_data',
+
+  // 'general' (src/actions/tools/builtin.ts) mixes a write tool
+  // (set_clipboard) in with read-only ones, so it can't get a single
+  // category-level mapping below without either over- or under-gating one
+  // of them — each needs its own explicit entry.
+  get_clipboard: 'read_data',
+  set_clipboard: 'write_data',
+  capture_screen: 'read_data',
+  get_system_info: 'read_data',
 };
 
 /**
@@ -87,11 +102,20 @@ export const CATEGORY_ACTION_MAP: Record<string, ActionCategory> = {
   productivity: 'read_data',
   github: 'git_operation',
   image: 'write_data',
+  documents: 'write_data',
+  goals: 'write_data',
+  // Only list_sidecars (read-only) lives in this category today.
+  sidecar: 'read_data',
 };
 
 /**
  * Resolve the ActionCategory for a given tool.
- * Checks explicit tool name map first, then falls back to category map, then defaults to read_data.
+ * Checks explicit tool name map first, then falls back to category map, then
+ * defaults to write_data — NOT read_data. A tool this function has never
+ * heard of (missing from both maps, e.g. added without updating this file)
+ * is unknown-impact, not known-safe; failing closed to the write_data floor
+ * (still well below the destructive-action floor) avoids silently granting
+ * read-only-caliber trust to a tool that may mutate or delete data.
  */
 export function getActionForTool(toolName: string, toolCategory: string): ActionCategory {
   if (TOOL_ACTION_MAP[toolName]) {
@@ -100,5 +124,5 @@ export function getActionForTool(toolName: string, toolCategory: string): Action
   if (CATEGORY_ACTION_MAP[toolCategory]) {
     return CATEGORY_ACTION_MAP[toolCategory];
   }
-  return 'read_data';
+  return 'write_data';
 }

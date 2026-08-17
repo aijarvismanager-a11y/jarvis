@@ -50,13 +50,14 @@ export class Planner {
   async planProject(
     name: string,
     userRequest: string,
-    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode },
+    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode; repo_path?: string },
   ): Promise<PlanResult> {
     const project = createProject(name, {
       description: userRequest,
       template: opts?.template,
       execution_mode: opts?.execution_mode,
       cost_mode: opts?.cost_mode,
+      repo_path: opts?.repo_path,
     });
 
     const subtasks = await this.decompose(userRequest);

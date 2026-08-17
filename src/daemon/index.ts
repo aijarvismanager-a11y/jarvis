@@ -4209,6 +4209,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         getApprovalManager: () => approvalManager,
         getAuthorityEngine: () => authorityEngine,
         getAuditTrail: () => auditTrail,
+        getEmergencyController: () => emergencyController,
         getWsService: () => wsService,
       }),
       ...createWorkflowRoutes({

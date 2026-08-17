@@ -10,6 +10,10 @@ import {
   AUTHORITY_REQUIREMENTS,
   type ActionCategory,
 } from './authority.ts';
+import {
+  toSpecLevel as uiToSpecLevel,
+  SPEC_LEVEL_LABELS as uiSpecLevelLabels,
+} from '../../ui/src/v2/rooms/agents/specLevel.ts';
 
 describe('IMPACT_MAP / impactFromCategory', () => {
   test('every ActionCategory has an impact assigned (no missing entries)', () => {
@@ -169,5 +173,12 @@ describe('toSpecLevel — display-only 1-10 → 0-5 compression (spec §30)', ()
     for (const cat of ['make_payment', 'modify_settings', 'delete_data', 'terminate_agent'] as ActionCategory[]) {
       expect(toSpecLevel(AUTHORITY_REQUIREMENTS[cat])).toBe(5);
     }
+  });
+
+  test('stays in sync with ui/src/v2/rooms/agents/specLevel.ts (deliberate duplicate — see that file\'s doc comment)', () => {
+    for (let level = -1; level <= 11; level++) {
+      expect(uiToSpecLevel(level)).toBe(toSpecLevel(level));
+    }
+    expect(uiSpecLevelLabels).toEqual(SPEC_LEVEL_LABELS);
   });
 });

@@ -884,6 +884,15 @@ function createTables(db: Database): void {
   // original in-memory PlanResult. See src/ai-manager/manager-agent.ts.
   try { db.run(`ALTER TABLE projects ADD COLUMN plan TEXT`); } catch { /* already present */ }
 
+  // Migration (Phase 11-B): the target repository's absolute path, so the
+  // Self-Healing QA gate (src/ai-manager/qa.ts) and the workflow "QA" node
+  // can run tsc/lint/bun test against the project's own code instead of
+  // having no way to know where it lives. NULL (the default for every
+  // project created before this column existed, and for any project that
+  // hasn't set one) means QAAgent.run() skips the code-dependent checks
+  // rather than guessing a directory.
+  try { db.run(`ALTER TABLE projects ADD COLUMN repo_path TEXT`); } catch { /* already present */ }
+
   db.run(`
     CREATE TABLE IF NOT EXISTS decisions (
       id TEXT PRIMARY KEY,

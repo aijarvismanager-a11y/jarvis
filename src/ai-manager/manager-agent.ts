@@ -113,7 +113,7 @@ export class ManagerAgent {
   async handleRequest(
     name: string,
     userRequest: string,
-    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode },
+    opts?: { template?: ProjectTemplate; execution_mode?: ExecutionMode; cost_mode?: CostMode; repo_path?: string },
   ): Promise<ProjectRunResult> {
     const plan = await this.planner.planProject(name, userRequest, opts);
     return this.runPlan(plan, userRequest);
@@ -397,6 +397,9 @@ export class ManagerAgent {
       intent: subtask.title,
       original_message: userRequest,
       project_id: project.id,
+      // Without this the QA gate (see qa.ts) had no way to know which
+      // repository the subtask's code actually belongs to.
+      ...(project.repo_path ? { qaOptions: { cwd: project.repo_path } } : {}),
     });
     const envelope = healing.envelope;
     const finalAttempt = healing.attempts[healing.attempts.length - 1]!;

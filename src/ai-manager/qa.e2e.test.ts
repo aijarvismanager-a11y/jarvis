@@ -104,6 +104,17 @@ describe('QAAgent end-to-end: code review checklist', () => {
     await cleanup();
   });
 
+  it('reports code-dependent checks as not-automated (never runs them) when no cwd is given, instead of silently checking an unrelated repo', async () => {
+    const qa = new QAAgent();
+    const report = await qa.run();
+
+    const byName = Object.fromEntries(report.checks.map((c) => [c.name, c]));
+    for (const name of ['typescript', 'lint', 'unit_tests', 'integration_tests', 'broken_links', 'missing_files', 'configuration_errors'] as const) {
+      expect(byName[name]!.automated).toBe(false);
+    }
+    expect(report.passed).toBe(true);
+  });
+
   it('flags a broken relative link in markdown docs', async () => {
     await writeFile(join(scratchDir, 'package.json'), JSON.stringify({ name: 'scratch' }));
     await writeFile(join(scratchDir, 'tsconfig.json'), JSON.stringify({ compilerOptions: {} }));

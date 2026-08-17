@@ -19,6 +19,8 @@ export interface ManagerRunProjectRequest {
   request: string;
   template?: string;
   execution_mode?: "auto" | "assisted" | "manual";
+  /** Absolute path to the project's own repository - see src/ai-manager/qa.ts. Without this the Self-Healing QA gate can't check the project's actual code. */
+  repo_path?: string;
 }
 
 export type ManagerRunProjectResponse = unknown;
@@ -86,6 +88,12 @@ export function createJarvisManagerRunProjectRoute(deps: JarvisManagerRouteDeps)
         return err(`execution_mode must be one of: ${VALID_EXECUTION_MODES.join(", ")}`, 400);
       }
       out.execution_mode = raw.execution_mode as ManagerRunProjectRequest["execution_mode"];
+    }
+    if (raw.repo_path !== undefined) {
+      if (typeof raw.repo_path !== "string" || raw.repo_path.length === 0) {
+        return err("repo_path must be a non-empty string", 400);
+      }
+      out.repo_path = raw.repo_path;
     }
 
     const reply = await deps.managerRunProject(out, {

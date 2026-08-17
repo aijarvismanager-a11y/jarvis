@@ -34,6 +34,8 @@ export type Project = {
   execution_mode: ExecutionMode;
   cost_mode: CostMode;
   rules: string[];
+  /** Absolute path to the project's own repository, if configured. Used by the Self-Healing QA gate to check the right code. */
+  repo_path: string | null;
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -48,6 +50,7 @@ type ProjectRow = {
   execution_mode: ExecutionMode;
   cost_mode: CostMode;
   rules: string | null;
+  repo_path: string | null;
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -68,6 +71,7 @@ export function createProject(
     execution_mode?: ExecutionMode;
     cost_mode?: CostMode;
     rules?: string[];
+    repo_path?: string;
   }
 ): Project {
   const db = getDb();
@@ -78,11 +82,12 @@ export function createProject(
   const execution_mode = opts?.execution_mode ?? 'assisted';
   const cost_mode = opts?.cost_mode ?? 'balanced';
   const rules = opts?.rules ?? [];
+  const repo_path = opts?.repo_path ?? null;
 
   db.prepare(
-    `INSERT INTO projects (id, name, description, template, status, execution_mode, cost_mode, rules, created_at, updated_at, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, description, template, 'active', execution_mode, cost_mode, JSON.stringify(rules), now, now, null);
+    `INSERT INTO projects (id, name, description, template, status, execution_mode, cost_mode, rules, repo_path, created_at, updated_at, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, description, template, 'active', execution_mode, cost_mode, JSON.stringify(rules), repo_path, now, now, null);
 
   return {
     id,
@@ -93,6 +98,7 @@ export function createProject(
     execution_mode,
     cost_mode,
     rules,
+    repo_path,
     created_at: now,
     updated_at: now,
     completed_at: null,
@@ -155,6 +161,16 @@ export function updateProjectCostMode(id: string, mode: CostMode): Project | nul
   if (!project) return null;
 
   db.prepare('UPDATE projects SET cost_mode = ?, updated_at = ? WHERE id = ?').run(mode, Date.now(), id);
+  return getProject(id);
+}
+
+/** Pass null to clear it (falls back to "QA not automated" - see qa.ts). */
+export function updateProjectRepoPath(id: string, repoPath: string | null): Project | null {
+  const db = getDb();
+  const project = getProject(id);
+  if (!project) return null;
+
+  db.prepare('UPDATE projects SET repo_path = ?, updated_at = ? WHERE id = ?').run(repoPath, Date.now(), id);
   return getProject(id);
 }
 

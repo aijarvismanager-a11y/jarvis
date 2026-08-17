@@ -96,6 +96,53 @@ describe("RUN_FLOW handler with custom executor", () => {
     expect(after?.stepsCount).toBe(2);
   });
 
+  test("does NOT overwrite a run the executor reports as PAUSED with SUCCEEDED", async () => {
+    const { runId } = setupRun();
+    const executor: FlowExecutor = {
+      async execute(_ctx: FlowExecutorContext): Promise<FlowExecutorResult> {
+        // Simulate what EngineFlowExecutor's real dependency does: the
+        // engine persists PAUSED (+ partial steps) via its own
+        // uploadRunLog, asynchronously, before execute() returns - the
+        // handler must have already flipped the run to RUNNING by now.
+        updateRun(runId, { status: "PAUSED", steps: { trigger: { output: {} } }, stepsCount: 1 });
+        return { steps: { trigger: { output: {} } }, stepsCount: 1, status: "PAUSED" };
+      },
+    };
+    const worker = new Worker({
+      log: silent,
+      handlers: { [RUN_FLOW]: createRunFlowHandler({ executor }) },
+    });
+    await worker.drain();
+    const after = getFlowRun(runId);
+    // Must still be PAUSED (resumable), not clobbered to SUCCEEDED - a
+    // paused run stuck as SUCCEEDED can never be resumed via
+    // POST /api/webhooks/waitpoints/:id or the timer scheduler, both of
+    // which require status === 'PAUSED'.
+    expect(after?.status).toBe("PAUSED");
+    expect(after?.finishTime).toBeNull();
+  });
+
+  test("generalizes beyond PAUSED: any non-SUCCEEDED status an executor reports is left alone, not just PAUSED", async () => {
+    const { runId } = setupRun();
+    const executor: FlowExecutor = {
+      async execute(_ctx: FlowExecutorContext): Promise<FlowExecutorResult> {
+        // A hypothetical future executor that persists its own terminal
+        // status without throwing (unlike EngineFlowExecutor today, which
+        // throws for non-success statuses) must still not get clobbered.
+        updateRun(runId, { status: "STOPPED", steps: {}, stepsCount: 0 });
+        return { steps: {}, stepsCount: 0, status: "STOPPED" };
+      },
+    };
+    const worker = new Worker({
+      log: silent,
+      handlers: { [RUN_FLOW]: createRunFlowHandler({ executor }) },
+    });
+    await worker.drain();
+    const after = getFlowRun(runId);
+    expect(after?.status).toBe("STOPPED");
+    expect(after?.finishTime).toBeNull();
+  });
+
   test("hands the executor the full run, version, and external payload", async () => {
     const flow = createFlow();
     const version = createDraftVersion({

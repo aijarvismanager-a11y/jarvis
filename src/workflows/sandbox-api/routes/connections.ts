@@ -47,8 +47,12 @@ export function createConnectionsRoute(deps: ConnectionsRouteDeps): RouteHandler
     const externalIdRaw = ctx.params.externalId;
     if (!externalIdRaw) return err("missing externalId path param", 400);
     const externalId = externalIdRaw;
-    const queryProject = url.searchParams.get("projectId") ?? undefined;
-    const projectId = queryProject ?? ctx.claims.projectId;
+    // Trust only the verified engine token's claims, same as every other
+    // sandbox-api route (store.ts, files.ts) — the caller-supplied
+    // `projectId` query param must not be able to override it, or sandboxed
+    // code could resolve another project's credentials by appending
+    // `?projectId=<other>` to this request.
+    const projectId = ctx.claims.projectId;
 
     // The engine doesn't tell us which piece is asking, but our resolver only
     // needs the pieceName for app_connection lookups. For jarvis:* external

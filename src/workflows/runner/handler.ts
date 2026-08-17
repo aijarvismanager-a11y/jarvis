@@ -16,7 +16,7 @@
 
 import type { Job } from "../db/repos/job-queue";
 import type { JobHandler } from "../queue/worker";
-import { getFlowRun, updateRun, type FlowRun } from "../db/repos/flow-run";
+import { getFlowRun, updateRun, type FlowRun, type FlowRunStatus } from "../db/repos/flow-run";
 import {
   getFlowVersion,
   mergeRunOutputsIntoSampleData,
@@ -90,6 +90,19 @@ export interface FlowExecutorResult {
   /** Per-step output keyed by step name. Empty for trivial flows. */
   steps: Record<string, unknown>;
   stepsCount: number;
+  /**
+   * The run's actual terminal status, when the executor knows it (e.g.
+   * EngineFlowExecutor reads it from the engine's persisted flow_run row).
+   * Omitted (undefined) means "assume SUCCEEDED" for executors that only
+   * ever produce a full success (NoopFlowExecutor, tests) - preserves the
+   * old default for those. When present and PAUSED, the handler below must
+   * NOT overwrite the run with SUCCEEDED: a non-throwing execute() call
+   * doesn't always mean "the flow finished" - PAUSED (a waitpoint) is a
+   * ordinary non-error outcome the engine already persisted correctly via
+   * its own uploadRunLog, and clobbering it here breaks resume entirely
+   * (the resume route/timer both gate on `status === 'PAUSED'`).
+   */
+  status?: FlowRunStatus;
 }
 
 /** Throw `FlowExecutionError` from an executor when a specific step fails. */
@@ -186,6 +199,21 @@ export function createRunFlowHandler(opts: CreateRunFlowHandlerOptions): JobHand
         job: typed,
         payload: typed.payload.payload ?? {},
       });
+
+      if (result.status !== undefined && result.status !== "SUCCEEDED") {
+        // A non-throwing execute() doesn't always mean "the flow finished
+        // successfully" - PAUSED (a waitpoint) is the case that motivated
+        // this check, but any other status an executor reports (any
+        // FlowRunStatus besides SUCCEEDED) means the executor - or the
+        // engine underneath it - already persisted the real terminal state
+        // via its own path, and this handler must not clobber it with a
+        // hardcoded SUCCEEDED. `undefined` (executors that don't track
+        // status at all, e.g. NoopFlowExecutor/tests) is treated as the old
+        // default: assume success. Also skip sampleData auto-capture below
+        // - it's only meaningful once a flow has actually finished.
+        return;
+      }
+
       updateRun(runId, {
         status: "SUCCEEDED",
         steps: result.steps,

@@ -226,8 +226,22 @@ describe('getActionForTool', () => {
     expect(getActionForTool('some_terminal_tool', 'terminal')).toBe('execute_command');
   });
 
-  test('defaults to read_data for completely unknown tools', () => {
-    expect(getActionForTool('unknown_tool', 'unknown_category')).toBe('read_data');
+  test('defaults to write_data (fail-closed, not read_data) for completely unknown tools', () => {
+    expect(getActionForTool('unknown_tool', 'unknown_category')).toBe('write_data');
+  });
+
+  test('create_document and manage_goals are mapped explicitly (both support delete/replan actions)', () => {
+    expect(getActionForTool('create_document', 'documents')).toBe('write_data');
+    expect(getActionForTool('manage_goals', 'goals')).toBe('write_data');
+  });
+
+  test('the write_data default (over read_data) does not over-gate the actually-read-only "general"/"sidecar" tools', () => {
+    expect(getActionForTool('get_clipboard', 'general')).toBe('read_data');
+    expect(getActionForTool('capture_screen', 'general')).toBe('read_data');
+    expect(getActionForTool('get_system_info', 'general')).toBe('read_data');
+    expect(getActionForTool('list_sidecars', 'sidecar')).toBe('read_data');
+    // set_clipboard is the one genuinely write tool sharing 'general' with the above.
+    expect(getActionForTool('set_clipboard', 'general')).toBe('write_data');
   });
 });
 

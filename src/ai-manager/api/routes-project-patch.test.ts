@@ -87,6 +87,32 @@ describe('PATCH /api/ai-manager/projects/:id', () => {
     expect(res.status).toBe(400);
   });
 
+  it('updates repo_path and persists it (enables the Self-Healing QA gate for this project)', async () => {
+    const project = createProject('Checkout Rebuild');
+    expect(project.repo_path).toBeNull();
+
+    const res = await patch(project.id, { repo_path: '/home/dev/checkout-rebuild' });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { repo_path: string | null };
+    expect(body.repo_path).toBe('/home/dev/checkout-rebuild');
+  });
+
+  it('clears repo_path when explicitly set to null', async () => {
+    const project = createProject('Checkout Rebuild', { repo_path: '/home/dev/checkout-rebuild' });
+    expect(project.repo_path).toBe('/home/dev/checkout-rebuild');
+
+    const res = await patch(project.id, { repo_path: null });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { repo_path: string | null };
+    expect(body.repo_path).toBeNull();
+  });
+
+  it('rejects a non-string/non-null repo_path with 400', async () => {
+    const project = createProject('Checkout Rebuild');
+    const res = await patch(project.id, { repo_path: 42 });
+    expect(res.status).toBe(400);
+  });
+
   it('404s for an unknown project id', async () => {
     const res = await patch('does-not-exist', { execution_mode: 'manual' });
     expect(res.status).toBe(404);
