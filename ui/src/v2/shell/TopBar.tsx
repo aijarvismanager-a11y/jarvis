@@ -3,7 +3,7 @@ import { useV2Route } from "../router";
 import { ROOM_NAV_ENTRIES } from "../palette/types";
 import type { ConnectionState } from "./Header";
 import type { VoiceState } from "./VoiceRail";
-import { useTheme } from "./useTheme";
+import { useTheme, type ThemePreference } from "./useTheme";
 import { useCinematicMode, type UIMode } from "./useCinematicMode";
 import { EmergencyChip } from "./EmergencyChip";
 import { AwarenessChip } from "./AwarenessChip";
@@ -47,6 +47,12 @@ const DAEMON: Record<ConnectionState, { cls: string; hue: string; label: string 
 // renders unchanged regardless of this switch's value today. The label says
 // so rather than pretending the mode already does something, per the spec's
 // anti-dummy-data rule (docs/CINEMATIC_UI_AUDIT.md §11, spec §78/§79-80).
+const THEME_META: Record<ThemePreference, { icon: string; label: string }> = {
+  light: { icon: "○", label: "light" },
+  dark: { icon: "●", label: "dark" },
+  system: { icon: "◐", label: "system" },
+};
+
 const MODE_META: Record<UIMode, { label: string; icon: string; note: string }> = {
   normal: { label: "Normal", icon: "▢", note: "Standard dashboard" },
   cinematic: { label: "Cinematic", icon: "◈", note: "Central Core view — live project/task/agent/provider status" },
@@ -73,7 +79,7 @@ export function TopBar({
   onToggleNotifications?: () => void;
 }) {
   const route = useV2Route();
-  const [theme, toggleTheme] = useTheme();
+  const [resolvedTheme, themePreference, cycleTheme] = useTheme();
   const [uiMode, cycleUiMode] = useCinematicMode();
   const isNow = route.kind !== "room";
   const title = route.kind === "room" ? ROOM_TITLES[route.key] ?? route.key : "Now";
@@ -117,11 +123,11 @@ export function TopBar({
 
         <button
           className="rs-chip"
-          onClick={() => toggleTheme()}
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          onClick={() => cycleTheme()}
+          aria-label={`Theme: ${THEME_META[themePreference].label}${themePreference === "system" ? ` (currently ${resolvedTheme})` : ""}. Click to switch.`}
+          title={`Theme: ${THEME_META[themePreference].label}${themePreference === "system" ? ` — following OS, currently ${resolvedTheme}` : ""}. Click to cycle light → dark → system.`}
         >
-          {theme === "dark" ? "● dark" : "○ light"}
+          {THEME_META[themePreference].icon} {THEME_META[themePreference].label}
         </button>
 
         <button className="rs-chip" onClick={onOpenPalette} aria-label="Quick open">⌘K</button>
