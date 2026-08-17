@@ -130,6 +130,9 @@ function parseExpression(expression: string): {
   daysOfMonth: number[];
   months: number[];
   daysOfWeek: number[];
+  /** Whether the day-of-month/day-of-week fields were literally "*" - see matchesDayFields(). */
+  domIsWildcard: boolean;
+  dowIsWildcard: boolean;
 } {
   const parts = expression.trim().split(/\s+/);
   if (parts.length !== 5) {
@@ -144,7 +147,32 @@ function parseExpression(expression: string): {
     daysOfMonth: parseField(domField!, 1, 31),
     months: parseField(monthField!, 1, 12),
     daysOfWeek: parseField(dowField!, 0, 6),  // 0 = Sunday
+    domIsWildcard: domField!.trim() === '*',
+    dowIsWildcard: dowField!.trim() === '*',
   };
+}
+
+/**
+ * Standard cron day-field semantics: when BOTH day-of-month and day-of-week
+ * are restricted (neither is "*"), a date matches if EITHER field matches
+ * (OR) - e.g. "1,15 * MON" means "the 1st, the 15th, OR any Monday", not
+ * "the 1st or 15th AND also a Monday" (which is what a plain `&&` of both
+ * fields computes, and would almost never be true). When either field is
+ * unrestricted ("*"), that field is ignored and only the other one gates -
+ * equivalent to plain AND against the wildcard's full-range array.
+ */
+function matchesDayFields(
+  dom: number,
+  dow: number,
+  daysOfMonth: number[],
+  daysOfWeek: number[],
+  domIsWildcard: boolean,
+  dowIsWildcard: boolean,
+): boolean {
+  if (domIsWildcard || dowIsWildcard) {
+    return daysOfMonth.includes(dom) && daysOfWeek.includes(dow);
+  }
+  return daysOfMonth.includes(dom) || daysOfWeek.includes(dow);
 }
 
 // ── Timezone support ──
@@ -280,16 +308,15 @@ export class CronScheduler {
    */
   static matches(expression: string, date: Date = new Date()): boolean {
     try {
-      const { minutes, hours, daysOfMonth, months, daysOfWeek } = parseExpression(expression);
+      const { minutes, hours, daysOfMonth, months, daysOfWeek, domIsWildcard, dowIsWildcard } = parseExpression(expression);
 
       const { minute, hour, dom, month, dow } = wallClock(date);
 
       return (
         minutes.includes(minute) &&
         hours.includes(hour) &&
-        daysOfMonth.includes(dom) &&
         months.includes(month) &&
-        daysOfWeek.includes(dow)
+        matchesDayFields(dom, dow, daysOfMonth, daysOfWeek, domIsWildcard, dowIsWildcard)
       );
     } catch {
       return false;
@@ -305,7 +332,7 @@ export class CronScheduler {
   static nextRun(expression: string, from: Date = new Date()): Date | null {
     if (cronTimezone) return CronScheduler.nextRunInTimezone(expression, from);
     try {
-      const { minutes, hours, daysOfMonth, months, daysOfWeek } = parseExpression(expression);
+      const { minutes, hours, daysOfMonth, months, daysOfWeek, domIsWildcard, dowIsWildcard } = parseExpression(expression);
 
       // Start from the next minute
       const start = new Date(from);
@@ -333,7 +360,7 @@ export class CronScheduler {
           continue;
         }
 
-        if (!daysOfMonth.includes(dom) || !daysOfWeek.includes(dow)) {
+        if (!matchesDayFields(dom, dow, daysOfMonth, daysOfWeek, domIsWildcard, dowIsWildcard)) {
           // Advance to next day
           candidate.setDate(candidate.getDate() + 1);
           candidate.setHours(0, 0, 0, 0);
@@ -389,7 +416,7 @@ export class CronScheduler {
    */
   private static nextRunInTimezone(expression: string, from: Date): Date | null {
     try {
-      const { minutes, hours, daysOfMonth, months, daysOfWeek } = parseExpression(expression);
+      const { minutes, hours, daysOfMonth, months, daysOfWeek, domIsWildcard, dowIsWildcard } = parseExpression(expression);
 
       // Start from the next whole minute.
       let ts = Math.floor(from.getTime() / 60_000) * 60_000 + 60_000;
@@ -398,7 +425,7 @@ export class CronScheduler {
 
       while (ts < limit && ++guard < 600_000) {
         const wc = wallClock(new Date(ts));
-        if (!months.includes(wc.month) || !daysOfMonth.includes(wc.dom) || !daysOfWeek.includes(wc.dow)) {
+        if (!months.includes(wc.month) || !matchesDayFields(wc.dom, wc.dow, daysOfMonth, daysOfWeek, domIsWildcard, dowIsWildcard)) {
           ts = startOfNextLocalDay(ts);
           continue;
         }
