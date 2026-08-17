@@ -148,3 +148,13 @@
   .cin-orb, .cin-ring { animation: none !important; }
   .cin-ring { opacity: 0.35; }
 }
+
+@media (max-width: 720px) {
+  /* Narrower canvas so the ticker + Task Flow stepper below stay visible
+     without excessive scrolling — the ring/orb/label sizes are already
+     em-based off .cin-core-visual/.cin-agent-orb, so they scale down with
+     the canvas automatically. */
+  .cin-orbit-canvas { max-height: 360px; min-height: 200px; }
+  .cin-orbit-detail { max-width: 100%; }
+  .cin-orbit-ticker { max-height: 4.2em; }
+}

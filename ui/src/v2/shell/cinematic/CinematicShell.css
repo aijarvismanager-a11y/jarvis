@@ -36,3 +36,9 @@
 .cin-stat .v { font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--ink); }
 
 .cin-hint { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; color: var(--faint); flex-shrink: 0; }
+
+@media (max-width: 720px) {
+  .cin-shell { padding: 10px 0 8px; gap: 8px; }
+  .cin-stat { min-width: 88px; padding: 6px 12px; }
+  .cin-readout { gap: 6px; }
+}

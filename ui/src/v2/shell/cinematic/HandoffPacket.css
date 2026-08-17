@@ -63,3 +63,7 @@
 .cin-handoff-arrow { color: var(--faint); }
 .cin-handoff-status { color: var(--ink3); text-transform: uppercase; letter-spacing: 0.04em; }
 .cin-handoff-empty { color: var(--faint); }
+
+@media (max-width: 720px) {
+  .cin-handoff-ticker { max-height: 4.2em; }
+}

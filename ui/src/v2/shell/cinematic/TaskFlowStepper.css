@@ -85,3 +85,8 @@
   border-color: color-mix(in srgb, var(--listen) 40%, transparent);
   color: var(--listen-tx);
 }
+
+@media (max-width: 720px) {
+  .cin-flow__step { padding: 3px 6px; font-size: 9px; }
+  .cin-flow__step:not(:last-child)::after { width: 6px; }
+}
