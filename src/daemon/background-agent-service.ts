@@ -45,6 +45,8 @@ export class BackgroundAgentService implements Service, IAgentService {
   private role: RoleDefinition | null = null;
   private researchQueue: ResearchQueue | null = null;
   private busy = false;
+  /** Serializes handleMessage() calls onto the shared primary agent's conversation history - see handleMessage() for why. */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(config: JarvisConfig, llmManager: LLMManager) {
     this.config = config;
@@ -132,22 +134,30 @@ export class BackgroundAgentService implements Service, IAgentService {
     if (activeTurns.isDraining) return 'skipped: draining';
     const endTurn = activeTurns.begin();
     try {
-      // Wait if busy — event reactor already has its own queue, so this is a safety net
-      const waitStart = Date.now();
-      while (this.busy && Date.now() - waitStart < 60_000) {
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
-      this.busy = true;
-      try {
-        const systemPrompt = this.buildSystemPromptParts(channel);
-        return await this.orchestrator.processMessage(systemPrompt, text);
-      } catch (err) {
-        console.error('[BackgroundAgent] Message error:', err);
-        return `Error: ${err instanceof Error ? err.message : String(err)}`;
-      } finally {
-        this.busy = false;
-      }
+      // Callers that bypass the event reactor's own queue (e.g. the
+      // error_detected/struggle_detected handlers in daemon/index.ts, which
+      // call handleMessage() directly) previously raced here: this waited
+      // up to 60s for `this.busy` to clear, then barged in anyway if it
+      // hadn't, letting two processMessage() calls run concurrently against
+      // the same primary agent's conversation history and interleave/drop
+      // messages. Chain onto a promise queue instead so every call is
+      // strictly serialized, however long the previous one takes - no
+      // timeout, no forced concurrent access.
+      const run = async (): Promise<string> => {
+        this.busy = true;
+        try {
+          const systemPrompt = this.buildSystemPromptParts(channel);
+          return await this.orchestrator.processMessage(systemPrompt, text);
+        } catch (err) {
+          console.error('[BackgroundAgent] Message error:', err);
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        } finally {
+          this.busy = false;
+        }
+      };
+      const result = this.queue.then(run, run);
+      this.queue = result.catch(() => undefined);
+      return await result;
     } finally {
       endTurn();
     }

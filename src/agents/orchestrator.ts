@@ -222,9 +222,7 @@ export class AgentOrchestrator {
       throw new Error(`Parent agent not found: ${parentId}`);
     }
 
-    const liveAgentCount = this.hierarchy
-      .getAllAgents()
-      .filter((a) => a.status !== 'terminated').length;
+    const liveAgentCount = this.hierarchy.countAgentsByStatus((a) => a.status !== 'terminated');
     if (liveAgentCount >= MAX_TOTAL_AGENTS) {
       throw new Error(
         `Cannot spawn sub-agent: the hierarchy already has ${liveAgentCount} active/idle agents (max ${MAX_TOTAL_AGENTS}). Terminate unused agents before spawning more.`,

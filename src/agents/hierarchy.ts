@@ -91,6 +91,15 @@ export class AgentHierarchy {
     return this.getAllAgents().filter((agent) => agent.status === 'active');
   }
 
+  /** Single-pass count, no array allocation — cheaper than getAllAgents().filter() for callers that only need the count. */
+  countAgentsByStatus(predicate: (agent: AgentInstance) => boolean): number {
+    let count = 0;
+    for (const agent of this.agents.values()) {
+      if (predicate(agent)) count++;
+    }
+    return count;
+  }
+
   /**
    * Get the full tree structure for display
    */
