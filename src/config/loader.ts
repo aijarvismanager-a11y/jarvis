@@ -73,6 +73,14 @@ export function applyEnvOverrides(config: JarvisConfig): void {
     config.daemon.brain_domain = env.JARVIS_BRAIN_DOMAIN;
   }
 
+  // Explicit non-real-data mode (spec §79-80's anti-dummy-data rule). Truthy
+  // values enable; "0"/"false" explicitly disable — same convention as
+  // JARVIS_REALTIME_VOICE below.
+  if (env.JARVIS_DEMO_MODE !== undefined) {
+    const v = env.JARVIS_DEMO_MODE.trim().toLowerCase();
+    config.daemon.demo_mode = v !== '' && v !== '0' && v !== 'false' && v !== 'no';
+  }
+
   if (env.JARVIS_WAKE_ENGINE) {
     const engine = env.JARVIS_WAKE_ENGINE;
     if (engine === 'openwakeword' || engine === 'webspeech' || engine === 'auto') {

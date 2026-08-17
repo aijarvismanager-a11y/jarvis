@@ -7,6 +7,7 @@ import { useTheme } from "./useTheme";
 import { useCinematicMode, type UIMode } from "./useCinematicMode";
 import { EmergencyChip } from "./EmergencyChip";
 import { AwarenessChip } from "./AwarenessChip";
+import { DemoModeChip } from "./DemoModeChip";
 
 /**
  * Top bar — 44px, never two rows. Left: room name + contextual actions
@@ -101,6 +102,7 @@ export function TopBar({
           </span>
         )}
 
+        <DemoModeChip />
         <EmergencyChip />
         <AwarenessChip />
 

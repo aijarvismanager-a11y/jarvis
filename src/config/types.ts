@@ -414,6 +414,14 @@ export type JarvisConfig = {
      * drain finishes before SIGKILL. Default 75s.
      */
     drain_deadline_ms?: number;
+    /**
+     * Explicit "this is not real data" mode (Cinematic UI spec §79-80's
+     * anti-dummy-data rule). When true, `/api/health` reports it and the
+     * dashboard shows a persistent badge so a demo/sample deployment can
+     * never be mistaken for a live one. Defaults to false; SYSTEM-owned
+     * (config.yaml / `JARVIS_DEMO_MODE` env), never toggled from the DB.
+     */
+    demo_mode?: boolean;
   };
   auth?: AuthConfig;
   /**

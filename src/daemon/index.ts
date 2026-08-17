@@ -3508,7 +3508,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     registry.register(wsService);
 
     // 8. Start health monitor (before services, so API routes can reference it)
-    healthMonitor = new HealthMonitor(registry, config.dbPath);
+    healthMonitor = new HealthMonitor(registry, config.dbPath, jarvisConfig.daemon.demo_mode === true);
 
     // 8b. Wire channel service to WebSocket for cross-channel broadcasts
     wsService.setChannelService(channelService);

@@ -134,6 +134,24 @@ google:
     expect(loaded.google?.client_id).toBe('company-client.apps.googleusercontent.com');
   });
 
+  test('JARVIS_DEMO_MODE env var overrides daemon.demo_mode', async () => {
+    await Bun.write(TEST_CONFIG_PATH, 'daemon:\n  port: 7777\n');
+
+    const original = process.env.JARVIS_DEMO_MODE;
+    try {
+      process.env.JARVIS_DEMO_MODE = 'true';
+      const loaded = await loadConfig(TEST_CONFIG_PATH);
+      expect(loaded.daemon.demo_mode).toBe(true);
+
+      process.env.JARVIS_DEMO_MODE = 'false';
+      const disabled = await loadConfig(TEST_CONFIG_PATH);
+      expect(disabled.daemon.demo_mode).toBe(false);
+    } finally {
+      if (original === undefined) delete process.env.JARVIS_DEMO_MODE;
+      else process.env.JARVIS_DEMO_MODE = original;
+    }
+  });
+
   test('loadConfig does not mutate DEFAULT_CONFIG', async () => {
     // Regression test: a previous implementation of deepMerge returned
     // DEFAULT_CONFIG by reference when the parsed YAML was empty/null, so

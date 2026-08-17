@@ -15,6 +15,7 @@ export type HealthStatus = {
   memory: { heapUsed: number; heapTotal: number; rss: number };
   database: { connected: boolean; size: number };  // DB file size in bytes
   startedAt: number;        // epoch ms
+  demoMode: boolean;        // spec §79-80 anti-dummy-data rule; see JarvisConfig.daemon.demo_mode
 };
 
 export class HealthMonitor {
@@ -22,11 +23,13 @@ export class HealthMonitor {
   private registry: ServiceRegistry;
   private checkInterval: Timer | null = null;
   private dbPath: string;
+  private demoMode: boolean;
 
-  constructor(registry: ServiceRegistry, dbPath: string) {
+  constructor(registry: ServiceRegistry, dbPath: string, demoMode: boolean = false) {
     this.startTime = Date.now();
     this.registry = registry;
     this.dbPath = dbPath;
+    this.demoMode = demoMode;
   }
 
   /**
@@ -75,6 +78,7 @@ export class HealthMonitor {
       memory,
       database,
       startedAt: this.startTime,
+      demoMode: this.demoMode,
     };
   }
 
