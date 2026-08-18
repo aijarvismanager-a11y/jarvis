@@ -182,7 +182,11 @@ export class BackgroundAgentService implements Service, IAgentService {
     try {
       const due = getDueCommitments();
       const upcoming = getUpcoming(5);
-      const allCommitments = [...due, ...upcoming];
+      // getUpcoming orders by when_due ASC with no lower bound, so an
+      // already-due commitment (also returned by getDueCommitments) sorts
+      // first and comes back in both lists - dedupe by id.
+      const dueIds = new Set(due.map((c) => c.id));
+      const allCommitments = [...due, ...upcoming.filter((c) => !dueIds.has(c.id))];
 
       if (allCommitments.length > 0) {
         context.activeCommitments = allCommitments.map((c) => {
@@ -247,8 +251,14 @@ export class BackgroundAgentService implements Service, IAgentService {
         const role = loadRole(rolePath);
         console.log(`[BackgroundAgent] Loaded role '${role.name}' from ${rolePath}`);
         return role;
-      } catch {
-        // Try next path
+      } catch (err) {
+        // Only "file doesn't exist at this candidate path" is expected here
+        // - a YAML syntax error or failed validation on a path that DOES
+        // exist must not be silently swallowed and re-tried as if it were
+        // just a missing file, or the real cause never reaches the logs.
+        if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+          console.error(`[BackgroundAgent] Failed to load role from ${rolePath}:`, err);
+        }
       }
     }
 

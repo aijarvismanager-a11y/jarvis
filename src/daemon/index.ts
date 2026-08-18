@@ -247,12 +247,6 @@ async function handleShutdown(signal: string): Promise<void> {
       awarenessService = null;
     }
 
-    // Stop background agent (separate browser)
-    if (bgAgent) {
-      await bgAgent.stop();
-      bgAgent = null;
-    }
-
     // Stop the trigger manager so no NEW RUN_FLOW jobs get enqueued while we
     // drain (in-flight runs already claimed keep going).
     if (triggerManager) {
@@ -283,6 +277,17 @@ async function handleShutdown(signal: string): Promise<void> {
     // Stop health monitor
     if (healthMonitor) {
       healthMonitor.stop();
+    }
+
+    // Stop background agent (separate browser) - only now, after
+    // activeTurns.drain() above, since handleMessage() explicitly registers
+    // each in-flight call with activeTurns so the drain phase awaits it
+    // (same as primary turns). Stopping earlier (in Phase 1, alongside the
+    // event SOURCES that phase is meant to silence) tore down the
+    // orchestrator/browser out from under a still-running in-flight call.
+    if (bgAgent) {
+      await bgAgent.stop();
+      bgAgent = null;
     }
 
     // Stop all services (reverse order: websocket -> observers -> agent). Safe
@@ -4720,7 +4725,12 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
                   `Start your response with the fix, not a question.`,
                   'awareness'
                 ).then(solution => {
-                  if (solution && solution.length > 10) {
+                  // handleMessage() returns sentinel strings ("Error: ...",
+                  // "skipped: draining") through the same return value as a
+                  // real answer - both are longer than 10 chars, so without
+                  // excluding them explicitly they'd get broadcast/spoken
+                  // to the user as if they were an actual fix.
+                  if (solution && solution.length > 10 && !solution.startsWith('Error:') && solution !== 'skipped: draining') {
                     const solutionText = `**Fix for error in ${appName}:**\n${solution.slice(0, 500)}`;
                     wsService.broadcastNotification(solutionText, 'urgent');
                     sendDesktopNotification(`JARVIS: Fix for ${appName}`, solution.slice(0, 200), { urgency: 'critical', expireMs: 15000 });
@@ -4766,7 +4776,12 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
                   `Provide a specific, actionable fix. Start with the solution, not a question.`,
                   'awareness'
                 ).then(solution => {
-                  if (solution && solution.length > 10) {
+                  // handleMessage() returns sentinel strings ("Error: ...",
+                  // "skipped: draining") through the same return value as a
+                  // real answer - both are longer than 10 chars, so without
+                  // excluding them explicitly they'd get broadcast/spoken
+                  // to the user as if they were an actual fix.
+                  if (solution && solution.length > 10 && !solution.startsWith('Error:') && solution !== 'skipped: draining') {
                     const solutionText = `**Help for ${sAppName}:**\n${solution.slice(0, 500)}`;
                     wsService.broadcastNotification(solutionText, 'urgent');
                     sendDesktopNotification(`JARVIS: Help for ${sAppName}`, solution.slice(0, 200), { urgency: 'critical', expireMs: 15000 });
