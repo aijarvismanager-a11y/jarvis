@@ -159,7 +159,7 @@ export function upsertConnection(input: UpsertConnectionInput): AppConnection {
       input.pieceVersion,
       projectId,
       input.ownerId ?? null,
-      JSON.stringify(input.value),
+      encryptJson(input.value),
       input.metadata ? JSON.stringify(input.metadata) : null,
       input.preSelectForNewProjects ? 1 : 0,
       ts,
