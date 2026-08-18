@@ -11,6 +11,7 @@
  */
 
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
+import { withWorkerRetries } from './exec-cli.ts';
 
 export type PageElement = { id: number; tag: string; text: string; attrs: Record<string, string> };
 export type PageSnapshot = { title: string; url: string; text: string; elements: PageElement[] };
@@ -75,7 +76,11 @@ export class ChatGPTWorker implements Worker {
     if (!this.definition.enabled) {
       return { status: 'failed', summary: 'worker disabled', output: '', files: [], error: 'disabled' };
     }
+    return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
+      console.warn(`[ChatGPTWorker] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
 
+  private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {
     try {
       const opened = await this.driver.navigate(CHATGPT_URL);
       let composer = findComposer(opened);
