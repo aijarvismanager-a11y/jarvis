@@ -14,7 +14,7 @@
  * Writes are debounced 400 ms so an active drag doesn't fsync at 60 Hz.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -32,6 +32,12 @@ const WRITE_DEBOUNCE_MS = 400;
 let state: WindowStateFile | null = null;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
+function isValidRoomBounds(v: unknown): v is RoomBounds {
+  if (!v || typeof v !== 'object') return false;
+  const b = v as Record<string, unknown>;
+  return typeof b.x === 'number' && typeof b.y === 'number' && typeof b.w === 'number' && typeof b.h === 'number';
+}
+
 function loadFromDisk(): WindowStateFile {
   if (!existsSync(STATE_PATH)) {
     return { version: 1, rooms: {} };
@@ -40,8 +46,22 @@ function loadFromDisk(): WindowStateFile {
     const raw = readFileSync(STATE_PATH, 'utf-8');
     const parsed = JSON.parse(raw) as Partial<WindowStateFile>;
     if (parsed && parsed.version === 1 && parsed.rooms && typeof parsed.rooms === 'object') {
-      return { version: 1, rooms: parsed.rooms };
+      // Drop individual malformed room entries (hand-edited/partially
+      // corrupted file) rather than trusting the whole shape check alone -
+      // a room value missing a field would otherwise reach getRoomBounds()
+      // and get forwarded straight to the native panel.spawn RPC with
+      // undefined x/y/w/h.
+      const rooms: Record<string, RoomBounds> = {};
+      for (const [key, value] of Object.entries(parsed.rooms)) {
+        if (isValidRoomBounds(value)) {
+          rooms[key] = value;
+        } else {
+          console.warn(`[window-state] dropping malformed bounds for room '${key}'`);
+        }
+      }
+      return { version: 1, rooms };
     }
+    console.warn(`[window-state] unrecognized version/shape (version=${JSON.stringify(parsed?.version)}) — starting fresh`);
   } catch (err) {
     console.warn('[window-state] failed to parse — starting fresh:', err);
   }
@@ -63,10 +83,25 @@ function scheduleWrite(): void {
 
 /** Sync write — used on shutdown to flush a pending debounce. */
 export function flushWindowState(): void {
+  // Cancel any pending debounced write - flushWindowState() is about to
+  // write the current state synchronously, so a leftover timer would both
+  // hold the event loop open and fire a redundant duplicate write later
+  // for any caller that doesn't immediately process.exit() afterward.
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
   if (!state) return;
   try {
     if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
-    writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8');
+    // Write to a temp file then rename over the real path - renameSync is
+    // atomic on the POSIX platforms this daemon supports, so a crash mid-write
+    // (SIGKILL, power loss) can never leave window-state.json truncated.
+    // A truncated file previously failed to parse on the next load and
+    // silently discarded every saved room position.
+    const tmpPath = `${STATE_PATH}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
+    renameSync(tmpPath, STATE_PATH);
   } catch (err) {
     console.warn('[window-state] failed to write:', err);
   }
