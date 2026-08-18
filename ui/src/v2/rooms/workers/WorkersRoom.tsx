@@ -109,7 +109,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
                 onRemove={
                   w.type === "custom"
                     ? async () => {
-                        const r = await data.removeWorker(w.name);
+                        const r = await data.removeWorker(w);
                         setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                       }
                     : undefined
@@ -295,17 +295,25 @@ function RunPanel({
 
 const ALL_CAPABILITIES: readonly WorkerCapability[] = ["code", "research", "write", "plan", "image", "general"];
 
-/** Registers a CommandWorker at runtime (spec §10, completion checklist "Workerを追加できる") — any CLI, no code change. */
+export type AddWorkerInput =
+  | { name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
+  | { name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] };
+
+/** Registers a CommandWorker or MCPWorker at runtime (spec §10, completion checklist "Workerを追加できる") — any CLI or MCP server, no code change. */
 function AddWorkerDialog({
   onClose,
   onAdd,
 }: {
   onClose: () => void;
-  onAdd: (input: { name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }) => Promise<boolean>;
+  onAdd: (input: AddWorkerInput) => Promise<boolean>;
 }) {
+  const [kind, setKind] = useState<"cli" | "mcp">("cli");
   const [name, setName] = useState("");
   const [binary, setBinary] = useState("");
   const [argsText, setArgsText] = useState("{prompt}");
+  const [mcpArgsText, setMcpArgsText] = useState("");
+  const [tool, setTool] = useState("");
+  const [promptParam, setPromptParam] = useState("");
   const [capabilities, setCapabilities] = useState<WorkerCapability[]>(["general"]);
   const [busy, setBusy] = useState(false);
 
@@ -313,13 +321,30 @@ function AddWorkerDialog({
     setCapabilities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   };
 
-  const canSubmit = name.trim() && binary.trim() && capabilities.length > 0;
+  const canSubmit =
+    Boolean(name.trim()) &&
+    capabilities.length > 0 &&
+    (kind === "cli" ? Boolean(binary.trim()) : Boolean(binary.trim()) && Boolean(tool.trim()));
 
   const submit = async () => {
     if (!canSubmit || busy) return;
     setBusy(true);
-    const args = argsText.split(/\s+/).filter(Boolean);
-    const ok = await onAdd({ name: name.trim(), binary: binary.trim(), args, capabilities });
+    const ok =
+      kind === "cli"
+        ? await onAdd({
+            name: name.trim(),
+            binary: binary.trim(),
+            args: argsText.split(/\s+/).filter(Boolean),
+            capabilities,
+          })
+        : await onAdd({
+            name: name.trim(),
+            command: binary.trim(),
+            args: mcpArgsText.split(/\s+/).filter(Boolean),
+            tool: tool.trim(),
+            ...(promptParam.trim() ? { promptParam: promptParam.trim() } : {}),
+            capabilities,
+          });
     setBusy(false);
     if (ok) onClose();
   };
@@ -329,14 +354,34 @@ function AddWorkerDialog({
       <div className="rk-workers__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="rk-workers__dialog-title">Add worker</div>
         <div className="rk-workers__dialog-sub">
-          Wires in any CLI already on this machine as a Worker. Use <code>{"{prompt}"}</code> in args where the task prompt should go — omit it and the prompt is appended as the last argument.
+          {kind === "cli"
+            ? <>Wires in any CLI already on this machine as a Worker. Use <code>{"{prompt}"}</code> in args where the task prompt should go — omit it and the prompt is appended as the last argument.</>
+            : <>Wires in any MCP server (stdio) as a Worker. JARVIS launches it, does the MCP handshake, and calls the given tool with the task prompt.</>}
         </div>
+        <div className="rk-workers__flab">type</div>
+        <Select value={kind} onChange={(e) => setKind(e.target.value as "cli" | "mcp")}>
+          <option value="cli">CLI</option>
+          <option value="mcp">MCP server</option>
+        </Select>
         <div className="rk-workers__flab">name</div>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my_tool" autoFocus />
-        <div className="rk-workers__flab">binary</div>
-        <Input value={binary} onChange={(e) => setBinary(e.target.value)} placeholder="my-tool" />
-        <div className="rk-workers__flab">args (space-separated)</div>
-        <Input value={argsText} onChange={(e) => setArgsText(e.target.value)} placeholder="-p {prompt} --quiet" mono />
+        <div className="rk-workers__flab">{kind === "cli" ? "binary" : "command"}</div>
+        <Input value={binary} onChange={(e) => setBinary(e.target.value)} placeholder={kind === "cli" ? "my-tool" : "my-mcp-server"} />
+        {kind === "cli" ? (
+          <>
+            <div className="rk-workers__flab">args (space-separated)</div>
+            <Input value={argsText} onChange={(e) => setArgsText(e.target.value)} placeholder="-p {prompt} --quiet" mono />
+          </>
+        ) : (
+          <>
+            <div className="rk-workers__flab">server args (space-separated, optional)</div>
+            <Input value={mcpArgsText} onChange={(e) => setMcpArgsText(e.target.value)} placeholder="--stdio" mono />
+            <div className="rk-workers__flab">tool</div>
+            <Input value={tool} onChange={(e) => setTool(e.target.value)} placeholder="search" />
+            <div className="rk-workers__flab">prompt argument name (optional, default "prompt")</div>
+            <Input value={promptParam} onChange={(e) => setPromptParam(e.target.value)} placeholder="prompt" />
+          </>
+        )}
         <div className="rk-workers__flab">capabilities</div>
         <div className="rk-workers__card-caps">
           {ALL_CAPABILITIES.map((c) => (

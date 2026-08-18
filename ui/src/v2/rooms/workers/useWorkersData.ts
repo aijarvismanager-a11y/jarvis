@@ -122,14 +122,14 @@ export function useWorkersData() {
   );
 
   const addWorker = useCallback(
-    async (input: {
-      name: string;
-      binary: string;
-      args: string[];
-      capabilities: WorkerCapability[];
-    }): Promise<{ ok: boolean; message: string }> => {
+    async (
+      input:
+        | { name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
+        | { name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] },
+    ): Promise<{ ok: boolean; message: string }> => {
+      const endpoint = "binary" in input ? "/api/orchestrator/custom-workers" : "/api/orchestrator/mcp-workers";
       try {
-        const resp = await fetch("/api/orchestrator/custom-workers", {
+        const resp = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),
@@ -145,12 +145,16 @@ export function useWorkersData() {
   );
 
   const removeWorker = useCallback(
-    async (name: string): Promise<{ ok: boolean; message: string }> => {
+    async (worker: WorkerSummary): Promise<{ ok: boolean; message: string }> => {
+      const endpoint =
+        worker.input_method === "mcp"
+          ? `/api/orchestrator/mcp-workers/${encodeURIComponent(worker.name)}`
+          : `/api/orchestrator/custom-workers/${encodeURIComponent(worker.name)}`;
       try {
-        const resp = await fetch(`/api/orchestrator/custom-workers/${encodeURIComponent(name)}`, { method: "DELETE" });
+        const resp = await fetch(endpoint, { method: "DELETE" });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refresh();
-        return { ok: true, message: `${name} removed.` };
+        return { ok: true, message: `${worker.name} removed.` };
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : "Failed to remove Worker" };
       }

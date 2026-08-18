@@ -151,6 +151,62 @@ describe('createOrchestratorRoutes', () => {
     expect(missingResp.status).toBe(404);
   });
 
+  it('POST /api/orchestrator/mcp-workers adds a Worker to the live registry and persists it', async () => {
+    const { routes, registry } = setup();
+    const req = new Request('http://x', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'my_mcp', command: 'my-mcp-server', args: [], tool: 'run', capabilities: ['research'] }),
+    });
+    const resp = await routes['/api/orchestrator/mcp-workers']!.POST!(req);
+    expect(resp.status).toBe(201);
+    expect(registry.get('my_mcp')).toBeDefined();
+    expect(registry.get('my_mcp')?.definition.input_method).toBe('mcp');
+
+    const { loadMcpWorkers } = await import('../../workers/mcp-registry.ts');
+    expect(loadMcpWorkers(dir!)).toEqual([{ name: 'my_mcp', command: 'my-mcp-server', args: [], tool: 'run', capabilities: ['research'] }]);
+  });
+
+  it('POST /api/orchestrator/mcp-workers rejects a name collision with a built-in Worker', async () => {
+    const { routes } = setup();
+    const req = new Request('http://x', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'gemini', command: 'x', args: [], tool: 'run', capabilities: ['research'] }),
+    });
+    const resp = await routes['/api/orchestrator/mcp-workers']!.POST!(req);
+    expect(resp.status).toBe(400);
+  });
+
+  it('POST /api/orchestrator/mcp-workers rejects a name collision with an existing custom Worker', async () => {
+    const { routes } = setup();
+    await routes['/api/orchestrator/custom-workers']!.POST!(
+      new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'shared_name', binary: 'x', args: [], capabilities: ['code'] }) }),
+    );
+    const req = new Request('http://x', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'shared_name', command: 'y', args: [], tool: 'run', capabilities: ['research'] }),
+    });
+    const resp = await routes['/api/orchestrator/mcp-workers']!.POST!(req);
+    expect(resp.status).toBe(400);
+  });
+
+  it('DELETE /api/orchestrator/mcp-workers/:name removes it from the registry and disk, 404s if unknown', async () => {
+    const { routes, registry } = setup();
+    await routes['/api/orchestrator/mcp-workers']!.POST!(
+      new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'my_mcp', command: 'my-mcp-server', args: [], tool: 'run', capabilities: ['research'] }) }),
+    );
+
+    const delReq = new Request('http://x', { method: 'DELETE' }) as any;
+    delReq.params = { name: 'my_mcp' };
+    const delResp = await routes['/api/orchestrator/mcp-workers/:name']!.DELETE!(delReq);
+    expect(delResp.status).toBe(200);
+    expect(registry.get('my_mcp')).toBeUndefined();
+
+    const missing = new Request('http://x', { method: 'DELETE' }) as any;
+    missing.params = { name: 'my_mcp' };
+    const missingResp = await routes['/api/orchestrator/mcp-workers/:name']!.DELETE!(missing);
+    expect(missingResp.status).toBe(404);
+  });
+
   it('GET /api/orchestrator/handoffs lists filed handoffs, most recent first', async () => {
     const { routes, workspace } = setup();
     writeHandoffFile(workspace.handoff, {

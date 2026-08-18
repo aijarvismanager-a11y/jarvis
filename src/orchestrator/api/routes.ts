@@ -14,6 +14,8 @@ import type { WorkspacePaths } from '../workspace.ts';
 import { setWorkerEnabledPersisted } from '../../workers/settings.ts';
 import { addCustomWorker, removeCustomWorker } from '../../workers/custom-registry.ts';
 import { CommandWorker } from '../../workers/command-worker.ts';
+import { addMcpWorker, removeMcpWorker } from '../../workers/mcp-registry.ts';
+import { MCPWorker } from '../../workers/mcp.ts';
 import type { WorkerCapability } from '../../workers/types.ts';
 
 const CORS = { 'Access-Control-Allow-Origin': '*' } as const;
@@ -109,6 +111,59 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
       DELETE: (req: Request & { params: { name: string } }) => {
         const removed = removeCustomWorker(ctx.getDataDir(), req.params.name);
         if (!removed) return error('Custom Worker not found', 404);
+        ctx.getRegistry().unregister(req.params.name);
+        return json({ removed: req.params.name });
+      },
+    },
+
+    '/api/orchestrator/mcp-workers': {
+      POST: async (req: Request) => {
+        const body = (await req.json().catch(() => null)) as
+          | { name?: unknown; command?: unknown; args?: unknown; tool?: unknown; promptParam?: unknown; capabilities?: unknown; timeout_ms?: unknown; retry?: unknown }
+          | null;
+        if (!body || typeof body.name !== 'string' || !body.name.trim()) {
+          return error('name is required', 400);
+        }
+        if (typeof body.command !== 'string' || !body.command.trim()) {
+          return error('command is required', 400);
+        }
+        if (!Array.isArray(body.args) || !body.args.every((a) => typeof a === 'string')) {
+          return error('args must be an array of strings', 400);
+        }
+        if (typeof body.tool !== 'string' || !body.tool.trim()) {
+          return error('tool is required', 400);
+        }
+        if (
+          !Array.isArray(body.capabilities) ||
+          body.capabilities.length === 0 ||
+          !body.capabilities.every((c) => VALID_CAPABILITIES.includes(c as WorkerCapability))
+        ) {
+          return error(`capabilities must be a non-empty array from: ${VALID_CAPABILITIES.join(', ')}`, 400);
+        }
+
+        const config = {
+          name: body.name.trim(),
+          command: body.command.trim(),
+          args: body.args as string[],
+          tool: body.tool.trim(),
+          capabilities: body.capabilities as WorkerCapability[],
+          ...(typeof body.promptParam === 'string' && body.promptParam.trim() ? { promptParam: body.promptParam.trim() } : {}),
+          ...(typeof body.timeout_ms === 'number' ? { timeout_ms: body.timeout_ms } : {}),
+          ...(typeof body.retry === 'number' ? { retry: body.retry } : {}),
+        };
+
+        const result = addMcpWorker(ctx.getDataDir(), config);
+        if (!result.ok) return error(result.error, 400);
+
+        ctx.getRegistry().register(new MCPWorker({ ...result.config, workspace: ctx.getWorkspace().root }));
+        return json({ worker: serializeWorker(ctx.getRegistry().get(config.name)!.definition) }, 201);
+      },
+    },
+
+    '/api/orchestrator/mcp-workers/:name': {
+      DELETE: (req: Request & { params: { name: string } }) => {
+        const removed = removeMcpWorker(ctx.getDataDir(), req.params.name);
+        if (!removed) return error('MCP Worker not found', 404);
         ctx.getRegistry().unregister(req.params.name);
         return json({ removed: req.params.name });
       },

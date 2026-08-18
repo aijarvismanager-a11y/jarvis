@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { CommandWorkerConfig } from './command-worker.ts';
+import { loadMcpWorkers } from './mcp-registry.ts';
 
 const BUILTIN_NAMES = new Set(['claude_code', 'gemini', 'chatgpt']);
 
@@ -50,8 +51,9 @@ export function addCustomWorker(dataDir: string, config: CommandWorkerConfig): A
   }
 
   const existing = loadCustomWorkers(dataDir);
-  if (existing.some((w) => w.name === config.name)) {
-    return { ok: false, error: `a custom Worker named "${config.name}" already exists` };
+  const takenNames = new Set([...existing.map((w) => w.name), ...loadMcpWorkers(dataDir).map((w) => w.name)]);
+  if (takenNames.has(config.name)) {
+    return { ok: false, error: `a Worker named "${config.name}" already exists` };
   }
 
   const next = [...existing, config];

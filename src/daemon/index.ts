@@ -35,6 +35,8 @@ import { createDefaultWorkerRegistry } from "../workers/index.ts";
 import { loadWorkerSettings, applyWorkerSettings } from "../workers/settings.ts";
 import { loadCustomWorkers } from "../workers/custom-registry.ts";
 import { CommandWorker } from "../workers/command-worker.ts";
+import { loadMcpWorkers } from "../workers/mcp-registry.ts";
+import { MCPWorker } from "../workers/mcp.ts";
 import { TaskWorkerRunner } from "../orchestrator/task-runner.ts";
 import { createOrchestratorRoutes } from "../orchestrator/api/routes.ts";
 import { sendHandoff } from "../agents/handoff.ts";
@@ -4168,6 +4170,9 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     const workerRegistry = createDefaultWorkerRegistry(orchestratorWorkspace.root);
     for (const custom of loadCustomWorkers(dataDir)) {
       workerRegistry.register(new CommandWorker({ ...custom, workspace: orchestratorWorkspace.root }));
+    }
+    for (const mcp of loadMcpWorkers(dataDir)) {
+      workerRegistry.register(new MCPWorker({ ...mcp, workspace: orchestratorWorkspace.root }));
     }
     applyWorkerSettings(workerRegistry, loadWorkerSettings(dataDir));
     const taskWorkerRunner = new TaskWorkerRunner(workerRegistry, orchestratorWorkspace, (args) => {
