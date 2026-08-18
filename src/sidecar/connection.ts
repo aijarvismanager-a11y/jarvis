@@ -47,12 +47,14 @@ export class SidecarConnection {
     this.binarySpool = binarySpool ?? null;
   }
 
-  /** Send an RPC request to the sidecar */
-  sendRPC(request: RPCRequest): void {
+  /** Send an RPC request to the sidecar. Returns false if the send failed (dead socket). */
+  sendRPC(request: RPCRequest): boolean {
     try {
       this.ws.send(JSON.stringify(request));
+      return true;
     } catch (err) {
       console.error(`[SidecarConnection:${this.sidecarId}] Failed to send RPC:`, err);
+      return false;
     }
   }
 

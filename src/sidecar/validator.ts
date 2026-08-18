@@ -43,7 +43,7 @@ const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 /**
  * Recursively strip dangerous keys from an object.
  */
-function sanitize(obj: unknown): unknown {
+export function sanitize(obj: unknown): unknown {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) return obj.map(sanitize);
@@ -116,6 +116,25 @@ export function validateEvent(raw: unknown): ValidationResult {
   // priority (optional)
   if (obj.priority !== undefined && !VALID_PRIORITIES.has(obj.priority as EventPriority)) {
     return { valid: false, error: `Invalid priority: ${String(obj.priority)}` };
+  }
+
+  // binary (optional) — a 'ref' variant must carry the ref_id the brain
+  // will later match the separate binary frame against.
+  if (obj.binary !== undefined) {
+    if (typeof obj.binary !== 'object' || obj.binary === null) {
+      return { valid: false, error: 'binary must be an object' };
+    }
+    const binary = obj.binary as Record<string, unknown>;
+    if (binary.type === 'ref') {
+      if (typeof binary.ref_id !== 'string' || binary.ref_id.length === 0) {
+        return { valid: false, error: 'binary.ref_id is required for type "ref"' };
+      }
+      if (typeof binary.mime_type !== 'string') {
+        return { valid: false, error: 'binary.mime_type is required for type "ref"' };
+      }
+    } else if (binary.type !== 'inline') {
+      return { valid: false, error: `Invalid binary.type: ${String(binary.type)}` };
+    }
   }
 
   // Sanitize the entire event

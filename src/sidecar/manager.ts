@@ -27,6 +27,7 @@ import { BinarySpool, type BinarySpoolStats } from './binary-spool.ts';
 import { SidecarConnection } from './connection.ts';
 import { classifySidecarVersion, SIDECAR_MIN_VERSION, SIDECAR_RECOMMENDED_VERSION } from './compat.ts';
 import { chmodWithWarning, secureDirectory, secureWriteFile } from '../util/fs-secure.ts';
+import { sanitize as sanitizeInbound, MAX_JSON_SIZE } from './validator.ts';
 import { computeAnonId } from '../telemetry/anon-id.ts';
 import { loadOrGenerateSidecarKeys, enrollDevice, buildEnrollmentUrls, isLocalhostBrainUrl } from './enrollment.ts';
 
@@ -556,6 +557,13 @@ export class SidecarManager implements Service {
 
   /** Called when a sidecar WebSocket connects (after JWT validation) */
   handleSidecarConnect(ws: ServerWebSocket<unknown>, sidecarId: string): void {
+    // A prior connection for this id (e.g. a reconnect racing the old
+    // socket's close event) must be torn down first — otherwise its
+    // heartbeat timer leaks and a late close/message on the stale socket
+    // can route against this new, live connection instead.
+    const stale = this.sidecarConnections.get(sidecarId);
+    if (stale) stale.close();
+
     const connection = new SidecarConnection(
       sidecarId,
       ws,
@@ -577,8 +585,20 @@ export class SidecarManager implements Service {
 
     // Intercept registration messages before routing to connection
     if (typeof message === 'string') {
+      if (message.length > MAX_JSON_SIZE) {
+        console.warn(`[SidecarManager] Message too large from ${sidecarId}: ${message.length} bytes`);
+        return;
+      }
+      let parsed: Record<string, unknown> | null = null;
       try {
-        const parsed = JSON.parse(message);
+        const json = JSON.parse(message);
+        if (json && typeof json === 'object' && !Array.isArray(json)) {
+          parsed = sanitizeInbound(json) as Record<string, unknown>;
+        }
+      } catch {
+        // Not JSON — fall through to connection handler
+      }
+      if (parsed) {
         if (parsed.type === 'register') {
           const reportedVersion = typeof parsed.version === 'string' && parsed.version ? parsed.version : 'dev';
           const verdict = classifySidecarVersion(reportedVersion);
@@ -612,28 +632,31 @@ export class SidecarManager implements Service {
             console.log(`[SidecarManager] Sidecar ${sidecarId} v${reportedVersion} is below recommended ${SIDECAR_RECOMMENDED_VERSION} — update suggested`);
           }
 
+          const hostname = typeof parsed.hostname === 'string' ? parsed.hostname : 'unknown';
           const record = this.getSidecar(sidecarId);
           this.registerConnection({
             id: sidecarId,
-            name: record?.name ?? parsed.hostname ?? sidecarId,
-            hostname: parsed.hostname ?? 'unknown',
-            os: parsed.os ?? 'unknown',
-            platform: parsed.platform ?? 'unknown',
+            name: record?.name ?? hostname ?? sidecarId,
+            hostname,
+            os: typeof parsed.os === 'string' ? parsed.os : 'unknown',
+            platform: typeof parsed.platform === 'string' ? parsed.platform : 'unknown',
             version: reportedVersion,
             updateStatus: verdict,
-            capabilities: parsed.capabilities ?? [],
-            unavailableCapabilities: parsed.unavailable_capabilities ?? [],
+            capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities : [],
+            unavailableCapabilities: Array.isArray(parsed.unavailable_capabilities) ? parsed.unavailable_capabilities : [],
             timezone: typeof parsed.timezone === 'string' ? parsed.timezone : undefined,
             connectedAt: new Date(),
           });
           return;
         }
         if (parsed.type === 'capabilities_update') {
-          this.updateCapabilities(sidecarId, parsed.capabilities ?? [], parsed.unavailable_capabilities ?? []);
+          this.updateCapabilities(
+            sidecarId,
+            Array.isArray(parsed.capabilities) ? parsed.capabilities : [],
+            Array.isArray(parsed.unavailable_capabilities) ? parsed.unavailable_capabilities : [],
+          );
           return;
         }
-      } catch {
-        // Not JSON or not a register message — fall through to connection handler
       }
     }
 
@@ -656,12 +679,17 @@ export class SidecarManager implements Service {
   }
 
   /** Called when a sidecar WebSocket disconnects */
-  handleSidecarDisconnect(sidecarId: string): void {
+  async handleSidecarDisconnect(sidecarId: string): Promise<void> {
     const conn = this.sidecarConnections.get(sidecarId);
     if (conn) {
       conn.close();
       this.sidecarConnections.delete(sidecarId);
     }
+    // Deliver any rpc_result/rpc_progress that already arrived and is
+    // sitting in the queue before failing whatever's left outstanding —
+    // otherwise a successful result can be discarded right before the
+    // caller is told the sidecar "disconnected".
+    await this.scheduler.drainSidecar(sidecarId);
     this.scheduler.removeSidecar(sidecarId);
     this.rpcTracker.failAll(sidecarId, 'disconnected');
     this.removeConnection(sidecarId);
@@ -693,7 +721,9 @@ export class SidecarManager implements Service {
     };
 
     // Send the request over WebSocket
-    connection.sendRPC(request);
+    if (!connection.sendRPC(request)) {
+      throw new Error(`Failed to send RPC to sidecar ${sidecarId}: socket send failed`);
+    }
 
     // Track and await result
     return this.rpcTracker.dispatch(rpcId, sidecarId, method, timeouts);

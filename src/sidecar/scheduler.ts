@@ -201,6 +201,19 @@ export class EventScheduler {
     );
   }
 
+  /**
+   * Dispatch every event still queued for a sidecar right now, in order.
+   * Call before removeSidecar() on disconnect so an already-arrived
+   * rpc_result isn't discarded out from under a caller still awaiting it.
+   */
+  async drainSidecar(sidecarId: string): Promise<void> {
+    const queue = this.queues.get(sidecarId);
+    if (!queue) return;
+    while (queue.length > 0) {
+      await this.dispatch(queue.shift()!);
+    }
+  }
+
   /** Remove a sidecar's queue (on disconnect) */
   removeSidecar(sidecarId: string): void {
     this.dropLogLastAt.delete(sidecarId);
