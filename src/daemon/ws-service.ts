@@ -174,6 +174,14 @@ export class WebSocketService implements Service {
    */
   private interviewSessions = new Map<ServerWebSocket<unknown>, InterviewSession>();
   /**
+   * Re-entrancy guard for handleInterviewMessage - it's invoked
+   * fire-and-forget (not awaited) by the message router, and
+   * runInterviewTurn mutates session.messages in place with no lock, so a
+   * double-submit/retry racing an in-flight turn could interleave two
+   * concurrent LLM calls against the same session's message history.
+   */
+  private interviewTurnInFlight = new Set<ServerWebSocket<unknown>>();
+  /**
    * Periodic sweep handle for `pendingVoiceConfirmations` TTL eviction.
    * Started in `start()`, cleared in `stop()` so the daemon shuts down
    * cleanly without a dangling timer.
@@ -333,6 +341,7 @@ export class WebSocketService implements Service {
             this.interviewSessions as unknown as Map<typeof ws, unknown>,
             this.pendingVoiceConfirmations as unknown as Map<string, { ws: typeof ws }>,
           );
+          this.interviewTurnInFlight.delete(ws);
           console.log('[WSService] Client disconnected');
         },
       });
@@ -855,9 +864,10 @@ export class WebSocketService implements Service {
         // the primary chat agent or persist messages to vault
         // conversations.
         const payload = msg.payload as { text?: string; speakReply?: boolean };
-        const userText = msg.type === 'interview_start' ? null : (payload?.text ?? '').trim();
+        const isStart = msg.type === 'interview_start';
+        const userText = isStart ? null : (payload?.text ?? '').trim();
         const speakReply = payload?.speakReply !== false; // default true
-        this.handleInterviewMessage(ws, userText, speakReply).catch(err =>
+        this.handleInterviewMessage(ws, userText, speakReply, isStart).catch(err =>
           console.error('[WSService] interview pipeline error:', err)
         );
         return undefined;
@@ -1466,9 +1476,36 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
     ws: ServerWebSocket<unknown>,
     userText: string | null,
     speakReply: boolean,
+    isStart: boolean = false,
+  ): Promise<void> {
+    if (this.interviewTurnInFlight.has(ws)) {
+      // A turn is already running for this socket - dropping this one
+      // rather than interleaving two concurrent runInterviewTurn calls
+      // against the same in-memory session.messages array.
+      console.warn('[WSService] Dropped interview message - a turn is already in flight for this socket');
+      return;
+    }
+    this.interviewTurnInFlight.add(ws);
+    try {
+      await this.runInterviewMessageTurn(ws, userText, speakReply, isStart);
+    } finally {
+      this.interviewTurnInFlight.delete(ws);
+    }
+  }
+
+  private async runInterviewMessageTurn(
+    ws: ServerWebSocket<unknown>,
+    userText: string | null,
+    speakReply: boolean,
+    isStart: boolean,
   ): Promise<void> {
     let session = this.interviewSessions.get(ws);
-    if (!session) {
+    // interview_start always begins a fresh session - reusing a stale
+    // in-progress one (e.g. the UI re-sending interview_start after the
+    // user navigates back without a socket reconnect) would silently
+    // re-invoke the LLM on old history with no new input, producing a
+    // duplicate/confusing turn instead of a real fresh start.
+    if (!session || isStart) {
       session = createInterviewSession();
       this.interviewSessions.set(ws, session);
     }

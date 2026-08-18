@@ -183,7 +183,7 @@ export async function runInterviewTurn(
     };
   }
 
-  if (userText !== null) {
+  if (userText !== null && userText.trim().length > 0) {
     session.messages.push({ role: 'user', content: userText.trim() });
   } else if (session.messages.length === 1) {
     // First turn: the user hasn't said anything yet, but Anthropic
@@ -303,7 +303,7 @@ function executeInterviewerTool(
   call: LLMToolCall,
 ): { message: string; wrapped: boolean } {
   if (call.name === 'record_profile_facts') {
-    const args = call.arguments as { facts?: Array<{ theme: string; summary: string; raw_quote?: string }> };
+    const args = (call.arguments ?? {}) as { facts?: Array<{ theme: string; summary: string; raw_quote?: string }> };
     const facts = Array.isArray(args.facts) ? args.facts : [];
     if (facts.length === 0) {
       return { message: 'Error: facts array was empty.', wrapped: false };
@@ -327,7 +327,7 @@ function executeInterviewerTool(
   }
 
   if (call.name === 'wrap_interview') {
-    const args = call.arguments as { farewell?: string };
+    const args = (call.arguments ?? {}) as { farewell?: string };
     const farewell = typeof args.farewell === 'string' && args.farewell.trim()
       ? args.farewell.trim()
       : 'All set — welcome to Jarvis.';
