@@ -6,7 +6,7 @@
  * starts health monitoring, and handles graceful shutdown.
  */
 
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, statSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { initDatabase, closeDb } from "../vault/schema.ts";
@@ -124,9 +124,11 @@ function parseArgs(): Partial<DaemonConfig> {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
-      case '--port':
-        config.port = parseInt(args[++i]!, 10);
+      case '--port': {
+        const parsed = parseInt(args[++i] ?? '', 10);
+        if (!Number.isNaN(parsed)) config.port = parsed;
         break;
+      }
       case '--db-path':
         config.dbPath = args[++i]!;
         break;
@@ -1307,7 +1309,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
                   for (const [id, slot] of used.entries()) {
                     const t = tm?.getTask(id);
                     if (t && t.status !== 'running') {
-                      if (oldestSlot < 0 || slot > oldestSlot) {
+                      if (oldestSlot < 0 || slot < oldestSlot) {
                         oldestSlot = slot;
                         evictId = id;
                       }
@@ -2216,7 +2218,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         // Resolve hint to a room key via the alias table.
         let targetKey: string | null = null;
         for (const { alias, key } of orderedAliases) {
-          const aliasRe = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`);
+          const aliasRe = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
           if (aliasRe.test(hint)) { targetKey = key; break; }
         }
         if (!targetKey) return null;
@@ -2604,7 +2606,7 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
         for (const { alias, key: roomKey } of orderedAliases) {
           // Word-boundary match against the captured tail so "open settings page"
           // matches "settings" cleanly without grabbing the trailing words.
-          const aliasRe = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`);
+          const aliasRe = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
           if (aliasRe.test(tail)) { key = roomKey; break; }
         }
         if (!key) return false;
@@ -3975,7 +3977,8 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     // 9. Ensure UI is built (auto-build if ui/dist is missing or empty)
     const uiDistDir = path.join(import.meta.dir, '../../ui/dist');
     const uiIndexPath = path.join(uiDistDir, 'index.html');
-    if (!existsSync(uiIndexPath)) {
+    const uiIndexMissingOrEmpty = !existsSync(uiIndexPath) || statSync(uiIndexPath).size === 0;
+    if (uiIndexMissingOrEmpty) {
       logWithTimestamp('Dashboard UI not built — building automatically...');
       const buildResult = Bun.spawnSync(['bun', 'run', 'build:ui'], {
         cwd: path.join(import.meta.dir, '../..'),
@@ -4587,14 +4590,25 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     }
 
     // Idempotent constructor for the LLM-dependent services. Safe to call
-    // multiple times; returns immediately if `bgAgent` is already running.
+    // multiple times; returns immediately if `bgAgent` is already running
+    // (or already being started - `starting` is set synchronously, before
+    // the first await, so a concurrent call racing the boot-time call - e.g.
+    // /api/onboarding/setup finishing at nearly the same moment - can't both
+    // pass the guard while `bgAgent` is still null).
+    let startingPostSetupServices = false;
     const startPostSetupServices = async (): Promise<void> => {
-      if (bgAgent) return; // already running
+      if (bgAgent || startingPostSetupServices) return; // already running or in flight
+      startingPostSetupServices = true;
 
       // 10b. Background agent (needs LLM providers from agentService.start())
       const bgAgentService = new BackgroundAgentService(jarvisConfig, agentService.getLLMManager());
       bgAgentService.setResearchQueue(researchQueue);
-      await bgAgentService.start();
+      try {
+        await bgAgentService.start();
+      } catch (err) {
+        startingPostSetupServices = false; // allow a retry (e.g. a later /api/onboarding/setup call)
+        throw err;
+      }
       bgAgent = bgAgentService;
       console.log('[Daemon] Background agent started (separate browser for heartbeat/reactions)');
 
@@ -4907,9 +4921,14 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
           max_concurrent_servers: 3,
         };
         const siteBuilderService = new SiteBuilderService(sitesConfig);
-        await siteBuilderService.start();
-        apiContext.siteBuilderService = siteBuilderService;
+        // Register before starting (not after) - registry.register() always
+        // marks a service 'stopped', so registering post-start left it
+        // permanently in that state and registry.stopAll() on shutdown
+        // would skip calling .stop() on it entirely, leaking its dev-server
+        // child processes and ports.
         registry.register(siteBuilderService);
+        await registry.startService(siteBuilderService.name);
+        apiContext.siteBuilderService = siteBuilderService;
 
         // Wire proxy into WebSocket server for dev server HTTP/WS forwarding
         wsService.getServer().setSiteProxy(siteBuilderService.proxy);
