@@ -22,6 +22,7 @@ import type { EmergencyController } from '../authority/emergency.ts';
 import type { DeferredExecutor } from '../authority/deferred-executor.ts';
 import { applyQuickOverride } from '../authority/quick-override.ts';
 import type { ActionCategory } from '../roles/authority.ts';
+import { toSpecLevel, specLevelLabel } from '../roles/authority.ts';
 
 import { findEntities, getEntity, searchEntitiesByName, createEntity } from '../vault/entities.ts';
 import { findFacts, createFact } from '../vault/facts.ts';
@@ -840,6 +841,11 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           name: role.name,
           description: role.description,
           authority_level: role.authority_level,
+          // spec §30's 0-5 display band, compressed from authority_level for
+          // UI surfaces (toSpecLevel/specLevelLabel were built and unit-tested
+          // but never wired to any production surface until now).
+          spec_level: toSpecLevel(role.authority_level),
+          spec_level_label: specLevelLabel(role.authority_level),
           tools: role.tools,
         }));
         return json({ specialists });
@@ -1910,6 +1916,8 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
             id: primary.agent.role.id,
             name: primary.agent.role.name,
             authority_level: primary.agent.role.authority_level,
+            spec_level: toSpecLevel(primary.agent.role.authority_level),
+            spec_level_label: specLevelLabel(primary.agent.role.authority_level),
             tools: primary.agent.role.tools,
             sub_roles: primary.agent.role.sub_roles,
           } : null,
