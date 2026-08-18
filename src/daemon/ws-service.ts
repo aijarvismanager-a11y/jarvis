@@ -1225,6 +1225,15 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
     } catch (error) {
       console.error('[WSService] Chat error:', error);
 
+      // Mirror the success-path reset (line ~1195) — an error anywhere
+      // between setting this and there (LLM call, tool execution, streaming)
+      // must not leave every subsequent tool call, including unrelated
+      // non-site-builder chats, silently rooted in this project's directory
+      // until another site-builder turn happens to succeed.
+      if (projectId && this.siteBuilderService) {
+        setDefaultCwd(null);
+      }
+
       // Mark task as failed
       if (taskCommitment) {
         try {
