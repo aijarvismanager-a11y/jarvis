@@ -1267,12 +1267,17 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       const attachSubPebbleListener = async (): Promise<void> => {
         const deadline = Date.now() + 20_000;
         let taskManager = agentService.getTaskManager();
-        while (!taskManager && Date.now() < deadline) {
+        // taskManager is only ever constructed once, synchronously, inside
+        // start() (only when specialist roles exist) - once start() has
+        // finished ('running'), its final value (null or set) is already
+        // decided, so an install with zero specialists doesn't need to poll
+        // out the full 20s deadline before giving up.
+        while (!taskManager && agentService.status() !== 'running' && Date.now() < deadline) {
           await new Promise<void>(r => setTimeout(r, 200));
           taskManager = agentService.getTaskManager();
         }
         if (!taskManager) {
-          console.warn('[sub-pebble] taskManager never appeared — sub-pebble rail disabled');
+          console.log('[sub-pebble] no specialist roles configured — sub-pebble rail disabled');
           return;
         }
         taskManager.subscribeLifecycle(async (event, task) => {

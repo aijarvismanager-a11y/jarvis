@@ -289,6 +289,20 @@ export class AgentService implements Service, IAgentService {
       await browser.disconnect();
     }
 
+    // Drop references to conv-tier/task infra so a stop()-then-start()
+    // cycle doesn't leave any getter (e.g. getTaskManager()) returning an
+    // orphaned instance from before the stop - start()'s registerProviders()
+    // always constructs fresh ones.
+    this.taskManager = null;
+    this.taskRegistry = null;
+    this.taskDispatcher = null;
+    this.convOrchestrator = null;
+    this.convTaskEventListener = null;
+    this.researchQueue = null;
+    this.dialogueCompactor = null;
+    this.delegationProgressCallback = null;
+    this.delegationCallback = null;
+
     this._status = 'stopped';
     console.log('[AgentService] Stopped');
   }
@@ -327,7 +341,7 @@ export class AgentService implements Service, IAgentService {
     onComplete: (fullText: string) => Promise<void>;
   } {
     if (this.convOrchestrator) {
-      return this.streamMessageConv(text, channel);
+      return this.streamMessageConv(text, channel, siteContext);
     }
 
     const systemPrompt = this.buildFullSystemPromptParts(channel, text, this.activeProjectId ?? undefined);
@@ -360,7 +374,7 @@ export class AgentService implements Service, IAgentService {
    * runs (during which we surface task lifecycle events via the listener),
    * then the final verbalization text appears.
    */
-  private streamMessageConv(text: string, channel: string): {
+  private streamMessageConv(text: string, channel: string, siteContext?: string): {
     stream: AsyncIterable<LLMStreamEvent>;
     onComplete: (fullText: string) => Promise<void>;
   } {
@@ -375,7 +389,8 @@ export class AgentService implements Service, IAgentService {
         const identity = self.buildUserIdentityBlock();
         const userProfile = self.buildUserProfileBlock();
         const recentDialogue = await self.loadRecentDialogue(channel);
-        const ambient = self.buildAmbientFactsBlock(text, self.activeProjectId ?? undefined);
+        const ambient = self.buildAmbientFactsBlock(text, self.activeProjectId ?? undefined)
+          + (siteContext ? '\n\n' + siteContext : '');
 
         // Task lifecycle events go through the listener IN REAL TIME (during
         // the dispatcher's await), independent of the text stream. The
@@ -458,7 +473,7 @@ export class AgentService implements Service, IAgentService {
     if (activeTurns.isDraining) throw new DrainingError();
     const endTurn = activeTurns.begin();
     try {
-      const systemPrompt = this.buildFullSystemPromptParts(channel, text);
+      const systemPrompt = this.buildFullSystemPromptParts(channel, text, this.activeProjectId ?? undefined);
       if (siteContext) systemPrompt.dynamic += '\n\n' + siteContext;
 
       const content: import('../llm/provider.ts').ContentBlock[] = [
@@ -510,8 +525,10 @@ export class AgentService implements Service, IAgentService {
         response = await this.orchestrator.processMessage(systemPrompt, text);
       }
 
-      // Run extraction and learning in parallel (non-blocking but tracked)
-      Promise.allSettled([
+      // Run extraction and learning in parallel, tracked - awaited so
+      // endTurn() below (and the graceful-drain accounting it feeds) only
+      // fires once this turn's background work has actually settled.
+      await Promise.allSettled([
         this.extractKnowledge(text, response).catch((err) =>
           console.error('[AgentService] Extraction error:', err instanceof Error ? err.message : err)
         ),
@@ -971,15 +988,22 @@ export class AgentService implements Service, IAgentService {
       console.error('[AgentService] Error loading observations:', err);
     }
 
-    // Active goals context for the system prompt
+    // Active goals context for the system prompt. Kept as a dynamic
+    // require() (rather than a static import like getKnowledgeForMessage
+    // above, despite both living in the same module) so per-test
+    // mock.module('../vault/retrieval.ts') overrides that only stub
+    // getKnowledgeForMessage don't need to also stub this one - Bun's
+    // mock.module leaks across test files (mock.restore() doesn't undo it),
+    // so adding a static import here would force every such mock to also
+    // provide this export or silently break unrelated tests.
     try {
       const { getActiveGoalsSummary } = require('../vault/retrieval.ts');
       const goalsSummary = getActiveGoalsSummary();
       if (goalsSummary) {
         context.activeGoals = goalsSummary;
       }
-    } catch {
-      // Goals module may not be available — ignore
+    } catch (err) {
+      console.error('[AgentService] Error loading active goals:', err);
     }
 
     // Authority rules for the system prompt
