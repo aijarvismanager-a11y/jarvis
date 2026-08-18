@@ -67,15 +67,19 @@ export function classifyFailure(envelope: TaskResultEnvelope): FailureClass {
   if (envelope.status !== 'failed') return 'none';
   const err = (envelope.error ?? '').toLowerCase();
   if (!err) return 'capability';
+  // Check auth first: an auth error's message can incidentally mention
+  // "network" or similar transient-sounding words (e.g. "401 Unauthorized:
+  // network error contacting auth service"), and a credential failure is
+  // never fixed by a retry, so it must win over a transient classification.
+  if (
+    /\b(401|403)\b/.test(err) ||
+    err.includes('unauthorized') || err.includes('api key') || err.includes('invalid_api_key') || err.includes('authentication')
+  ) return 'auth';
   if (
     /\b(429|502|503|504)\b/.test(err) ||
     err.includes('rate limit') || err.includes('timeout') || err.includes('temporarily unavailable') ||
     err.includes('econnrefused') || err.includes('enotfound') || err.includes('network')
   ) return 'transient';
-  if (
-    /\b(401|403)\b/.test(err) ||
-    err.includes('unauthorized') || err.includes('api key') || err.includes('invalid_api_key') || err.includes('authentication')
-  ) return 'auth';
   return 'capability';
 }
 
@@ -97,12 +101,19 @@ export type HealingRunOptions = {
 };
 
 export class SelfHealingRunner {
+  private readonly maxRetries: number;
+
   constructor(
     private readonly router: AIRouter,
     private readonly dispatcher: TaskDispatcher,
     private readonly qa: QAAgent = new QAAgent(),
-    private readonly maxRetries: number = 3,
-  ) {}
+    maxRetries: number = 3,
+  ) {
+    // run() always needs at least one dispatch attempt to produce an
+    // envelope - a maxRetries of 0 (or negative) would otherwise skip the
+    // loop body entirely and leave nothing to return.
+    this.maxRetries = Math.max(1, maxRetries);
+  }
 
   async run(opts: HealingRunOptions): Promise<HealingResult> {
     const attempts: HealingAttempt[] = [];
@@ -127,6 +138,8 @@ export class SelfHealingRunner {
       return cached;
     };
 
+    let qaReport: QAReport | null = null;
+
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       const routing = routeFor(template, mode);
       const request: TaskRequest = {
@@ -136,9 +149,28 @@ export class SelfHealingRunner {
         original_message: opts.original_message,
         project_id: opts.project_id,
       };
-      const result = await this.dispatcher.dispatch(request);
-      const failureClass = classifyFailure(result);
+      const dispatched = await this.dispatcher.dispatch(request);
+      let failureClass = classifyFailure(dispatched);
       const strategy = this.strategyFor(attempt, template, mode, opts);
+
+      // A QA failure is a new failure that must go through the same
+      // classify/retry/escalate machinery as a dispatch failure, still
+      // bounded by the same retry budget - not a one-shot check tacked on
+      // after the budget is already spent.
+      let result = dispatched;
+      if (dispatched.status === 'completed' && qaCheck) {
+        qaReport = await this.qa.run(opts.qaOptions);
+        if (!qaReport.passed) {
+          const failedNames = qaReport.checks.filter((c) => c.automated && !c.passed).map((c) => c.name).join(', ');
+          result = {
+            ...dispatched,
+            status: 'failed',
+            error: 'qa_failed',
+            summary: `Task completed but failed QA: ${failedNames}.`,
+          };
+          failureClass = 'capability'; // QA gives no error text to classify from - it's a strategy problem, not transient/auth
+        }
+      }
 
       attempts.push({ attempt, strategy, template, mode, failure_class: failureClass, envelope: result });
       envelope = result;
@@ -150,21 +182,6 @@ export class SelfHealingRunner {
       }
 
       ({ template, mode } = this.nextStrategy(attempt, template, mode, failureClass, opts));
-    }
-
-    let qaReport: QAReport | null = null;
-    if (envelope && envelope.status === 'completed' && qaCheck) {
-      qaReport = await this.qa.run(opts.qaOptions);
-      if (!qaReport.passed) {
-        const failedNames = qaReport.checks.filter((c) => c.automated && !c.passed).map((c) => c.name).join(', ');
-        envelope = {
-          ...envelope,
-          status: 'failed',
-          error: 'qa_failed',
-          summary: `Task completed but failed QA: ${failedNames}.`,
-        };
-        exhausted = true; // QA gate runs once, after the retry budget's work is already done
-      }
     }
 
     return { envelope: envelope!, attempts, qa_report: qaReport, exhausted };
@@ -200,7 +217,10 @@ export class SelfHealingRunner {
     }
     const alt = ALTERNATIVE_TEMPLATE[template];
     if (alt && alt !== template) {
-      return { template: alt, mode: opts.mode };
+      // Keep the already-escalated mode - falling back to an alternative
+      // template must not undo the cost-mode escalation attempts already
+      // paid for.
+      return { template: alt, mode };
     }
     return { template, mode }; // no strategies left; next loop check marks it exhausted
   }

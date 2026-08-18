@@ -155,9 +155,15 @@ describe('QAAgent end-to-end: code review checklist', () => {
     expect(result.exhausted).toBe(true);
     expect(result.qa_report).not.toBeNull();
     expect(result.qa_report!.passed).toBe(false);
-    // Dispatch itself only ran once - QA gating happens after a completed dispatch, not as a dispatch retry.
-    expect(result.attempts).toHaveLength(1);
-    expect(result.attempts[0]!.envelope.status).toBe('completed');
+    // A QA failure re-enters the healing loop like any other failure (still
+    // bounded by the retry budget) rather than being a one-shot check run
+    // only once after the budget's already spent - so a persistently-broken
+    // package.json burns the full 3-attempt budget, not just 1.
+    expect(result.attempts).toHaveLength(3);
+    for (const attempt of result.attempts) {
+      expect(attempt.envelope.status).toBe('failed');
+      expect(attempt.envelope.error).toBe('qa_failed');
+    }
 
     await cleanup();
   });

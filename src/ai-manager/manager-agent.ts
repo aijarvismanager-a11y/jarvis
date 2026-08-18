@@ -172,10 +172,16 @@ export class ManagerAgent {
           status,
           summary: `(resumed) previously ${status.toLowerCase()}.`,
         });
+      } else if (status === 'WAITING') {
+        // Already dispatched and parked on needs_input - mark it settled
+        // (as runPlan's live wave loop does when a subtask lands on
+        // WAITING) so it isn't re-added to readyIndices and re-dispatched
+        // a second time, and so dependents' blockedByWaiting check below
+        // can actually see it.
+        settled.set(index, 'WAITING');
       }
-      // WAITING (or any other non-terminal status) is left unsettled, same
-      // as runPlan's original in-memory semantics - its dependents stay
-      // blocked until it resolves.
+      // Any other non-terminal status is left unsettled, same as runPlan's
+      // original in-memory semantics.
     });
 
     return this.runWaves(project, subtasks, taskIdByIndex, settled, outcomes, project.description);
@@ -254,12 +260,27 @@ export class ManagerAgent {
     return resolved.status === 'approved';
   }
 
-  /** Mark index `i`'s task_id in the persisted plan, once it's first known. */
-  private persistTaskId(projectId: string, index: number, taskId: string): void {
-    const plan = getProjectPlan(projectId);
-    if (!plan || !plan[index]) return; // defensive - shouldn't happen for a ManagerAgent-created project
-    plan[index]!.task_id = taskId;
-    setProjectPlan(projectId, plan);
+  /**
+   * Mark index `i`'s task_id in the persisted plan, once it's first known.
+   * Serialized per project: a wave dispatches its ready subtasks via
+   * Promise.all, and setProjectPlan replaces the whole plan column, so two
+   * concurrent read-modify-writes for the same project would otherwise
+   * silently clobber each other's task_id.
+   */
+  private persistTaskIdLocks = new Map<string, Promise<unknown>>();
+  private persistTaskId(projectId: string, index: number, taskId: string): Promise<void> {
+    const prior = this.persistTaskIdLocks.get(projectId) ?? Promise.resolve();
+    const next = prior.then(
+      () => {
+        const plan = getProjectPlan(projectId);
+        if (!plan || !plan[index]) return; // defensive - shouldn't happen for a ManagerAgent-created project
+        plan[index]!.task_id = taskId;
+        setProjectPlan(projectId, plan);
+      },
+      () => {},
+    );
+    this.persistTaskIdLocks.set(projectId, next);
+    return next;
   }
 
   /**
@@ -422,7 +443,7 @@ export class ManagerAgent {
     }
 
     taskIdByIndex.set(index, envelope.task_id);
-    this.persistTaskId(project.id, index, envelope.task_id);
+    await this.persistTaskId(project.id, index, envelope.task_id);
     const status = envelopeToProjectStatus(envelope);
     const dependencies = subtask.depends_on
       .map((i) => taskIdByIndex.get(i))

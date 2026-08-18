@@ -152,12 +152,36 @@ export class QAAgent {
   /**
    * This repo has no eslint/biome config - its actual "lint" is the set of
    * guard scripts in package.json (`check:no-ee`, `check:migrations`,
-   * `lint:templates`, ...). Running them IS the lint check here.
+   * `lint:templates`, ...). Running them IS the lint check here. The default
+   * list is JARVIS's own script names, so only run the ones the checked
+   * project's package.json actually declares - callers here are arbitrary
+   * user projects (see this file's class-level `run()` doc comment), and
+   * `bun run <missing script>` exits non-zero for "script not found", which
+   * would otherwise fail this check on every project that isn't JARVIS.
    */
   private async checkLint(cwd: string, scripts: string[]): Promise<QACheckResult> {
+    const start = Date.now();
+    let declared: Record<string, unknown> = {};
+    try {
+      const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf-8')) as { scripts?: Record<string, unknown> };
+      declared = pkg.scripts ?? {};
+    } catch {
+      // No readable package.json - fall through with an empty script set.
+    }
+    const applicable = scripts.filter((s) => s in declared);
+    if (applicable.length === 0) {
+      return {
+        name: 'lint',
+        automated: false,
+        passed: true,
+        summary: 'None of the configured lint guard scripts are declared in this project - nothing to run.',
+        duration_ms: Date.now() - start,
+      };
+    }
+
     const { result: results, duration_ms } = await timed(async () => {
       const out: { script: string; ok: boolean; output: string }[] = [];
-      for (const script of scripts) {
+      for (const script of applicable) {
         const r = await runCommand(cwd, ['bun', 'run', script]);
         out.push({ script, ...r });
       }
@@ -169,7 +193,7 @@ export class QAAgent {
       automated: true,
       passed: failed.length === 0,
       summary: failed.length === 0
-        ? `All guard scripts passed (${scripts.join(', ')}).`
+        ? `All guard scripts passed (${applicable.join(', ')}).`
         : `Failed: ${failed.map((f) => f.script).join(', ')}.`,
       detail: failed.length === 0 ? undefined : failed.map((f) => `[${f.script}]\n${f.output}`).join('\n\n'),
       duration_ms,
