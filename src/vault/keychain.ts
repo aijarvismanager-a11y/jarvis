@@ -73,15 +73,33 @@ function decrypt(key: Buffer, data: Buffer): string {
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf-8');
 }
 
+/**
+ * Throws when the secrets file exists but can't be decrypted (wrong/missing
+ * key, corruption). Callers that only READ a secret degrade gracefully via
+ * `loadSecretsSafe`, but a write path must NOT swallow this — see there.
+ */
 function loadSecrets(): Record<string, string> {
   if (!existsSync(SECRETS_PATH)) return {};
+  const key = getOrCreateKey();
+  const raw = readFileSync(SECRETS_PATH);
+  const json = decrypt(key, raw);
+  return JSON.parse(json);
+}
+
+/**
+ * Read-path wrapper: a decrypt/parse failure degrades to "no secrets found"
+ * for this call rather than throwing, so a transient read doesn't crash the
+ * caller. Must NOT be used before a save — see `setSecret`/`deleteSecret`,
+ * which previously called this and then wrote `{}` plus the one new/removed
+ * key back over the encrypted file, silently destroying every other secret
+ * whenever decryption failed for any reason (e.g. `.secrets.key` deleted or
+ * restored out of sync with `.secrets.enc`).
+ */
+function loadSecretsSafe(): Record<string, string> {
   try {
-    const key = getOrCreateKey();
-    const raw = readFileSync(SECRETS_PATH);
-    const json = decrypt(key, raw);
-    return JSON.parse(json);
+    return loadSecrets();
   } catch (err) {
-    console.warn('[Keychain] Failed to decrypt secrets file, starting fresh:', err);
+    console.warn('[Keychain] Failed to decrypt secrets file, treating as empty for this read:', err);
     return {};
   }
 }
@@ -95,11 +113,15 @@ function saveSecrets(secrets: Record<string, string>): void {
 }
 
 export function getSecret(name: string): string | null {
-  const secrets = loadSecrets();
+  const secrets = loadSecretsSafe();
   return secrets[name] ?? null;
 }
 
 export function setSecret(name: string, value: string): void {
+  // Intentionally the throwing `loadSecrets`, not `loadSecretsSafe` — if the
+  // existing store can't be decrypted, we must not proceed to overwrite it
+  // with a file containing only this one key. Let it throw; callers already
+  // wrap setSecret in try/catch (e.g. llm-settings.ts) and surface a warning.
   const secrets = loadSecrets();
   secrets[name] = value;
   saveSecrets(secrets);
@@ -112,6 +134,6 @@ export function deleteSecret(name: string): void {
 }
 
 export function hasSecret(name: string): boolean {
-  const secrets = loadSecrets();
+  const secrets = loadSecretsSafe();
   return name in secrets;
 }
