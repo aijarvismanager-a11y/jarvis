@@ -29,13 +29,18 @@ export const REALTIME_NAV_TOOL_NAMES = new Set([
 // "matches ..." examples from the classifier are omitted to keep token cost
 // low; the GPT-5-class model infers usage from names + args).
 const ROOM_ACTION_REFERENCE = `Available actions by room (pass via dashboard_room_action):
-- settings: switch_tab{tab: general|profile|llm|channels|integrations|sidecar}, set_primary_llm{provider}, set_fallback_llm{fallback}, set_model{provider,model}, test_provider{provider}, enable_telegram, disable_telegram, enable_discord, disable_discord, set_stt_provider{provider}, enable_tts, disable_tts, set_tts_provider{provider}, set_tts_voice{voice}, set_heartbeat_interval{minutes}, set_heartbeat_aggressiveness{level: passive|moderate|aggressive}, restart_daemon, replay_onboarding{scope?: all|setup|profile|tutorial}. (Do NOT set API keys by voice.)
+- settings: switch_tab{tab: general|profile|llm|channels|integrations|sidecar}, read_status, set_primary_llm{provider}, set_fallback_llm{fallback}, set_model{provider,model}, test_provider{provider}, enable_telegram, disable_telegram, enable_discord, disable_discord, set_stt_provider{provider}, enable_tts, disable_tts, set_tts_provider{provider}, set_tts_voice{voice}, set_heartbeat_interval{minutes}, set_heartbeat_aggressiveness{level: passive|moderate|aggressive}, restart_daemon, replay_onboarding{scope?: all|setup|profile|tutorial}. (Do NOT set API keys by voice.)
 - tools: set_filter{filter: all|read|write|external|destructive}, search{query}, select{name}
 - workflows: switch_tab{tab: list|editor|builder}, search{query}, set_filter{filter: all|active|paused}, select{name}, run{name?}, pause{name?}, enable{name?}, create_from_nl{prompt}
 - agents: switch_tab{tab: command|orbital}, open_spawn_dialog, close_dialog, set_search{query}, spawn_agent{specialist,task?,context?}
 - content: switch_view{view: kanban|list}, search{query}, set_filter{field: stage|type, value}, select{name}, create_content{title,type?}, advance{name?}, regress{name?}, schedule{name?,when}
-- tasks: set_filter{status}, search{query}
-- goals: set_filter{health}`;
+- tasks: switch_view{view: kanban|list}, search{query}, set_filter{field: status|priority|assigned_to, value}, select{name}, create_task{title,when?,priority?,assigned_to?}, complete_task{name}, update_priority{name,level}, reassign{name,agent}
+- goals: switch_tab{tab: constellation|timeline|metrics}, search{query}, set_filter{field: status|health, value}, select{name}, create_goal{title,level?}
+- workspaces: switch_view{view: list|detail}, search{query}, select_project{name}, back_to_list, create_project{name,template?}, start_server{name?}, stop_server{name?}
+- calendar: switch_view{view: week|day}, search{query}, select_event{title}, schedule_event{title,when,duration?,with?,priority?}
+- authority: switch_tab{tab: approvals|audit|grants|learning}, set_filter{decision: all|allowed|denied|approval_required}, grant_access{action}, revoke_access{action}
+- memory: switch_tab{tab: constellation|explorer|browser}, search{query}, set_filter{type}, select{name}, remember_that{subject,predicate,object}
+- logs: toggle_source{source}, set_time_window{window: 1h|24h|7d|all}, toggle_live_tail, refresh`;
 
 /**
  * Navigation + in-room-action tools. Appended to the realtime toolset so the
