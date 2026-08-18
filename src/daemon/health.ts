@@ -18,12 +18,19 @@ export type HealthStatus = {
   demoMode: boolean;        // spec §79-80 anti-dummy-data rule; see JarvisConfig.daemon.demo_mode
 };
 
+/** How long a service may sit in 'starting' before check() flags it as unhealthy too. */
+const STARTING_STUCK_THRESHOLD_MS = 2 * 60_000;
+
 export class HealthMonitor {
   private startTime: number;
   private registry: ServiceRegistry;
   private checkInterval: Timer | null = null;
   private dbPath: string;
   private demoMode: boolean;
+  /** Last hour-milestone actually logged, so a tick that skips past an exact boundary doesn't lose the log line. */
+  private lastMilestoneHour = 0;
+  /** When each currently-'starting' service was first observed in that state. */
+  private startingSince = new Map<string, number>();
 
   constructor(registry: ServiceRegistry, dbPath: string, demoMode: boolean = false) {
     this.startTime = Date.now();
@@ -67,7 +74,10 @@ export class HealthMonitor {
    */
   getHealth(): HealthStatus {
     const now = Date.now();
-    const uptime = Math.floor((now - this.startTime) / 1000);
+    // Date.now() isn't monotonic - a backward system clock step (NTP
+    // correction, VM resume) after start() would otherwise go negative and
+    // print nonsense like "-42s" in formatUptime().
+    const uptime = Math.max(0, Math.floor((now - this.startTime) / 1000));
     const services = this.registry.getStatus();
     const memory = this.getMemoryStats();
     const database = this.getDatabaseStats();
@@ -88,16 +98,36 @@ export class HealthMonitor {
   private check(): void {
     const health = this.getHealth();
 
-    // Check service health
+    // Check service health. 'starting' isn't unhealthy by itself (every
+    // service passes through it normally), but a service that never leaves
+    // it - a hung network/DB call during init - is arguably the most
+    // actionable failure mode and would otherwise be invisible forever.
+    const now = Date.now();
+    const startingNow = new Set<string>();
+    for (const [name, status] of Object.entries(health.services)) {
+      if (status !== 'starting') continue;
+      startingNow.add(name);
+      if (!this.startingSince.has(name)) this.startingSince.set(name, now);
+    }
+    for (const name of [...this.startingSince.keys()]) {
+      if (!startingNow.has(name)) this.startingSince.delete(name);
+    }
+    const stuckStarting = new Set(
+      [...this.startingSince.entries()]
+        .filter(([, since]) => now - since > STARTING_STUCK_THRESHOLD_MS)
+        .map(([name]) => name),
+    );
+
     const unhealthyServices = Object.entries(health.services)
-      .filter(([_, status]) => status === 'error' || status === 'stopping');
+      .filter(([name, status]) => status === 'error' || status === 'stopping' || stuckStarting.has(name));
 
     if (unhealthyServices.length > 0) {
       console.warn('[HealthMonitor] ⚠ Unhealthy services detected:');
       for (const [name, status] of unhealthyServices) {
         const info = this.registry.getServiceInfo(name);
         const error = info?.error ? ` - ${info.error}` : '';
-        console.warn(`  - ${name}: ${status}${error}`);
+        const stuckNote = stuckStarting.has(name) ? ' (stuck starting)' : '';
+        console.warn(`  - ${name}: ${status}${stuckNote}${error}`);
       }
     }
 
@@ -114,10 +144,15 @@ export class HealthMonitor {
       );
     }
 
-    // Log uptime milestone (every hour)
-    if (health.uptime > 0 && health.uptime % 3600 === 0) {
-      const hours = health.uptime / 3600;
-      console.log(`[HealthMonitor] Uptime: ${hours} hour${hours > 1 ? 's' : ''}`);
+    // Log uptime milestone (every hour). Compares completed-hours-so-far
+    // against the last one logged, rather than requiring an exact
+    // uptime % 3600 === 0 hit - setInterval ticks rarely land on an exact
+    // boundary (event-loop lag, GC pauses, a non-divisor intervalMs), and a
+    // missed exact match used to permanently skip that hour's log line.
+    const completedHours = Math.floor(health.uptime / 3600);
+    if (completedHours > this.lastMilestoneHour) {
+      this.lastMilestoneHour = completedHours;
+      console.log(`[HealthMonitor] Uptime: ${completedHours} hour${completedHours > 1 ? 's' : ''}`);
     }
   }
 
@@ -152,7 +187,11 @@ export class HealthMonitor {
         size = stats.size;
       }
     } catch (error) {
-      // DB not connected or not initialized
+      // Log the real cause - a corrupt DB file, disk I/O failure, or
+      // migration mismatch looked identical to "not initialized yet"
+      // before this, since check() only ever printed the generic
+      // "Database not connected" warning either way.
+      console.error('[HealthMonitor] Database check failed:', error);
       connected = false;
     }
 
@@ -215,8 +254,8 @@ export class HealthMonitor {
     if (bytes === 0) return '0 B';
 
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
     const size = bytes / Math.pow(k, i);
 
     return `${size.toFixed(2)} ${sizes[i]}`;
