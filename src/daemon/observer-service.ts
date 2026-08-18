@@ -108,6 +108,15 @@ export class ObserverService implements Service {
   }
 
   async start(): Promise<void> {
+    // ObserverManager.register() overwrites an existing entry by name with
+    // no stop() call, so calling start() twice without an intervening
+    // stop() (a caller bug, or a race between two settings-reload
+    // appliers) would leak the previous EmailSync/CalendarSync instance's
+    // poll setInterval while a second one starts alongside it.
+    if (this._status === 'starting' || this._status === 'running') {
+      console.log('[ObserverService] start() called while already starting/running - ignoring');
+      return;
+    }
     this._status = 'starting';
 
     try {
@@ -145,11 +154,15 @@ export class ObserverService implements Service {
               this.reactor.react(classified).catch(err =>
                 console.error('[ObserverService] Reactor error:', err)
               );
+            } else {
+              console.warn(`[ObserverService] No reactor configured - dropping ${classified.priority} event: ${classified.reason}`);
             }
           } else {
             // Route to coalescer for batched delivery at heartbeat
             if (this.coalescer) {
               this.coalescer.addEvent(classified);
+            } else {
+              console.warn(`[ObserverService] No coalescer configured - dropping ${classified.priority} event: ${classified.reason}`);
             }
           }
         } catch (err) {
