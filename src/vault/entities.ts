@@ -106,6 +106,8 @@ export function findEntities(query: {
   project_id?: string;
   /** Match this project's entities plus global (project_id IS NULL) ones. */
   projectScope?: string;
+  /** Cap the number of rows returned, applied in SQL rather than after loading every row into memory. */
+  limit?: number;
 }): Entity[] {
   const db = getDb();
   const conditions: string[] = [];
@@ -140,7 +142,9 @@ export function findEntities(query: {
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const stmt = db.prepare(`SELECT * FROM entities ${where} ORDER BY updated_at DESC`);
+  const limitClause = query.limit !== undefined ? ' LIMIT ?' : '';
+  if (query.limit !== undefined) params.push(query.limit);
+  const stmt = db.prepare(`SELECT * FROM entities ${where} ORDER BY updated_at DESC${limitClause}`);
   const rows = stmt.all(...params as any[]) as EntityRow[];
 
   return rows.map(parseEntity);

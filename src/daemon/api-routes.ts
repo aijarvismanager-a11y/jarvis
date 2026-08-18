@@ -76,6 +76,16 @@ function sanitizePathSegment(segment: string): string {
   return path.basename(segment.replace(/\.\./g, ''));
 }
 
+/** Every action category the authority engine recognizes - shared so a config write can't smuggle in an action outside this enum. */
+const VALID_ACTION_CATEGORIES: ReadonlyArray<ActionCategory> = [
+  'read_data', 'write_data', 'delete_data',
+  'send_message', 'send_email',
+  'execute_command', 'install_software',
+  'make_payment', 'modify_settings',
+  'spawn_agent', 'terminate_agent',
+  'access_browser', 'control_app',
+];
+
 /** Escape SQL LIKE wildcard characters in user input */
 function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
@@ -84,6 +94,29 @@ function escapeLike(s: string): string {
 /** Sanitize a filename for Content-Disposition headers */
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9_\- .]/g, '');
+}
+
+/**
+ * Blocks the cloud-metadata SSRF target specifically (169.254.169.254 and
+ * the wider link-local ranges it lives in) without breaking the intended
+ * use case of these `base_url` routes - pointing at a self-hosted
+ * Ollama/OmniRoute install anywhere on the user's own network, including
+ * private ranges like 192.168.x.x/10.x.x.x, which a full private-IP block
+ * would also break.
+ */
+function isBlockedSsrfHost(rawUrl: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    return false; // invalid URL - let the caller's own parsing reject it
+  }
+  const stripped = hostname.replace(/^\[|\]$/g, '');
+  return (
+    stripped.startsWith('169.254.') || // IPv4 link-local, incl. 169.254.169.254 (AWS/GCP/Azure metadata)
+    stripped === 'metadata.google.internal' ||
+    stripped.startsWith('fe80:') || stripped.startsWith('fe80::') // IPv6 link-local
+  );
 }
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -453,8 +486,9 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
             entityIds.add(r.to_id);
           }
         } else {
-          // No query — return all entities
-          const allEntities = findEntities(type ? { type } : {});
+          // No query — return entities, capped in SQL rather than loading
+          // the whole table just to take the first `limit` in JS below.
+          const allEntities = findEntities({ ...(type ? { type } : {}), limit });
           for (const e of allEntities) entityIds.add(e.id);
         }
 
@@ -500,7 +534,8 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
         const upcoming = params.get('upcoming');
 
         if (upcoming) {
-          return json(getUpcoming(parseInt(upcoming) || 10));
+          const parsedUpcoming = parseInt(upcoming, 10);
+          return json(getUpcoming(Number.isNaN(parsedUpcoming) ? 10 : parsedUpcoming));
         }
 
         const query: {
@@ -534,7 +569,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           ctx.wsService?.broadcastTaskUpdate(commitment, 'created');
           return json(commitment, 201);
         } catch (err) {
-          return error('Invalid request body');
+          return errorFromException(err);
         }
       },
     },
@@ -547,7 +582,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           reorderCommitments(body.items);
           return json({ ok: true });
         } catch (err) {
-          return error('Invalid request body');
+          return errorFromException(err);
         }
       },
     },
@@ -1021,9 +1056,18 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
     '/api/onboarding/reset': {
       POST: async (req: Request) => {
         try {
-          const body = (await req.json().catch(() => ({}))) as {
-            scope?: 'all' | 'setup' | 'profile' | 'tutorial';
-          };
+          // An empty body is a legitimate "reset everything" call (no scope
+          // specified); malformed-but-non-empty JSON is a client bug and
+          // must 400, not silently fall through to the same full reset.
+          const raw = await req.text();
+          let body: { scope?: 'all' | 'setup' | 'profile' | 'tutorial' } = {};
+          if (raw.trim()) {
+            try {
+              body = JSON.parse(raw);
+            } catch {
+              return error('Invalid JSON body.', 400);
+            }
+          }
           const scope = body?.scope ?? 'all';
           if (!['all', 'setup', 'profile', 'tutorial'].includes(scope)) {
             return error(`Invalid scope "${scope}".`, 400);
@@ -1657,6 +1701,9 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           const configured = Object.values(ctx.config.llm.providers ?? {})
             .find((e) => e?.kind === 'ollama')?.base_url;
           const baseUrl = typed || configured || 'http://localhost:11434';
+          if (isBlockedSsrfHost(baseUrl)) {
+            return json({ ok: false, error: 'base_url host is not allowed', models: [] });
+          }
           const models = await new OllamaProvider(baseUrl).listModels();
           return json({ ok: true, models });
         } catch (err) {
@@ -1690,6 +1737,9 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           const baseUrl = requestedBaseUrl || configured?.base_url?.trim() || 'http://localhost:20128/v1';
           if (!/^https?:\/\//i.test(baseUrl)) {
             return json({ ok: false, error: 'base_url must be an http(s) URL', models: [] });
+          }
+          if (isBlockedSsrfHost(baseUrl)) {
+            return json({ ok: false, error: 'base_url host is not allowed', models: [] });
           }
 
           // Saved credentials only travel to the saved base URL - a caller-typed
@@ -3079,6 +3129,13 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           const body = await req.json() as Record<string, unknown>;
           const currentConfig = ctx.authorityEngine.getConfig();
 
+          if (body.governed_categories && !(body.governed_categories as unknown[]).every((c) => VALID_ACTION_CATEGORIES.includes(c as ActionCategory))) {
+            return error('governed_categories contains an unrecognized action category', 400);
+          }
+          if (body.overrides && !(body.overrides as Array<{ action?: unknown }>).every((o) => VALID_ACTION_CATEGORIES.includes(o?.action as ActionCategory))) {
+            return error('overrides contains an unrecognized action category', 400);
+          }
+
           // Merge updates into current config
           if (body.governed_categories) currentConfig.governed_categories = body.governed_categories as ActionCategory[];
           if (body.default_level !== undefined) currentConfig.default_level = body.default_level as number;
@@ -3131,15 +3188,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           if (!body.action) return error('Missing "action" field', 400);
           if (typeof body.allow !== 'boolean') return error('Missing "allow" boolean', 400);
 
-          const validActions: ReadonlyArray<ActionCategory> = [
-            'read_data', 'write_data', 'delete_data',
-            'send_message', 'send_email',
-            'execute_command', 'install_software',
-            'make_payment', 'modify_settings',
-            'spawn_agent', 'terminate_agent',
-            'access_browser', 'control_app',
-          ];
-          if (!validActions.includes(body.action)) {
+          if (!VALID_ACTION_CATEGORIES.includes(body.action)) {
             return error(`Invalid action: ${body.action}`, 400);
           }
 
@@ -3183,6 +3232,9 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
         try {
           const body = await req.json() as { action: ActionCategory; tool_name: string };
           if (!body.action) return error('Missing "action" field');
+          if (!VALID_ACTION_CATEGORIES.includes(body.action)) {
+            return error(`Invalid action: ${body.action}`, 400);
+          }
 
           // Add the override to the engine
           ctx.authorityEngine.addOverride({
@@ -3247,7 +3299,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
     '/api/awareness/captures': {
       GET: (req: Request) => {
         const params = getSearchParams(req);
-        const limit = parseInt(params.get('limit') ?? '50', 10);
+        const limit = Math.min(Math.max(parseInt(params.get('limit') ?? '50', 10) || 50, 1), 200);
         const app = params.get('app') ?? undefined;
         return json(getRecentCaptures(limit, app));
       },
@@ -3315,7 +3367,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
       GET: (req: Request) => {
         if (!ctx.awarenessService) return error('Awareness service not running', 503);
         const params = getSearchParams(req);
-        const limit = parseInt(params.get('limit') ?? '20', 10);
+        const limit = Math.min(Math.max(parseInt(params.get('limit') ?? '20', 10) || 20, 1), 200);
         return json(ctx.awarenessService.getSessionHistory(limit));
       },
     },
@@ -3324,7 +3376,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
       GET: (req: Request) => {
         if (!ctx.awarenessService) return error('Awareness service not running', 503);
         const params = getSearchParams(req);
-        const limit = parseInt(params.get('limit') ?? '20', 10);
+        const limit = Math.min(Math.max(parseInt(params.get('limit') ?? '20', 10) || 20, 1), 200);
         const type = params.get('type') as SuggestionType | null;
         return json(ctx.awarenessService.getRecentSuggestionsList(limit, type ?? undefined));
       },
@@ -3422,7 +3474,7 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
           const tag = url.searchParams.get('tag') ?? undefined;
           const health = url.searchParams.get('health') ?? undefined;
           const parent_id = url.searchParams.get('parent_id');
-          const limit = parseInt(url.searchParams.get('limit') ?? '100', 10);
+          const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '100', 10) || 100, 1), 500);
           const goals = require('../vault/goals.ts');
           return json(goals.findGoals({
             status: status as any,
