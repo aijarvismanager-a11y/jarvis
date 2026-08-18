@@ -3609,6 +3609,21 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     if (orphanedInline > 0) {
       console.log(`[Daemon] Demoted ${orphanedInline} orphaned inline approval(s) to deferred`);
     }
+    // ApprovalManager.expireOld() existed (and is unit-tested) but nothing in
+    // the daemon ever called it - pending requests the user never acted on
+    // sat as 'pending' forever instead of aging into 'expired', so a stale
+    // request could still be picked up as "the latest pending approval" by
+    // e.g. voice yes/no resolution days or weeks later.
+    const APPROVAL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const approvalExpiryTimer = setInterval(() => {
+      try {
+        const expired = approvalManager.expireOld(APPROVAL_MAX_AGE_MS);
+        if (expired > 0) console.log(`[Daemon] Expired ${expired} stale pending approval(s)`);
+      } catch (err) {
+        console.warn('[Daemon] approval expiry sweep failed:', err);
+      }
+    }, 60 * 60 * 1000);
+    approvalExpiryTimer.unref?.();
     // Phase 6.3.5b — let WS service resolve approvals from voice intents.
     wsService.setApprovalManager(approvalManager);
     wsService.setDeferredExecutor(deferredExecutor);
