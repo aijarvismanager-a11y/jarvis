@@ -112,6 +112,15 @@ export class FlowExecutionError extends Error {
     message: string,
     public readonly failedStep: { name: string; displayName: string },
     public readonly steps: Record<string, unknown> = {},
+    /**
+     * The run's actual terminal status, when the thrower knows it (e.g.
+     * EngineFlowExecutor read TIMEOUT/STOPPED/MEMORY_LIMIT_EXCEEDED/etc off
+     * the engine's persisted flow_run row). The handler below uses this
+     * instead of hardcoding FAILED, so the specific terminal status the
+     * engine already persisted isn't clobbered on the catch path. Omitted
+     * means "unknown, use FAILED" - the old default.
+     */
+    public readonly status?: FlowRunStatus,
   ) {
     super(message);
   }
@@ -239,7 +248,7 @@ export function createRunFlowHandler(opts: CreateRunFlowHandlerOptions): JobHand
       const ts = now();
       if (e instanceof FlowExecutionError) {
         updateRun(runId, {
-          status: "FAILED",
+          status: e.status ?? "FAILED",
           steps: e.steps,
           stepsCount: Object.keys(e.steps).length,
           failedStep: e.failedStep,

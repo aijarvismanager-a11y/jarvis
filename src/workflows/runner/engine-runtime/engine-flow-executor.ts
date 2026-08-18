@@ -223,6 +223,7 @@ export class EngineFlowExecutor implements FlowExecutor {
         `engine executor: run ${ctx.run.id} ended ${persisted.status} at step "${failed.name}"${detailSuffix}`,
         { name: failed.name, displayName: failed.displayName },
         stepsRecord,
+        persisted.status,
       );
     }
 
@@ -271,6 +272,7 @@ export class EngineFlowExecutor implements FlowExecutor {
       `engine executor: run ${runId} did not reach terminal status within ${this.terminalTimeoutMs}ms (last seen: ${lastSeenStatus ?? "n/a"})`,
       { name: "engine", displayName: "engine" },
       {},
+      "INTERNAL_ERROR",
     );
   }
 }
