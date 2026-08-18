@@ -106,8 +106,14 @@ export function createDelegateTool(deps: DelegateToolDeps): ToolDefinition {
           onProgress: deps.onProgress,
         });
 
-        // Terminate sub-agent after completion
-        deps.orchestrator.terminateAgent(subAgent.id);
+        // Terminate sub-agent after completion. Tolerate a missing agent
+        // the same way the error path below does - e.g. a concurrent
+        // manage_agents terminate can already have removed it - otherwise
+        // an already-computed successful result gets thrown away and
+        // replaced by registry.ts's generic "execution failed" wrapper.
+        try {
+          deps.orchestrator.terminateAgent(subAgent.id);
+        } catch { /* ignore cleanup errors */ }
 
         // Format result for the PA
         const toolsList = result.toolsUsed.length > 0

@@ -126,6 +126,12 @@ export const contentPipelineTool: ToolDefinition = {
 
       case 'create': {
         if (!params.title) return 'Error: "title" is required for create action';
+        if (params.content_type !== undefined && !CONTENT_TYPES.includes(params.content_type as ContentType)) {
+          return `Error: invalid content_type "${params.content_type}". Valid types: ${CONTENT_TYPES.join(', ')}`;
+        }
+        if (params.stage !== undefined && !CONTENT_STAGES.includes(params.stage as ContentStage)) {
+          return `Error: invalid stage "${params.stage}". Valid stages: ${CONTENT_STAGES.join(', ')}`;
+        }
         const tags = params.tags ? (params.tags as string).split(',').map(t => t.trim()) : undefined;
         const item = createContent(params.title as string, {
           body: params.body as string | undefined,
@@ -139,6 +145,12 @@ export const contentPipelineTool: ToolDefinition = {
 
       case 'update': {
         if (!params.id) return 'Error: "id" is required for update action';
+        if (params.content_type !== undefined && !CONTENT_TYPES.includes(params.content_type as ContentType)) {
+          return `Error: invalid content_type "${params.content_type}". Valid types: ${CONTENT_TYPES.join(', ')}`;
+        }
+        if (params.stage !== undefined && !CONTENT_STAGES.includes(params.stage as ContentStage)) {
+          return `Error: invalid stage "${params.stage}". Valid stages: ${CONTENT_STAGES.join(', ')}`;
+        }
         const updates: Record<string, unknown> = {};
         if (params.title !== undefined) updates.title = params.title;
         if (params.content_type !== undefined) updates.content_type = params.content_type;

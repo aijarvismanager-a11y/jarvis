@@ -194,6 +194,9 @@ export function createManageGoalsTool(deps: GoalToolDeps): ToolDefinition {
           const reason = (params.reason as string) ?? '';
           if (!goalId) return 'Error: "goal_id" is required.';
           if (score === undefined || score === null) return 'Error: "score" is required (0.0-1.0).';
+          if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 1) {
+            return `Error: "score" must be a number between 0.0 and 1.0 (got ${score}).`;
+          }
 
           const goal = deps.goalService.scoreGoal(goalId, score, reason);
           if (!goal) return `Goal "${goalId}" not found.`;
