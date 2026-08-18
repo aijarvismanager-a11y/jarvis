@@ -320,11 +320,15 @@ export function getRecentSuggestions(limit: number = 20, type?: SuggestionType):
   ).all(limit) as SuggestionRow[];
 }
 
-export function getSuggestionCountSince(timestamp: number): number {
+export function getSuggestionCountSince(timestamp: number, type?: SuggestionType): number {
   const db = getDb();
-  const row = db.prepare(
-    'SELECT COUNT(*) as count FROM awareness_suggestions WHERE created_at >= ?'
-  ).get(timestamp) as { count: number };
+  const row = type
+    ? db.prepare(
+        'SELECT COUNT(*) as count FROM awareness_suggestions WHERE created_at >= ? AND type = ?'
+      ).get(timestamp, type) as { count: number }
+    : db.prepare(
+        'SELECT COUNT(*) as count FROM awareness_suggestions WHERE created_at >= ?'
+      ).get(timestamp) as { count: number };
   return row.count;
 }
 

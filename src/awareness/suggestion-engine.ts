@@ -410,8 +410,12 @@ export class SuggestionEngine {
     try {
       const ninetyMinAgo = Date.now() - 90 * 60 * 1000;
 
-      // Don't suggest a break if we already suggested one recently
-      const recentBreakSuggestions = getSuggestionCountSince(ninetyMinAgo);
+      // Don't suggest a break if we already suggested one recently. Must be
+      // scoped to type: 'break' - counting suggestions of every type here
+      // meant any active session (errors, stuck/struggle prompts, etc. all
+      // count too) tripped this guard well before 90 min of real inactivity,
+      // silently suppressing the break reminder for anyone actively working.
+      const recentBreakSuggestions = getSuggestionCountSince(ninetyMinAgo, 'break');
       if (recentBreakSuggestions > 2) return null;
 
       // Check if user has been continuously active for 90+ minutes
