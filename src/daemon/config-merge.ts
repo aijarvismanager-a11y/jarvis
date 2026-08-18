@@ -76,7 +76,7 @@ export function validateVoicePatch(body: unknown): VoicePatchValidation {
     }
     if ('max_session_minutes' in r) {
       const n = r.max_session_minutes;
-      if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0 || n > MAX_SESSION_MINUTES_LIMIT) {
+      if (typeof n !== 'number' || !Number.isFinite(n) || n < 1 || n > MAX_SESSION_MINUTES_LIMIT) {
         return { ok: false, error: `realtime.max_session_minutes must be a number between 1 and ${MAX_SESSION_MINUTES_LIMIT}` };
       }
     }
@@ -104,11 +104,22 @@ function mergeCloudSubBlock(
   existing: AnyRec | undefined,
   incoming: AnyRec,
 ): AnyRec {
+  // A non-string api_key (e.g. a stray number) isn't a valid patch value -
+  // treat it the same as omitted rather than silently persisting the wrong
+  // type into stored config, where downstream code (e.g. `Bearer ${key}`
+  // header construction) expects a string.
+  const incomingKey = typeof incoming.api_key === 'string' ? incoming.api_key : '';
+  const existingKey = typeof existing?.api_key === 'string' ? existing.api_key : '';
   return {
     ...existing,
     ...incoming,
-    api_key: (incoming.api_key as string) || (existing?.api_key as string) || '',
+    api_key: incomingKey || existingKey,
   };
+}
+
+/** True if a sub-block patch value should be treated as "no change" (omitted or explicit null) rather than merged. */
+function isNoOpSubBlock(value: unknown): boolean {
+  return value === undefined || value === null;
 }
 
 /**
@@ -127,14 +138,22 @@ export function mergeSTTConfig(
 
   for (const p of ['openai', 'groq', 'sarvam'] as const) {
     const inc = patch[p] as AnyRec | undefined;
-    if (inc) {
+    // An explicit `null` must not fall through to the trailing
+    // `{...merged, ...patch}` spread below - that would overwrite the
+    // preserved sub-block (including its api_key) with null, bypassing
+    // mergeCloudSubBlock's preservation logic entirely with no validation.
+    if (isNoOpSubBlock(inc)) {
+      delete patch[p];
+    } else if (inc) {
       merged[p] = mergeCloudSubBlock((base as AnyRec)[p] as AnyRec | undefined, inc);
       delete patch[p];
     }
   }
 
   const incLocal = patch.local as AnyRec | undefined;
-  if (incLocal) {
+  if (isNoOpSubBlock(incLocal)) {
+    delete patch.local;
+  } else if (incLocal) {
     const existingLocal = (base as AnyRec).local as AnyRec | undefined;
     merged.local = { ...existingLocal, ...incLocal };
     delete patch.local;
@@ -157,7 +176,9 @@ export function mergeTTSConfig(
 
   for (const p of ['elevenlabs', 'sarvam'] as const) {
     const inc = patch[p] as AnyRec | undefined;
-    if (inc) {
+    if (isNoOpSubBlock(inc)) {
+      delete patch[p];
+    } else if (inc) {
       merged[p] = mergeCloudSubBlock((base as AnyRec)[p] as AnyRec | undefined, inc);
       delete patch[p];
     }
@@ -182,7 +203,9 @@ export function mergeVoiceConfig(
   const merged: AnyRec = { ...base };
 
   const incRealtime = patch.realtime as AnyRec | undefined;
-  if (incRealtime) {
+  if (isNoOpSubBlock(incRealtime)) {
+    delete patch.realtime;
+  } else if (incRealtime) {
     const baseRealtime = (base as AnyRec).realtime as AnyRec | undefined;
     merged.realtime = { ...baseRealtime, ...incRealtime };
     delete patch.realtime;
