@@ -23,7 +23,7 @@ export type RoutingResult =
   | { ok: true; worker: string; capability: WorkerCapability }
   | { ok: false; reason: 'no_worker_available'; capability: WorkerCapability };
 
-export class AIRouter {
+export class WorkerRouter {
   constructor(private readonly registry: WorkerRegistry) {}
 
   /**
@@ -36,7 +36,7 @@ export class AIRouter {
 
     if (opts.explicitWorker) {
       const worker = this.registry.get(opts.explicitWorker);
-      if (worker && worker.definition.enabled) {
+      if (worker && worker.definition.enabled && worker.definition.capabilities.includes(capability)) {
         return { ok: true, worker: worker.definition.name, capability };
       }
     }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parseErrorMessage } from "../apiUtil";
 
 const POLL_INTERVAL_MS = 8000;
 
@@ -43,16 +44,6 @@ export interface TaskOutcome {
   handoffFilePath: string;
 }
 
-async function parseErrorMessage(resp: Response): Promise<string> {
-  try {
-    const body = (await resp.json()) as { error?: string };
-    if (body?.error) return body.error;
-  } catch {
-    /* fall through */
-  }
-  return `HTTP ${resp.status}`;
-}
-
 /**
  * Workers Room hook - the dashboard surface for the external AI Worker
  * layer (spec section 3/10/17/23: AI Status / Task / Handoff). Polls
@@ -85,7 +76,9 @@ export function useWorkersData() {
         const data = (await handoffsResp.json()) as { handoffs: FileHandoff[] };
         setHandoffs(Array.isArray(data.handoffs) ? data.handoffs : []);
       }
-      setError(null);
+      if (!workersResp.ok) setError(await parseErrorMessage(workersResp));
+      else if (!handoffsResp.ok) setError(await parseErrorMessage(handoffsResp));
+      else setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load Workers");
     } finally {
@@ -124,15 +117,16 @@ export function useWorkersData() {
   const addWorker = useCallback(
     async (
       input:
-        | { name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
-        | { name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] },
+        | { kind: "cli"; name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
+        | { kind: "mcp"; name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] },
     ): Promise<{ ok: boolean; message: string }> => {
-      const endpoint = "binary" in input ? "/api/orchestrator/custom-workers" : "/api/orchestrator/mcp-workers";
+      const endpoint = input.kind === "cli" ? "/api/orchestrator/custom-workers" : "/api/orchestrator/mcp-workers";
+      const { kind: _kind, ...body } = input;
       try {
         const resp = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(input),
+          body: JSON.stringify(body),
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refresh();

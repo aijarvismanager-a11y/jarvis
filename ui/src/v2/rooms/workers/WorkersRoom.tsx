@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { RefreshCw } from "lucide-react";
 import { Icon } from "../../ui";
 import { StatusChip, EmptyState, Skeleton, Toast, Switch, Select, Input, type Tone } from "../../ui/roomkit";
@@ -48,6 +48,22 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
     const id = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(id);
   }, [toast]);
+
+  const handleToggle = useCallback(
+    async (worker: WorkerSummary, enabled: boolean) => {
+      const r = await data.setEnabled(worker.name, enabled);
+      setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+    },
+    [data.setEnabled],
+  );
+
+  const handleRemove = useCallback(
+    async (worker: WorkerSummary) => {
+      const r = await data.removeWorker(worker);
+      setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+    },
+    [data.removeWorker],
+  );
 
   const selectedHandoff = useMemo(
     () => data.handoffs.find((h) => h.task_id === selectedTaskId) ?? null,
@@ -99,22 +115,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
             </EmptyState>
           ) : (
             data.workers.map((w) => (
-              <WorkerCard
-                key={w.name}
-                worker={w}
-                onToggle={async (enabled) => {
-                  const r = await data.setEnabled(w.name, enabled);
-                  setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
-                }}
-                onRemove={
-                  w.type === "custom"
-                    ? async () => {
-                        const r = await data.removeWorker(w);
-                        setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
-                      }
-                    : undefined
-                }
-              />
+              <WorkerCard key={w.name} worker={w} onToggle={handleToggle} onRemove={handleRemove} />
             ))
           )}
         </div>
@@ -157,7 +158,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
         />
       )}
 
-      {toast && <div className="rk-workers__toast"><Toast tone={toast.tone === "ok" ? "ok" : "hold"}>{toast.text}</Toast></div>}
+      {toast && <div className="rk-workers__toast"><Toast tone={toast.tone === "ok" ? "ok" : "fail"}>{toast.text}</Toast></div>}
     </div>
   );
 }
@@ -170,14 +171,14 @@ export function WorkersRoom() {
   );
 }
 
-function WorkerCard({
+const WorkerCard = memo(function WorkerCard({
   worker,
   onToggle,
   onRemove,
 }: {
   worker: WorkerSummary;
-  onToggle: (enabled: boolean) => void;
-  onRemove?: () => void;
+  onToggle: (worker: WorkerSummary, enabled: boolean) => void;
+  onRemove: (worker: WorkerSummary) => void;
 }) {
   const status: WorkerStatus = worker.enabled ? worker.status : "disabled";
   return (
@@ -196,14 +197,14 @@ function WorkerCard({
       </div>
       <div className="rk-workers__card-toggle">
         <span className="rk-workers__flab" style={{ marginBottom: 0 }}>enabled</span>
-        <Switch on={worker.enabled} onClick={() => onToggle(!worker.enabled)} />
+        <Switch on={worker.enabled} onClick={() => onToggle(worker, !worker.enabled)} />
       </div>
-      {onRemove && (
-        <button className="rk-workers__sbtn" onClick={onRemove}>Remove</button>
+      {worker.type === "custom" && (
+        <button className="rk-workers__sbtn" onClick={() => onRemove(worker)}>Remove</button>
       )}
     </div>
   );
-}
+});
 
 function HandoffRow({ handoff, selected, onClick }: { handoff: FileHandoff; selected: boolean; onClick: () => void }) {
   return (
@@ -246,15 +247,22 @@ function RunPanel({
   const [worker, setWorker] = useState<string>("");
   const [prompt, setPrompt] = useState("");
 
+  const submittingRef = useRef(false);
+
   const submit = async () => {
-    if (!prompt.trim() || busy) return;
-    const ok = await onRun({
-      task_id: `task_${Date.now()}`,
-      template,
-      prompt: prompt.trim(),
-      ...(worker ? { worker } : {}),
-    });
-    if (ok) setPrompt("");
+    if (!prompt.trim() || busy || submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      const ok = await onRun({
+        task_id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        template,
+        prompt: prompt.trim(),
+        ...(worker ? { worker } : {}),
+      });
+      if (ok) setPrompt("");
+    } finally {
+      submittingRef.current = false;
+    }
   };
 
   return (
@@ -296,8 +304,19 @@ function RunPanel({
 const ALL_CAPABILITIES: readonly WorkerCapability[] = ["code", "research", "write", "plan", "image", "general"];
 
 export type AddWorkerInput =
-  | { name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
-  | { name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] };
+  | { kind: "cli"; name: string; binary: string; args: string[]; capabilities: WorkerCapability[] }
+  | { kind: "mcp"; name: string; command: string; args: string[]; tool: string; promptParam?: string; capabilities: WorkerCapability[] };
+
+/** Splits an argv template on whitespace, honoring "double quoted" spans as a single argument. */
+function parseArgs(text: string): string[] {
+  const args: string[] = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    args.push(match[1] ?? match[2] ?? "");
+  }
+  return args;
+}
 
 /** Registers a CommandWorker or MCPWorker at runtime (spec §10, completion checklist "Workerを追加できる") — any CLI or MCP server, no code change. */
 function AddWorkerDialog({
@@ -332,15 +351,17 @@ function AddWorkerDialog({
     const ok =
       kind === "cli"
         ? await onAdd({
+            kind: "cli",
             name: name.trim(),
             binary: binary.trim(),
-            args: argsText.split(/\s+/).filter(Boolean),
+            args: parseArgs(argsText),
             capabilities,
           })
         : await onAdd({
+            kind: "mcp",
             name: name.trim(),
             command: binary.trim(),
-            args: mcpArgsText.split(/\s+/).filter(Boolean),
+            args: parseArgs(mcpArgsText),
             tool: tool.trim(),
             ...(promptParam.trim() ? { promptParam: promptParam.trim() } : {}),
             capabilities,

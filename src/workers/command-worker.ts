@@ -9,6 +9,7 @@
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
+import { execCli } from './exec-cli.ts';
 
 export type CommandWorkerConfig = {
   name: string;
@@ -64,7 +65,7 @@ export class CommandWorker implements Worker {
     const args = substitutePrompt(this.argsTemplate, request.prompt);
 
     try {
-      const { code, stdout, stderr } = await this.exec(args, cwd, this.definition.timeout_ms);
+      const { code, stdout, stderr } = await execCli(this.spawnFn, this.binary, args, cwd, this.definition.timeout_ms, `${this.binary} worker`);
       if (code !== 0) {
         return {
           status: 'failed',
@@ -89,36 +90,5 @@ export class CommandWorker implements Worker {
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }
-
-  private exec(
-    args: string[],
-    cwd: string,
-    timeoutMs: number
-  ): Promise<{ code: number; stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-      const child = this.spawnFn(this.binary, args, {
-        cwd,
-        shell: process.platform === 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error(`${this.binary} worker timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      child.stdout?.on('data', (d) => (stdout += d.toString()));
-      child.stderr?.on('data', (d) => (stderr += d.toString()));
-      child.on('error', (err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        resolve({ code: code ?? -1, stdout, stderr });
-      });
-    });
   }
 }

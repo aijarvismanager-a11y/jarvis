@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { WorkerRegistry } from '../workers/registry.ts';
-import { AIRouter } from './ai-router.ts';
+import { WorkerRouter } from './ai-router.ts';
 import type { Worker, WorkerRunRequest, WorkerRunResult } from '../workers/types.ts';
 
 function fakeWorker(
@@ -28,13 +28,13 @@ function fakeWorker(
   };
 }
 
-describe('AIRouter.route', () => {
+describe('WorkerRouter.route', () => {
   it('routes a code task to a worker declaring the code capability', () => {
     const registry = new WorkerRegistry();
     registry.register(fakeWorker('claude_code', ['code', 'plan']));
     registry.register(fakeWorker('gemini', ['research', 'write']));
 
-    const result = new AIRouter(registry).route({ template: 'code' });
+    const result = new WorkerRouter(registry).route({ template: 'code' });
     expect(result).toEqual({ ok: true, worker: 'claude_code', capability: 'code' });
   });
 
@@ -43,7 +43,7 @@ describe('AIRouter.route', () => {
     registry.register(fakeWorker('claude_code', ['code']));
     registry.register(fakeWorker('custom_coder', ['code']));
 
-    const result = new AIRouter(registry).route({ template: 'code', explicitWorker: 'custom_coder' });
+    const result = new WorkerRouter(registry).route({ template: 'code', explicitWorker: 'custom_coder' });
     expect(result).toEqual({ ok: true, worker: 'custom_coder', capability: 'code' });
   });
 
@@ -52,7 +52,16 @@ describe('AIRouter.route', () => {
     registry.register(fakeWorker('claude_code', ['code']));
     registry.register(fakeWorker('disabled_coder', ['code'], { enabled: false }));
 
-    const result = new AIRouter(registry).route({ template: 'code', explicitWorker: 'disabled_coder' });
+    const result = new WorkerRouter(registry).route({ template: 'code', explicitWorker: 'disabled_coder' });
+    expect(result).toEqual({ ok: true, worker: 'claude_code', capability: 'code' });
+  });
+
+  it('falls back to routing normally when the explicit worker lacks the required capability', () => {
+    const registry = new WorkerRegistry();
+    registry.register(fakeWorker('claude_code', ['code']));
+    registry.register(fakeWorker('gemini', ['research', 'write']));
+
+    const result = new WorkerRouter(registry).route({ template: 'code', explicitWorker: 'gemini' });
     expect(result).toEqual({ ok: true, worker: 'claude_code', capability: 'code' });
   });
 
@@ -60,7 +69,7 @@ describe('AIRouter.route', () => {
     const registry = new WorkerRegistry();
     registry.register(fakeWorker('gemini', ['research']));
 
-    const result = new AIRouter(registry).route({ template: 'code' });
+    const result = new WorkerRouter(registry).route({ template: 'code' });
     expect(result).toEqual({ ok: false, reason: 'no_worker_available', capability: 'code' });
   });
 });

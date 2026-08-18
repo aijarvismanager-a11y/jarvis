@@ -175,6 +175,11 @@ let CORS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+/** Current scoped CORS headers, for other route modules mounted on the same daemon to reuse instead of hardcoding their own. */
+export function getCorsHeaders(): Record<string, string> {
+  return CORS;
+}
+
 /** Call once during init to set the correct CORS origin from config */
 export function setCorsOrigin(port: number, host = 'localhost') {
   CORS = {

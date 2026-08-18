@@ -33,7 +33,7 @@ import { createAIManagerRoutes } from "../ai-manager/api/routes.ts";
 import { ensureWorkspace } from "../orchestrator/workspace.ts";
 import { createDefaultWorkerRegistry } from "../workers/index.ts";
 import { loadWorkerSettings, applyWorkerSettings } from "../workers/settings.ts";
-import { loadCustomWorkers } from "../workers/custom-registry.ts";
+import { loadCustomWorkers, BUILTIN_NAMES as BUILTIN_WORKER_NAMES } from "../workers/custom-registry.ts";
 import { CommandWorker } from "../workers/command-worker.ts";
 import { loadMcpWorkers } from "../workers/mcp-registry.ts";
 import { MCPWorker } from "../workers/mcp.ts";
@@ -4169,9 +4169,11 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     const orchestratorWorkspace = ensureWorkspace(dataDir);
     const workerRegistry = createDefaultWorkerRegistry(orchestratorWorkspace.root);
     for (const custom of loadCustomWorkers(dataDir)) {
+      if (BUILTIN_WORKER_NAMES.has(custom.name.toLowerCase())) continue;
       workerRegistry.register(new CommandWorker({ ...custom, workspace: orchestratorWorkspace.root }));
     }
     for (const mcp of loadMcpWorkers(dataDir)) {
+      if (BUILTIN_WORKER_NAMES.has(mcp.name.toLowerCase())) continue;
       workerRegistry.register(new MCPWorker({ ...mcp, workspace: orchestratorWorkspace.root }));
     }
     applyWorkerSettings(workerRegistry, loadWorkerSettings(dataDir));

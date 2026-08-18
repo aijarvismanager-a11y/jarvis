@@ -22,40 +22,47 @@ describe('mcp worker persistence', () => {
     expect(loadMcpWorkers(dir)).toEqual([]);
   });
 
-  it('addMcpWorker persists a valid config and it round-trips', () => {
+  it('addMcpWorker persists a valid config and it round-trips', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
-    const result = addMcpWorker(dir, baseConfig());
+    const result = await addMcpWorker(dir, baseConfig());
     expect(result.ok).toBe(true);
     expect(loadMcpWorkers(dir)).toEqual([baseConfig()]);
   });
 
-  it('rejects a name colliding with a built-in Worker', () => {
+  it('rejects a name colliding with a built-in Worker', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
-    const result = addMcpWorker(dir, baseConfig({ name: 'chatgpt' }));
+    const result = await addMcpWorker(dir, baseConfig({ name: 'chatgpt' }));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain('built-in');
   });
 
-  it('rejects a name colliding with an existing custom (CLI) Worker', () => {
+  it('rejects a name colliding with a built-in Worker regardless of case', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
-    addCustomWorker(dir, { name: 'shared_name', binary: 'x', args: [], capabilities: ['code'] });
-    const result = addMcpWorker(dir, baseConfig({ name: 'shared_name' }));
+    const result = await addMcpWorker(dir, baseConfig({ name: 'ChatGPT' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('built-in');
+  });
+
+  it('rejects a name colliding with an existing custom (CLI) Worker', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
+    await addCustomWorker(dir, { name: 'shared_name', binary: 'x', args: [], capabilities: ['code'] });
+    const result = await addMcpWorker(dir, baseConfig({ name: 'shared_name' }));
     expect(result.ok).toBe(false);
   });
 
-  it('rejects an invalid name, missing command/tool, or empty capabilities', () => {
+  it('rejects an invalid name, missing command/tool, or empty capabilities', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
-    expect(addMcpWorker(dir, baseConfig({ name: 'has spaces' })).ok).toBe(false);
-    expect(addMcpWorker(dir, baseConfig({ command: '' })).ok).toBe(false);
-    expect(addMcpWorker(dir, baseConfig({ tool: '' })).ok).toBe(false);
-    expect(addMcpWorker(dir, baseConfig({ capabilities: [] })).ok).toBe(false);
+    expect((await addMcpWorker(dir, baseConfig({ name: 'has spaces' }))).ok).toBe(false);
+    expect((await addMcpWorker(dir, baseConfig({ command: '' }))).ok).toBe(false);
+    expect((await addMcpWorker(dir, baseConfig({ tool: '' }))).ok).toBe(false);
+    expect((await addMcpWorker(dir, baseConfig({ capabilities: [] }))).ok).toBe(false);
   });
 
-  it('removeMcpWorker deletes a config and reports false for an unknown name', () => {
+  it('removeMcpWorker deletes a config and reports false for an unknown name', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-mcp-'));
-    addMcpWorker(dir, baseConfig());
-    expect(removeMcpWorker(dir, 'my_mcp')).toBe(true);
+    await addMcpWorker(dir, baseConfig());
+    expect(await removeMcpWorker(dir, 'my_mcp')).toBe(true);
     expect(loadMcpWorkers(dir)).toEqual([]);
-    expect(removeMcpWorker(dir, 'my_mcp')).toBe(false);
+    expect(await removeMcpWorker(dir, 'my_mcp')).toBe(false);
   });
 });

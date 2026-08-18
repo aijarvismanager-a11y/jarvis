@@ -11,6 +11,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
 
@@ -120,14 +121,17 @@ function extractText(result: unknown): string {
 class MCPStdioSession {
   private readonly child: ReturnType<SpawnFn>;
   private nextId = 1;
+  private readonly decoder = new StringDecoder('utf-8');
   private buffer = '';
   private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private closed = false;
+  private readonly deadline: number;
 
   constructor(spawnFn: SpawnFn, command: string, args: string[], cwd: string, private readonly timeoutMs: number) {
+    this.deadline = Date.now() + timeoutMs;
     this.child = spawnFn(command, args, {
       cwd,
-      shell: process.platform === 'win32',
+      shell: false,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -137,7 +141,7 @@ class MCPStdioSession {
   }
 
   private onData(chunk: Buffer): void {
-    this.buffer += chunk.toString();
+    this.buffer += this.decoder.write(chunk);
     let newlineIdx: number;
     while ((newlineIdx = this.buffer.indexOf('\n')) !== -1) {
       const line = this.buffer.slice(0, newlineIdx).trim();
@@ -173,11 +177,12 @@ class MCPStdioSession {
 
   private request(method: string, params?: unknown): Promise<unknown> {
     const id = this.nextId++;
+    const remainingMs = Math.max(0, this.deadline - Date.now());
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`mcp request "${method}" timed out after ${this.timeoutMs}ms`));
-      }, this.timeoutMs);
+      }, remainingMs);
 
       this.pending.set(id, {
         resolve: (v) => {

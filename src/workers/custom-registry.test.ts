@@ -21,39 +21,46 @@ describe('custom worker persistence', () => {
     expect(loadCustomWorkers(dir)).toEqual([]);
   });
 
-  it('addCustomWorker persists a valid config and it round-trips', () => {
+  it('addCustomWorker persists a valid config and it round-trips', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
-    const result = addCustomWorker(dir, baseConfig());
+    const result = await addCustomWorker(dir, baseConfig());
     expect(result.ok).toBe(true);
     expect(loadCustomWorkers(dir)).toEqual([baseConfig()]);
   });
 
-  it('rejects a name colliding with a built-in Worker', () => {
+  it('rejects a name colliding with a built-in Worker', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
-    const result = addCustomWorker(dir, baseConfig({ name: 'gemini' }));
+    const result = await addCustomWorker(dir, baseConfig({ name: 'gemini' }));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain('built-in');
   });
 
-  it('rejects a duplicate custom Worker name', () => {
+  it('rejects a name colliding with a built-in Worker regardless of case', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
-    addCustomWorker(dir, baseConfig());
-    const result = addCustomWorker(dir, baseConfig());
+    const result = await addCustomWorker(dir, baseConfig({ name: 'GEMINI' }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('built-in');
+  });
+
+  it('rejects a duplicate custom Worker name', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
+    await addCustomWorker(dir, baseConfig());
+    const result = await addCustomWorker(dir, baseConfig());
     expect(result.ok).toBe(false);
   });
 
-  it('rejects an invalid name, missing binary, or empty capabilities', () => {
+  it('rejects an invalid name, missing binary, or empty capabilities', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
-    expect(addCustomWorker(dir, baseConfig({ name: 'has spaces' })).ok).toBe(false);
-    expect(addCustomWorker(dir, baseConfig({ binary: '' })).ok).toBe(false);
-    expect(addCustomWorker(dir, baseConfig({ capabilities: [] })).ok).toBe(false);
+    expect((await addCustomWorker(dir, baseConfig({ name: 'has spaces' }))).ok).toBe(false);
+    expect((await addCustomWorker(dir, baseConfig({ binary: '' }))).ok).toBe(false);
+    expect((await addCustomWorker(dir, baseConfig({ capabilities: [] }))).ok).toBe(false);
   });
 
-  it('removeCustomWorker deletes a config and reports false for an unknown name', () => {
+  it('removeCustomWorker deletes a config and reports false for an unknown name', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-cw-'));
-    addCustomWorker(dir, baseConfig());
-    expect(removeCustomWorker(dir, 'my_tool')).toBe(true);
+    await addCustomWorker(dir, baseConfig());
+    expect(await removeCustomWorker(dir, 'my_tool')).toBe(true);
     expect(loadCustomWorkers(dir)).toEqual([]);
-    expect(removeCustomWorker(dir, 'my_tool')).toBe(false);
+    expect(await removeCustomWorker(dir, 'my_tool')).toBe(false);
   });
 });

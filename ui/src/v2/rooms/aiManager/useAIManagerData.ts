@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parseErrorMessage } from "../apiUtil";
 
 const POLL_INTERVAL_MS = 8000;
 
@@ -158,15 +159,6 @@ interface ActionResult {
   message: string;
 }
 
-async function parseErrorMessage(resp: Response): Promise<string> {
-  try {
-    const body = (await resp.json()) as { error?: string };
-    if (body?.error) return body.error;
-  } catch {
-    /* fall through */
-  }
-  return `HTTP ${resp.status}`;
-}
 
 /**
  * AI Manager Room hook - loads projects from /api/ai-manager/projects and,

@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
+import { execCli } from './exec-cli.ts';
 
 export type SpawnFn = typeof spawn;
 
@@ -52,7 +53,7 @@ export class ClaudeCodeWorker implements Worker {
     const args = ['-p', request.prompt, '--output-format', 'text'];
 
     try {
-      const { code, stdout, stderr } = await this.exec(args, cwd, this.definition.timeout_ms);
+      const { code, stdout, stderr } = await execCli(this.spawnFn, this.binary, args, cwd, this.definition.timeout_ms, 'claude worker');
       if (code !== 0) {
         // The CLI often writes its actual failure reason (e.g. "Not logged
         // in - Please run /login") to stdout rather than stderr, so prefer
@@ -80,39 +81,5 @@ export class ClaudeCodeWorker implements Worker {
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }
-
-  private exec(
-    args: string[],
-    cwd: string,
-    timeoutMs: number
-  ): Promise<{ code: number; stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-      // stdin: 'ignore' - an open-but-empty pipe makes some CLIs (Claude
-      // Code included) wait several seconds "in case" stdin data arrives.
-      // This worker never pipes input, so close stdin immediately.
-      const child = this.spawnFn(this.binary, args, {
-        cwd,
-        shell: process.platform === 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error(`claude worker timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      child.stdout?.on('data', (d) => (stdout += d.toString()));
-      child.stderr?.on('data', (d) => (stderr += d.toString()));
-      child.on('error', (err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        resolve({ code: code ?? -1, stdout, stderr });
-      });
-    });
   }
 }

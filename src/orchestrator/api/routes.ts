@@ -17,11 +17,10 @@ import { CommandWorker } from '../../workers/command-worker.ts';
 import { addMcpWorker, removeMcpWorker } from '../../workers/mcp-registry.ts';
 import { MCPWorker } from '../../workers/mcp.ts';
 import type { WorkerCapability } from '../../workers/types.ts';
-
-const CORS = { 'Access-Control-Allow-Origin': '*' } as const;
+import { getCorsHeaders } from '../../daemon/api-routes.ts';
 
 function json(data: unknown, status = 200): Response {
-  return Response.json(data, { status, headers: CORS });
+  return Response.json(data, { status, headers: getCorsHeaders() });
 }
 
 function error(message: string, status = 400): Response {
@@ -99,7 +98,7 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
           ...(typeof body.retry === 'number' ? { retry: body.retry } : {}),
         };
 
-        const result = addCustomWorker(ctx.getDataDir(), config);
+        const result = await addCustomWorker(ctx.getDataDir(), config);
         if (!result.ok) return error(result.error, 400);
 
         ctx.getRegistry().register(new CommandWorker({ ...result.config, workspace: ctx.getWorkspace().root }));
@@ -108,8 +107,8 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
     },
 
     '/api/orchestrator/custom-workers/:name': {
-      DELETE: (req: Request & { params: { name: string } }) => {
-        const removed = removeCustomWorker(ctx.getDataDir(), req.params.name);
+      DELETE: async (req: Request & { params: { name: string } }) => {
+        const removed = await removeCustomWorker(ctx.getDataDir(), req.params.name);
         if (!removed) return error('Custom Worker not found', 404);
         ctx.getRegistry().unregister(req.params.name);
         return json({ removed: req.params.name });
@@ -152,7 +151,7 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
           ...(typeof body.retry === 'number' ? { retry: body.retry } : {}),
         };
 
-        const result = addMcpWorker(ctx.getDataDir(), config);
+        const result = await addMcpWorker(ctx.getDataDir(), config);
         if (!result.ok) return error(result.error, 400);
 
         ctx.getRegistry().register(new MCPWorker({ ...result.config, workspace: ctx.getWorkspace().root }));
@@ -161,8 +160,8 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
     },
 
     '/api/orchestrator/mcp-workers/:name': {
-      DELETE: (req: Request & { params: { name: string } }) => {
-        const removed = removeMcpWorker(ctx.getDataDir(), req.params.name);
+      DELETE: async (req: Request & { params: { name: string } }) => {
+        const removed = await removeMcpWorker(ctx.getDataDir(), req.params.name);
         if (!removed) return error('MCP Worker not found', 404);
         ctx.getRegistry().unregister(req.params.name);
         return json({ removed: req.params.name });
@@ -170,10 +169,11 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
     },
 
     '/api/orchestrator/handoffs': {
-      GET: (req: Request) => {
+      GET: async (req: Request) => {
         const limitParam = new URL(req.url).searchParams.get('limit');
-        const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 200) : 50;
-        return json({ handoffs: listHandoffFiles(ctx.getWorkspace().handoff, limit) });
+        const parsedLimit = limitParam === null ? 50 : parseInt(limitParam, 10);
+        const limit = Math.min(Math.max(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 0), 200);
+        return json({ handoffs: await listHandoffFiles(ctx.getWorkspace().handoff, limit) });
       },
     },
 

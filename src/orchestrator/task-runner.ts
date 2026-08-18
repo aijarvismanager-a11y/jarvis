@@ -11,7 +11,7 @@
 import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
 import type { WorkerRegistry } from '../workers/registry.ts';
 import type { WorkerRunResult } from '../workers/types.ts';
-import { AIRouter } from './ai-router.ts';
+import { WorkerRouter } from './ai-router.ts';
 import { writeHandoffFile, type FileHandoff } from './handoff-file.ts';
 import type { WorkspacePaths } from './workspace.ts';
 
@@ -40,14 +40,14 @@ export type InternalHandoffRecorder = (args: {
 }) => void;
 
 export class TaskWorkerRunner {
-  private readonly router: AIRouter;
+  private readonly router: WorkerRouter;
 
   constructor(
     private readonly registry: WorkerRegistry,
     private readonly workspace: WorkspacePaths,
     private readonly recordInternalHandoff?: InternalHandoffRecorder
   ) {
-    this.router = new AIRouter(registry);
+    this.router = new WorkerRouter(registry);
   }
 
   async run(request: TaskWorkerRequest): Promise<TaskWorkerOutcome> {
@@ -60,8 +60,17 @@ export class TaskWorkerRunner {
     if (!worker) throw new Error(`Worker "${routing.worker}" vanished from the registry`);
 
     this.registry.setStatus(worker.definition.name, 'working');
-    const result = await worker.run({ task_id: request.task_id, prompt: request.prompt, files: request.files });
-    this.registry.setStatus(worker.definition.name, result.status === 'completed' ? 'done' : 'error');
+    let result: WorkerRunResult;
+    try {
+      result = await worker.run({ task_id: request.task_id, prompt: request.prompt, files: request.files });
+    } catch (err) {
+      this.registry.setStatus(worker.definition.name, 'error');
+      throw err;
+    }
+    this.registry.setStatus(
+      worker.definition.name,
+      result.status === 'completed' ? 'done' : result.status === 'needs_input' ? 'waiting' : 'error'
+    );
 
     const fileHandoff: FileHandoff = {
       task_id: request.task_id,

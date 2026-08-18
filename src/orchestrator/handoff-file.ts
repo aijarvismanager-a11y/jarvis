@@ -6,7 +6,8 @@
  * `Handoff` (DB-backed, JARVIS-internal accounting) - not a replacement.
  */
 
-import { writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type FileHandoff = {
@@ -22,6 +23,9 @@ export type FileHandoff = {
 };
 
 export function handoffFilePath(handoffDir: string, taskId: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(taskId)) {
+    throw new Error(`invalid task_id: ${taskId}`);
+  }
   return join(handoffDir, `${taskId}.json`);
 }
 
@@ -37,33 +41,38 @@ export function readHandoffFile(handoffDir: string, taskId: string): FileHandoff
 }
 
 /** All filed handoffs, most recently written first. Skips unreadable/corrupt files rather than throwing. */
-export function listHandoffFiles(handoffDir: string, limit = 50): FileHandoff[] {
+export async function listHandoffFiles(handoffDir: string, limit = 50): Promise<FileHandoff[]> {
   let names: string[];
   try {
-    names = readdirSync(handoffDir).filter((n) => n.endsWith('.json'));
+    names = (await readdir(handoffDir)).filter((n) => n.endsWith('.json'));
   } catch {
     return [];
   }
 
-  const withMtime = names
-    .map((name) => {
-      try {
-        return { name, mtime: statSync(join(handoffDir, name)).mtimeMs };
-      } catch {
-        return null;
-      }
-    })
+  const withMtime = (
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          return { name, mtime: (await stat(join(handoffDir, name))).mtimeMs };
+        } catch {
+          return null;
+        }
+      })
+    )
+  )
     .filter((x): x is { name: string; mtime: number } => x !== null)
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, limit);
 
-  const handoffs: FileHandoff[] = [];
-  for (const { name } of withMtime) {
-    try {
-      handoffs.push(JSON.parse(readFileSync(join(handoffDir, name), 'utf-8')) as FileHandoff);
-    } catch {
-      // corrupt/partial write - skip rather than fail the whole list
-    }
-  }
-  return handoffs;
+  const parsed = await Promise.all(
+    withMtime.map(async ({ name }) => {
+      try {
+        return JSON.parse(await readFile(join(handoffDir, name), 'utf-8')) as FileHandoff;
+      } catch {
+        // corrupt/partial write - skip rather than fail the whole list
+        return null;
+      }
+    })
+  );
+  return parsed.filter((h): h is FileHandoff => h !== null);
 }
