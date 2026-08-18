@@ -252,6 +252,7 @@ export class SandboxApi {
   readonly workerRpc: WorkerRpcServer;
   private server: ServerNoData | null = null;
   private readonly routes: RouteEntry[] = [];
+  private pruneTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: SandboxApiOptions) {
     this.signer = opts.signer ?? new EngineTokenSigner();
@@ -442,10 +443,24 @@ export class SandboxApi {
     });
 
     await this.workerRpc.start();
+
+    // SandboxRegistry.prune() existed (and is unit-tested) but nothing ever
+    // called it - terminated sandbox records accumulated in the registry's
+    // Map forever over a long-running daemon. Same class of bug as the
+    // ApprovalManager.expireOld() fix: sweep periodically, following the
+    // approvalExpiryTimer pattern in src/daemon/index.ts.
+    this.pruneTimer = setInterval(() => {
+      this.registry.prune();
+    }, 5 * 60_000);
+    this.pruneTimer.unref?.();
   }
 
   async stop(): Promise<void> {
     if (!this.server) return;
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer);
+      this.pruneTimer = null;
+    }
     this.server.stop(true);
     this.server = null;
     await this.workerRpc.stop();
