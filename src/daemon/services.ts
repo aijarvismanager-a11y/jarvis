@@ -38,24 +38,46 @@ export class ServiceRegistry {
   }
 
   /**
-   * Start all registered services in order
+   * Start all registered services in order. A single service failing (which
+   * startService() already logs and records via getStatus()/getServiceInfo())
+   * does not abort the batch - every other service still gets a chance to
+   * start, matching the "individual failures don't crash the whole thing"
+   * pattern used elsewhere (e.g. ObserverManager.startAll()). The prior
+   * abort-on-first-failure behavior meant one failed service (e.g. a missing
+   * LLM key) silently skipped starting every service registered after it,
+   * including the WebSocket/HTTP server - and since callers historically
+   * awaited this with no try/catch, that failure surfaced as an unhandled
+   * crash that bypassed graceful shutdown entirely.
    */
   async startAll(): Promise<void> {
     console.log('[ServiceRegistry] Starting all services...');
-    for (const [name, registered] of this.services) {
-      await this.startService(name);
+    for (const [name] of this.services) {
+      try {
+        await this.startService(name);
+      } catch {
+        // Already logged and recorded as 'error' status by startService();
+        // continue so later services still get to start.
+      }
     }
     console.log('[ServiceRegistry] All services started');
   }
 
   /**
-   * Stop all services in reverse order
+   * Stop all services in reverse order. Same reasoning as startAll(): one
+   * service's stop() throwing must not abort the rest, or shutdown cleanup
+   * that depends on every service actually being stopped (DB close,
+   * lockfile release) never runs.
    */
   async stopAll(): Promise<void> {
     console.log('[ServiceRegistry] Stopping all services...');
     const serviceNames = Array.from(this.services.keys()).reverse();
     for (const name of serviceNames) {
-      await this.stopService(name);
+      try {
+        await this.stopService(name);
+      } catch {
+        // Already logged and recorded as 'error' status by stopService();
+        // continue so later services still get a chance to stop.
+      }
     }
     console.log('[ServiceRegistry] All services stopped');
   }
@@ -71,6 +93,10 @@ export class ServiceRegistry {
 
     if (registered.status === 'running') {
       console.log(`[ServiceRegistry] Service '${name}' is already running`);
+      return;
+    }
+    if (registered.status === 'starting') {
+      console.log(`[ServiceRegistry] Service '${name}' is already starting - ignoring concurrent call`);
       return;
     }
 
@@ -108,6 +134,10 @@ export class ServiceRegistry {
 
     if (registered.status === 'stopped') {
       console.log(`[ServiceRegistry] Service '${name}' is already stopped`);
+      return;
+    }
+    if (registered.status === 'stopping') {
+      console.log(`[ServiceRegistry] Service '${name}' is already stopping - ignoring concurrent call`);
       return;
     }
 
