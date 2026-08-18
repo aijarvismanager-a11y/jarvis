@@ -279,7 +279,13 @@ export class AuthorityEngine {
           const hour = now.getHours();
           const startHour = (rule.params.start_hour as number) ?? 0;
           const endHour = (rule.params.end_hour as number) ?? 24;
-          if (hour >= startHour && hour < endHour) {
+          // start > end means the window wraps past midnight (e.g. 22-6 for
+          // "10pm to 6am") - without this, such a rule could never match:
+          // no single hour is both >= 22 and < 6.
+          const inRange = startHour <= endHour
+            ? hour >= startHour && hour < endHour
+            : hour >= startHour || hour < endHour;
+          if (inRange) {
             return rule;
           }
           break;
