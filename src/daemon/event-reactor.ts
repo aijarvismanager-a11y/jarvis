@@ -12,7 +12,7 @@ import type { IAgentService } from './agent-service-interface.ts';
 export type ReactorConfig = {
   /** Max reactions per event type within the cooldown window */
   maxPerType: number;
-  /** Cooldown window per event type in ms (default: 60s) */
+  /** Cooldown window per event type in ms (default: 10s) */
   typeCooldownMs: number;
   /** Global max reactions within the global window */
   globalMax: number;
@@ -116,10 +116,20 @@ export class EventReactor {
       // Record the reaction
       this.recordReaction(hash, classified.event.type);
 
-      // Broadcast via callback
-      const priority = classified.priority === 'critical' ? 'urgent' : 'normal';
-      if (this.onReaction && response) {
-        this.onReaction(response, priority);
+      // Broadcast via callback. 'high' events (e.g. commitment due soon,
+      // urgent email, screen error) must surface as 'urgent' too - only
+      // matching on 'critical' silently downgraded them to the same
+      // 'normal' bucket as routine file-modified noise.
+      const priority = classified.priority === 'critical' || classified.priority === 'high' ? 'urgent' : 'normal';
+      if (this.onReaction) {
+        if (response) {
+          this.onReaction(response, priority);
+        } else {
+          // Reaction was still recorded (counts against maxPerType/globalMax
+          // above) but produced no text - log it so an empty agent response
+          // isn't indistinguishable from the event never having reacted.
+          console.warn(`[EventReactor] Reaction for ${classified.event.type} produced an empty response - not broadcast`);
+        }
       }
     } catch (err) {
       console.error('[EventReactor] Reaction failed:', err);
@@ -136,10 +146,23 @@ export class EventReactor {
       const next = this.queue.shift()!;
       const hash = this.hashEvent(next);
 
-      // Re-check dedup and cooldowns before processing queued event
-      if (this.seenHashes.has(hash)) continue;
-      if (!this.canReactForType(next.event.type)) continue;
-      if (!this.canReactGlobally()) break;
+      // Re-check dedup and cooldowns before processing queued event. Log
+      // each drop - react() already returned `true` to the original caller
+      // for these ("will be processed later"), so without a log line here
+      // a queued-then-dropped event leaves no trace anywhere that it never
+      // actually reacted.
+      if (this.seenHashes.has(hash)) {
+        console.log(`[EventReactor] Dropping queued event (already seen): ${next.reason}`);
+        continue;
+      }
+      if (!this.canReactForType(next.event.type)) {
+        console.log(`[EventReactor] Dropping queued event (cooldown active for type ${next.event.type}): ${next.reason}`);
+        continue;
+      }
+      if (!this.canReactGlobally()) {
+        console.log(`[EventReactor] Dropping remaining queue (global reaction limit reached), ${this.queue.length + 1} event(s) discarded`);
+        break;
+      }
 
       await this.processEvent(next, hash);
     }
@@ -164,15 +187,23 @@ export class EventReactor {
   }
 
   private hashEvent(classified: ClassifiedEvent): string {
-    // Simple hash: type + stringified data (first 500 chars to avoid huge hashes)
+    // type + stringified data (first 500 chars to avoid huge hashes).
+    // Two independent 32-bit accumulators (djb2-style, seeded differently)
+    // combined into one ~64-bit key - a single 32-bit fold collides too
+    // easily for a dedup set that entries can sit in for up to an hour
+    // (see recordReaction), silently dropping a later, genuinely different
+    // event that happened to hash the same.
     const key = `${classified.event.type}:${JSON.stringify(classified.event.data).slice(0, 500)}`;
-    let hash = 0;
+    let hashA = 0;
+    let hashB = 5381;
     for (let i = 0; i < key.length; i++) {
       const char = key.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash |= 0; // Convert to 32-bit integer
+      hashA = ((hashA << 5) - hashA) + char;
+      hashA |= 0;
+      hashB = ((hashB << 5) + hashB) ^ char;
+      hashB |= 0;
     }
-    return hash.toString(36);
+    return `${hashA.toString(36)}${hashB.toString(36)}`;
   }
 
   private canReactForType(eventType: string): boolean {
