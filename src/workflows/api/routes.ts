@@ -1129,10 +1129,14 @@ function validateConnectionValueShape(
         return "BASIC_AUTH: value.username + value.password are required";
       return null;
     case "SECRET_TEXT":
-      // Engine reads either `secret` or `value` depending on the piece;
-      // accept both. Reject obvious empties.
-      if (!has("secret") && !has("value"))
-        return "SECRET_TEXT: value.secret (or value.value) is required";
+      // Engine reads value.secret_text for SECRET_TEXT auth (see
+      // activepieces connection-resolver.ts / piece-helper.ts, and
+      // JarvisTelegramConnectionSource which writes this exact key) - not
+      // `secret`/`value`, which this check used to accept, letting a
+      // wrongly-shaped payload pass validation and land with an undefined
+      // credential at run time.
+      if (!has("secret_text"))
+        return "SECRET_TEXT: value.secret_text is required";
       return null;
     case "CUSTOM_AUTH":
     case "NO_AUTH":
