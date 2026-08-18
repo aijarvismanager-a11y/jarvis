@@ -109,13 +109,18 @@ describe("routePerChannel", () => {
   });
 
   test("adapter throws -> failed with the exception message", async () => {
-    const tg = new FakeAdapter({ connected: true, throwOnSend: new Error("rate limited") });
+    // Non-transient message (classifyErrorString wouldn't call this
+    // retryable) - routePerChannel now retries transient failures via
+    // sendWithRetry like the other send paths, so a "rate limited"-style
+    // message here would trigger real backoff sleeps instead of failing
+    // on the first attempt.
+    const tg = new FakeAdapter({ connected: true, throwOnSend: new Error("invalid channel id") });
     const res = await routePerChannel(["telegram"], "hi", makeServices({
       adapters: { telegram: tg },
       recipients: { telegram: "user" },
     }));
     expect(res.delivered).toEqual([]);
-    expect(res.failed[0]?.error).toBe("rate limited");
+    expect(res.failed[0]?.error).toBe("invalid channel id");
   });
 
   test("partial failure -> each channel reported independently", async () => {

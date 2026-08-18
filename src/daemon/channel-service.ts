@@ -91,24 +91,37 @@ export class ChannelService implements Service {
       // 2. Create & register adapters from config
       const channels = this.config.channels;
 
+      // Each adapter's construction/registration is isolated so one bad
+      // config (e.g. a malformed Discord guild_id) can't stop an
+      // already-fine Telegram adapter from ever reaching connectAll() below
+      // - that Promise.allSettled isolation only protects the connect step,
+      // not adapter construction, unless failures here are caught per-adapter.
       if (channels?.telegram?.enabled && channels.telegram.bot_token) {
-        const telegram = new TelegramAdapter(channels.telegram.bot_token, {
-          sttProvider: this.sttProvider ?? undefined,
-          allowedUsers: channels.telegram.allowed_users,
-        });
-        this.manager.register(telegram);
+        try {
+          const telegram = new TelegramAdapter(channels.telegram.bot_token, {
+            sttProvider: this.sttProvider ?? undefined,
+            allowedUsers: channels.telegram.allowed_users,
+          });
+          this.manager.register(telegram);
+        } catch (err) {
+          console.error('[ChannelService] Failed to construct Telegram adapter:', err);
+        }
       }
 
       if (channels?.discord?.enabled && channels.discord.bot_token) {
-        // Lazy-loaded: discord.js costs ~38MB RSS, only pay it when the
-        // Discord channel is actually enabled.
-        const { DiscordAdapter } = await import('../comms/channels/discord.ts');
-        const discord = new DiscordAdapter(channels.discord.bot_token, {
-          sttProvider: this.sttProvider ?? undefined,
-          allowedUsers: channels.discord.allowed_users,
-          guildId: channels.discord.guild_id,
-        });
-        this.manager.register(discord);
+        try {
+          // Lazy-loaded: discord.js costs ~38MB RSS, only pay it when the
+          // Discord channel is actually enabled.
+          const { DiscordAdapter } = await import('../comms/channels/discord.ts');
+          const discord = new DiscordAdapter(channels.discord.bot_token, {
+            sttProvider: this.sttProvider ?? undefined,
+            allowedUsers: channels.discord.allowed_users,
+            guildId: channels.discord.guild_id,
+          });
+          this.manager.register(discord);
+        } catch (err) {
+          console.error('[ChannelService] Failed to construct Discord adapter:', err);
+        }
       }
 
       // 3. Set unified message handler — same brain for all channels
@@ -218,11 +231,18 @@ export class ChannelService implements Service {
   async tryBroadcastToChannels(
     channels: string[],
     text: string,
-  ): Promise<{ delivered: string[]; failed: { channel: string; error: string }[] }> {
-    return routePerChannel(channels, text, {
+  ): Promise<{ delivered: string[]; failed: { channel: string; error: string; attempts?: number }[] }> {
+    const result = await routePerChannel(channels, text, {
       getAdapter: (name) => this.manager.getChannel(name) ?? null,
       getLastRecipient: (name) => this.lastRecipients.get(name) ?? null,
     });
+    // Same reporting path as sendToChannel/broadcastToAll, so a dashboard
+    // alert wired to the delivery-failure handler doesn't stay silent for
+    // targeted sends specifically.
+    for (const f of result.failed) {
+      this.reportDeliveryFailure(f.channel, { attempts: f.attempts ?? 0, error: f.error });
+    }
+    return result;
   }
 
   /**
@@ -252,6 +272,10 @@ export class ChannelService implements Service {
 
   /** Record a channel's broadcast recipient both in memory and on disk. */
   private recordRecipient(channelTag: string, recipientId: string): void {
+    // Skip the DB write when nothing actually changed - this runs on every
+    // single inbound message, and in the common case (one recipient per
+    // channel) it's the same id every time.
+    if (this.lastRecipients.get(channelTag) === recipientId) return;
     this.lastRecipients.set(channelTag, recipientId);
     try {
       setSetting(`${LAST_RECIPIENT_PREFIX}${channelTag}`, recipientId);
@@ -324,9 +348,9 @@ export async function routePerChannel(
   channels: string[],
   text: string,
   services: ChannelRouterServices,
-): Promise<{ delivered: string[]; failed: { channel: string; error: string }[] }> {
+): Promise<{ delivered: string[]; failed: { channel: string; error: string; attempts?: number }[] }> {
   const delivered: string[] = [];
-  const failed: { channel: string; error: string }[] = [];
+  const failed: { channel: string; error: string; attempts?: number }[] = [];
   const seen = new Set<string>();
   for (const name of channels) {
     if (seen.has(name)) continue;
@@ -349,11 +373,15 @@ export async function routePerChannel(
       });
       continue;
     }
-    try {
-      await adapter.sendMessage(lastRecipient, text);
+    // Same retry/backoff as sendToChannel/broadcastToAll - without this a
+    // targeted send (e.g. a workflow "deliver via telegram only" step) had
+    // zero protection against a transient network blip that the other two
+    // send paths would have recovered from automatically.
+    const result = await sendWithRetry(adapter, lastRecipient, text);
+    if (result.ok) {
       delivered.push(name);
-    } catch (err) {
-      failed.push({ channel: name, error: err instanceof Error ? err.message : String(err) });
+    } else {
+      failed.push({ channel: name, error: result.error, attempts: result.attempts });
     }
   }
   return { delivered, failed };
@@ -429,7 +457,7 @@ export async function sendWithRetry(
   text: string,
   opts?: SendRetryOptions,
 ): Promise<SendRetryResult> {
-  const maxAttempts = opts?.maxAttempts ?? SEND_RETRY_MAX_ATTEMPTS;
+  const maxAttempts = Math.max(1, opts?.maxAttempts ?? SEND_RETRY_MAX_ATTEMPTS);
   const baseDelayMs = opts?.baseDelayMs ?? SEND_RETRY_BASE_DELAY_MS;
   const maxDelayMs = opts?.maxDelayMs ?? SEND_RETRY_MAX_DELAY_MS;
   const sleep = opts?.sleep ?? ((ms: number) => Bun.sleep(ms));
