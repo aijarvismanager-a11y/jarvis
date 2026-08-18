@@ -553,8 +553,13 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
     const channelService = new ChannelService(jarvisConfig, agentService);
 
     // 5c. Create commitment executor (notify-then-execute)
-    const aggressiveness = heartbeatConfig?.aggressiveness ?? 'moderate';
-    const executor = new CommitmentExecutor(aggressiveness as any);
+    const VALID_AGGRESSIVENESS = new Set(['passive', 'moderate', 'aggressive']);
+    const rawAggressiveness = heartbeatConfig?.aggressiveness ?? 'moderate';
+    if (!VALID_AGGRESSIVENESS.has(rawAggressiveness)) {
+      console.warn(`[Daemon] Invalid heartbeat.aggressiveness "${rawAggressiveness}" - falling back to "moderate"`);
+    }
+    const aggressiveness = (VALID_AGGRESSIVENESS.has(rawAggressiveness) ? rawAggressiveness : 'moderate') as 'passive' | 'moderate' | 'aggressive';
+    const executor = new CommitmentExecutor(aggressiveness);
 
     // 6. Wire reactor callback for WebSocket notifications
     reactor.setReactionCallback((text, priority) => {

@@ -114,7 +114,11 @@ export class CommitmentExecutor {
     try {
       const now = Date.now();
       const dueNow = getDueCommitments(); // when_due <= now
-      const upcoming = getUpcoming(20); // all upcoming with when_due
+      // Ordered soonest-due-first; 100 is generous headroom over the 15-min
+      // due_soon window so a burst of >20 commitments due close together
+      // doesn't silently drop the due_soon event / 2-min announce for
+      // anything past the old cap.
+      const upcoming = getUpcoming(100);
 
       // Filter upcoming to those due within 15 minutes (matches the workflow
       // event semantics that the deleted heartbeat used).
@@ -174,6 +178,15 @@ export class CommitmentExecutor {
 
     state.cancelled = true;
     console.log(`[Executor] Cancelled execution: ${state.what}`);
+
+    // Persist the cancellation - without this the DB row stays
+    // pending/active, so the next discovery sweep (60s later) sees it as
+    // still due and re-announces/re-schedules it, over and over.
+    try {
+      updateCommitmentStatus(commitmentId, 'failed', 'Cancelled by user');
+    } catch (err) {
+      console.error('[Executor] Failed to persist cancellation:', err);
+    }
 
     // Broadcast cancellation confirmation
     this.broadcast?.({
@@ -280,7 +293,15 @@ export class CommitmentExecutor {
       this.pending.delete(commitmentId);
       return;
     }
-    if (!this.agentService) return;
+    if (!this.agentService) {
+      // Don't leave this stuck in `pending` forever with a passed
+      // deadline and no timer - drop it (without marking executed/failed)
+      // so the next 60s discovery sweep re-announces and retries it once
+      // agentService becomes available, instead of orphaning it permanently.
+      console.warn(`[Executor] No agentService available - deferring "${state.what}" to next discovery sweep`);
+      this.pending.delete(commitmentId);
+      return;
+    }
 
     state.executed = true;
     this.pending.delete(commitmentId);
