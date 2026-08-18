@@ -122,6 +122,7 @@ function isPublicRoute(pathname: string, method: string): boolean {
   return (
     pathname === '/health' ||
     pathname === '/sidecar/connect' ||
+    pathname === '/sidecar/token' ||
     pathname === '/api/sidecars/.well-known/jwks.json' ||
     pathname.startsWith('/api/webhooks/') ||
     method === 'OPTIONS'

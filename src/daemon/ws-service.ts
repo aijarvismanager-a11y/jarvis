@@ -804,7 +804,9 @@ export class WebSocketService implements Service {
         return this.handleStatus();
 
       case 'voice_start': {
-        const { requestId, currentRoom } = msg.payload as { requestId: string; currentRoom?: string };
+        const payload = msg.payload as { requestId?: string; currentRoom?: string } | undefined;
+        const requestId = payload?.requestId ?? crypto.randomUUID();
+        const currentRoom = payload?.currentRoom;
         // Premium path: if realtime voice is enabled + keyed, open (or reuse) a
         // full-duplex realtime session and skip the STT accumulator entirely.
         if (this.tryStartRealtimeVoice(ws)) return undefined;
@@ -834,7 +836,7 @@ export class WebSocketService implements Service {
         // STT entirely and run the same downstream pipeline.
         const payload = msg.payload as { requestId?: string; text?: string; currentRoom?: string };
         const requestId = payload?.requestId ?? msg.id ?? crypto.randomUUID();
-        const text = (payload?.text ?? '').trim();
+        const text = (typeof payload?.text === 'string' ? payload.text : '').trim();
         const currentRoom = payload?.currentRoom;
         // If we have an in-flight audio session (parallel paths), drop it so
         // we don't double-process the same utterance.
@@ -1172,7 +1174,10 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
         } catch (err) {
           console.error('[WSService] Failed to complete task:', err);
         } finally {
-          this.activeTaskId = null;
+          // Only clear if still ours - a concurrent chat request's own
+          // finally block must not clobber the id it set for its own
+          // in-flight task.
+          if (this.activeTaskId === taskCommitment.id) this.activeTaskId = null;
         }
       }
 
@@ -1219,7 +1224,7 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
         } catch (err) {
           console.error('[WSService] Failed to fail task:', err);
         } finally {
-          this.activeTaskId = null;
+          if (this.activeTaskId === taskCommitment.id) this.activeTaskId = null;
         }
       }
 
@@ -1292,7 +1297,7 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
     // bare error flash. Falling through to the standard pipeline would be wrong:
     // the client is already streaming raw realtime PCM, which the WAV-based path
     // can't consume.
-    if (resolved.monthlyBudgetUsd && !this.getRealtimeBudget().canStart(resolved.monthlyBudgetUsd)) {
+    if (resolved.monthlyBudgetUsd !== undefined && resolved.monthlyBudgetUsd !== null && !this.getRealtimeBudget().canStart(resolved.monthlyBudgetUsd)) {
       console.warn('[WSService] realtime monthly budget reached — refusing new session');
       this.wsServer.sendToClient(ws, {
         type: 'realtime_status',
@@ -1804,6 +1809,10 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
         if (resolved) {
           if (resolved.kind === 'gated') {
             this.broadcastVoiceApprovalGated(resolved.label, resolved.message, requestId);
+          } else if (resolved.kind === 'already_resolved') {
+            this.broadcastAssistantAck(`${resolved.label} was already resolved.`, requestId);
+          } else if (resolved.executionFailed) {
+            this.broadcastAssistantAck(`Approved ${resolved.label}, but running it failed. Check the task board.`, requestId);
           } else {
             const verb = decision === 'approve' ? 'Approving' : 'Cancelling';
             this.broadcastAssistantAck(`${verb} ${resolved.label}.`, requestId);
@@ -1881,8 +1890,9 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
     decision: 'approve' | 'cancel',
     confidence = 1,
   ): Promise<
-    | { kind: 'approval' | 'clarifier' | 'repeat_back'; label: string }
+    | { kind: 'approval' | 'clarifier' | 'repeat_back'; label: string; executionFailed?: boolean }
     | { kind: 'gated'; label: string; message: string }
+    | { kind: 'already_resolved'; label: string }
     | null
   > {
     // 1. Pending approvals — newest first.
@@ -1895,8 +1905,15 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
         // Two-tier safety: destructive impacts never resolve by voice;
         // non-destructive require confidence ≥ 0.85. Gate decision is a
         // pure helper so it's unit-testable without spinning up the
-        // approval pipeline. See gateVoiceApprovalResolution.
-        const gate = gateVoiceApprovalResolution(latest.action_category as ActionCategory, confidence);
+        // approval pipeline. See gateVoiceApprovalResolution. Only the
+        // 'approve' direction is gated - denying a pending action by voice
+        // is always safe (it stops something from happening rather than
+        // causing anything), so a destructive/low-confidence "cancel"
+        // still resolves immediately instead of being parked for a
+        // dashboard click.
+        const gate = decision === 'approve'
+          ? gateVoiceApprovalResolution(latest.action_category as ActionCategory, confidence)
+          : { kind: 'resolve' as const };
         if (gate.kind === 'clarify') {
           // Pending approval STAYS in the queue — user can resolve via
           // dashboard click. We log a 'voice' channel audit row marked
@@ -1918,7 +1935,11 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
 
         if (decision === 'approve') {
           const approved = this.approvalManager.approve(latest.id, 'voice');
-          if (!approved) return null;
+          // Someone else (dashboard click, another voice event) resolved
+          // this between the getPending() snapshot above and this call -
+          // tell the caller so it doesn't fall through and misroute this
+          // voice turn's "yes" to the chat agent as a conversational reply.
+          if (!approved) return { kind: 'already_resolved', label };
           // Audit the voice resolution distinctly from the click path so
           // forensics can isolate any false-positive voice approvals.
           this.auditTrail?.log({
@@ -1934,20 +1955,22 @@ CRITICAL — when in genuine doubt between "make in a new project" vs "add to th
           });
           // Same skip-on-intent-only and skip-on-inline path as the REST
           // endpoint: inline requests are executed by the blocked gate.
+          let executionFailed = false;
           if (this.deferredExecutor && approved.tool_name !== 'request_approval' && approved.execution_mode !== 'inline') {
             try {
               await this.deferredExecutor.executeApproved(latest.id);
             } catch (err) {
               console.warn('[WSService] voice-approved execution failed:', err);
+              executionFailed = true;
             }
           }
           const updated = this.approvalManager.getRequest(latest.id);
           if (updated) this.broadcastApprovalUpdate(updated);
-          return { kind: 'approval', label };
+          return { kind: 'approval', label, executionFailed };
         }
         // cancel
         const denied = this.approvalManager.deny(latest.id, 'voice');
-        if (!denied) return null;
+        if (!denied) return { kind: 'already_resolved', label };
         this.auditTrail?.log({
           agent_id: latest.agent_id,
           agent_name: latest.agent_name,
