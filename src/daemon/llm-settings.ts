@@ -233,11 +233,26 @@ export function saveLLMSettings(
       ) {
         throw new Error(`Provider '${name}' requires the API key or auth token again when changing kind`);
       }
+      if (update.kind !== undefined && !AVAILABLE_KINDS.includes(update.kind)) {
+        throw new Error(`Provider '${name}' has an unrecognized kind: '${update.kind}'`);
+      }
     }
     for (const [name, update] of updates) {
       if (update === null) {
         delete config.llm.providers[name];
-        try { deleteSecret(keychainKey(name)); } catch { /* ignore */ }
+        try { deleteSecret(keychainKey(name)); } catch (err) {
+          console.warn(`[LLM] Failed to delete api_key for '${name}':`, err);
+        }
+        // A "name:model" ref to the just-deleted provider would otherwise
+        // point at credentials/config that no longer exist - clear it
+        // rather than leave default/tiers silently dangling.
+        const referencesDeleted = (ref: string | undefined) => ref?.split(':')[0] === name;
+        if (referencesDeleted(config.llm.default)) config.llm.default = undefined;
+        if (config.llm.tiers) {
+          for (const tier of ['conversation', 'high', 'medium', 'low'] as const) {
+            if (referencesDeleted(config.llm.tiers[tier])) delete config.llm.tiers[tier];
+          }
+        }
         continue;
       }
       const existing = config.llm.providers[name] ?? {};
@@ -248,7 +263,9 @@ export function saveLLMSettings(
       // back into the config object that might end up on disk.
       if (update.api_key !== undefined) {
         if (update.api_key === '') {
-          try { deleteSecret(keychainKey(name)); } catch { /* ignore */ }
+          try { deleteSecret(keychainKey(name)); } catch (err) {
+            console.warn(`[LLM] Failed to delete api_key for '${name}':`, err);
+          }
         } else {
           try { setSecret(keychainKey(name), update.api_key); } catch (err) {
             console.warn(`[LLM] Failed to persist api_key for '${name}':`, err);
@@ -443,6 +460,13 @@ export function mergeLLMSettingsIntoConfig(config: JarvisConfig): void {
  * shape is empty.
  */
 function migrateLegacyDBSettings(config: JarvisConfig): void {
+  // Legacy installs always had `llm.primary` set (it's how the old
+  // single-provider shape selected which one was active). An install that
+  // never had it - i.e. everything created after the provider/model split -
+  // has nothing to migrate, so skip the ~18 DB/keychain reads below that
+  // would otherwise run on every boot and every settings-reload forever.
+  if (!getSetting('llm.primary')) return;
+
   const LEGACY_KIND_KEYS: Array<{ kind: LLMProviderKind; secretKey: string; modelKey: string; baseUrlKey?: string }> = [
     { kind: 'anthropic', secretKey: 'llm.anthropic.api_key', modelKey: 'llm.anthropic.model' },
     { kind: 'openai', secretKey: 'llm.openai.api_key', modelKey: 'llm.openai.model' },

@@ -1349,11 +1349,21 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
             tts?: Record<string, unknown>;
           };
 
-          // 1. LLM settings — same path as /api/config/llm POST.
+          // 1. LLM settings — same path as /api/config/llm POST. A failure
+          //    here (e.g. a validation error) must not abort step 2 below -
+          //    STT/TTS/completion are independent and were specifically
+          //    made atomic against a daemon kill; an LLM quirk shouldn't
+          //    re-funnel the user back into onboarding for unrelated fields.
+          let llmError: string | undefined;
           if (body.llm && Object.keys(body.llm).length > 0) {
-            const { saveLLMSettings, hotReloadLLMProviders } = await import('./llm-settings.ts');
-            saveLLMSettings(ctx.config, body.llm as any);
-            hotReloadLLMProviders(ctx.config, ctx.agentService.getLLMManager());
+            try {
+              const { saveLLMSettings, hotReloadLLMProviders } = await import('./llm-settings.ts');
+              saveLLMSettings(ctx.config, body.llm as any);
+              hotReloadLLMProviders(ctx.config, ctx.agentService.getLLMManager());
+            } catch (err) {
+              llmError = err instanceof Error ? err.message : String(err);
+              console.error('[Onboarding] LLM settings save failed:', llmError);
+            }
           }
 
           // 2. STT + TTS + the setup-completed flag in ONE config write.
@@ -1425,7 +1435,8 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
             ok: true,
             setup_completed_at: now,
             post_setup_services_started: postSetupStarted,
-            message: 'Setup complete. Jarvis is ready.',
+            message: llmError ? `Setup complete, but LLM settings failed to save: ${llmError}` : 'Setup complete. Jarvis is ready.',
+            ...(llmError ? { llm_error: llmError } : {}),
           });
         } catch (err) {
           return errorFromException(err);
@@ -1519,9 +1530,18 @@ export function createApiRoutes(ctx: ApiContext): Record<string, unknown> {
 
           saveLLMSettings(ctx.config, body as any);
 
-          // Hot-reload providers on the shared LLMManager
-          const llmManager = ctx.agentService.getLLMManager();
-          hotReloadLLMProviders(ctx.config, llmManager);
+          // Hot-reload providers on the shared LLMManager. The save above
+          // already persisted - a failure here must not be reported as a
+          // save failure (the client would retry/re-edit unaware the DB
+          // write already landed and will apply on the next reload/restart).
+          try {
+            const llmManager = ctx.agentService.getLLMManager();
+            hotReloadLLMProviders(ctx.config, llmManager);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('[LLM] Hot-reload after save failed:', msg);
+            return json({ ok: true, message: `LLM configuration saved, but applying it live failed: ${msg}. It will take effect on the next restart.` });
+          }
 
           return json({ ok: true, message: 'LLM configuration saved and applied.' });
         } catch (err) {
