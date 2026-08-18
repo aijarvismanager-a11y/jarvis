@@ -81,7 +81,7 @@ export function parseRelativeDate(input: string, now: number = Date.now()): Pars
 
   // 4. "next monday" / "next tuesday" — next instance after today
   if (!baseDate) {
-    const nextMatch = text.match(/^next\s+(sun|mon|tue|tues|wed|thu|thur|fri|sat)(?:day|nesday|sday|urday)?(.*)$/);
+    const nextMatch = text.match(/^next\s+(sun|mon|tue|tues|wed|thur|thu|fri|sat)(?:day|nesday|sday|urday)?(.*)$/);
     if (nextMatch) {
       const target = weekdayIndex(nextMatch[1]!);
       if (target !== null) {
@@ -96,7 +96,7 @@ export function parseRelativeDate(input: string, now: number = Date.now()): Pars
 
   // 5. Bare weekday: "tuesday" or "tuesday at 3" — next instance (today if same dow)
   if (!baseDate) {
-    const dowMatch = text.match(/^(sun|mon|tue|tues|wed|thu|thur|fri|sat)(?:day|nesday|sday|urday)?(.*)$/);
+    const dowMatch = text.match(/^(sun|mon|tue|tues|wed|thur|thu|fri|sat)(?:day|nesday|sday|urday)?(.*)$/);
     if (dowMatch) {
       const target = weekdayIndex(dowMatch[1]!);
       if (target !== null) {
