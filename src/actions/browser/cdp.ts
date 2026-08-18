@@ -126,6 +126,12 @@ export class CDPClient {
    * Close the WebSocket connection.
    */
   async close(): Promise<void> {
+    // Reject in-flight send() calls before clearing - otherwise a caller
+    // awaiting send() concurrently with close() hangs forever: pending's
+    // entry is gone so send()'s own timeout fallback also no-ops on it.
+    for (const { reject } of this.pending.values()) {
+      reject(new Error('CDP connection closed'));
+    }
     this.ws?.close();
     this.ws = null;
     this.pending.clear();

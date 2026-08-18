@@ -4,12 +4,13 @@ import { readFileSync, existsSync } from 'node:fs';
 export class WSLBridge {
   private executor: TerminalExecutor;
   private windowsHome: string | null = null;
+  private windowsHomeReady: Promise<void> = Promise.resolve();
 
   constructor() {
     this.executor = new TerminalExecutor();
 
     if (WSLBridge.isWSL()) {
-      this.detectWindowsHome();
+      this.windowsHomeReady = this.detectWindowsHome();
     }
   }
 
@@ -64,22 +65,25 @@ export class WSLBridge {
     }
   }
 
-  getWindowsHome(): string | null {
+  /**
+   * Awaits detection before returning - the constructor kicks off
+   * detectWindowsHome() without awaiting it, so callers that read
+   * windowsHome synchronously right after `new WSLBridge()` would
+   * otherwise always observe null/undetected, even on a real WSL box.
+   */
+  async getWindowsHome(): Promise<string | null> {
+    await this.windowsHomeReady;
     return this.windowsHome;
   }
 
-  private detectWindowsHome(): void {
+  private async detectWindowsHome(): Promise<void> {
     try {
-      const result = this.executor.execute('cmd.exe /C "echo %USERPROFILE%"');
-      result.then(res => {
-        const path = res.stdout.trim();
+      const result = await this.executor.execute('cmd.exe /C "echo %USERPROFILE%"');
+      const path = result.stdout.trim();
 
-        if (path && !path.includes('%')) {
-          this.windowsHome = this.convertWindowsPath(path);
-        }
-      }).catch(() => {
-        this.windowsHome = null;
-      });
+      if (path && !path.includes('%')) {
+        this.windowsHome = this.convertWindowsPath(path);
+      }
     } catch {
       this.windowsHome = null;
     }

@@ -35,7 +35,9 @@ export class TerminalExecutor {
         stderr: 'pipe',
       });
 
+      let timedOut = false;
       const timeoutId = setTimeout(() => {
+        timedOut = true;
         proc.kill();
       }, timeout);
 
@@ -48,6 +50,14 @@ export class TerminalExecutor {
       clearTimeout(timeoutId);
 
       const duration = Date.now() - startTime;
+
+      // proc.exited resolves normally even for a killed process (Promise.all
+      // never rejects on timeout), so the timeout must be detected explicitly
+      // here rather than relying on the catch block below, which was dead
+      // code for the timeout path.
+      if (timedOut) {
+        throw new Error(`Command timed out after ${timeout}ms: ${command}`);
+      }
 
       return {
         stdout: stdout.toString('utf-8'),

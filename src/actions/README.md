@@ -168,7 +168,7 @@ if (WSLBridge.isWSL()) {
   const wslPath = await bridge.convertToWSLPath('C:\\Users\\user\\file.txt');
 
   // Get Windows home directory
-  const winHome = bridge.getWindowsHome();
+  const winHome = await bridge.getWindowsHome();
 }
 ```
 

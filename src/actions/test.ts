@@ -38,7 +38,7 @@ async function testActionLayer() {
   console.log(`   Running in WSL: ${isWSL}`);
   if (isWSL) {
     const bridge = new WSLBridge();
-    console.log(`   Windows home: ${bridge.getWindowsHome() ?? 'Not detected'}`);
+    console.log(`   Windows home: ${(await bridge.getWindowsHome()) ?? 'Not detected'}`);
   }
 
   console.log('\n4. Browser Session');

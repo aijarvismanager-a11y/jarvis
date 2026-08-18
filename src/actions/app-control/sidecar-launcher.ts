@@ -103,9 +103,12 @@ function getSidecarHost(): string {
 }
 
 /**
- * Check if the sidecar is already running on the given port.
+ * Check if the sidecar is already running on the given port. Returns the
+ * host it actually answered on (may be the WSL host-IP fallback, not
+ * 'localhost'), or null if unreachable on every candidate host - callers
+ * must use the returned host, not assume 'localhost', when connecting.
  */
-export async function isSidecarRunning(port: number = DEFAULT_PORT): Promise<boolean> {
+export async function isSidecarRunning(port: number = DEFAULT_PORT): Promise<string | null> {
   const host = getSidecarHost();
   const hosts = [host];
 
@@ -120,13 +123,13 @@ export async function isSidecarRunning(port: number = DEFAULT_PORT): Promise<boo
   for (const h of hosts) {
     try {
       const alive = await pingTcp(h, port, 2000);
-      if (alive) return true;
+      if (alive) return h;
     } catch {
       // Try next host
     }
   }
 
-  return false;
+  return null;
 }
 
 /**

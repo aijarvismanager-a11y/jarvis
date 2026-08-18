@@ -55,7 +55,10 @@ export class DesktopController implements AppController {
     if (this._connected) return;
 
     // Check if sidecar is already running
-    if (!(await isSidecarRunning(this.port))) {
+    const runningHost = await isSidecarRunning(this.port);
+    if (runningHost) {
+      this.host = runningHost;
+    } else {
       console.log('[DesktopController] Sidecar not running, launching...');
       this.runningSidecar = await launchSidecar(this.port);
       this.host = this.runningSidecar.host;
