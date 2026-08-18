@@ -138,7 +138,20 @@ export class PebbleRealtimeManager {
       // buffer too — the next response must not inherit it.
       signalStopPlayback: () => {
         const entry = this.sessions.get(sidecarId);
-        if (entry) entry.transcript = newTranscriptAccumulator();
+        if (entry) {
+          entry.transcript = newTranscriptAccumulator();
+          // Barge-in interrupts the assistant immediately - push 'listening'
+          // now rather than leaving lastState at 'speaking'. The interrupted
+          // utterance may never reach a final transcript event (or the
+          // user's own turn may take a while to finalize, per foldTranscript
+          // dropping interim user deltas), so without this the pebble's
+          // visual state would stay frozen on "speaking" for the rest of
+          // the user's turn.
+          if (entry.lastState !== 'listening') {
+            entry.lastState = 'listening';
+            this.deps.onState?.(sidecarId, 'listening');
+          }
+        }
         const ch = this.deps.getAudioChannel(sidecarId);
         if (ch) { ch.sendFlush(); return; }
         this.deps.dispatchNotify(sidecarId, 'pebble.stop_audio', {});
@@ -166,7 +179,7 @@ export class PebbleRealtimeManager {
       },
       onError: (err) => {
         this.deps.onStatus?.(sidecarId, 'error', err);
-        this.stop(sidecarId);
+        this.stop(sidecarId, { silent: true });
       },
       onClose: () => this.stop(sidecarId),
     });
@@ -177,15 +190,25 @@ export class PebbleRealtimeManager {
       this.stop(sidecarId);
     }, resolved.maxSessionMinutes * 60_000);
 
-    this.sessions.set(sidecarId, { session, transport, timeout, startedAt: Date.now(), transcript: newTranscriptAccumulator() });
+    const entry: Entry = { session, transport, timeout, startedAt: Date.now(), transcript: newTranscriptAccumulator() };
+    this.sessions.set(sidecarId, entry);
 
     try {
       await session.connect();
+      // stop() may have already run for this sidecar while connect() was
+      // in flight (e.g. a disconnect handler, or the maxSessionMinutes
+      // timeout firing before the handshake finished). Check the map still
+      // holds THIS entry (not just any entry - a later start() could have
+      // replaced it) before reporting live, otherwise a torn-down session
+      // gets reported as live/listening with no way to reach it again
+      // (pushMicChunk would silently no-op against the missing map entry).
+      if (this.sessions.get(sidecarId) !== entry) return;
       this.deps.onStatus?.(sidecarId, 'live', resolved.model);
       this.deps.onState?.(sidecarId, 'listening'); // mic hot, awaiting the user
     } catch (err) {
+      if (this.sessions.get(sidecarId) !== entry) return;
       this.deps.onStatus?.(sidecarId, 'error', `Realtime connect failed: ${String(err)}`);
-      this.stop(sidecarId);
+      this.stop(sidecarId, { silent: true });
     }
   }
 
@@ -194,16 +217,22 @@ export class PebbleRealtimeManager {
     this.sessions.get(sidecarId)?.transport.pushMicChunk(pcm);
   }
 
-  /** Close the session and return the pebble to idle (idempotent). */
-  stop(sidecarId: string): void {
+  /**
+   * Close the session and return the pebble to idle (idempotent).
+   * `silent` skips the 'closed' status broadcast - used when the caller
+   * already reported a more specific status (e.g. 'error') immediately
+   * before calling stop(), so that detail isn't clobbered a tick later by
+   * a generic, detail-less 'closed'.
+   */
+  stop(sidecarId: string, opts?: { silent?: boolean }): void {
     const entry = this.sessions.get(sidecarId);
     if (!entry) return;
     this.sessions.delete(sidecarId);
     clearTimeout(entry.timeout);
-    try { entry.session.close(); } catch {/* ignore */}
-    try { entry.transport.stop(); } catch {/* ignore */}
+    try { entry.session.close(); } catch (err) { console.warn(`[PebbleRealtime] session.close() failed for ${sidecarId}:`, err); }
+    try { entry.transport.stop(); } catch (err) { console.warn(`[PebbleRealtime] transport.stop() failed for ${sidecarId}:`, err); }
     this.deps.onState?.(sidecarId, 'idle');
-    this.deps.onStatus?.(sidecarId, 'closed');
+    if (!opts?.silent) this.deps.onStatus?.(sidecarId, 'closed');
   }
 
   stopAll(): void {
