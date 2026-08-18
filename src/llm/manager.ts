@@ -33,6 +33,13 @@ export class LLMManager {
   private tierMap: TierMap = {};
   private static readonly MAX_RETRIES_PER_PROVIDER = 3;
   private static readonly REQUEST_TIMEOUT_MS = 90000; // 90 second timeout for LLM calls
+  // Exponential backoff between retry attempts (1s, 2s, ...). Provider-level
+  // retry-with-backoff (e.g. anthropic.ts's old fetchWithRetry) was disabled
+  // in favor of centralizing retries here, but this loop originally had NO
+  // delay between attempts at all - on a 429 that meant hammering an
+  // already-rate-limited provider with immediate back-to-back retries
+  // instead of backing off.
+  private static readonly RETRY_BASE_DELAY_MS = 1000;
   private static readonly isDebugging = process.env.JARVIS_LOG_LEVEL === 'debug' || process.env.DEBUG_LLM === 'true';
 
   constructor() {}
@@ -203,6 +210,11 @@ export class LLMManager {
       // up many live timers concurrently for no reason.
       clearTimeout(timer!);
     }
+  }
+
+  /** Delay before retry attempt N+1, given attempt N just failed (1-indexed). */
+  private static async backoff(attempt: number): Promise<void> {
+    await Bun.sleep(LLMManager.RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1));
   }
 
   /**
@@ -446,6 +458,7 @@ export class LLMManager {
           `[LLM] Provider ${provider.name} failed (attempt ${attempt}/${LLMManager.MAX_RETRIES_PER_PROVIDER})${!shouldRetry ? ' [no retry]' : ''}: ${errorMsg}`
         );
         if (!shouldRetry) break;
+        if (attempt < LLMManager.MAX_RETRIES_PER_PROVIDER) await LLMManager.backoff(attempt);
       }
     }
     throw new Error(this.formatFailure(provider.name, errors));
@@ -503,6 +516,7 @@ export class LLMManager {
           return;
         }
         if (!shouldRetry) break;
+        if (attempt < LLMManager.MAX_RETRIES_PER_PROVIDER) await LLMManager.backoff(attempt);
       }
     }
     throw new ProviderStreamExhausted(
@@ -550,6 +564,7 @@ export class LLMManager {
           );
 
           if (!shouldRetry) break;
+          if (attempt < LLMManager.MAX_RETRIES_PER_PROVIDER) await LLMManager.backoff(attempt);
         }
       }
 
@@ -645,6 +660,7 @@ export class LLMManager {
           }
 
           if (!shouldRetry) break;
+          if (attempt < LLMManager.MAX_RETRIES_PER_PROVIDER) await LLMManager.backoff(attempt);
         }
       }
 
