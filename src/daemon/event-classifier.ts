@@ -26,6 +26,17 @@ const PHONE_PATTERN = /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
 const LOW_PRIORITY_DIRS = ['/tmp', '/var/tmp', '/dev/shm', 'node_modules', '.git', '__pycache__', '.cache'];
 
 /**
+ * True if `dir` appears as a whole path component of `filePath` (bounded by
+ * path separators or the string edges), not just a raw substring - a plain
+ * `.includes()` check would match ".git" inside ".github/workflows/ci.yml",
+ * silently downgrading CI workflow changes to noise.
+ */
+function pathHasComponent(filePath: string, dir: string): boolean {
+  const escaped = dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[/\\\\])${escaped}([/\\\\]|$)`).test(filePath);
+}
+
+/**
  * Classify an observer event into a priority level.
  * Rules are evaluated top-down; first match wins.
  */
@@ -74,13 +85,15 @@ export function classifyEvent(event: ObserverEvent): ClassifiedEvent {
     const changeType = String(data.changeType ?? data.type ?? '');
 
     // Check if file is in a low-priority directory
-    if (LOW_PRIORITY_DIRS.some(dir => filePath.includes(dir))) {
+    if (LOW_PRIORITY_DIRS.some(dir => pathHasComponent(filePath, dir))) {
       return { event, priority: 'low', reason: `File change in noisy directory: ${filePath}` };
     }
 
-    // Large file deletions are noteworthy
-    if (changeType === 'delete' || changeType === 'rename') {
-      return { event, priority: 'high', reason: `File ${changeType}: ${filePath}` };
+    // Deletions are noteworthy. Renames are excluded - editors routinely do
+    // atomic-save-via-rename (write to a temp name, then rename over the
+    // original), which would otherwise make every ordinary save "high".
+    if (changeType === 'delete') {
+      return { event, priority: 'high', reason: `File deleted: ${filePath}` };
     }
 
     return { event, priority: 'normal', reason: `File modified: ${filePath}` };
@@ -90,8 +103,9 @@ export function classifyEvent(event: ObserverEvent): ClassifiedEvent {
   if (type === 'process_started') {
     const name = String(data.name ?? data.command ?? '');
 
-    // Interesting process launches
-    if (/chrome|firefox|code|slack|discord|telegram|zoom/i.test(name)) {
+    // Interesting process launches. Word-boundary matched so e.g. "zoomify"
+    // or "GeoCoder.exe" doesn't false-positive as the Zoom/VS Code app.
+    if (/\b(chrome|firefox|code|slack|discord|telegram|zoom)\b/i.test(name)) {
       return { event, priority: 'normal', reason: `Notable app launched: ${name}` };
     }
 
@@ -148,7 +162,9 @@ export function classifyEvent(event: ObserverEvent): ClassifiedEvent {
   }
 
   if (type === 'stuck_detected') {
-    return { event, priority: 'normal', reason: `User appears stuck in ${data.appName} (${Math.round((data.durationMs as number) / 1000)}s)` };
+    const durationMs = typeof data.durationMs === 'number' ? data.durationMs : null;
+    const durationStr = durationMs !== null ? `${Math.round(durationMs / 1000)}s` : 'unknown duration';
+    return { event, priority: 'normal', reason: `User appears stuck in ${data.appName} (${durationStr})` };
   }
 
   if (type === 'context_changed') {
@@ -164,7 +180,9 @@ export function classifyEvent(event: ObserverEvent): ClassifiedEvent {
   }
 
   if (type === 'screen_capture') {
-    return { event, priority: 'low', reason: `Screen captured (${Math.round((data.pixelChangePct as number) * 100)}% change)` };
+    const pixelChangePct = typeof data.pixelChangePct === 'number' ? data.pixelChangePct : null;
+    const changeStr = pixelChangePct !== null ? `${Math.round(pixelChangePct * 100)}% change` : 'change unknown';
+    return { event, priority: 'low', reason: `Screen captured (${changeStr})` };
   }
 
   // --- Sidecar events ---
