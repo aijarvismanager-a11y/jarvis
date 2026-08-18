@@ -61,11 +61,20 @@ export class RealtimeVoiceSession {
     };
     this.session = deps.sessionFactory ? deps.sessionFactory(opts) : new RealtimeSession(opts);
 
-    this.session.onTranscript((t) => this.deps.onTranscript?.(t));
-    this.session.onError((e) => this.deps.onError?.(e));
+    // Guarded like onFunctionCall's executeToolCall below: these are
+    // caller-supplied callbacks (e.g. pebble-realtime.ts's onTranscript
+    // drives UI state via foldTranscript), and an uncaught throw here would
+    // propagate back into RealtimeSession's internal event dispatch rather
+    // than staying contained to this session's wiring.
+    this.session.onTranscript((t) => {
+      try { this.deps.onTranscript?.(t); } catch (err) { console.error('[RealtimeVoiceSession] onTranscript handler threw:', err); }
+    });
+    this.session.onError((e) => {
+      try { this.deps.onError?.(e); } catch (err) { console.error('[RealtimeVoiceSession] onError handler threw:', err); }
+    });
     this.session.onClose(() => {
       this.closed = true;
-      this.deps.onClose?.();
+      try { this.deps.onClose?.(); } catch (err) { console.error('[RealtimeVoiceSession] onClose handler threw:', err); }
     });
 
     // Fold realtime token usage into the shared llm_usage table so the Usage
