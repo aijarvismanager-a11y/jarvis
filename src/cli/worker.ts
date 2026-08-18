@@ -30,6 +30,8 @@ file was written.
 `);
 }
 
+const KNOWN_FLAGS = new Set(['template', 'prompt', 'worker', 'id']);
+
 function parseFlags(args: string[]): Record<string, string> {
   const flags: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
@@ -37,7 +39,11 @@ function parseFlags(args: string[]): Record<string, string> {
     if (arg?.startsWith('--')) {
       const key = arg.slice(2);
       const value = args[i + 1];
-      if (value === undefined || value.startsWith('--')) {
+      // A value that happens to start with "--" (e.g. --prompt "--fix the
+      // auth bug") must still be consumed as this flag's value, not
+      // mistaken for the start of the next flag - only break on a token
+      // that's actually one of our known flag names.
+      if (value === undefined || (value.startsWith('--') && KNOWN_FLAGS.has(value.slice(2)))) {
         flags[key] = 'true';
       } else {
         flags[key] = value;
