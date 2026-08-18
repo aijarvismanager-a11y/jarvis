@@ -61,14 +61,22 @@ export class EventCoalescer {
     lines.push(`## Recent Activity (${events.length} events since last check)`);
     lines.push('');
 
-    for (const [type, groupEvents] of groups) {
+    // Largest groups first, so the most numerous activity isn't buried
+    // below several one-event groups that merely occurred earlier - Map
+    // iteration order is first-seen-event order, not relevance.
+    const sortedGroups = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+
+    for (const [type, groupEvents] of sortedGroups) {
       const label = formatEventType(type);
       lines.push(`**${label}** (${groupEvents.length}):`);
 
       // Show up to 5 details per group, summarize the rest
       const shown = groupEvents.slice(0, 5);
       for (const evt of shown) {
-        lines.push(`  - ${evt.reason}`);
+        // Strip embedded newlines (e.g. multi-line OCR'd error text in
+        // event-classifier.ts's error_detected reason) so a single event
+        // can't break out of the bullet-list formatting.
+        lines.push(`  - ${evt.reason.replace(/\s*\n\s*/g, ' ')}`);
       }
 
       if (groupEvents.length > 5) {
@@ -78,7 +86,7 @@ export class EventCoalescer {
       lines.push('');
     }
 
-    return lines.join('\n');
+    return lines.join('\n').trimEnd();
   }
 
   /**
