@@ -75,7 +75,17 @@ interface RegisteredApplier {
 
 interface PendingApply {
   timer: ReturnType<typeof setTimeout>;
+  /** When this section's debounce window first started - see sectionChanged(). */
+  firstScheduledAt: number;
 }
+
+/**
+ * Hard cap on how long a debounce can keep resetting before it's forced to
+ * flush anyway. Without this, a section that changes faster than its own
+ * debounceMs (e.g. two features writing the same section in a loop) could
+ * starve its applier indefinitely.
+ */
+const MAX_DEBOUNCE_WAIT_MS = 60_000;
 
 export class SettingsReloadCoordinator {
   private readonly config: JarvisConfig;
@@ -119,11 +129,21 @@ export class SettingsReloadCoordinator {
     const list = this.appliers.get(section);
     if (!list || list.length === 0) return;
 
-    const delay = Math.max(...list.map((a) => a.debounceMs));
     const existing = this.pending.get(section);
+    const firstScheduledAt = existing?.firstScheduledAt ?? Date.now();
     if (existing) clearTimeout(existing.timer);
+
+    // Cap the delay so continuous rapid changes to the same section (faster
+    // than its own debounce interval) can't reset the timer forever and
+    // starve the applier - force a flush once MAX_DEBOUNCE_WAIT_MS has
+    // elapsed since the first change in this burst.
+    const requestedDelay = Math.max(...list.map((a) => a.debounceMs));
+    const elapsed = Date.now() - firstScheduledAt;
+    const delay = Math.min(requestedDelay, Math.max(0, MAX_DEBOUNCE_WAIT_MS - elapsed));
+
     this.pending.set(section, {
       timer: setTimeout(() => void this.flush(section), delay),
+      firstScheduledAt,
     });
   }
 
