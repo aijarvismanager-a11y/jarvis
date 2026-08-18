@@ -235,7 +235,7 @@ export class GeminiProvider implements LLMProvider {
           tool_calls: toolCalls,
           usage,
           model,
-          finish_reason: this.mapFinishReason(finishReason),
+          finish_reason: this.mapFinishReason(finishReason, toolCalls.length > 0),
         },
       };
     } catch (err) {
@@ -374,28 +374,28 @@ export class GeminiProvider implements LLMProvider {
         ...(cached !== undefined ? { cache_read_input_tokens: cached } : {}),
       },
       model: response.modelVersion ?? model,
-      finish_reason: this.mapFinishReason(candidate?.finishReason ?? null),
+      finish_reason: this.mapFinishReason(candidate?.finishReason ?? null, tool_calls.length > 0),
     };
   }
 
-  private mapFinishReason(reason: string | null): 'stop' | 'tool_use' | 'length' | 'error' {
+  /**
+   * Unlike OpenAI ('tool_calls') and Anthropic ('tool_use'), Gemini has no
+   * distinct finishReason for a function call — it reports 'STOP' either
+   * way. Callers (orchestrator.ts, sub-agent-runner.ts) gate tool execution
+   * on `finish_reason === 'tool_use'`, so this MUST be derived from whether
+   * a function call actually came back, not from `reason` alone — a prior
+   * version always fell through to 'stop' here, silently disabling Gemini
+   * tool calling (the LLM's tool_calls were returned but never executed).
+   */
+  private mapFinishReason(reason: string | null, hasToolCalls: boolean): 'stop' | 'tool_use' | 'length' | 'error' {
     switch (reason) {
-      case 'STOP':
-        return 'stop';
       case 'MAX_TOKENS':
         return 'length';
       case 'SAFETY':
       case 'RECITATION':
         return 'error';
       default:
-        return tool_calls_present(reason) ? 'tool_use' : 'stop';
+        return hasToolCalls ? 'tool_use' : 'stop';
     }
   }
-}
-
-// Gemini doesn't have a distinct "tool_use" finish reason — we detect it
-// from the response content instead. This helper is only for the fallback
-// in mapFinishReason; the actual tool_call detection happens in convertResponse.
-function tool_calls_present(_reason: string | null): boolean {
-  return false;
 }
