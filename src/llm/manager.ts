@@ -187,15 +187,22 @@ export class LLMManager {
    * Add request timeout wrapper for network resilience
    */
   private async withTimeout<T>(promise: Promise<T>, provider: string): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`LLM request to ${provider} timed out after ${LLMManager.REQUEST_TIMEOUT_MS}ms`)),
-          LLMManager.REQUEST_TIMEOUT_MS
-        )
-      )
-    ]);
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<T>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`LLM request to ${provider} timed out after ${LLMManager.REQUEST_TIMEOUT_MS}ms`)),
+        LLMManager.REQUEST_TIMEOUT_MS
+      );
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      // Without this, every successful (non-timed-out) call leaves its
+      // timer running for up to REQUEST_TIMEOUT_MS (90s) — harmless once it
+      // fires (the race already settled), but on a busy daemon this can pile
+      // up many live timers concurrently for no reason.
+      clearTimeout(timer!);
+    }
   }
 
   /**
