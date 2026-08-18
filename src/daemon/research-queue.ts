@@ -89,7 +89,14 @@ export class ResearchQueue {
    */
   complete(id: string, result: string): boolean {
     const topic = this.topics.get(id);
-    if (!topic) return false;
+    if (!topic) {
+      console.warn(`[ResearchQueue] complete() called for unknown/removed topic ${id} - result discarded`);
+      return false;
+    }
+    if (topic.status !== 'in_progress') {
+      console.warn(`[ResearchQueue] complete() called for topic ${id} in status '${topic.status}', not 'in_progress' - ignoring`);
+      return false;
+    }
     topic.status = 'completed';
     topic.result = result;
     topic.completed_at = Date.now();
@@ -102,7 +109,14 @@ export class ResearchQueue {
    */
   fail(id: string, reason: string): boolean {
     const topic = this.topics.get(id);
-    if (!topic) return false;
+    if (!topic) {
+      console.warn(`[ResearchQueue] fail() called for unknown/removed topic ${id} - result discarded`);
+      return false;
+    }
+    if (topic.status !== 'in_progress') {
+      console.warn(`[ResearchQueue] fail() called for topic ${id} in status '${topic.status}', not 'in_progress' - ignoring`);
+      return false;
+    }
     topic.status = 'failed';
     topic.failReason = reason;
     topic.completed_at = Date.now();
@@ -133,8 +147,19 @@ export class ResearchQueue {
     return Array.from(this.topics.values()).filter((t) => t.status === 'queued').length;
   }
 
+  /**
+   * Evict one topic to make room under MAX_QUEUE_SIZE. Tries, in order:
+   * oldest completed/failed, then oldest queued by ascending priority
+   * (low, then normal, then high - only as a last resort, since evicting a
+   * high-priority request is worse than evicting a low one, but still
+   * better than growing past the cap forever). Never evicts an
+   * `in_progress` topic - it has a worker holding its id and will call
+   * complete()/fail() on it; removing it here would silently discard that
+   * result (see complete()/fail()'s "unknown/removed topic" warning).
+   * A queue where every single slot is in_progress is the one case this
+   * can't free - logged, since addTopic() still inserts past the cap then.
+   */
   private evictOldest(): void {
-    // Evict oldest completed, then oldest low-priority queued
     const completed = Array.from(this.topics.values())
       .filter((t) => t.status === 'completed' || t.status === 'failed')
       .sort((a, b) => a.created_at - b.created_at);
@@ -144,12 +169,16 @@ export class ResearchQueue {
       return;
     }
 
-    const low = Array.from(this.topics.values())
-      .filter((t) => t.priority === 'low' && t.status === 'queued')
-      .sort((a, b) => a.created_at - b.created_at);
-
-    if (low.length > 0) {
-      this.topics.delete(low[0]!.id);
+    for (const priority of ['low', 'normal', 'high'] as const) {
+      const candidates = Array.from(this.topics.values())
+        .filter((t) => t.priority === priority && t.status === 'queued')
+        .sort((a, b) => a.created_at - b.created_at);
+      if (candidates.length > 0) {
+        this.topics.delete(candidates[0]!.id);
+        return;
+      }
     }
+
+    console.warn('[ResearchQueue] Could not evict any topic to enforce MAX_QUEUE_SIZE - every slot is in_progress');
   }
 }
