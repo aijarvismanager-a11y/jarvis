@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
-import { execCli } from './exec-cli.ts';
+import { execCli, withWorkerRetries } from './exec-cli.ts';
 
 export type CommandWorkerConfig = {
   name: string;
@@ -60,7 +60,11 @@ export class CommandWorker implements Worker {
     if (!this.definition.enabled) {
       return { status: 'failed', summary: 'worker disabled', output: '', files: [], error: 'disabled' };
     }
+    return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
+      console.warn(`[CommandWorker:${this.binary}] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
 
+  private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {
     const cwd = request.cwd ?? this.definition.workspace;
     const args = substitutePrompt(this.argsTemplate, request.prompt);
 

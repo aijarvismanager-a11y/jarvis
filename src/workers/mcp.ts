@@ -14,6 +14,7 @@ import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
+import { withWorkerRetries } from './exec-cli.ts';
 
 export type MCPWorkerConfig = {
   name: string;
@@ -74,7 +75,11 @@ export class MCPWorker implements Worker {
     if (!this.definition.enabled) {
       return { status: 'failed', summary: 'worker disabled', output: '', files: [], error: 'disabled' };
     }
+    return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
+      console.warn(`[MCPWorker:${this.command}] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
 
+  private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {
     const cwd = request.cwd ?? this.definition.workspace;
     const session = new MCPStdioSession(this.spawnFn, this.command, this.argsTemplate, cwd, this.definition.timeout_ms);
 

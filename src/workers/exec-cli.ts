@@ -5,6 +5,28 @@
  */
 
 import type { SpawnFn } from './claude-code.ts';
+import type { WorkerRunResult } from './types.ts';
+
+/**
+ * Re-run `attempt` up to `1 + retries` times, stopping at the first non-
+ * 'failed' result. `WorkerDefinition.retry` was previously plumbed all the
+ * way from the API (routes.ts) into every Worker's definition but never
+ * actually consumed anywhere - setting it had zero effect on behavior.
+ */
+export async function withWorkerRetries(
+  retries: number,
+  attempt: (attemptNumber: number) => Promise<WorkerRunResult>,
+  onRetry?: (attemptNumber: number, result: WorkerRunResult) => void,
+): Promise<WorkerRunResult> {
+  const maxAttempts = 1 + Math.max(0, retries);
+  let result: WorkerRunResult;
+  for (let i = 1; i <= maxAttempts; i++) {
+    result = await attempt(i);
+    if (result.status !== 'failed' || i === maxAttempts) return result;
+    onRetry?.(i, result);
+  }
+  return result!;
+}
 
 export function execCli(
   spawnFn: SpawnFn,

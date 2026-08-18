@@ -7,7 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
-import { execCli } from './exec-cli.ts';
+import { execCli, withWorkerRetries } from './exec-cli.ts';
 
 export type SpawnFn = typeof spawn;
 
@@ -48,7 +48,11 @@ export class ClaudeCodeWorker implements Worker {
     if (!this.definition.enabled) {
       return { status: 'failed', summary: 'worker disabled', output: '', files: [], error: 'disabled' };
     }
+    return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
+      console.warn(`[ClaudeCodeWorker] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
 
+  private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {
     const cwd = request.cwd ?? this.definition.workspace;
     const args = ['-p', request.prompt, '--output-format', 'text'];
 
