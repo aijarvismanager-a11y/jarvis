@@ -353,9 +353,14 @@ export class CronScheduler {
         const dow = candidate.getDay();
 
         if (!months.includes(month)) {
-          // Advance to next valid month
-          candidate.setMonth(candidate.getMonth() + 1);
+          // Advance to next valid month. setDate(1) must run first: if the
+          // candidate is on day 29/30/31 and the target month has fewer days,
+          // setMonth() alone overflows into the month after (e.g. Jan 31 ->
+          // setMonth(+1) lands on Mar 2/3, silently skipping February forever
+          // on a month-restricted expression until nextRun() gives up and
+          // returns null a year later).
           candidate.setDate(1);
+          candidate.setMonth(candidate.getMonth() + 1);
           candidate.setHours(0, 0, 0, 0);
           continue;
         }

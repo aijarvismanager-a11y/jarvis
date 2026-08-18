@@ -27,6 +27,7 @@ export class GoogleAuth {
   private tokens: GoogleTokens | null = null;
   private tokensPath: string;
   private redirectUri: string;
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(
     clientId: string,
@@ -106,7 +107,15 @@ export class GoogleAuth {
 
     // Check if token is expired (with 5 min buffer)
     if (this.tokens.expiry_date && Date.now() > this.tokens.expiry_date - 5 * 60_000) {
-      await this.refreshAccessToken();
+      // EmailSync and CalendarSync share one GoogleAuth instance on independent
+      // poll timers - without this guard, both can observe the expiry window
+      // at once and each fire their own refresh POST + tokens-file write.
+      if (!this.refreshInFlight) {
+        this.refreshInFlight = this.refreshAccessToken().finally(() => {
+          this.refreshInFlight = null;
+        });
+      }
+      await this.refreshInFlight;
     }
 
     return this.tokens.access_token;

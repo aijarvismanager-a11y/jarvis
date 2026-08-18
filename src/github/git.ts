@@ -35,14 +35,17 @@ async function runGit(cwd: string, args: string[], timeoutMs = 30_000): Promise<
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
     });
     const timer = setTimeout(() => proc.kill(), timeoutMs);
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    clearTimeout(timer);
-    const output = (stdout + stderr).trim();
-    return exitCode === 0 ? { ok: true, output } : { ok: false, output, error: output || `git ${args[0]} exited ${exitCode}` };
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      const output = (stdout + stderr).trim();
+      return exitCode === 0 ? { ok: true, output } : { ok: false, output, error: output || `git ${args[0]} exited ${exitCode}` };
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (err) {
     return { ok: false, output: '', error: err instanceof Error ? err.message : String(err) };
   }
