@@ -85,6 +85,25 @@ export function loadUserSection(section: UserOwnedSection): unknown {
   }
 }
 
+/**
+ * JSON.stringify with object keys sorted recursively, so two semantically
+ * identical values that differ only in key insertion order (e.g. a YAML
+ * round-trip reordering keys after an unrelated file edit) compare equal.
+ * A raw JSON.stringify comparison would otherwise treat that as a real file
+ * edit and reimport, clobbering a dashboard-made change to that section.
+ */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      return Object.keys(v).sort().reduce((sorted: Record<string, unknown>, k) => {
+        sorted[k] = (v as Record<string, unknown>)[k];
+        return sorted;
+      }, {});
+    }
+    return v;
+  });
+}
+
 /** Meta row remembering the file value each section was last imported from. */
 const IMPORT_STATE_KEY = 'cfg.__import_state';
 
@@ -94,7 +113,8 @@ function loadImportState(): Record<string, string> {
   try {
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
+  } catch (err) {
+    console.warn(`[UserSettings] Corrupt JSON for ${IMPORT_STATE_KEY}; ignoring stored value`, err);
     return {};
   }
 }
@@ -123,7 +143,7 @@ export function importLegacyUserSettings(rawYaml: Record<string, unknown> | null
   for (const section of USER_OWNED_SECTIONS) {
     const fileValue = rawYaml[section];
     if (fileValue === undefined || fileValue === null) continue;
-    const fileJson = JSON.stringify(fileValue);
+    const fileJson = canonicalJson(fileValue);
     const hasDbValue = getSetting(settingKey(section)) !== null;
     const lastImported = state[section];
 
@@ -204,7 +224,12 @@ function mergeGoogleSettingsIntoConfig(config: JarvisConfig): void {
   if (raw === null) return;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') config.google = parsed;
+    // Merge, don't replace: a self-hoster's file can still set fields other
+    // than client_id (e.g. redirect_uri) even when the OAuth client itself
+    // comes from the dashboard fallback - a wholesale replace here silently
+    // dropped that file-provided value instead of layering the DB fallback
+    // under it.
+    if (parsed && typeof parsed === 'object') config.google = { ...parsed, ...config.google };
   } catch {
     console.warn(`[UserSettings] Corrupt JSON for ${GOOGLE_KEY}; ignoring stored value`);
   }
