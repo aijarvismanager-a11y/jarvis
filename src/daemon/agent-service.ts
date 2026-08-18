@@ -93,6 +93,8 @@ export class AgentService implements Service, IAgentService {
   private delegationCallback: ((specialistName: string, task: string) => void) | null = null;
   private researchQueue: ResearchQueue | null = null;
   private taskManager: AgentTaskManager | null = null;
+  /** Periodic sweep of AgentTaskManager's completed/failed tasks — see start(). */
+  private taskManagerCleanupTimer: ReturnType<typeof setInterval> | null = null;
   private authorityEngine: AuthorityEngine | null = null;
   // Phase 4: conv-tier infrastructure. Constructed lazily when the
   // conversation tier is configured. Null in classic single-orchestrator mode.
@@ -258,6 +260,15 @@ export class AgentService implements Service, IAgentService {
         const agentTool = createManageAgentsTool(agentToolDeps);
         toolRegistry.register(agentTool);
         console.log('[AgentService] Registered manage_agents tool');
+
+        // AgentTaskManager.cleanup() exists specifically to bound this map's
+        // growth (see its doc comment) but nothing was ever calling it - on a
+        // long-running daemon, every sub-agent task ever launched (each
+        // carrying its full result.messages array) stayed in memory forever.
+        this.taskManagerCleanupTimer = setInterval(() => {
+          const removed = this.taskManager?.cleanup();
+          if (removed) console.log(`[AgentService] Swept ${removed} stale async task(s)`);
+        }, 10 * 60_000);
       }
 
       this.orchestrator.setToolRegistry(toolRegistry);
@@ -279,6 +290,10 @@ export class AgentService implements Service, IAgentService {
 
   async stop(): Promise<void> {
     this._status = 'stopping';
+    if (this.taskManagerCleanupTimer) {
+      clearInterval(this.taskManagerCleanupTimer);
+      this.taskManagerCleanupTimer = null;
+    }
     const primary = this.orchestrator.getPrimary();
     if (primary) {
       this.orchestrator.terminateAgent(primary.id);
