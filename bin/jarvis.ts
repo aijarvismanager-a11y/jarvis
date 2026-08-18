@@ -136,8 +136,18 @@ async function cmdStart(args: string[]): Promise<void> {
   if (!detach) {
     // Run in foreground — acquire lock atomically (checks + locks in one step)
     if (!acquireLock(process.pid)) {
-      console.log(c.yellow('JARVIS is already running'));
-      console.log(c.dim('  Stop it first with: jarvis stop'));
+      // acquireLock() returns false both when another instance genuinely
+      // holds the lock AND on any exception (disk full, unsupported
+      // platform, etc - already logged to stderr internally). Only blame
+      // "already running" when isLocked() confirms that's actually true,
+      // so a platform/IO error doesn't send the user to `jarvis stop` a
+      // daemon that never started.
+      if (isLocked()) {
+        console.log(c.yellow('JARVIS is already running'));
+        console.log(c.dim('  Stop it first with: jarvis stop'));
+      } else {
+        console.log(c.red('Failed to start JARVIS — see the error above.'));
+      }
       process.exit(1);
     }
     // Release the flock on final exit. Do NOT handle SIGINT/SIGTERM here: the

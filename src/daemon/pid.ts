@@ -125,9 +125,19 @@ export function acquireLock(pid: number): boolean {
       return false;
     }
 
-    // Lock acquired — truncate and write PID for display purposes
-    ftruncateSync(fd, 0);
-    writeSync(fd, String(pid));
+    // Lock acquired — truncate and write PID for display purposes. If
+    // either throws (disk full, EIO), close the fd before returning so the
+    // OS releases the flock too - otherwise this process silently holds
+    // the lock forever with `lockFd` left null (never assigned below), and
+    // no daemon (including a retry in this same process) can ever acquire
+    // it again.
+    try {
+      ftruncateSync(fd, 0);
+      writeSync(fd, String(pid));
+    } catch (err) {
+      try { closeSync(fd); } catch { /* already closed */ }
+      throw err;
+    }
 
     // Keep the FD open — closing it would release the lock
     lockFd = fd;
@@ -165,20 +175,21 @@ export function isLocked(lockPath: string = defaultLockPath()): number | null {
       closeSync(fd);
       return null;
     }
-    // Lock held by another process — daemon is running
+    // Lock held by another process — daemon is running. The flock being
+    // busy is itself the authoritative signal (that's the whole reason
+    // this module uses flock instead of PID-based staleness checks - it's
+    // self-releasing on process death, so "busy" can never be stale). A
+    // legitimately containerized daemon commonly runs as container PID 1;
+    // treating pid===1 as a stale-lock signature would delete a live
+    // daemon's lock file and let a second daemon start against the same
+    // data dir, corrupting it.
     closeSync(fd);
     const pid = readPidAt(lockPath);
-
-    // Container safety: if PID is 1 and we're inside a container,
-    // the lock file is stale from a previous container lifecycle
-    if (pid === 1 && isInsideContainer()) {
-      // Only auto-release when probing the default daemon path. A custom
-      // lockPath probe shouldn't be allowed to nuke an arbitrary file.
-      if (lockPath === defaultLockPath()) releaseLock();
-      return null;
-    }
-
-    return pid;
+    // A torn/corrupted PID file (partial write from a crash) must not be
+    // reported as "unlocked" when the flock says otherwise - fall back to
+    // a sentinel that's still truthy so callers don't start a second
+    // daemon against a lock we can't fully read but know is held.
+    return pid ?? -1;
   } catch {
     try { closeSync(fd); } catch { /* already closed */ }
     return null;
@@ -205,8 +216,13 @@ export function acquireLockAt(lockPath: string, pid: number): { release: () => v
       closeSync(fd);
       return null;
     }
-    ftruncateSync(fd, 0);
-    writeSync(fd, String(pid));
+    try {
+      ftruncateSync(fd, 0);
+      writeSync(fd, String(pid));
+    } catch (err) {
+      try { closeSync(fd); } catch { /* already closed */ }
+      throw err;
+    }
     let released = false;
     return {
       release: () => {
@@ -325,13 +341,3 @@ export function getLogDir(): string {
   return LOG_DIR;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function isInsideContainer(): boolean {
-  if (existsSync('/.dockerenv')) return true;
-  try {
-    return readFileSync('/proc/1/cgroup', 'utf-8').includes('docker');
-  } catch {
-    return false;
-  }
-}
