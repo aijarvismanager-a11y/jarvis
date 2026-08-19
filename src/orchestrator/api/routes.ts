@@ -66,6 +66,15 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         }
         worker.definition.enabled = body.enabled;
         setWorkerEnabledPersisted(ctx.getDataDir(), worker.definition.name, body.enabled);
+
+        // Presence check on enable (spec §16's dummy "STATUS: NOT_CONNECTED"):
+        // surface a missing CLI/MCP binary right away instead of only on the
+        // first task run. Browser Workers (no checkAvailable) are unaffected.
+        if (body.enabled && worker.checkAvailable) {
+          const available = await worker.checkAvailable();
+          ctx.getRegistry().setStatus(worker.definition.name, available ? 'ready' : 'error');
+        }
+
         return json({ worker: serializeWorker(worker.definition) });
       },
     },

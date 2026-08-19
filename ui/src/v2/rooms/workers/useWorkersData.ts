@@ -3,7 +3,7 @@ import { parseErrorMessage } from "../apiUtil";
 
 const POLL_INTERVAL_MS = 8000;
 
-export type WorkerType = "claude_code" | "gemini" | "chatgpt" | "custom";
+export type WorkerType = "claude_code" | "gemini" | "chatgpt" | "ollama" | "custom";
 export type WorkerStatus = "ready" | "working" | "waiting" | "handoff" | "error" | "done" | "disabled";
 export type WorkerCapability = "code" | "research" | "write" | "plan" | "image" | "general";
 export type TaskTemplate = "research" | "code" | "plan" | "write" | "general";

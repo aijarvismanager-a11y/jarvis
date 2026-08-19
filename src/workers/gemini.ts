@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
-import { execCli, withWorkerRetries } from './exec-cli.ts';
+import { checkBinaryAvailable, execCli, withWorkerRetries } from './exec-cli.ts';
 
 export type GeminiWorkerOptions = {
   workspace: string;
@@ -46,6 +46,10 @@ export class GeminiWorker implements Worker {
     }
     return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
       console.warn(`[GeminiWorker] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
+
+  checkAvailable(): Promise<boolean> {
+    return checkBinaryAvailable(this.spawnFn, this.binary);
   }
 
   private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {

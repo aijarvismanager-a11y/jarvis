@@ -3,11 +3,13 @@ export { WorkerRegistry } from './registry.ts';
 export { ClaudeCodeWorker } from './claude-code.ts';
 export { GeminiWorker } from './gemini.ts';
 export { ChatGPTWorker } from './chatgpt.ts';
+export { OllamaWorker } from './ollama.ts';
 
 import { WorkerRegistry } from './registry.ts';
 import { ClaudeCodeWorker } from './claude-code.ts';
 import { GeminiWorker } from './gemini.ts';
 import { ChatGPTWorker } from './chatgpt.ts';
+import { OllamaWorker } from './ollama.ts';
 
 /**
  * Registry pre-loaded with the built-in Workers, disabled by default so
@@ -20,5 +22,6 @@ export function createDefaultWorkerRegistry(workspace: string): WorkerRegistry {
   registry.register(new ClaudeCodeWorker({ workspace, enabled: false }));
   registry.register(new GeminiWorker({ workspace, enabled: false }));
   registry.register(new ChatGPTWorker({ workspace, enabled: false }));
+  registry.register(new OllamaWorker({ workspace, enabled: false }));
   return registry;
 }

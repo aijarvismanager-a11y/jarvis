@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import type { CommandWorkerConfig } from './command-worker.ts';
 import { loadMcpWorkers } from './mcp-registry.ts';
 
-export const BUILTIN_NAMES = new Set(['claude_code', 'gemini', 'chatgpt']);
+export const BUILTIN_NAMES = new Set(['claude_code', 'gemini', 'chatgpt', 'ollama']);
 
 // Serializes custom/MCP Worker registration (see mcp-registry.ts's addMcpWorker,
 // which shares this lock) so concurrent adds can't both pass the cross-store

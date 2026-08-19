@@ -28,6 +28,46 @@ export async function withWorkerRetries(
   return result!;
 }
 
+/**
+ * Cheap presence check for a CLI binary - spawns it with `--version` and
+ * watches for spawn failure specifically (ENOENT = binary not found on
+ * PATH). Any other outcome (clean exit, non-zero exit because `--version`
+ * isn't a recognized flag, even a timeout) means the OS successfully found
+ * and started the binary, so it's treated as present. This is a presence
+ * check, not a health/auth check - a binary that exists but isn't logged
+ * in still counts as "available" here, matching the existing pattern
+ * elsewhere in this codebase of not issuing a real (possibly costed) probe
+ * just to report status.
+ */
+export function checkBinaryAvailable(spawnFn: SpawnFn, binary: string, timeoutMs = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (available: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(available);
+    };
+
+    let child: ReturnType<SpawnFn>;
+    try {
+      child = spawnFn(binary, ['--version'], { stdio: 'ignore' });
+    } catch (err: unknown) {
+      finish((err as NodeJS.ErrnoException)?.code !== 'ENOENT');
+      return;
+    }
+
+    timer = setTimeout(() => {
+      child.kill();
+      finish(true);
+    }, timeoutMs);
+
+    child.once('error', (err: NodeJS.ErrnoException) => finish(err?.code !== 'ENOENT'));
+    child.once('exit', () => finish(true));
+  });
+}
+
 export function execCli(
   spawnFn: SpawnFn,
   binary: string,

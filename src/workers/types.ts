@@ -8,7 +8,7 @@
  * deliberately a separate axis from src/llm/* (direct API providers).
  */
 
-export type WorkerType = 'claude_code' | 'gemini' | 'chatgpt' | 'custom';
+export type WorkerType = 'claude_code' | 'gemini' | 'chatgpt' | 'ollama' | 'custom';
 
 export type WorkerStatus = 'ready' | 'working' | 'waiting' | 'handoff' | 'error' | 'done' | 'disabled';
 
@@ -57,4 +57,14 @@ export type WorkerRunResult = {
 export interface Worker {
   readonly definition: WorkerDefinition;
   run(request: WorkerRunRequest): Promise<WorkerRunResult>;
+  /**
+   * Cheap presence check ("is the underlying binary/command actually on
+   * this machine"), distinct from `run()` - no task is executed. Optional:
+   * browser-based Workers (ChatGPTWorker) have no equivalent non-invasive
+   * check and omit it. CLI/MCP Workers implement it so the dashboard can
+   * show "not connected" as soon as a Worker is enabled, rather than only
+   * discovering a missing binary the first time a task is run against it
+   * (spec's "Adapterは初期版ではダミーでよい" / `STATUS: NOT_CONNECTED`).
+   */
+  checkAvailable?(): Promise<boolean>;
 }

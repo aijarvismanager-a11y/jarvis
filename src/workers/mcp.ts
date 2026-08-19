@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
-import { withWorkerRetries } from './exec-cli.ts';
+import { checkBinaryAvailable, withWorkerRetries } from './exec-cli.ts';
 
 export type MCPWorkerConfig = {
   name: string;
@@ -77,6 +77,10 @@ export class MCPWorker implements Worker {
     }
     return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
       console.warn(`[MCPWorker:${this.command}] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
+
+  checkAvailable(): Promise<boolean> {
+    return checkBinaryAvailable(this.spawnFn, this.command);
   }
 
   private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {

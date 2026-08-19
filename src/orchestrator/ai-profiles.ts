@@ -19,7 +19,17 @@ export type AIProfile = {
 
 export type AIProfiles = Record<string, AIProfile>;
 
-/** Initial routing table (spec section 12) - a starting point, not a fixed ranking. */
+/**
+ * Initial routing table (spec section 12) - a starting point, not a fixed
+ * ranking.
+ *
+ * Strengths are only listed for capabilities the matching Worker actually
+ * declares (see each Worker's `capabilities` array) - `TaskTemplate` (the
+ * only source of a routable capability today) has no `image` entry, so a
+ * capability score with no reachable template/Worker pair would be dead
+ * configuration that dresses up a recommendation the system can never
+ * execute or offer for Manual Handoff.
+ */
 export const DEFAULT_AI_PROFILES: AIProfiles = {
   claude_code: {
     enabled: true,
@@ -28,13 +38,22 @@ export const DEFAULT_AI_PROFILES: AIProfiles = {
   },
   gemini: {
     enabled: true,
-    strengths: { research: 5, code: 4, write: 3, plan: 3, general: 3, image: 4 },
+    strengths: { research: 5, code: 4, write: 3, plan: 3, general: 3 },
     priority: 1,
   },
   chatgpt: {
     enabled: true,
     strengths: { write: 5, plan: 4, general: 5, code: 4, research: 3 },
     priority: 1,
+  },
+  // Local LLM (spec section 22/41) - free, no network required, but
+  // generally weaker than the cloud AIs above: modest strengths, and a
+  // higher (later-tried) priority so it's picked as a fallback rather than
+  // a first choice when a cloud AI is also enabled and available.
+  ollama: {
+    enabled: true,
+    strengths: { general: 3, write: 2, research: 2 },
+    priority: 2,
   },
 };
 

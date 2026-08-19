@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
-import { execCli, withWorkerRetries } from './exec-cli.ts';
+import { checkBinaryAvailable, execCli, withWorkerRetries } from './exec-cli.ts';
 
 export type CommandWorkerConfig = {
   name: string;
@@ -62,6 +62,10 @@ export class CommandWorker implements Worker {
     }
     return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
       console.warn(`[CommandWorker:${this.binary}] attempt ${attempt} failed (${result.error}), retrying...`));
+  }
+
+  checkAvailable(): Promise<boolean> {
+    return checkBinaryAvailable(this.spawnFn, this.binary);
   }
 
   private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {

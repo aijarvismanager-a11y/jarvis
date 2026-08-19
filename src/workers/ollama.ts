@@ -1,46 +1,52 @@
 /**
- * ClaudeCodeWorker - runs a task through the Claude Code CLI the user
- * already has installed, in headless mode (`claude -p`). No API key: this
- * shells out to the same `claude` binary as an interactive session, so it
- * inherits whatever auth the user already has (spec section 1.1, 11).
+ * OllamaWorker - runs a task through the `ollama` CLI the user already has
+ * installed, entirely on the user's own machine. This is the "Local LLM"
+ * Provider Adapter the spec lists alongside Claude/Gemini/ChatGPT (section
+ * 22/36 Phase 6, section 41's architecture diagram's "Future Provider
+ * Adapters") - a generalist fallback that costs nothing and needs no
+ * network connection, distinct from src/llm/ollama.ts (which wires Ollama
+ * in as an internal LLM *tier* provider for JARVIS's own reasoning, not as
+ * an external AI the Router hands a whole task to).
  */
 
 import { spawn } from 'node:child_process';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
+import type { SpawnFn } from './claude-code.ts';
 import { checkBinaryAvailable, execCli, withWorkerRetries } from './exec-cli.ts';
 
-export type SpawnFn = typeof spawn;
-
-export type ClaudeCodeWorkerOptions = {
+export type OllamaWorkerOptions = {
   workspace: string;
-  /** Binary name/path for the CLI. Defaults to `claude` on PATH. */
+  /** Binary name/path for the CLI. Defaults to `ollama` on PATH. */
   binary?: string;
+  /** Model to run, e.g. "llama3.1", "qwen2.5". Defaults to "llama3". */
+  model?: string;
   timeout_ms?: number;
   retry?: number;
   enabled?: boolean;
-  /** Injected for tests; defaults to node:child_process.spawn. */
   spawnFn?: SpawnFn;
 };
 
-export class ClaudeCodeWorker implements Worker {
+export class OllamaWorker implements Worker {
   readonly definition: WorkerDefinition;
   private readonly binary: string;
+  private readonly model: string;
   private readonly spawnFn: SpawnFn;
 
-  constructor(opts: ClaudeCodeWorkerOptions) {
-    this.binary = opts.binary ?? 'claude';
+  constructor(opts: OllamaWorkerOptions) {
+    this.binary = opts.binary ?? 'ollama';
+    this.model = opts.model ?? 'llama3';
     this.spawnFn = opts.spawnFn ?? spawn;
     this.definition = {
-      name: 'claude_code',
-      type: 'claude_code',
+      name: 'ollama',
+      type: 'ollama',
       status: 'ready',
-      capabilities: ['code', 'plan', 'general'],
+      capabilities: ['general', 'write', 'research'],
       input_method: 'cli',
       output_method: 'stdout',
       workspace: opts.workspace,
-      timeout_ms: opts.timeout_ms ?? 10 * 60 * 1000,
+      timeout_ms: opts.timeout_ms ?? 5 * 60 * 1000,
       retry: opts.retry ?? 0,
-      enabled: opts.enabled ?? true,
+      enabled: opts.enabled ?? false,
     };
   }
 
@@ -49,7 +55,7 @@ export class ClaudeCodeWorker implements Worker {
       return { status: 'failed', summary: 'worker disabled', output: '', files: [], error: 'disabled' };
     }
     return withWorkerRetries(this.definition.retry, () => this.runOnce(request), (attempt, result) =>
-      console.warn(`[ClaudeCodeWorker] attempt ${attempt} failed (${result.error}), retrying...`));
+      console.warn(`[OllamaWorker] attempt ${attempt} failed (${result.error}), retrying...`));
   }
 
   checkAvailable(): Promise<boolean> {
@@ -58,17 +64,16 @@ export class ClaudeCodeWorker implements Worker {
 
   private async runOnce(request: WorkerRunRequest): Promise<WorkerRunResult> {
     const cwd = request.cwd ?? this.definition.workspace;
-    const args = ['-p', request.prompt, '--output-format', 'text'];
+    // `ollama run <model> <prompt>` streams the reply to stdout and exits
+    // once generation finishes - no server-side session, no API key.
+    const args = ['run', this.model, request.prompt];
 
     try {
-      const { code, stdout, stderr } = await execCli(this.spawnFn, this.binary, args, cwd, this.definition.timeout_ms, 'claude worker');
+      const { code, stdout, stderr } = await execCli(this.spawnFn, this.binary, args, cwd, this.definition.timeout_ms, 'ollama worker');
       if (code !== 0) {
-        // The CLI often writes its actual failure reason (e.g. "Not logged
-        // in - Please run /login") to stdout rather than stderr, so prefer
-        // stdout over a generic "exit N" when stderr has nothing useful.
         return {
           status: 'failed',
-          summary: `claude exited with code ${code}`,
+          summary: `ollama exited with code ${code}`,
           output: stdout,
           files: [],
           error: stderr.trim() || stdout.trim() || `exit ${code}`,
@@ -83,7 +88,7 @@ export class ClaudeCodeWorker implements Worker {
     } catch (err) {
       return {
         status: 'failed',
-        summary: 'claude worker threw',
+        summary: 'ollama worker threw',
         output: '',
         files: [],
         error: err instanceof Error ? err.message : String(err),

@@ -85,6 +85,42 @@ describe('createOrchestratorRoutes', () => {
     expect(loadWorkerSettings(dir!)).toEqual({ enabled: { claude_code: false } });
   });
 
+  it('POST /api/orchestrator/workers/:name/enabled runs checkAvailable on enable and sets status accordingly', async () => {
+    const { routes, registry } = setup();
+    let checked = false;
+    const worker = fakeWorker('probed', { status: 'completed', summary: 'ok', output: '', files: [] });
+    (worker as any).checkAvailable = async () => {
+      checked = true;
+      return false;
+    };
+    worker.definition.enabled = false;
+    registry.register(worker);
+
+    const req = new Request('http://x', { method: 'POST', body: JSON.stringify({ enabled: true }) }) as any;
+    req.params = { name: 'probed' };
+    await routes['/api/orchestrator/workers/:name/enabled']!.POST!(req);
+
+    expect(checked).toBe(true);
+    expect(registry.get('probed')?.definition.status).toBe('error');
+  });
+
+  it('POST /api/orchestrator/workers/:name/enabled does not run checkAvailable when disabling', async () => {
+    const { routes, registry } = setup();
+    let checked = false;
+    const worker = fakeWorker('probed2', { status: 'completed', summary: 'ok', output: '', files: [] });
+    (worker as any).checkAvailable = async () => {
+      checked = true;
+      return true;
+    };
+    registry.register(worker);
+
+    const req = new Request('http://x', { method: 'POST', body: JSON.stringify({ enabled: false }) }) as any;
+    req.params = { name: 'probed2' };
+    await routes['/api/orchestrator/workers/:name/enabled']!.POST!(req);
+
+    expect(checked).toBe(false);
+  });
+
   it('POST /api/orchestrator/tasks runs a task and returns the outcome', async () => {
     const { routes } = setup();
     const req = new Request('http://x', {
