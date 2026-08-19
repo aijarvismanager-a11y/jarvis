@@ -17,9 +17,9 @@ import type { EmergencyState } from "../rooms/authority/useAuthorityData";
  */
 
 const META: Record<EmergencyState, { label: string; hue: string }> = {
-  normal: { label: "normal", hue: "var(--ok)" },
-  paused: { label: "paused", hue: "var(--hold)" },
-  killed: { label: "killed", hue: "var(--listen)" },
+  normal: { label: "通常", hue: "var(--ok)" },
+  paused: { label: "一時停止中", hue: "var(--hold)" },
+  killed: { label: "強制停止", hue: "var(--listen)" },
 };
 
 export function EmergencyChip() {
@@ -52,12 +52,12 @@ export function EmergencyChip() {
 
   const act = async (transition: "pause" | "resume" | "kill" | "reset") => {
     if (transition === "pause" || transition === "kill") {
-      const verb = transition === "pause" ? "Pause" : "Kill";
+      const verb = transition === "pause" ? "一時停止" : "強制停止";
       const ok = await confirmDialog(
-        `${verb} all agent execution?\n${
+        `すべてのエージェント実行を${verb}しますか?\n${
           transition === "kill"
-            ? "Every in-flight tool call stops immediately and needs an explicit Reset to resume."
-            : "Tool execution pauses until you Resume."
+            ? "実行中のツール呼び出しはすべて即座に停止し、再開には明示的なリセットが必要です。"
+            : "再開するまでツールの実行は一時停止します。"
         }`,
         { danger: transition === "kill" },
       );
@@ -80,8 +80,8 @@ export function EmergencyChip() {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`Global emergency stop — ${meta.label}`}
-        title="Global emergency stop"
+        aria-label={`グローバル緊急停止 — ${meta.label}`}
+        title="グローバル緊急停止"
       >
         <span className="rs-dot" style={{ background: meta.hue }} />
         {meta.label}
@@ -90,18 +90,18 @@ export function EmergencyChip() {
         <div className="rs-emerg-menu" role="menu">
           {state === "normal" && (
             <>
-              <button type="button" role="menuitem" disabled={acting} onClick={() => act("pause")}>Pause</button>
-              <button type="button" role="menuitem" className="danger" disabled={acting} onClick={() => act("kill")}>Kill</button>
+              <button type="button" role="menuitem" disabled={acting} onClick={() => act("pause")}>一時停止</button>
+              <button type="button" role="menuitem" className="danger" disabled={acting} onClick={() => act("kill")}>強制停止</button>
             </>
           )}
           {state === "paused" && (
             <>
-              <button type="button" role="menuitem" disabled={acting} onClick={() => act("resume")}>Resume</button>
-              <button type="button" role="menuitem" className="danger" disabled={acting} onClick={() => act("kill")}>Kill</button>
+              <button type="button" role="menuitem" disabled={acting} onClick={() => act("resume")}>再開</button>
+              <button type="button" role="menuitem" className="danger" disabled={acting} onClick={() => act("kill")}>強制停止</button>
             </>
           )}
           {state === "killed" && (
-            <button type="button" role="menuitem" disabled={acting} onClick={() => act("reset")}>Reset</button>
+            <button type="button" role="menuitem" disabled={acting} onClick={() => act("reset")}>リセット</button>
           )}
         </div>
       )}

@@ -39,7 +39,7 @@ export function RailReplyPreview() {
       className="v2-rail-reply"
       role="status"
       aria-live="polite"
-      aria-label="Jarvis just said"
+      aria-label="Jarvisが今話した内容"
       // Keying on text length triggers the fade-in animation as new
       // tokens stream in; a stable key would skip the animation.
       key={latestAssistantReply.text.length}
@@ -47,7 +47,7 @@ export function RailReplyPreview() {
       <div className="v2-rail-reply__head">
         <span className="v2-rail-reply__attrib">
           <span className="v2-rail-reply__dot" aria-hidden="true" />
-          Jarvis said
+          Jarvisの発言
         </span>
         {latestAssistantReply.isStreaming && (
           <span className="v2-rail-reply__streaming" aria-hidden="true">
@@ -68,7 +68,7 @@ export function RailReplyPreview() {
         className="v2-rail-reply__link"
         onClick={() => closeRoom()}
       >
-        See full reply in thread
+        スレッドで全文を見る
         <Icon icon={ArrowRight} size="sm" />
       </button>
     </div>

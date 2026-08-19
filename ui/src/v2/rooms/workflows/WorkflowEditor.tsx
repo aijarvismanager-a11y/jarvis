@@ -226,7 +226,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (editorDirty && !await confirmDialog("Discard unsaved changes?")) return;
+      if (editorDirty && !await confirmDialog("未保存の変更を破棄しますか?")) return;
       onClose();
     };
     window.addEventListener("keydown", onKey);
@@ -261,9 +261,9 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
         .slice(0, 6)
         .map((g) => `  - ${g.stepDisplayName}: ${g.fieldLabel}`)
         .join("\n");
-      const more = editor.validationGaps.length > 6 ? `\n  ...and ${editor.validationGaps.length - 6} more` : "";
+      const more = editor.validationGaps.length > 6 ? `\n  ...ほか${editor.validationGaps.length - 6}件` : "";
       const proceed = await confirmDialog(
-        `${editor.validationGaps.length} required field${editor.validationGaps.length === 1 ? "" : "s"} empty:\n\n${summary}${more}\n\nSave anyway? Runs will fail at the missing step.`,
+        `${editor.validationGaps.length}件の必須フィールドが未入力です:\n\n${summary}${more}\n\nこのまま保存しますか? 未入力のステップで実行が失敗します。`,
       );
       if (!proceed) return;
     }
@@ -274,7 +274,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
 
   const onDiscard = (): void => {
     editor.reset();
-    setActionMessage({ tone: "ok", text: "Reverted to saved version" });
+    setActionMessage({ tone: "ok", text: "保存済みのバージョンに戻しました" });
     window.setTimeout(() => setActionMessage(null), 2000);
   };
 
@@ -517,7 +517,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
           if (!r.ok) {
             setActionMessage({ tone: "warn", text: `${displayName}: ${r.message}` });
             window.setTimeout(() => setActionMessage(null), 4000);
-            return; // keep popover open so the user can retry / pick something else
+            return; // ポップオーバーを開いたままにして、ユーザーが再試行/別の選択ができるようにする
           }
           // Refresh the engine catalog so the new piece's actions are
           // reachable. The install endpoint already triggers a server-side
@@ -533,7 +533,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
           if (!piecesRes.ok) {
             setActionMessage({
               tone: "warn",
-              text: `${displayName} installed but catalog re-fetch failed -- open Add piece again to use it.`,
+              text: `${displayName}をインストールしましたが、カタログの再取得に失敗しました -- 「ピースを追加」をもう一度開いて使用してください。`,
             });
             window.setTimeout(() => setActionMessage(null), 4000);
             closeLibraryPicker();
@@ -549,8 +549,8 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
             setActionMessage({
               tone: "warn",
               text: r.partial
-                ? `${displayName} installed but ${r.message}`
-                : `${displayName} installed but no actions found yet -- open Add piece again to retry.`,
+                ? `${displayName}をインストールしましたが、${r.message}`
+                : `${displayName}をインストールしましたが、まだアクションが見つかりません -- 「ピースを追加」をもう一度開いて再試行してください。`,
             });
             window.setTimeout(() => setActionMessage(null), 4000);
             return;
@@ -566,7 +566,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
         } catch (e) {
           setActionMessage({
             tone: "warn",
-            text: `Install failed: ${e instanceof Error ? e.message : String(e)}`,
+            text: `インストールに失敗しました: ${e instanceof Error ? e.message : String(e)}`,
           });
           window.setTimeout(() => setActionMessage(null), 4000);
         } finally {
@@ -588,17 +588,17 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
     if (!flowId) return;
     if (editor.dirty) {
       const proceed = await confirmDialog(
-        "You have unsaved changes. Running will use the last SAVED version, not your current edits. Continue?",
+        "未保存の変更があります。実行には最後に保存したバージョンが使われ、現在の編集内容は反映されません。続行しますか?",
       );
       if (!proceed) return;
     }
     const result = await runs.start();
     if (result.ok) {
-      setActionMessage({ tone: "ok", text: "Run queued" });
+      setActionMessage({ tone: "ok", text: "実行をキューに追加しました" });
       // Open the panel automatically so the user can watch progress.
       setRunsPanelOpen(true);
     } else {
-      setActionMessage({ tone: "warn", text: `Run failed: ${result.message}` });
+      setActionMessage({ tone: "warn", text: `実行に失敗しました: ${result.message}` });
     }
     window.setTimeout(() => setActionMessage(null), 2500);
   }, [flowId, editor.dirty, runs]);
@@ -636,13 +636,13 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
               onCommit={(name) => editor.setVersionDisplayName(name)}
             />
           ) : (
-            <h2 id="wf-editor-title">Loading…</h2>
+            <h2 id="wf-editor-title">読み込み中…</h2>
           )}
           <p>
             {editor.version ? (
               <>
-                Version <code>{editor.version.id}</code> · {editor.version.state}
-                {editor.dirty ? " · unsaved changes" : null}
+                バージョン <code>{editor.version.id}</code> · {editor.version.state}
+                {editor.dirty ? " · 未保存の変更あり" : null}
               </>
             ) : null}
           </p>
@@ -665,10 +665,10 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
                 rfInstanceRef.current?.fitView({ padding: 0.15, duration: 250 });
               });
             }}
-            title="Reset all step positions to the auto-arranged grid (does not change connections)"
+            title="すべてのステップ位置を自動整列グリッドにリセット(接続は変更されません)"
             disabled={Object.keys(editor.stepPositions).length === 0}
           >
-            <Icon icon={LayoutGrid} size={14} /> Auto-arrange
+            <Icon icon={LayoutGrid} size={14} /> 自動整列
           </Button>
           <Button
             variant="ghost"
@@ -677,17 +677,17 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
             disabled={!editor.canUndo}
             title={
               editor.canUndo
-                ? `Undo: ${editor.undoLabel ?? "last destructive change"} (Ctrl+Z)`
-                : "Nothing to undo"
+                ? `元に戻す: ${editor.undoLabel ?? "直前の変更"} (Ctrl+Z)`
+                : "元に戻す操作はありません"
             }
           >
-            <Icon icon={Undo2} size={14} /> Undo
+            <Icon icon={Undo2} size={14} /> 元に戻す
           </Button>
           <Button variant="ghost" size="sm" onClick={onDiscard} disabled={!editor.dirty}>
-            <Icon icon={RotateCcw} size={14} /> Discard
+            <Icon icon={RotateCcw} size={14} /> 破棄
           </Button>
           <Button variant="primary" size="sm" onClick={() => void onSave()} disabled={!editor.dirty}>
-            <Icon icon={Save} size={14} /> Save
+            <Icon icon={Save} size={14} /> 保存
           </Button>
           <Button
             variant="ghost"
@@ -696,29 +696,29 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
             disabled={runs.starting || !editor.version}
             title={
               editor.dirty
-                ? "Run the LAST SAVED version (your unsaved edits won't apply)"
-                : "Queue a run of this workflow"
+                ? "最後に保存したバージョンを実行します(未保存の編集内容は反映されません)"
+                : "このワークフローの実行をキューに追加"
             }
           >
-            <Icon icon={Play} size={14} /> {runs.starting ? "Queueing..." : "Run"}
+            <Icon icon={Play} size={14} /> {runs.starting ? "キュー追加中..." : "実行"}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setRunsPanelOpen((v) => !v)}
-            title={runsPanelOpen ? "Hide runs panel" : "Show runs panel"}
+            title={runsPanelOpen ? "実行パネルを隠す" : "実行パネルを表示"}
             aria-expanded={runsPanelOpen}
           >
-            <Icon icon={History} size={14} /> Runs
+            <Icon icon={History} size={14} /> 実行
             {activeRunCount > 0 ? (
-              <span className="wf-editor__runs-badge" aria-label={`${activeRunCount} active`}>
+              <span className="wf-editor__runs-badge" aria-label={`実行中${activeRunCount}件`}>
                 {activeRunCount}
               </span>
             ) : runs.runs.length > 0 ? (
               <span className="wf-editor__runs-count">{runs.runs.length}</span>
             ) : null}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close editor">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="エディタを閉じる">
             <Icon icon={X} size={14} />
           </Button>
         </div>
@@ -753,13 +753,13 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
       ) : null}
 
       <div className="wf-editor__body">
-      <section className="wf-editor__canvas" aria-label="Workflow graph">
+      <section className="wf-editor__canvas" aria-label="ワークフローグラフ">
         {editor.loading ? (
-          <div className="wf-editor__placeholder">Loading flow…</div>
+          <div className="wf-editor__placeholder">フローを読み込み中…</div>
         ) : editor.error ? (
           <div className="wf-editor__placeholder wf-editor__placeholder--error">{editor.error}</div>
         ) : nodes.length === 0 ? (
-          <div className="wf-editor__placeholder">This flow has no steps yet.</div>
+          <div className="wf-editor__placeholder">このフローにはまだステップがありません。</div>
         ) : (
           <ReactFlow
             nodes={nodes}
@@ -863,7 +863,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
             const r = await runs.cancel(runId);
             setActionMessage({
               tone: r.ok ? "ok" : "warn",
-              text: r.ok ? "Cancel queued" : `Cancel failed: ${r.message}`,
+              text: r.ok ? "キャンセルをキューに追加しました" : `キャンセルに失敗しました: ${r.message}`,
             });
             window.setTimeout(() => setActionMessage(null), 2500);
           }}
@@ -884,7 +884,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
             {
               key: "add-piece",
               icon: Plus,
-              label: "Add piece",
+              label: "ピースを追加",
               shortcut: "+",
               onSelect: () => onAddPieceFromMenu(canvasMenu.flow),
             },
@@ -921,7 +921,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
                   {
                     key: "delete",
                     icon: Trash2,
-                    label: "Delete",
+                    label: "削除",
                     destructive: true,
                     onSelect: () => {
                       editor.deleteStep(nodeContextMenu.nodeId);
@@ -940,7 +940,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
                   {
                     key: "add-error-handling",
                     icon: ShieldAlert,
-                    label: "Add error handling",
+                    label: "エラー処理を追加",
                     onSelect: () => {
                       const routerName = editor.addErrorHandling(nodeContextMenu.nodeId);
                       closeNodeContextMenu();
@@ -1010,7 +1010,7 @@ export function WorkflowEditor({ flowId, onClose }: WorkflowEditorProps): React.
               if (created) setSelectedStepName(created);
             }}
             onDelete={async () => {
-              if (await confirmDialog(`Delete step "${selectedStep.displayName ?? selectedStep.name}"?`)) {
+              if (await confirmDialog(`ステップ「${selectedStep.displayName ?? selectedStep.name}」を削除しますか?`)) {
                 editor.deleteStep(selectedStep.name);
                 closePopover();
               }
@@ -1130,7 +1130,7 @@ function EditableTitle({
           if (disabled) return;
           setEditing(true);
         }}
-        title={disabled ? "Published versions are read-only" : "Click to rename"}
+        title={disabled ? "公開済みバージョンは読み取り専用です" : "クリックして名前を変更"}
         role={disabled ? undefined : "button"}
         tabIndex={disabled ? -1 : 0}
         onKeyDown={(e) => {
@@ -1151,7 +1151,7 @@ function EditableTitle({
       ref={inputRef}
       className="wf-editor__title-input"
       id="wf-editor-title"
-      aria-label="Workflow name"
+      aria-label="ワークフロー名"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -1222,7 +1222,7 @@ function EditableStepName({
     return (
       <h3
         className="wf-props__title"
-        title="Click to rename"
+        title="クリックして名前を変更"
         role="button"
         tabIndex={0}
         onClick={() => setEditing(true)}
@@ -1242,7 +1242,7 @@ function EditableStepName({
     <input
       ref={inputRef}
       className="wf-props__title-input"
-      aria-label="Step name"
+      aria-label="ステップ名"
       value={draft}
       placeholder={fallback}
       onChange={(e) => setDraft(e.target.value)}
@@ -1468,14 +1468,14 @@ function NodeSettingsPopover({
           ref={ref}
           className="wf-popover"
           role="dialog"
-          aria-label="Step settings"
+          aria-label="ステップ設定"
           style={{ left: pos.left, top: pos.top, width: POPOVER_WIDTH }}
         >
           <button
             type="button"
             className="wf-popover__close"
             onClick={onClose}
-            aria-label="Close settings"
+            aria-label="設定を閉じる"
           >
             <Icon icon={X} size={14} />
           </button>
@@ -1571,25 +1571,25 @@ function VariablePickerPanel({
       ref={ref}
       className="wf-var-picker"
       role="dialog"
-      aria-label="Insert variable"
+      aria-label="変数を挿入"
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={onMouseDownInside}
     >
       <header className="wf-var-picker__head">
-        <h3>Insert variable</h3>
+        <h3>変数を挿入</h3>
         <button
           type="button"
           className="wf-var-picker__close"
           onClick={onClose}
-          aria-label="Close variable picker"
+          aria-label="変数ピッカーを閉じる"
         >
           <Icon icon={X} size={12} />
         </button>
       </header>
       {groups.length === 0 ? (
         <div className="wf-var-picker__empty">
-          No previous steps. Add steps before this one or set sample data on
-          the trigger to expose its payload.
+          前のステップがありません。このステップより前にステップを追加するか、
+          トリガーにサンプルデータを設定してペイロードを公開してください。
         </div>
       ) : (
         <ul className="wf-var-picker__groups">
@@ -1636,7 +1636,7 @@ function VariablePickerPanel({
         </ul>
       )}
       <footer className="wf-var-picker__footer">
-        Or type <code>{"{{stepName.field}}"}</code> directly.
+        または <code>{"{{stepName.field}}"}</code> を直接入力してください。
       </footer>
     </div>,
     document.body,
@@ -2252,9 +2252,9 @@ type LibraryEntry =
 type LibraryCategory = "all" | "installed" | "control";
 
 const CATEGORY_LABEL: Record<LibraryCategory, string> = {
-  all: "All",
-  installed: "Installed",
-  control: "Control flow",
+  all: "すべて",
+  installed: "インストール済み",
+  control: "制御フロー",
 };
 const CATEGORY_ORDER: LibraryCategory[] = ["all", "installed", "control"];
 
@@ -2270,19 +2270,19 @@ const CONTROL_FLOW_ENTRIES: LibraryEntry[] = [
     kind: "control-flow",
     controlType: "IF",
     displayName: "If",
-    description: "Two-way split on a condition. Locked branches: True (the condition matched) and False (it didn't).",
+    description: "条件による2方向分岐。固定ブランチ: True(条件に一致)とFalse(一致しない)。",
   },
   {
     kind: "control-flow",
     controlType: "ROUTER",
     displayName: "Router",
-    description: "Branch the flow into N renameable paths. Use when you need more than a binary True/False split.",
+    description: "フローをN個の名前変更可能なパスに分岐します。True/Falseの2択以上が必要な場合に使用します。",
   },
   {
     kind: "control-flow",
     controlType: "LOOP_ON_ITEMS",
     displayName: "Loop on items",
-    description: "Run a body once per item in an array. Reference `{{<name>.item}}` inside the body to read the current iteration.",
+    description: "配列の各要素に対してボディを1回ずつ実行します。ボディ内で`{{<name>.item}}`を参照すると現在の反復要素が読めます。",
   },
 ];
 
@@ -2483,7 +2483,7 @@ function PieceLibraryPopover({
       ref={ref}
       className="wf-library"
       role="dialog"
-      aria-label="Add piece"
+      aria-label="ピースを追加"
       style={{ left: pos.left, top: pos.top, width: LIBRARY_WIDTH }}
       onKeyDown={onKeyDown}
     >
@@ -2491,13 +2491,13 @@ function PieceLibraryPopover({
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search pieces..."
+          placeholder="ピースを検索..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Filter pieces by name or description"
+          aria-label="名前または説明でピースを絞り込み"
         />
       </div>
-      <div className="wf-library__categories" role="tablist" aria-label="Category">
+      <div className="wf-library__categories" role="tablist" aria-label="カテゴリー">
         {CATEGORY_ORDER.map((c) => (
           <button
             key={c}
@@ -2518,17 +2518,17 @@ function PieceLibraryPopover({
           when `pieceRegistry` isn't wired. */}
       {catalog.length === 0 ? (
         <div className="wf-library__notice" role="status">
-          <strong>No pieces loaded.</strong>{" "}
-          The workflow engine may have failed to start. Check the daemon logs
-          and rerun <code>bun run scripts/build-engine.ts</code> if the
-          engine bundle is missing.
+          <strong>ピースが読み込まれていません。</strong>{" "}
+          ワークフローエンジンの起動に失敗した可能性があります。デーモンのログを確認し、
+          エンジンバンドルが見当たらない場合は <code>bun run scripts/build-engine.ts</code> を
+          再実行してください。
         </div>
       ) : null}
       {rows.length === 0 ? (
         <div className="wf-library__empty">
           {query.trim()
-            ? `No ${category === "all" ? "entries" : CATEGORY_LABEL[category].toLowerCase()} match "${query}".`
-            : `No ${CATEGORY_LABEL[category].toLowerCase()} available.`}
+            ? `「${query}」に一致する${category === "all" ? "項目" : CATEGORY_LABEL[category]}はありません。`
+            : `利用可能な${CATEGORY_LABEL[category]}はありません。`}
         </div>
       ) : (
         <ul
@@ -2595,7 +2595,7 @@ function LibraryRowContent({
     return (
       <>
         <div className="wf-library__row-head">
-          <span className="wf-library__tag">Control</span>
+          <span className="wf-library__tag">制御</span>
           <span className="wf-library__action">{entry.displayName}</span>
         </div>
         <div className="wf-library__row-desc">{entry.description}</div>
@@ -2614,20 +2614,20 @@ function LibraryRowContent({
       <>
         <div className="wf-library__row-head">
           {installing ? (
-            <span className="wf-library__tag wf-library__tag--installing" aria-label="Installing">
+            <span className="wf-library__tag wf-library__tag--installing" aria-label="インストール中">
               <span className="wf-library__spinner" aria-hidden="true" />
             </span>
           ) : (
-            <span className="wf-library__tag wf-library__tag--install">Install</span>
+            <span className="wf-library__tag wf-library__tag--install">インストール</span>
           )}
           <span className="wf-library__action">{c.displayName}</span>
           {c.tier === "community" ? (
-            <span className="wf-library__tier">community</span>
+            <span className="wf-library__tier">コミュニティ</span>
           ) : null}
         </div>
         <div className="wf-library__row-desc">
           {installing
-            ? `Installing ${c.npmPackage}...`
+            ? `${c.npmPackage}をインストール中...`
             : (c.description || c.npmPackage)}
         </div>
       </>
@@ -2993,9 +2993,9 @@ function StepNode({ data }: NodeProps): React.ReactElement {
   const routerKind = step.settings?.routerKind;
   let kindLabel: string;
   let kindTone: "accent" | "neutral" | "warn" | "ok" = "neutral";
-  if (step.type === "EMPTY") { kindLabel = "Manual"; kindTone = "accent"; }
-  else if (isTrigger) { kindLabel = "Trigger"; kindTone = "accent"; }
-  else if (isLoop) { kindLabel = "Loop"; kindTone = "warn"; }
+  if (step.type === "EMPTY") { kindLabel = "手動"; kindTone = "accent"; }
+  else if (isTrigger) { kindLabel = "トリガー"; kindTone = "accent"; }
+  else if (isLoop) { kindLabel = "ループ"; kindTone = "warn"; }
   else if (isRouter) {
     // IF reads as a distinct affordance even though it's a ROUTER under
     // the hood -- the user-visible naming reflects the locked True/False
@@ -3003,7 +3003,7 @@ function StepNode({ data }: NodeProps): React.ReactElement {
     kindLabel = routerKind === "if" ? "If" : "Router";
     kindTone = "warn";
   }
-  else { kindLabel = "Action"; }
+  else { kindLabel = "アクション"; }
 
   // ROUTER branches feed the right-edge source handles. The handle id
   // encodes the branch name so onConnect can route a connection straight
@@ -3031,8 +3031,8 @@ function StepNode({ data }: NodeProps): React.ReactElement {
       // point at a destination drawn beneath the node, which doesn't
       // match the eye's path.
       return [
-        { id: "out", title: "After loop", used: outConnected },
-        { id: "loop-body", title: "Iterates", used: loopBodyConnected },
+        { id: "out", title: "ループ後", used: outConnected },
+        { id: "loop-body", title: "反復処理", used: loopBodyConnected },
       ];
     }
     if (isRouter) {
@@ -3061,9 +3061,9 @@ function StepNode({ data }: NodeProps): React.ReactElement {
       // merge/continuation). The engine executes router.nextAction once the
       // matched branch finishes; without this handle that step couldn't be
       // wired or seen on the canvas.
-      return [...branchHandles, { id: "out", title: "After router", used: outConnected }];
+      return [...branchHandles, { id: "out", title: "ルーター後", used: outConnected }];
     }
-    return [{ id: "out", title: "Next step", used: outConnected }];
+    return [{ id: "out", title: "次のステップ", used: outConnected }];
   })();
 
   // Pip + tooltip when a run is overlaid on the canvas. The "not-reached"
@@ -3116,7 +3116,7 @@ function StepNode({ data }: NodeProps): React.ReactElement {
         );
       })}
 
-      {branchName ? <div className="wf-node__branch-label">branch: {branchName}</div> : null}
+      {branchName ? <div className="wf-node__branch-label">ブランチ: {branchName}</div> : null}
       <div className="wf-node__head">
         <Chip tone={kindTone} dot={false}>{kindLabel}</Chip>
         <span className="wf-node__name">{step.displayName ?? step.name}</span>
@@ -3130,11 +3130,11 @@ function StepNode({ data }: NodeProps): React.ReactElement {
       </div>
       <div className="wf-node__body">
         {isLoop ? (
-          <span className="wf-node__piece">over <code>{String(step.settings?.items ?? "?")}</code></span>
+          <span className="wf-node__piece">対象: <code>{String(step.settings?.items ?? "?")}</code></span>
         ) : isRouter ? (
           <span className="wf-node__piece">
-            {(step.settings?.branches?.length ?? 0)} branch{(step.settings?.branches?.length ?? 0) === 1 ? "" : "es"} ·{" "}
-            {step.settings?.executionType === "EXECUTE_ALL_MATCH" ? "all match" : "first match"}
+            {(step.settings?.branches?.length ?? 0)}件のブランチ ·{" "}
+            {step.settings?.executionType === "EXECUTE_ALL_MATCH" ? "すべて一致" : "最初に一致"}
           </span>
         ) : step.settings?.pieceName ? (
           <>
@@ -3143,9 +3143,9 @@ function StepNode({ data }: NodeProps): React.ReactElement {
             {subDisplayName ? <span className="wf-node__action">{subDisplayName}</span> : null}
           </>
         ) : step.type === "EMPTY" ? (
-          <span className="wf-node__piece">Run on demand</span>
+          <span className="wf-node__piece">オンデマンド実行</span>
         ) : (
-          <span className="wf-node__piece wf-node__piece--missing">Unconfigured</span>
+          <span className="wf-node__piece wf-node__piece--missing">未設定</span>
         )}
       </div>
     </div>
@@ -3259,7 +3259,7 @@ function PropertiesPanel(props: PropertiesPanelProps): React.ReactElement {
           onCommit={onSetDisplayName}
         />
         <p>
-          <code>{step.name}</code> · {isTrigger ? (isManual ? "Manual trigger" : "Piece trigger") : "Action"}
+          <code>{step.name}</code> · {isTrigger ? (isManual ? "手動トリガー" : "ピーストリガー") : "アクション"}
         </p>
       </header>
 
@@ -3270,7 +3270,7 @@ function PropertiesPanel(props: PropertiesPanelProps): React.ReactElement {
           looking. */}
 
       {isTriggerStep ? (
-        <Field label="Trigger">
+        <Field label="トリガー">
           <div className="wf-props__segmented" role="radiogroup">
             {TRIGGER_KINDS.map((tk) => {
               // When the step is a non-canonical PIECE_TRIGGER (community
@@ -3299,19 +3299,19 @@ function PropertiesPanel(props: PropertiesPanelProps): React.ReactElement {
 
       {isManual ? (
         <p className="wf-props__hint">
-          Manual triggers fire only when you POST to <code>/api/workflows/:id/run</code>. Pick
-          Schedule, Webhook, or Event above to fire automatically.
+          手動トリガーは<code>/api/workflows/:id/run</code>にPOSTしたときのみ発火します。自動で
+          発火させるには上のスケジュール・Webhook・イベントのいずれかを選んでください。
         </p>
       ) : null}
 
       {detectedTriggerKind === "other" ? (
         <p className="wf-props__hint">
-          This trigger uses a custom piece
+          このトリガーはカスタムピースを使用しています
           {step.settings?.pieceName ? (
             <> (<code>{step.settings.pieceName}</code>)</>
           ) : null}
-          . Pick one of the kinds above to replace it. The current piece configuration will be
-          discarded when you switch -- there's no way to bring it back from here.
+          。置き換えるには上のいずれかの種類を選択してください。切り替えると現在のピース設定は
+          破棄され、ここから元に戻すことはできません。
         </p>
       ) : null}
 
@@ -3347,7 +3347,7 @@ function PropertiesPanel(props: PropertiesPanelProps): React.ReactElement {
         <ConnectionPicker
           pieceName={piece.name}
           pieceDisplayName={piece.displayName}
-          authDisplayName={piece.auth.displayName ?? "Connection"}
+          authDisplayName={piece.auth.displayName ?? "接続"}
           authType={piece.auth.type}
           connections={connections}
           currentValue={(step.settings?.input?.["auth"] as string | undefined) ?? ""}
@@ -3383,17 +3383,17 @@ function PropertiesPanel(props: PropertiesPanelProps): React.ReactElement {
       <div className="wf-props__divider" />
 
       <div className="wf-props__step-actions">
-        <Button variant="ghost" size="sm" onClick={onAddStepAfter} title="Insert a new action after this step">
-          <Icon icon={Plus} size={12} /> {hasNextAction ? "Insert step after" : "Add next step"}
+        <Button variant="ghost" size="sm" onClick={onAddStepAfter} title="このステップの後に新しいアクションを挿入">
+          <Icon icon={Plus} size={12} /> {hasNextAction ? "後にステップを挿入" : "次のステップを追加"}
         </Button>
         {!isTriggerStep ? (
-          <Button variant="danger" size="sm" onClick={onDelete} title="Remove this step from the chain">
-            <Icon icon={Trash2} size={12} /> Delete step
+          <Button variant="danger" size="sm" onClick={onDelete} title="このステップをチェーンから削除">
+            <Icon icon={Trash2} size={12} /> ステップを削除
           </Button>
         ) : null}
         {!isTopLevel ? (
           <p className="wf-props__hint">
-            Inside a {scopeLabel(props.containerKind)}. New steps insert next to this one in the same sub-chain.
+            {scopeLabel(props.containerKind)}内です。新しいステップは同じサブチェーン内のこのステップの隣に挿入されます。
           </p>
         ) : null}
       </div>
@@ -3463,7 +3463,7 @@ function AdvancedSettings(props: {
         aria-expanded={open}
       >
         <span className="wf-props__advanced-caret">{open ? "▾" : "▸"}</span>
-        Advanced settings
+        詳細設定
       </button>
       {open ? (
         <div className="wf-props__advanced-body">
@@ -3554,8 +3554,8 @@ function ConnectionPicker({
       </label>
       {matching.length === 0 ? (
         <p className="wf-props__hint wf-props__connection-empty">
-          No connection saved for {pieceDisplayName} yet. Add one in the Connections panel,
-          then come back and select it here.
+          {pieceDisplayName}用の接続はまだ保存されていません。接続パネルで追加してから
+          戻ってきてここで選択してください。
         </p>
       ) : (
         <select
@@ -3565,7 +3565,7 @@ function ConnectionPicker({
             onPick(id ? `{{connections.${id}}}` : "");
           }}
         >
-          <option value="">-- pick a connection --</option>
+          <option value="">-- 接続を選択 --</option>
           {matching.map((c) => (
             <option key={c.id} value={c.externalId}>
               {c.displayName} ({c.externalId})
@@ -3587,19 +3587,19 @@ function ErrorHandlingSection({
   onChange: (patch: { continueOnFailure?: boolean; retryOnFailure?: boolean }) => void;
 }): React.ReactElement {
   return (
-    <section className="wf-props__error-handling" aria-label="Error handling">
-      <h4>Error handling</h4>
+    <section className="wf-props__error-handling" aria-label="エラー処理">
+      <h4>エラー処理</h4>
       <label className="wf-props__field wf-props__field--inline">
         <input
           type="checkbox"
           checked={continueOnFailure}
           onChange={(e) => onChange({ continueOnFailure: e.target.checked })}
         />
-        <span className="wf-props__field-label">Continue on failure</span>
+        <span className="wf-props__field-label">失敗時も続行</span>
       </label>
       <p className="wf-props__hint">
-        Treat this step's failure as success. Downstream steps still run; the
-        failure shows up in the step's output for routers to branch on.
+        このステップの失敗を成功として扱います。後続のステップは実行され続け、失敗した
+        ことはステップの出力に表れるので、ルーターで分岐条件として使えます。
       </p>
       <label className="wf-props__field wf-props__field--inline">
         <input
@@ -3607,11 +3607,11 @@ function ErrorHandlingSection({
           checked={retryOnFailure}
           onChange={(e) => onChange({ retryOnFailure: e.target.checked })}
         />
-        <span className="wf-props__field-label">Retry on failure</span>
+        <span className="wf-props__field-label">失敗時に再試行</span>
       </label>
       <p className="wf-props__hint">
-        Retry up to 4 times with exponential backoff (~14s total) before
-        giving up. Final failure still respects "Continue on failure".
+        あきらめる前に、指数バックオフ(合計約14秒)で最大4回まで再試行します。
+        最終的な失敗は「失敗時も続行」の設定に従います。
       </p>
     </section>
   );
@@ -3686,7 +3686,7 @@ function SampleInputSection({
       return;
     }
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      setParseError("Sample input must be a JSON object (it replaces settings.input at test time).");
+      setParseError("サンプル入力はJSONオブジェクトである必要があります(テスト時にsettings.inputを置き換えます)。");
       return;
     }
     setBusy("save");
@@ -3700,7 +3700,7 @@ function SampleInputSection({
   };
 
   const handleClear = async (): Promise<void> => {
-    if (!await confirmDialog("Clear this step's sample input override?")) return;
+    if (!await confirmDialog("このステップのサンプル入力の上書きをクリアしますか?")) return;
     setBusy("clear");
     try {
       const r = await onSetSampleInput(null);
@@ -3716,13 +3716,13 @@ function SampleInputSection({
   };
 
   return (
-    <section className="wf-props__sample-data" aria-label="Sample input override">
+    <section className="wf-props__sample-data" aria-label="サンプル入力の上書き">
       <header className="wf-props__sample-header">
-        <h4 className="wf-props__sample-title">Sample input</h4>
+        <h4 className="wf-props__sample-title">サンプル入力</h4>
         <p className="wf-props__hint">
-          JSON object that replaces this step's input during a Test run. Use to exercise the step
-          with curated parameters without changing the production input. Leave empty to use the
-          step's actual input.
+          テスト実行時にこのステップの入力を置き換えるJSONオブジェクトです。本番用の入力を
+          変更せずに、任意のパラメータでステップを試すのに使えます。空欄のままにすると
+          ステップの実際の入力が使われます。
         </p>
       </header>
       <textarea
@@ -3737,7 +3737,7 @@ function SampleInputSection({
       {parseError ? <span className="wf-props__sample-err">{parseError}</span> : null}
       {hasUnsavedEdits ? (
         <span className="wf-props__sample-status wf-props__sample-status--warn">
-          Unsaved edits -- save before testing or they won't be used.
+          未保存の変更があります -- テスト前に保存しないと反映されません。
         </span>
       ) : null}
       {status ? (
@@ -3752,7 +3752,7 @@ function SampleInputSection({
           onClick={() => void handleSave()}
           disabled={isLocked || busy !== null}
         >
-          {busy === "save" ? "Saving..." : "Save sample"}
+          {busy === "save" ? "保存中..." : "サンプルを保存"}
         </Button>
         <Button
           variant="ghost"
@@ -3760,7 +3760,7 @@ function SampleInputSection({
           onClick={() => void handleClear()}
           disabled={isLocked || busy !== null || text.trim().length === 0}
         >
-          {busy === "clear" ? "Clearing..." : "Clear"}
+          {busy === "clear" ? "クリア中..." : "クリア"}
         </Button>
       </div>
     </section>
@@ -3848,7 +3848,7 @@ function SampleDataSection({
   };
 
   const handleClear = async (): Promise<void> => {
-    if (!await confirmDialog("Clear this step's sample data?")) return;
+    if (!await confirmDialog("このステップのサンプルデータをクリアしますか?")) return;
     setBusy("clear");
     try {
       const r = await onSetSampleData(null);
@@ -3888,7 +3888,7 @@ function SampleDataSection({
         setParseError(null);
         flash(
           "ok",
-          "Reset. The variable picker now uses the piece's declared sample.",
+          "リセットしました。変数ピッカーはピースの宣言済みサンプルを使用します。",
         );
       } else {
         flash("warn", r.message);
@@ -3905,15 +3905,15 @@ function SampleDataSection({
   const hasPinnedCell = sampleData !== undefined;
 
   return (
-    <section className="wf-props__sample-data" aria-label="Sample output + test this step">
+    <section className="wf-props__sample-data" aria-label="サンプル出力 + このステップをテスト">
       <header className="wf-props__sample-header">
         <h4 className="wf-props__sample-title">
-          Sample {isTriggerStep ? "trigger payload" : "output"}
+          サンプル{isTriggerStep ? "トリガーペイロード" : "出力"}
         </h4>
         <p className="wf-props__hint">
           {isTriggerStep
-            ? "JSON the test run feeds to the trigger. Downstream steps see it as the trigger payload."
-            : "JSON downstream steps see when they reference {{stepName.field}}. Lets you wire flows without first running this step for real."}
+            ? "テスト実行がトリガーに渡すJSONです。後続のステップはこれをトリガーペイロードとして参照します。"
+            : "後続のステップが{{stepName.field}}を参照する際に見えるJSONです。このステップを実際に実行せずにフローを組み立てられます。"}
         </p>
       </header>
       <textarea
@@ -3928,7 +3928,7 @@ function SampleDataSection({
       {parseError ? <span className="wf-props__sample-err">{parseError}</span> : null}
       {hasUnsavedEdits ? (
         <span className="wf-props__sample-status wf-props__sample-status--warn">
-          Unsaved edits -- save before testing or they won't be used.
+          未保存の変更があります -- テスト前に保存しないと反映されません。
         </span>
       ) : null}
       {status ? (
@@ -3944,9 +3944,9 @@ function SampleDataSection({
           size="sm"
           onClick={() => void handleSave()}
           disabled={isLocked || busy !== null}
-          title={isLocked ? "Published versions are read-only" : "Save sample output"}
+          title={isLocked ? "公開済みバージョンは読み取り専用です" : "サンプル出力を保存"}
         >
-          {busy === "save" ? "Saving..." : "Save sample"}
+          {busy === "save" ? "保存中..." : "サンプルを保存"}
         </Button>
         <Button
           variant="ghost"
@@ -3954,7 +3954,7 @@ function SampleDataSection({
           onClick={() => void handleClear()}
           disabled={isLocked || busy !== null || text.trim().length === 0}
         >
-          {busy === "clear" ? "Clearing..." : "Clear"}
+          {busy === "clear" ? "クリア中..." : "クリア"}
         </Button>
         {hasDeclaredSample && hasPinnedCell ? (
           <Button
@@ -3962,9 +3962,9 @@ function SampleDataSection({
             size="sm"
             onClick={() => void handleResetToDeclared()}
             disabled={isLocked || busy !== null}
-            title="Drop the pinned sample so the variable picker uses the piece's declared output instead."
+            title="固定したサンプルを解除し、変数ピッカーがピースの宣言済み出力を使うようにします。"
           >
-            {busy === "reset" ? "Resetting..." : "Reset to declared"}
+            {busy === "reset" ? "リセット中..." : "宣言済みにリセット"}
           </Button>
         ) : null}
         <Button
@@ -3977,11 +3977,11 @@ function SampleDataSection({
           disabled={isLocked || busy !== null || hasUnsavedEdits}
           title={
             hasUnsavedEdits
-              ? "Save your changes first; Test runs the persisted sample data"
-              : "Run JUST this step in isolation using the saved sample input + preceding steps' sample data. Does not run downstream steps."
+              ? "先に変更を保存してください。テストは保存済みのサンプルデータで実行されます"
+              : "保存済みのサンプル入力と先行ステップのサンプルデータを使い、このステップのみを単独で実行します。後続のステップは実行されません。"
           }
         >
-          {busy === "test" ? "Queuing..." : "Test this step"}
+          {busy === "test" ? "キュー追加中..." : "このステップをテスト"}
         </Button>
       </div>
     </section>
@@ -4032,7 +4032,7 @@ function TypedField({ field, value, onChange }: TypedFieldProps): React.ReactEle
   const labelEl = (
     <span className={`wf-props__field-label ${isMissing ? "wf-props__field-label--missing" : ""}`}>
       {field.label}
-      {field.required ? <span className="wf-props__req" aria-label="required"> *</span> : null}
+      {field.required ? <span className="wf-props__req" aria-label="必須"> *</span> : null}
     </span>
   );
 
@@ -4097,7 +4097,7 @@ function TypedField({ field, value, onChange }: TypedFieldProps): React.ReactEle
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value || undefined)}
         >
-          <option value="">{field.required ? "— select —" : "— none —"}</option>
+          <option value="">{field.required ? "— 選択 —" : "— なし —"}</option>
           {hasGroups ? (
             <>
               {groupOrder.map((g) => (
@@ -4116,7 +4116,7 @@ function TypedField({ field, value, onChange }: TypedFieldProps): React.ReactEle
                   options, but this keeps the renderer robust if a
                   future field ships a partial group set. */}
               {ungrouped.length > 0 ? (
-                <optgroup label="Other">
+                <optgroup label="その他">
                   {ungrouped.map((o) => (
                     <option key={o.value} value={o.value} title={o.description}>
                       {o.label}
@@ -4337,8 +4337,8 @@ function FlowRefField({
   const buttonLabel = selected
     ? selected.displayName || selected.id
     : flowId
-      ? `(unknown flow: ${flowId})`
-      : "Pick a workflow";
+      ? `(不明なフロー: ${flowId})`
+      : "ワークフローを選択";
 
   // Filter on display name (case-insensitive substring) so a user
   // typing "morning" matches "Morning briefing" without exact case.
@@ -4506,17 +4506,17 @@ function FlowRefPopover({
         ref={inputRef}
         type="text"
         className="wf-flow-ref__search"
-        placeholder="Search workflows..."
+        placeholder="ワークフローを検索..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       {error ? (
-        <p className="wf-flow-ref__hint wf-flow-ref__hint--error">Couldn't load workflows: {error}</p>
+        <p className="wf-flow-ref__hint wf-flow-ref__hint--error">ワークフローを読み込めませんでした: {error}</p>
       ) : loading ? (
-        <p className="wf-flow-ref__hint">Loading workflows...</p>
+        <p className="wf-flow-ref__hint">ワークフローを読み込み中...</p>
       ) : filtered.length === 0 ? (
         <p className="wf-flow-ref__hint">
-          {query ? "No workflows match." : "No other workflows yet. Create one first, then come back here."}
+          {query ? "一致するワークフローがありません。" : "他のワークフローがまだありません。先に作成してから戻ってきてください。"}
         </p>
       ) : (
         <ul className="wf-flow-ref__list" role="listbox">
@@ -4533,7 +4533,7 @@ function FlowRefPopover({
                   aria-selected={f.id === currentId}
                   title={f.id}
                 >
-                  <span className="wf-flow-ref__row-name">{f.displayName || "(no name)"}</span>
+                  <span className="wf-flow-ref__row-name">{f.displayName || "(名前なし)"}</span>
                   <span className="wf-flow-ref__row-id">{f.id.slice(0, 8)}</span>
                 </button>
               </li>
@@ -4547,7 +4547,7 @@ function FlowRefPopover({
           className="wf-flow-ref__clear"
           onClick={onClear}
         >
-          Clear selection
+          選択をクリア
         </button>
       ) : null}
     </div>
@@ -4768,7 +4768,7 @@ function JsonField({
         }}
       />
       {parseError ? (
-        <span className="wf-props__field-help wf-props__field-help--error">JSON parse: {parseError}</span>
+        <span className="wf-props__field-help wf-props__field-help--error">JSON解析エラー: {parseError}</span>
       ) : field.description ? (
         <span className="wf-props__field-help">{field.description}</span>
       ) : null}
@@ -4802,11 +4802,11 @@ function FreeformInputs({
   return (
     <>
       <p className="wf-props__hint">
-        This piece doesn't declare an input schema. Values are stored as strings; use{" "}
-        <code>{`{{step_1.field}}`}</code> templates for typed references.
+        このピースは入力スキーマを宣言していません。値は文字列として保存されます。型付き参照には{" "}
+        <code>{`{{step_1.field}}`}</code> テンプレートを使用してください。
       </p>
       {inputEntries.length === 0 ? (
-        <p className="wf-props__hint">No inputs yet. Add one below.</p>
+        <p className="wf-props__hint">まだ入力がありません。下から追加してください。</p>
       ) : (
         <ul className="wf-props__input-list">
           {inputEntries.map(([key, value]) => (
@@ -4823,7 +4823,7 @@ function FreeformInputs({
       <div className="wf-props__add-row">
         <input
           type="text"
-          placeholder="new field name"
+          placeholder="新しいフィールド名"
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
           onKeyDown={(e) => {
@@ -4842,7 +4842,7 @@ function FreeformInputs({
             setNewKey("");
           }}
         >
-          <Icon icon={Plus} size={12} /> Add field
+          <Icon icon={Plus} size={12} /> フィールドを追加
         </Button>
       </div>
     </>
@@ -4881,8 +4881,8 @@ function FreeformInputRow({
         type="button"
         className="wf-props__input-remove"
         onClick={() => onRemoveInputKey(inputKey)}
-        aria-label={`Remove ${inputKey}`}
-        title={`Remove ${inputKey}`}
+        aria-label={`${inputKey}を削除`}
+        title={`${inputKey}を削除`}
       >
         <Icon icon={Trash2} size={12} />
       </button>
@@ -4915,21 +4915,21 @@ function LoopEditor({
   const hasBody = !!step.firstLoopAction;
   return (
     <>
-      <Field label="Items expression">
+      <Field label="アイテム式">
         <VariableChipField
           value={items}
           onChange={onSetLoopItems}
           placeholder="{{trigger.list}}"
         />
         <span className="wf-props__field-help">
-          Must resolve to an array. Inside the body, reference <code>{`{{${step.name}.item}}`}</code> and{" "}
-          <code>{`{{${step.name}.index}}`}</code>.
+          配列に評価される必要があります。ボディ内では <code>{`{{${step.name}.item}}`}</code> と{" "}
+          <code>{`{{${step.name}.index}}`}</code> を参照してください。
         </span>
       </Field>
       {!hasBody ? (
         <div className="wf-props__step-actions">
           <Button variant="primary" size="sm" onClick={onAddStepToLoopBody}>
-            <Icon icon={Plus} size={12} /> Add first step in body
+            <Icon icon={Plus} size={12} /> ボディの最初のステップを追加
           </Button>
         </div>
       ) : null}
@@ -4964,7 +4964,7 @@ function RouterEditor({
 
   return (
     <>
-      <Field label="Execution mode">
+      <Field label="実行モード">
         <div className="wf-props__segmented" role="radiogroup">
           <button
             type="button"
@@ -4973,7 +4973,7 @@ function RouterEditor({
             className={`wf-props__seg ${executionType === "EXECUTE_FIRST_MATCH" ? "wf-props__seg--on" : ""}`}
             onClick={() => onSetRouterExecutionType("EXECUTE_FIRST_MATCH")}
           >
-            First match
+            最初に一致
           </button>
           <button
             type="button"
@@ -4982,19 +4982,19 @@ function RouterEditor({
             className={`wf-props__seg ${executionType === "EXECUTE_ALL_MATCH" ? "wf-props__seg--on" : ""}`}
             onClick={() => onSetRouterExecutionType("EXECUTE_ALL_MATCH")}
           >
-            All matches
+            すべて一致
           </button>
         </div>
       </Field>
 
       <div className="wf-props__inputs">
         <div className="wf-props__inputs-head">
-          <h4>Branches</h4>
+          <h4>ブランチ</h4>
         </div>
         <p className="wf-props__hint">
           {isIf
-            ? "An If has exactly two branches. Write the condition below; the True branch fires when it matches, the False branch fires otherwise."
-            : "Each CONDITION branch fires when its conditions match. The FALLBACK runs when no other branch matches."}
+            ? "Ifは必ず2つのブランチを持ちます。下に条件を記述してください。一致した場合はTrueブランチが、一致しない場合はFalseブランチが発火します。"
+            : "各CONDITIONブランチは条件に一致すると発火します。FALLBACKは他のどのブランチにも一致しない場合に実行されます。"}
         </p>
         <ul className="wf-props__branch-list">
           {branches.map((b, idx) => {
@@ -5005,12 +5005,12 @@ function RouterEditor({
                 <div className="wf-props__branch-row-head">
                   <div className="wf-props__branch-name">
                     <span>{b?.branchName ?? `(branch ${idx})`}</span>
-                    {isFallback && !isIf ? <span className="wf-props__branch-tag">fallback</span> : null}
+                    {isFallback && !isIf ? <span className="wf-props__branch-tag">フォールバック</span> : null}
                   </div>
                   <div className="wf-props__branch-actions">
                     {!child && b?.branchName && !isFallback ? (
                       <Button variant="ghost" size="sm" onClick={() => onAddStepToBranch(b.branchName)}>
-                        <Icon icon={Plus} size={12} /> Add step
+                        <Icon icon={Plus} size={12} /> ステップを追加
                       </Button>
                     ) : null}
                     {/* Lock branch removal for IF -- the two branches are
@@ -5021,11 +5021,11 @@ function RouterEditor({
                         type="button"
                         className="wf-props__input-remove"
                         onClick={async () => {
-                          if (await confirmDialog(`Remove branch "${b?.branchName ?? idx}"?`)) {
+                          if (await confirmDialog(`ブランチ「${b?.branchName ?? idx}」を削除しますか?`)) {
                             onRemoveRouterBranch(idx);
                           }
                         }}
-                        title="Remove branch"
+                        title="ブランチを削除"
                       >
                         <Icon icon={Trash2} size={12} />
                       </button>
@@ -5052,7 +5052,7 @@ function RouterEditor({
           <div className="wf-props__add-row">
             <input
               type="text"
-              placeholder="new branch name"
+              placeholder="新しいブランチ名"
               value={newBranchName}
               onChange={(e) => setNewBranchName(e.target.value)}
               onKeyDown={(e) => {
@@ -5071,7 +5071,7 @@ function RouterEditor({
                 setNewBranchName("");
               }}
             >
-              <Icon icon={Plus} size={12} /> Add branch
+              <Icon icon={Plus} size={12} /> ブランチを追加
             </Button>
           </div>
         ) : null}
@@ -5081,9 +5081,9 @@ function RouterEditor({
 }
 
 function scopeLabel(kind: "loop" | "router" | undefined): string {
-  if (kind === "loop") return "loop body";
-  if (kind === "router") return "router branch";
-  return "sub-chain";
+  if (kind === "loop") return "ループ本体";
+  if (kind === "router") return "ルーターブランチ";
+  return "サブチェーン";
 }
 
 /* =========================================================== branch conditions editor */
@@ -5131,61 +5131,61 @@ const CASE_SENSITIVE_OPERATORS = new Set<string>([
  */
 const OPERATOR_GROUPS: Array<{ label: string; options: Array<{ value: string; label: string }> }> = [
   {
-    label: "Text",
+    label: "テキスト",
     options: [
-      { value: "TEXT_EXACTLY_MATCHES", label: "equals" },
-      { value: "TEXT_DOES_NOT_EXACTLY_MATCH", label: "does not equal" },
-      { value: "TEXT_CONTAINS", label: "contains" },
-      { value: "TEXT_DOES_NOT_CONTAIN", label: "does not contain" },
-      { value: "TEXT_START_WITH", label: "starts with" },
-      { value: "TEXT_DOES_NOT_START_WITH", label: "does not start with" },
-      { value: "TEXT_ENDS_WITH", label: "ends with" },
-      { value: "TEXT_DOES_NOT_END_WITH", label: "does not end with" },
+      { value: "TEXT_EXACTLY_MATCHES", label: "等しい" },
+      { value: "TEXT_DOES_NOT_EXACTLY_MATCH", label: "等しくない" },
+      { value: "TEXT_CONTAINS", label: "含む" },
+      { value: "TEXT_DOES_NOT_CONTAIN", label: "含まない" },
+      { value: "TEXT_START_WITH", label: "で始まる" },
+      { value: "TEXT_DOES_NOT_START_WITH", label: "で始まらない" },
+      { value: "TEXT_ENDS_WITH", label: "で終わる" },
+      { value: "TEXT_DOES_NOT_END_WITH", label: "で終わらない" },
       // Regex operators: the secondValue is a JavaScript pattern.
       // Inline flags via `(?i)` etc.; the per-condition caseSensitive
       // toggle is ignored at runtime because the pattern carries its
       // own modifiers.
-      { value: "TEXT_MATCHES_REGEX", label: "matches regex" },
-      { value: "TEXT_DOES_NOT_MATCH_REGEX", label: "does not match regex" },
+      { value: "TEXT_MATCHES_REGEX", label: "正規表現に一致" },
+      { value: "TEXT_DOES_NOT_MATCH_REGEX", label: "正規表現に一致しない" },
     ],
   },
   {
-    label: "Number",
+    label: "数値",
     options: [
-      { value: "NUMBER_IS_EQUAL_TO", label: "= number" },
-      { value: "NUMBER_IS_GREATER_THAN", label: "> number" },
-      { value: "NUMBER_IS_LESS_THAN", label: "< number" },
+      { value: "NUMBER_IS_EQUAL_TO", label: "= 数値" },
+      { value: "NUMBER_IS_GREATER_THAN", label: "> 数値" },
+      { value: "NUMBER_IS_LESS_THAN", label: "< 数値" },
     ],
   },
   {
-    label: "Boolean",
+    label: "真偽値",
     options: [
-      { value: "BOOLEAN_IS_TRUE", label: "is true" },
-      { value: "BOOLEAN_IS_FALSE", label: "is false" },
+      { value: "BOOLEAN_IS_TRUE", label: "true" },
+      { value: "BOOLEAN_IS_FALSE", label: "false" },
     ],
   },
   {
-    label: "Date",
+    label: "日付",
     options: [
-      { value: "DATE_IS_BEFORE", label: "is before" },
-      { value: "DATE_IS_EQUAL", label: "is equal to" },
-      { value: "DATE_IS_AFTER", label: "is after" },
+      { value: "DATE_IS_BEFORE", label: "より前" },
+      { value: "DATE_IS_EQUAL", label: "と等しい" },
+      { value: "DATE_IS_AFTER", label: "より後" },
     ],
   },
   {
-    label: "List",
+    label: "リスト",
     options: [
-      { value: "LIST_CONTAINS", label: "list contains" },
-      { value: "LIST_DOES_NOT_CONTAIN", label: "list does not contain" },
-      { value: "LIST_IS_EMPTY", label: "list is empty" },
-      { value: "LIST_IS_NOT_EMPTY", label: "list is not empty" },
+      { value: "LIST_CONTAINS", label: "リストが含む" },
+      { value: "LIST_DOES_NOT_CONTAIN", label: "リストが含まない" },
+      { value: "LIST_IS_EMPTY", label: "リストが空" },
+      { value: "LIST_IS_NOT_EMPTY", label: "リストが空でない" },
     ],
   },
   {
-    label: "Existence",
+    label: "存在",
     options: [
-      { value: "EXISTS", label: "exists / is set" },
-      { value: "DOES_NOT_EXIST", label: "does not exist / is empty" },
+      { value: "EXISTS", label: "存在する / 設定済み" },
+      { value: "DOES_NOT_EXIST", label: "存在しない / 空" },
     ],
   },
 ];
@@ -5261,7 +5261,7 @@ function BranchConditionsEditor({
     <div className="wf-props__conditions">
       {firstGroup.length === 0 ? (
         <p className="wf-props__hint wf-props__hint--inline">
-          No conditions yet -- this branch will never match. Add one below.
+          まだ条件がありません -- このブランチは一致しません。下から追加してください。
         </p>
       ) : (
         <ul className="wf-props__condition-list">
@@ -5277,12 +5277,11 @@ function BranchConditionsEditor({
         </ul>
       )}
       <Button variant="ghost" size="sm" onClick={add}>
-        <Icon icon={Plus} size={12} /> Add condition
+        <Icon icon={Plus} size={12} /> 条件を追加
       </Button>
       {tailGroups.length > 0 ? (
         <p className="wf-props__hint wf-props__hint--inline">
-          {tailGroups.length} additional OR group{tailGroups.length === 1 ? "" : "s"} not
-          shown -- edit them via the API if you need to.
+          追加のORグループが{tailGroups.length}件表示されていません -- 必要な場合はAPI経由で編集してください。
         </p>
       ) : null}
     </div>
@@ -5310,7 +5309,7 @@ function ConditionRow({
   const supportsCase = CASE_SENSITIVE_OPERATORS.has(condition.operator);
   return (
     <li className="wf-props__condition-row">
-      {showAnd ? <span className="wf-props__condition-and">AND</span> : null}
+      {showAnd ? <span className="wf-props__condition-and">かつ</span> : null}
       <VariableChipField
         className="wf-props__condition-field"
         value={condition.firstValue}
@@ -5344,8 +5343,8 @@ function ConditionRow({
         type="button"
         className="wf-props__input-remove"
         onClick={onRemove}
-        title="Remove condition"
-        aria-label="Remove condition"
+        title="条件を削除"
+        aria-label="条件を削除"
       >
         <Icon icon={Trash2} size={12} />
       </button>
@@ -5356,7 +5355,7 @@ function ConditionRow({
             checked={condition.caseSensitive === true}
             onChange={(e) => onUpdate({ caseSensitive: e.target.checked })}
           />
-          case sensitive
+          大文字小文字を区別
         </label>
       ) : null}
     </li>
@@ -5397,6 +5396,20 @@ const RUN_STATUS_TONE: Record<FlowRunStatus, "ok" | "neutral" | "warn" | "accent
   SCHEDULE_FAILURE: "accent",
 };
 
+const RUN_STATUS_LABEL: Record<FlowRunStatus, string> = {
+  QUEUED: "待機中",
+  RUNNING: "実行中",
+  SUCCEEDED: "成功",
+  FAILED: "失敗",
+  PAUSED: "一時停止",
+  TIMEOUT: "タイムアウト",
+  INTERNAL_ERROR: "内部エラー",
+  QUOTA_EXCEEDED: "上限超過",
+  STOPPED: "停止",
+  MEMORY_LIMIT_EXCEEDED: "メモリ上限超過",
+  SCHEDULE_FAILURE: "スケジュール失敗",
+};
+
 function RunsPanel({
   runs,
   loading,
@@ -5420,20 +5433,20 @@ function RunsPanel({
 }): React.ReactElement {
   const activeCount = runs.filter((r) => !RUN_TERMINAL_STATUSES.has(r.status)).length;
   return (
-    <aside className="wf-editor__runs-panel" aria-label="Workflow runs">
+    <aside className="wf-editor__runs-panel" aria-label="ワークフロー実行">
       <header className="wf-editor__runs-header">
         <div className="wf-editor__runs-title">
           <Icon icon={History} size={14} />
-          <span>Runs</span>
+          <span>実行</span>
           <span className="wf-editor__runs-meta">
-            {runs.length === 0 ? "no runs yet" : `${runs.length} total${activeCount > 0 ? ` · ${activeCount} active` : ""}`}
+            {runs.length === 0 ? "まだ実行履歴がありません" : `合計${runs.length}件${activeCount > 0 ? ` · 実行中${activeCount}件` : ""}`}
           </span>
         </div>
         <div className="wf-editor__runs-actions">
-          <Button variant="ghost" size="sm" onClick={onRefresh} title="Refresh">
+          <Button variant="ghost" size="sm" onClick={onRefresh} title="更新">
             <Icon icon={RotateCcw} size={12} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close runs panel">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="実行パネルを閉じる">
             <Icon icon={X} size={12} />
           </Button>
         </div>
@@ -5443,7 +5456,7 @@ function RunsPanel({
       ) : null}
       {runs.length === 0 ? (
         <div className="wf-editor__runs-empty">
-          {loading ? "Loading runs..." : "No runs yet. Click Run above to queue one."}
+          {loading ? "実行履歴を読み込み中..." : "まだ実行履歴がありません。上の「実行」をクリックしてキューに追加してください。"}
         </div>
       ) : (
         <ul className="wf-editor__runs-list">
@@ -5517,7 +5530,7 @@ function RunRow({
         <span className="wf-editor__run-icon" aria-hidden="true">
           <RunStatusIcon status={run.status} />
         </span>
-        <span className="wf-editor__run-status">{run.status}</span>
+        <span className="wf-editor__run-status">{RUN_STATUS_LABEL[run.status]}</span>
         {run.failedStep ? (
           <span className="wf-editor__run-failed">@ {run.failedStep.displayName}</span>
         ) : null}
@@ -5539,32 +5552,32 @@ function RunRow({
           variant={overlayActive ? "primary" : "ghost"}
           size="sm"
           onClick={onToggleOverlay}
-          title={overlayActive ? "Hide overlay" : "Highlight this run on the canvas"}
+          title={overlayActive ? "オーバーレイを隠す" : "この実行をキャンバス上でハイライト"}
         >
-          {overlayActive ? "Hide on canvas" : "Show on canvas"}
+          {overlayActive ? "キャンバスから隠す" : "キャンバスに表示"}
         </Button>
       </div>
       {expanded ? (
         <div className="wf-editor__run-body">
           <dl className="wf-editor__run-kv">
-            <dt>Id</dt>
+            <dt>ID</dt>
             <dd><code>{run.id}</code></dd>
-            <dt>Steps</dt>
+            <dt>ステップ数</dt>
             <dd>{run.stepsCount ?? 0}</dd>
-            <dt>Trigger</dt>
-            <dd>{run.triggeredBy ?? "manual"}</dd>
-            <dt>Env</dt>
+            <dt>トリガー</dt>
+            <dd>{run.triggeredBy ?? "手動"}</dd>
+            <dt>環境</dt>
             <dd>{run.environment}</dd>
           </dl>
           {run.steps && Object.keys(run.steps).length > 0 ? (
             <details className="wf-editor__run-output">
-              <summary>Step output JSON</summary>
+              <summary>ステップ出力JSON</summary>
               <pre>{JSON.stringify(run.steps, null, 2)}</pre>
             </details>
           ) : null}
           {!isTerminal ? (
             <Button variant="danger" size="sm" onClick={() => void onCancel()}>
-              <Icon icon={X} size={12} /> Cancel
+              <Icon icon={X} size={12} /> キャンセル
             </Button>
           ) : null}
         </div>
@@ -5609,11 +5622,11 @@ function OverlayBanner({
         <RunStatusIcon status={run.status} />
       </span>
       <span className="wf-editor__overlay-banner-text">
-        Viewing run {startedAt} -- <strong>{run.status}</strong>
-        {run.failedStep ? <> at <code>{run.failedStep.displayName}</code></> : null}
+        {startedAt}の実行を表示中 -- <strong>{RUN_STATUS_LABEL[run.status]}</strong>
+        {run.failedStep ? <> ステップ: <code>{run.failedStep.displayName}</code></> : null}
         {!hasOverlayData ? (
           <em className="wf-editor__overlay-banner-note">
-            {" "}-- no per-step trace recorded for this run
+            {" "}-- この実行にはステップ単位のトレースが記録されていません
           </em>
         ) : null}
       </span>
@@ -5621,10 +5634,10 @@ function OverlayBanner({
         type="button"
         className="wf-editor__overlay-banner-clear"
         onClick={onClear}
-        title="Exit overlay mode"
-        aria-label="Exit overlay mode"
+        title="オーバーレイモードを終了"
+        aria-label="オーバーレイモードを終了"
       >
-        <Icon icon={X} size={12} /> Exit
+        <Icon icon={X} size={12} /> 終了
       </button>
     </div>
   );
@@ -5730,7 +5743,7 @@ function RunStepDetailPopover({
       ref={ref}
       className="wf-run-detail"
       role="dialog"
-      aria-label={`Run details for ${stepName}`}
+      aria-label={`${stepName}の実行詳細`}
       style={{ left: pos.left, top: pos.top }}
     >
       <header className={`wf-run-detail__header wf-run-detail__header--${statusTone}`}>
@@ -5738,7 +5751,7 @@ function RunStepDetailPopover({
           <code>{stepName}</code>
         </span>
         <span className="wf-run-detail__status">
-          {status ?? "not reached"}
+          {status ?? "未到達"}
           {typeof snapshot?.duration === "number" ? (
             <span className="wf-run-detail__duration">{formatDuration(snapshot.duration)}</span>
           ) : null}
@@ -5747,32 +5760,32 @@ function RunStepDetailPopover({
           type="button"
           className="wf-run-detail__close"
           onClick={onClose}
-          aria-label="Close run details"
+          aria-label="実行詳細を閉じる"
         >
           <Icon icon={X} size={12} />
         </button>
       </header>
       {!snapshot ? (
         <div className="wf-run-detail__empty">
-          This step didn't execute in this run.
+          このステップはこの実行では実行されませんでした。
         </div>
       ) : (
         <div className="wf-run-detail__body">
           {errorText ? (
             <section className="wf-run-detail__section wf-run-detail__section--error">
-              <h4>Error</h4>
+              <h4>エラー</h4>
               <pre>{errorText}</pre>
             </section>
           ) : null}
           {snapshot.output !== undefined ? (
             <section className="wf-run-detail__section">
-              <h4>Output</h4>
+              <h4>出力</h4>
               <pre>{stringifyForDisplay(snapshot.output)}</pre>
             </section>
           ) : null}
           {snapshot.input !== undefined && !isEmptyValue(snapshot.input) ? (
             <section className="wf-run-detail__section">
-              <h4>Input</h4>
+              <h4>入力</h4>
               <pre>{stringifyForDisplay(snapshot.input)}</pre>
             </section>
           ) : null}
@@ -6009,14 +6022,14 @@ function RunningBanner({
   // single-run is the common case and gets the specific status.
   const headline =
     activeCount === 1
-      ? `${run.status}${run.failedStep ? ` @ ${run.failedStep.displayName}` : ""}`
-      : `${activeCount} runs in flight`;
+      ? `${RUN_STATUS_LABEL[run.status]}${run.failedStep ? ` @ ${run.failedStep.displayName}` : ""}`
+      : `${activeCount}件実行中`;
 
   // Duration: live for RUNNING / PAUSED, frozen for QUEUED (no startTime).
   const duration = run.startTime
     ? formatDuration(now - run.startTime)
     : run.status === "QUEUED"
-      ? "queued"
+      ? "待機中"
       : "—";
 
   // Tone derived from the status -- maps to a CSS modifier so the bar
@@ -6029,7 +6042,7 @@ function RunningBanner({
       type="button"
       className={`wf-editor__running-banner wf-editor__running-banner--${tone}`}
       onClick={onOpenPanel}
-      title="Open runs panel"
+      title="実行パネルを開く"
       aria-live="polite"
     >
       <span className="wf-editor__running-banner-icon" aria-hidden="true">
@@ -6040,7 +6053,7 @@ function RunningBanner({
       </span>
       <span className="wf-editor__running-banner-text">{headline}</span>
       <span className="wf-editor__running-banner-duration">{duration}</span>
-      <span className="wf-editor__running-banner-cta">View runs</span>
+      <span className="wf-editor__running-banner-cta">実行を表示</span>
     </button>
   );
 }

@@ -30,11 +30,11 @@ function rel(ts: number): string {
   const d = Date.now() - ts;
   if (d < 0) return "";
   const m = Math.floor(d / 60000);
-  if (m < 1) return "now";
-  if (m < 60) return `${m}m`;
+  if (m < 1) return "今";
+  if (m < 60) return `${m}分`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+  if (h < 24) return `${h}時間`;
+  return `${Math.floor(h / 24)}日`;
 }
 
 /* ── shared header + empty-state helpers ── */
@@ -63,7 +63,7 @@ function Row({ dot, room, children, tm }: { dot: string; room: RoomKey; children
 function agentRows(live: LiveData) {
   const byAgent = new Map<string, { name: string; what: string; ts: number; running: boolean }>();
   for (const e of live.agentActivity) {
-    const what = e.eventType === "tool_call" ? "running a tool" : e.eventType === "done" ? "finished" : "working";
+    const what = e.eventType === "tool_call" ? "ツール実行中" : e.eventType === "done" ? "完了" : "作業中";
     byAgent.set(e.agentName, { name: e.agentName, what, ts: e.timestamp, running: e.eventType !== "done" });
   }
   return [...byAgent.values()].sort((a, b) => b.ts - a.ts).slice(0, 4);
@@ -111,17 +111,17 @@ function useWidgetData<T>(url: string, pollMs = 15000): { data: T | null; loaded
 
 function relPast(ts: number): string {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60); if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60); if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  if (s < 60) return "たった今";
+  const m = Math.round(s / 60); if (m < 60) return `${m}分前`;
+  const h = Math.round(m / 60); if (h < 24) return `${h}時間前`;
+  return `${Math.round(h / 24)}日前`;
 }
 function relSoon(ts: number): string {
   const s = Math.round((ts - Date.now()) / 1000);
-  if (s < 60) return "now";
-  const m = Math.round(s / 60); if (m < 60) return `in ${m}m`;
-  const h = Math.round(m / 60); if (h < 24) return `in ${h}h`;
-  return `in ${Math.round(h / 24)}d`;
+  if (s < 60) return "まもなく";
+  const m = Math.round(s / 60); if (m < 60) return `${m}分後`;
+  const h = Math.round(m / 60); if (h < 24) return `${h}時間後`;
+  return `${Math.round(h / 24)}日後`;
 }
 const deslug = (s: string) => s.replace(/[_-]+/g, " ").trim();
 
@@ -133,7 +133,7 @@ function Stat({ n, unit, sub }: { n: React.ReactNode; unit?: string; sub?: React
     </div>
   );
 }
-function Loading() { return <Empty><span className="dim">Loading…</span></Empty>; }
+function Loading() { return <Empty><span className="dim">読み込み中…</span></Empty>; }
 
 function CalendarWidget() {
   const now = Date.now();
@@ -141,18 +141,18 @@ function CalendarWidget() {
     `/api/calendar?range_start=${now}&range_end=${now + 7 * 86400000}`);
   const up = Array.isArray(data) ? data.filter((e) => e.timestamp >= now).sort((a, b) => a.timestamp - b.timestamp) : [];
   const next = up[0];
-  return (<><WHeader label="calendar · next" room="calendar" />
-    {next ? <Stat n={up.length} unit={up.length === 1 ? "commitment" : "commitments"} sub={<>Next: <b>{next.title}</b> · {relSoon(next.timestamp)}</>} />
-      : loaded ? <Empty>No commitments this week. <span className="dim">Connect a calendar in Settings.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="カレンダー · 次" room="calendar" />
+    {next ? <Stat n={up.length} unit="件の予定" sub={<>次: <b>{next.title}</b> · {relSoon(next.timestamp)}</>} />
+      : loaded ? <Empty>今週の予定はありません。<span className="dim">設定でカレンダーを連携できます。</span></Empty> : <Loading />}</>);
 }
 
 function MemoryWidget() {
   const { data, loaded } = useWidgetData<Array<{ predicate: string; object: string; created_at: number }>>("/api/vault/facts");
   const facts = Array.isArray(data) ? [...data].sort((a, b) => b.created_at - a.created_at) : [];
   const newest = facts[0];
-  return (<><WHeader label="memory · new" room="memory" />
-    {newest ? <Stat n={facts.length} unit={facts.length === 1 ? "fact" : "facts"} sub={<>Newest: {deslug(newest.predicate)} <b>{newest.object}</b></>} />
-      : loaded ? <Empty>New facts Jarvis learns surface here. <span className="dim">Browse the vault in Memory.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="記憶 · 新着" room="memory" />
+    {newest ? <Stat n={facts.length} unit="件の事実" sub={<>最新: {deslug(newest.predicate)} <b>{newest.object}</b></>} />
+      : loaded ? <Empty>Jarvisが学んだ新しい事実がここに表示されます。<span className="dim">記憶でボールトを確認できます。</span></Empty> : <Loading />}</>);
 }
 
 function GoalsWidget() {
@@ -160,27 +160,27 @@ function GoalsWidget() {
   const goals = Array.isArray(data) ? data : [];
   const active = goals.filter((g) => g.status === "active");
   const onTrack = active.filter((g) => g.health === "on_track").length;
-  return (<><WHeader label="goals · health" room="goals" />
-    {goals.length ? <Stat n={active.length} unit={active.length === 1 ? "active goal" : "active goals"} sub={active.length ? <>{onTrack} on track · {active.length - onTrack} need attention</> : "None active"} />
-      : loaded ? <Empty>No goals set yet. <span className="dim">Define objectives in Goals to track them here.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="目標 · 状態" room="goals" />
+    {goals.length ? <Stat n={active.length} unit="件の進行中目標" sub={active.length ? <>{onTrack}件が順調 · {active.length - onTrack}件が要注意</> : "進行中の目標なし"} />
+      : loaded ? <Empty>まだ目標が設定されていません。<span className="dim">目標で目的を定義すると、ここに表示されます。</span></Empty> : <Loading />}</>);
 }
 
 function WorkflowsWidget() {
   const { data, loaded } = useWidgetData<Array<Record<string, unknown>>>("/api/workflows");
   const flows = Array.isArray(data) ? data : [];
   const live = flows.filter((f) => f.enabled === true || f.published === true || f.status === "published").length;
-  return (<><WHeader label="workflows" room="workflows" />
-    {flows.length ? <Stat n={flows.length} unit={flows.length === 1 ? "workflow" : "workflows"} sub={live ? `${live} enabled` : "None enabled yet"} />
-      : loaded ? <Empty>Saved automations show their status here. <span className="dim">Open Workflows to build one.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="ワークフロー" room="workflows" />
+    {flows.length ? <Stat n={flows.length} unit="件のワークフロー" sub={live ? `${live}件が有効` : "有効なものはまだありません"} />
+      : loaded ? <Empty>保存された自動化の状態がここに表示されます。<span className="dim">ワークフローで作成できます。</span></Empty> : <Loading />}</>);
 }
 
 function AuthorityAuditWidget() {
   const { data, loaded } = useWidgetData<Array<{ tool_name: string; authority_decision: string; created_at: number }>>("/api/authority/audit?limit=20");
   const rows = Array.isArray(data) ? [...data].sort((a, b) => b.created_at - a.created_at) : [];
   const latest = rows[0];
-  return (<><WHeader label="authority · audit" room="authority" />
-    {latest ? <Stat n={rows.length} unit="recent" sub={<>Latest: <b>{deslug(latest.tool_name)}</b> · {relPast(latest.created_at)}</>} />
-      : loaded ? <Empty>The audit trail of approved actions lands here. <span className="dim">Open Authority for the full log.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="権限 · 監査" room="authority" />
+    {latest ? <Stat n={rows.length} unit="件の最近の記録" sub={<>最新: <b>{deslug(latest.tool_name)}</b> · {relPast(latest.created_at)}</>} />
+      : loaded ? <Empty>承認済みアクションの監査履歴がここに表示されます。<span className="dim">権限で全ログを確認できます。</span></Empty> : <Loading />}</>);
 }
 
 function UsageWidget() {
@@ -195,9 +195,9 @@ function UsageWidget() {
     typeof d.tokens === "number" ? d.tokens :
     Array.isArray(d.rows) ? d.rows.reduce((s: number, r: any) => s + (Number(r?.tokens) || 0), 0) : null;
   const fmt = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n);
-  return (<><WHeader label="usage · week" room="usage" />
-    {tokens != null && tokens > 0 ? <Stat n={fmt(tokens)} unit="tokens" sub="Last 7 days · all models" />
-      : loaded ? <Empty>Weekly token spend by model appears here. <span className="dim">See the full meter in Usage.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="使用量 · 週間" room="usage" />
+    {tokens != null && tokens > 0 ? <Stat n={fmt(tokens)} unit="トークン" sub="過去7日間 · 全モデル" />
+      : loaded ? <Empty>モデル別の週間トークン使用量がここに表示されます。<span className="dim">使用量で全メーターを確認できます。</span></Empty> : <Loading />}</>);
 }
 
 function WorkspacesWidget() {
@@ -205,136 +205,136 @@ function WorkspacesWidget() {
   const projects = Array.isArray(data) ? data : [];
   const running = projects.filter((p) => p.status === "running").length;
   const dirty = projects.filter((p) => p.gitDirty).length;
-  return (<><WHeader label="workspaces" room="workspaces" />
-    {projects.length ? <Stat n={projects.length} unit={projects.length === 1 ? "project" : "projects"} sub={<>{running} running{dirty ? ` · ${dirty} with changes` : ""}</>} />
-      : loaded ? <Empty>Project dev servers and git status show here. <span className="dim">Open Workspaces.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="ワークスペース" room="workspaces" />
+    {projects.length ? <Stat n={projects.length} unit="件のプロジェクト" sub={<>{running}件が稼働中{dirty ? ` · ${dirty}件に変更あり` : ""}</>} />
+      : loaded ? <Empty>プロジェクトの開発サーバーとgit状態がここに表示されます。<span className="dim">ワークスペースを開く。</span></Empty> : <Loading />}</>);
 }
 
 function ToolsWidget() {
   const { data, loaded } = useWidgetData<Array<Record<string, unknown>>>("/api/tools");
   const tools = Array.isArray(data) ? data : [];
   const enabled = tools.filter((t) => t.enabled !== false).length;
-  return (<><WHeader label="tools" room="tools" />
-    {tools.length ? <Stat n={tools.length} unit={tools.length === 1 ? "capability" : "capabilities"} sub={`${enabled} enabled`} />
-      : loaded ? <Empty>The capability catalogue lives in Tools. <span className="dim">Open it to manage flags.</span></Empty> : <Loading />}</>);
+  return (<><WHeader label="ツール" room="tools" />
+    {tools.length ? <Stat n={tools.length} unit="件の機能" sub={`${enabled}件が有効`} />
+      : loaded ? <Empty>機能カタログはツールにあります。<span className="dim">開いてフラグを管理できます。</span></Empty> : <Loading />}</>);
 }
 
 function SettingsWidget() {
   const { data, loaded } = useWidgetData<{ status?: string }>("/api/auth/google/status");
   const connected = data?.status === "connected";
-  return (<><WHeader label="settings" room="settings" />
-    {loaded ? <Stat n={connected ? "Connected" : "Set up"} sub={connected ? "Google · providers, voice, channels" : "Connect Google, providers, voice & channels"} />
+  return (<><WHeader label="設定" room="settings" />
+    {loaded ? <Stat n={connected ? "接続済み" : "未設定"} sub={connected ? "Google · プロバイダー、音声、チャンネル" : "Google、プロバイダー、音声、チャンネルを連携"} />
       : <Loading />}</>);
 }
 
 /* ── the widget catalog — one+ per room, broadly composable ── */
 const WIDGETS: Record<string, WidgetDef> = {
   "right-now": {
-    id: "right-now", group: "run", dot: "var(--speak)", desc: "Active agents and what each is doing.", defaultSize: 1,
+    id: "right-now", group: "run", dot: "var(--speak)", desc: "稼働中のエージェントと作業内容。", defaultSize: 1,
     render: ({ live }) => {
       const a = agentRows(live);
-      return (<><WHeader label="right now" room="agents" />
+      return (<><WHeader label="今の状況" room="agents" />
         {a.length ? a.map((x) => <Row key={x.name} dot={x.running ? "var(--speak)" : "var(--faint)"} room="agents" tm={rel(x.ts)}><b>{x.name}</b> · {x.what}</Row>)
-          : <Empty>Nothing running yet. Say <b>“Hey Jarvis”</b> and hand it something, or start in <b>Workflows</b>.</Empty>}</>);
+          : <Empty>まだ何も稼働していません。<b>「Hey Jarvis」</b>と話しかけて何か任せるか、<b>ワークフロー</b>から始めましょう。</Empty>}</>);
     },
   },
   waiting: {
-    id: "waiting", group: "guard", dot: "var(--hold)", desc: "Pending approvals, resolvable in place. Pins to the top while amber.", defaultSize: 1,
-    render: ({ live, onApprove, onCancel }) => (<><WHeader label={`waiting on you · ${live.approvals.length}`} room="authority" tone="hold" />
+    id: "waiting", group: "guard", dot: "var(--hold)", desc: "保留中の承認、ここで対応できます。琥珀色の間は上部に固定。", defaultSize: 1,
+    render: ({ live, onApprove, onCancel }) => (<><WHeader label={`あなたの確認待ち · ${live.approvals.length}`} room="authority" tone="hold" />
       {live.approvals.length ? live.approvals.slice(0, 3).map((a) => (
         <div className="rs-apr" key={a.id}>
           <div className="t1"><span className="rs-dot" />{a.category} · {a.toolName}</div>
           <div className="t2">{a.intent}</div>
-          <div className="bs"><button className="b1" onClick={() => onApprove(a.id)}>Yes · approve</button><button className="b2" onClick={() => onCancel(a.id)}>Cancel</button></div>
+          <div className="bs"><button className="b1" onClick={() => onApprove(a.id)}>はい · 承認</button><button className="b2" onClick={() => onCancel(a.id)}>キャンセル</button></div>
         </div>
-      )) : <Empty>Approvals land here when an action needs your yes. <span className="dim">Nothing waits right now.</span></Empty>}</>),
+      )) : <Empty>承認が必要なアクションはここに表示されます。<span className="dim">今は何も待っていません。</span></Empty>}</>),
   },
   today: {
-    id: "today", group: "guard", dot: "var(--ok)", desc: "Runs and outcomes since midnight, tones included.", defaultSize: 2,
+    id: "today", group: "guard", dot: "var(--ok)", desc: "深夜0時からの実行と結果、トーン付き。", defaultSize: 2,
     render: ({ live }) => {
       const r = todayRows(live);
-      return (<><WHeader label="today" room="logs" />
+      return (<><WHeader label="今日" room="logs" />
         {r.length ? r.map((x) => <Row key={x.id} dot={x.dot} room="logs" tm={rel(x.ts)}>{x.text}</Row>)
-          : <Empty>Day one. The first morning brief is scheduled for <b>07:00 tomorrow</b>; it will report here.</Empty>}</>);
+          : <Empty>初日です。最初のモーニングブリーフは<b>明日7:00</b>に予定されており、ここに報告されます。</Empty>}</>);
     },
   },
   calendar: {
-    id: "calendar", group: "know", dot: "var(--faint)", desc: "The next two commitments, holds, or focus blocks.", defaultSize: 1,
+    id: "calendar", group: "know", dot: "var(--faint)", desc: "直近2件の予定、保留、集中ブロック。", defaultSize: 1,
     render: () => <CalendarWidget />,
   },
   vitals: {
-    id: "vitals", group: "system", dot: "var(--faint)", desc: "Agents active, approvals waiting, events today.", defaultSize: 1,
+    id: "vitals", group: "system", dot: "var(--faint)", desc: "稼働中エージェント、確認待ち承認、本日のイベント数。", defaultSize: 1,
     render: ({ live }) => {
       const active = agentRows(live).filter((a) => a.running).length;
-      return (<><WHeader label="vitals" /><div className="rs-vit">
-        <div className="v"><span className="k">agents</span><div className="n">{active}<span> active</span></div></div>
-        <div className="v"><span className="k">waiting</span><div className="n">{live.approvals.length}</div></div>
-        <div className="v"><span className="k">events</span><div className="n">{todayRows(live).length}<span> today</span></div></div>
+      return (<><WHeader label="バイタル" /><div className="rs-vit">
+        <div className="v"><span className="k">エージェント</span><div className="n">{active}<span> 稼働中</span></div></div>
+        <div className="v"><span className="k">確認待ち</span><div className="n">{live.approvals.length}</div></div>
+        <div className="v"><span className="k">イベント</span><div className="n">{todayRows(live).length}<span> 本日</span></div></div>
       </div></>);
     },
   },
   "tasks-due": {
-    id: "tasks-due", group: "run", dot: "var(--faint)", desc: "Due today and overdue, priority-toned.", defaultSize: 1,
+    id: "tasks-due", group: "run", dot: "var(--faint)", desc: "本日期限・期限超過、優先度トーン付き。", defaultSize: 1,
     render: ({ live }) => {
       const t = taskRows(live);
-      return (<><WHeader label="tasks · due" room="tasks" />
+      return (<><WHeader label="タスク · 期限" room="tasks" />
         {t.length ? t.map((x) => <Row key={x.id} dot={x.status === "in_progress" ? "var(--speak)" : "var(--faint)"} room="tasks" tm={x.due ? (x.due < Date.now() ? relPast(x.due) : relSoon(x.due)) : ""}>{x.what}</Row>)
-          : <Empty>No open tasks. <span className="dim">Ask Jarvis to track one, or add it in Tasks.</span></Empty>}</>);
+          : <Empty>未完了のタスクはありません。<span className="dim">Jarvisに依頼するか、タスクで追加できます。</span></Empty>}</>);
     },
   },
   "agents-roster": {
-    id: "agents-roster", group: "run", dot: "var(--speak)", desc: "The full roster and delegation depth.", defaultSize: 1,
+    id: "agents-roster", group: "run", dot: "var(--speak)", desc: "全エージェント一覧と委任の深さ。", defaultSize: 1,
     render: ({ live }) => {
       const a = agentRows(live);
-      return (<><WHeader label="agents · roster" room="agents" />
-        {a.length ? a.map((x) => <Row key={x.name} dot={x.running ? "var(--speak)" : "var(--ok)"} room="agents" tm={x.running ? "live" : ""}><b>{x.name}</b></Row>)
-          : <Empty>Specialist agents appear here once they run. <span className="dim">Open Agents to see the roster.</span></Empty>}</>);
+      return (<><WHeader label="エージェント · 一覧" room="agents" />
+        {a.length ? a.map((x) => <Row key={x.name} dot={x.running ? "var(--speak)" : "var(--ok)"} room="agents" tm={x.running ? "稼働中" : ""}><b>{x.name}</b></Row>)
+          : <Empty>専門エージェントは実行後にここに表示されます。<span className="dim">エージェントで一覧を確認できます。</span></Empty>}</>);
     },
   },
   goals: {
-    id: "goals", group: "know", dot: "var(--ok)", desc: "Objectives with their health tones; amber earns a place.", defaultSize: 1,
+    id: "goals", group: "know", dot: "var(--ok)", desc: "目標とその状態トーン。要注意は表示優先。", defaultSize: 1,
     render: () => <GoalsWidget />,
   },
   pipeline: {
-    id: "pipeline", group: "know", dot: "var(--faint)", desc: "Cards in review and scheduled; your editorial gate.", defaultSize: 1,
+    id: "pipeline", group: "know", dot: "var(--faint)", desc: "レビュー中・予定中のカード。編集ゲート。", defaultSize: 1,
     render: ({ live }) => {
       const c = live.contentEvents.slice(-4).reverse();
-      return (<><WHeader label="pipeline" room="content" />
+      return (<><WHeader label="パイプライン" room="content" />
         {c.length ? c.map((x) => <Row key={`${x.item.id}${x.timestamp}`} dot="var(--faint)" room="content" tm={x.item.stage}>{x.item.title}</Row>)
-          : <Empty>Nothing in the pipeline. <span className="dim">Draft something in Content.</span></Empty>}</>);
+          : <Empty>パイプラインに何もありません。<span className="dim">コンテンツで下書きを作成できます。</span></Empty>}</>);
     },
   },
   workflows: {
-    id: "workflows", group: "run", dot: "var(--speak)", desc: "Saved automations and their last run.", defaultSize: 1,
+    id: "workflows", group: "run", dot: "var(--speak)", desc: "保存済み自動化と最終実行。", defaultSize: 1,
     render: () => <WorkflowsWidget />,
   },
   memory: {
-    id: "memory", group: "know", dot: "var(--faint)", desc: "Recently learned facts and entities.", defaultSize: 1,
+    id: "memory", group: "know", dot: "var(--faint)", desc: "最近学習した事実とエンティティ。", defaultSize: 1,
     render: () => <MemoryWidget />,
   },
   "authority-audit": {
-    id: "authority-audit", group: "guard", dot: "var(--faint)", desc: "Recent grants and audited actions.", defaultSize: 1,
+    id: "authority-audit", group: "guard", dot: "var(--faint)", desc: "最近の付与と監査済みアクション。", defaultSize: 1,
     render: () => <AuthorityAuditWidget />,
   },
   "usage-week": {
-    id: "usage-week", group: "guard", dot: "var(--faint)", desc: "Token spend by model — the privacy story as numbers.", defaultSize: 1,
+    id: "usage-week", group: "guard", dot: "var(--faint)", desc: "モデル別トークン使用量 — 数値で見るプライバシー。", defaultSize: 1,
     render: () => <UsageWidget />,
   },
   workspaces: {
-    id: "workspaces", group: "build", dot: "var(--faint)", desc: "Dev projects, git status, running servers.", defaultSize: 1,
+    id: "workspaces", group: "build", dot: "var(--faint)", desc: "開発プロジェクト、git状態、稼働中サーバー。", defaultSize: 1,
     render: () => <WorkspacesWidget />,
   },
   tools: {
-    id: "tools", group: "build", dot: "var(--faint)", desc: "Capability catalogue and recent calls.", defaultSize: 1,
+    id: "tools", group: "build", dot: "var(--faint)", desc: "機能カタログと最近の呼び出し。", defaultSize: 1,
     render: () => <ToolsWidget />,
   },
   settings: {
-    id: "settings", group: "system", dot: "var(--faint)", desc: "Providers, voice, channels — jump straight in.", defaultSize: 1,
+    id: "settings", group: "system", dot: "var(--faint)", desc: "プロバイダー、音声、チャンネル — すぐアクセス。", defaultSize: 1,
     render: () => <SettingsWidget />,
   },
 };
 
-const GROUP_LABEL: Record<WidgetDef["group"], string> = { run: "run", know: "know", guard: "guard", build: "build", system: "system" };
+const GROUP_LABEL: Record<WidgetDef["group"], string> = { run: "実行", know: "情報", guard: "監視", build: "構築", system: "システム" };
 const CATALOG_ORDER = Object.keys(WIDGETS);
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
@@ -418,8 +418,8 @@ export function NowRoom({
       {offline && (
         <div className="rs-notice">
           <div className="gd2" />
-          <div className="t">Waiting for daemon…</div>
-          <div className="s">The dashboard can't reach the runtime. Check the service, or start it yourself:</div>
+          <div className="t">デーモンに接続中…</div>
+          <div className="s">ダッシュボードがランタイムに接続できません。サービスを確認するか、自分で起動してください:</div>
           <span className="mono2">jarvis start</span>
         </div>
       )}
@@ -442,8 +442,8 @@ export function NowRoom({
           >
             {arranging && !synthetic && (
               <div className="rs-wtools">
-                <button className="rs-wtool" onClick={() => resize(item.id)} title={item.size === 2 ? "Half width" : "Full width"} aria-label={item.size === 2 ? "Half width" : "Full width"}>{item.size === 2 ? "½" : "full"}</button>
-                <button className="rs-wtool rm" onClick={() => remove(item.id)} disabled={!canRemove} title={canRemove ? "Remove" : "Can't remove while waiting"} aria-label="Remove widget">✕</button>
+                <button className="rs-wtool" onClick={() => resize(item.id)} title={item.size === 2 ? "半幅" : "全幅"} aria-label={item.size === 2 ? "半幅" : "全幅"}>{item.size === 2 ? "½" : "全幅"}</button>
+                <button className="rs-wtool rm" onClick={() => remove(item.id)} disabled={!canRemove} title={canRemove ? "削除" : "確認待ちの間は削除できません"} aria-label="ウィジェットを削除">✕</button>
               </div>
             )}
             {def.render(ctx)}
@@ -452,12 +452,12 @@ export function NowRoom({
       })}
 
       {arranging && !catalogOpen && (
-        <button className="rs-addtile" onClick={() => setCatalogOpen(true)}>+ add widget</button>
+        <button className="rs-addtile" onClick={() => setCatalogOpen(true)}>+ ウィジェットを追加</button>
       )}
 
       {arranging && catalogOpen && (
         <div className="rs-catalog">
-          <div className="rs-catalog-h">widget catalog · each is a room's headline<button className="x" onClick={() => setCatalogOpen(false)}>done</button></div>
+          <div className="rs-catalog-h">ウィジェットカタログ · 各部屋の要約<button className="x" onClick={() => setCatalogOpen(false)}>完了</button></div>
           {available.length ? (
             <div className="rs-catalog-grid">
               {available.map((id) => {
@@ -472,9 +472,9 @@ export function NowRoom({
               })}
             </div>
           ) : (
-            <div className="rs-catalog-foot"><span className="none">Every widget is already on your Now.</span></div>
+            <div className="rs-catalog-foot"><span className="none">すべてのウィジェットが追加済みです。</span></div>
           )}
-          <div className="rs-catalog-foot"><button onClick={resetDefault}>restore default layout</button></div>
+          <div className="rs-catalog-foot"><button onClick={resetDefault}>デフォルト配置に戻す</button></div>
         </div>
       )}
     </div>
@@ -484,10 +484,10 @@ export function NowRoom({
 /** Human title for a widget id (its first header word group), for the catalog. */
 function WIDGET_TITLE(id: string): string {
   const map: Record<string, string> = {
-    "right-now": "Right now", waiting: "Waiting on you", today: "Today", calendar: "Calendar · next",
-    vitals: "Vitals", "tasks-due": "Tasks · due", "agents-roster": "Agents · roster", goals: "Goals · health",
-    pipeline: "Pipeline", workflows: "Workflows", memory: "Memory · new", "authority-audit": "Authority · audit",
-    "usage-week": "Usage · week", workspaces: "Workspaces", tools: "Tools", settings: "Settings",
+    "right-now": "今の状況", waiting: "あなたの確認待ち", today: "今日", calendar: "カレンダー · 次",
+    vitals: "バイタル", "tasks-due": "タスク · 期限", "agents-roster": "エージェント · 一覧", goals: "目標 · 状態",
+    pipeline: "パイプライン", workflows: "ワークフロー", memory: "記憶 · 新着", "authority-audit": "権限 · 監査",
+    "usage-week": "使用量 · 週間", workspaces: "ワークスペース", tools: "ツール", settings: "設定",
   };
   return map[id] ?? id;
 }

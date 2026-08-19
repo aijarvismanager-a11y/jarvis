@@ -40,6 +40,34 @@ export const TASK_STATUS_TONE: Record<ProjectTaskStatus, Tone> = {
   BLOCKED: "hold", REVIEW: "hold", QA: "hold", COMPLETED: "ok", FAILED: "fail", CANCELLED: "mut",
 };
 
+const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
+  active: "実行中",
+  paused: "一時停止",
+  completed: "完了",
+  archived: "アーカイブ済み",
+};
+
+const TASK_STATUS_LABEL: Record<ProjectTaskStatus, string> = {
+  PENDING: "保留",
+  PLANNING: "計画中",
+  READY: "準備完了",
+  RUNNING: "実行中",
+  WAITING: "待機中",
+  BLOCKED: "ブロック中",
+  REVIEW: "レビュー中",
+  QA: "QA中",
+  COMPLETED: "完了",
+  FAILED: "失敗",
+  CANCELLED: "キャンセル",
+};
+
+const TASK_PRIORITY_LABEL: Record<ProjectTask["priority"], string> = {
+  low: "低",
+  normal: "通常",
+  high: "高",
+  critical: "緊急",
+};
+
 export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useAIManagerData();
   const [createOpen, setCreateOpen] = useState(false);
@@ -92,12 +120,12 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
   return (
     <div className="rk-aim">
       <div className="rk-aim__tool">
-        <span className="rk-aim__title">AI Manager</span>
-        <span className="rk-aim__sub">projects · tasks · decisions</span>
-        <button className="rk-aim__icbtn" onClick={data.refresh} aria-label="Refresh">
+        <span className="rk-aim__title">AIマネージャー</span>
+        <span className="rk-aim__sub">プロジェクト · タスク · 決定</span>
+        <button className="rk-aim__icbtn" onClick={data.refresh} aria-label="更新">
           <Icon icon={RefreshCw} size="sm" />
         </button>
-        <button className="rk-aim__new" onClick={() => setCreateOpen(true)}>New project</button>
+        <button className="rk-aim__new" onClick={() => setCreateOpen(true)}>新規プロジェクト</button>
       </div>
 
       <div className="rk-aim__body">
@@ -108,8 +136,8 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
             <div className="rk-aim__empty"><Skeleton lines={4} /></div>
           ) : data.projects.length === 0 ? (
             <div className="rk-aim__empty">
-              <EmptyState title="No projects yet">
-                Press <b>New project</b> to describe what you want done — JARVIS plans it into tasks and runs them.
+              <EmptyState title="まだプロジェクトがありません">
+                <b>新規プロジェクト</b>を押して、やりたいことを説明してください — JARVISがタスクに分解して実行します。
               </EmptyState>
             </div>
           ) : (
@@ -121,7 +149,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
 
         <div className="rk-aim__detail">
           {!selected ? (
-            <div className="rk-aim__empty"><EmptyState title="Select a project">Pick a project on the left to see its task board and decisions.</EmptyState></div>
+            <div className="rk-aim__empty"><EmptyState title="プロジェクトを選択">左のリストからプロジェクトを選ぶとタスクボードと決定履歴が表示されます。</EmptyState></div>
           ) : (
             <>
               <div className="rk-aim__dh">
@@ -136,8 +164,8 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                     const r = await data.updateExecutionMode(selected.id, e.target.value as ExecutionMode);
                     setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                   }}
-                  aria-label="Execution mode"
-                  title="Auto/Assisted/Manual — how often the Manager pauses for confirmation"
+                  aria-label="実行モード"
+                  title="自動/補助/手動 — マネージャーが確認のために停止する頻度"
                 >
                   {EXECUTION_MODES.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -150,19 +178,19 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                     const r = await data.updateCostMode(selected.id, e.target.value as CostMode);
                     setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                   }}
-                  aria-label="Cost mode"
-                  title="Cheap/Balanced/Quality — overrides each subtask template's default tier"
+                  aria-label="コストモード"
+                  title="低コスト/バランス/高品質 — 各サブタスクテンプレートの既定ティアを上書き"
                 >
                   {COST_MODES.map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
-                <StatusChip tone={PROJECT_STATUS_TONE[selected.status]} dot>{selected.status}</StatusChip>
+                <StatusChip tone={PROJECT_STATUS_TONE[selected.status]} dot>{PROJECT_STATUS_LABEL[selected.status]}</StatusChip>
                 {/* Phase 20-B: completed_at was already typed/fetched but never rendered. */}
                 {selected.status === "completed" && selected.completed_at && (
-                  <span className="rk-aim__dh-completed">Completed {new Date(selected.completed_at).toLocaleString()}</span>
+                  <span className="rk-aim__dh-completed">完了 {new Date(selected.completed_at).toLocaleString()}</span>
                 )}
-                <button className="rk-aim__council-btn" onClick={() => setCouncilOpen(true)}>Ask the Council</button>
+                <button className="rk-aim__council-btn" onClick={() => setCouncilOpen(true)}>評議会に諮る</button>
                 {selected.status === "active" && (
                   <button
                     className="rk-aim__sbtn"
@@ -171,7 +199,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                       setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                     }}
                   >
-                    Pause
+                    一時停止
                   </button>
                 )}
               </div>
@@ -194,7 +222,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
                     const items = byStatus.get(status) ?? [];
                     return (
                       <div className="rk-aim__col" key={status}>
-                        <div className="rk-aim__colh">{status.toLowerCase()}<span className="c">{items.length}</span></div>
+                        <div className="rk-aim__colh">{TASK_STATUS_LABEL[status]}<span className="c">{items.length}</span></div>
                         <div className="rk-aim__col-scroll">
                           {items.length === 0 ? (
                             <div className="rk-aim__col-empty">—</div>
@@ -220,9 +248,9 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
               )}
 
               <div className="rk-aim__decisions">
-                <div className="rk-aim__dlabel">decisions</div>
+                <div className="rk-aim__dlabel">決定</div>
                 {data.decisions.length === 0 ? (
-                  <div className="rk-aim__col-empty">No decisions recorded yet.</div>
+                  <div className="rk-aim__col-empty">まだ決定は記録されていません。</div>
                 ) : (
                   data.decisions.map((d) => (
                     <div key={d.id} className="rk-aim__decision">
@@ -235,9 +263,9 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
               </div>
 
               <div className="rk-aim__handoffs">
-                <div className="rk-aim__dlabel">handoffs</div>
+                <div className="rk-aim__dlabel">ハンドオフ</div>
                 {data.handoffs.length === 0 ? (
-                  <div className="rk-aim__col-empty">No handoffs filed yet.</div>
+                  <div className="rk-aim__col-empty">まだハンドオフはありません。</div>
                 ) : (
                   data.handoffs.map((h) => <HandoffCard key={h.id} handoff={h} />)
                 )}
@@ -245,7 +273,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
 
               {data.agentPerformance.length > 0 && (
                 <div className="rk-aim__perf">
-                  <div className="rk-aim__dlabel">agent performance</div>
+                  <div className="rk-aim__dlabel">エージェント実績</div>
                   {data.agentPerformance.map((p) => (
                     <AgentPerformanceRow key={p.agent} perf={p} />
                   ))}
@@ -254,19 +282,19 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
 
               <div className="rk-aim__handoffs">
                 <div className="rk-aim__dh">
-                  <div className="rk-aim__dlabel" title="Not project-scoped — audit_trail has no project_id, so this is recent git/GitHub tool activity daemon-wide.">
-                    recent github activity
+                  <div className="rk-aim__dlabel" title="プロジェクト範囲外 — audit_trailにproject_idがないため、これはデーモン全体の最近のgit/GitHubツール活動です。">
+                    最近のGitHub活動
                   </div>
-                  <button className="rk-aim__sbtn" onClick={() => setGithubActionOpen(true)}>GitHub action</button>
+                  <button className="rk-aim__sbtn" onClick={() => setGithubActionOpen(true)}>GitHubアクション</button>
                 </div>
                 {data.githubActivity.length === 0 ? (
-                  <div className="rk-aim__col-empty">No GitHub activity yet.</div>
+                  <div className="rk-aim__col-empty">GitHub活動はまだありません。</div>
                 ) : (
                   data.githubActivity.map((g) => (
                     <div key={g.id} className="rk-aim__decision">
                       <div className="rk-aim__decision-statement">{g.tool_name}</div>
                       <div className="rk-aim__decision-meta">
-                        {g.authority_decision}{g.executed ? "" : " · not executed"} · {new Date(g.created_at).toLocaleString()}
+                        {g.authority_decision}{g.executed ? "" : " · 未実行"} · {new Date(g.created_at).toLocaleString()}
                       </div>
                     </div>
                   ))
@@ -283,7 +311,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
           onClose={() => setCreateOpen(false)}
           onCreate={async (input) => {
             const r = await data.runProject(input);
-            setToast({ text: r.ok ? `Project "${input.name}" is running.` : r.message, tone: r.ok ? "ok" : "warn" });
+            setToast({ text: r.ok ? `プロジェクト「${input.name}」を実行中です。` : r.message, tone: r.ok ? "ok" : "warn" });
             if (r.ok) setCreateOpen(false);
             return r.ok;
           }}
@@ -311,7 +339,7 @@ export function AIManagerRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function AIManagerRoom() {
   return (
-    <RoomShell title="AI Manager" subtitle="projects · tasks · decisions" breadcrumb={["AI Manager"]}>
+    <RoomShell title="AIマネージャー" subtitle="プロジェクト · タスク · 決定" breadcrumb={["AIマネージャー"]}>
       <AIManagerRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -322,7 +350,7 @@ function ProjectRow({ project, selected, onClick }: { project: Project; selected
     <button className={`rk-aim__row${selected ? " rk-aim__row--sel" : ""}`} onClick={onClick}>
       <span className="rk-aim__row-t">{project.name}</span>
       <span className="rk-aim__row-end">
-        <StatusChip tone={PROJECT_STATUS_TONE[project.status]}>{project.status}</StatusChip>
+        <StatusChip tone={PROJECT_STATUS_TONE[project.status]}>{PROJECT_STATUS_LABEL[project.status]}</StatusChip>
       </span>
     </button>
   );
@@ -350,16 +378,16 @@ function TaskCard({
 
   return (
     <div className="rk-aim__card" onClick={() => (hasQaReport || isWaiting || hasHealingDetail || hasArtifacts || hasDependencies) && setExpanded((e) => !e)}>
-      <div className="rk-aim__card-t">{task.title ?? "Untitled task"}</div>
+      <div className="rk-aim__card-t">{task.title ?? "無題のタスク"}</div>
       <div className="rk-aim__card-meta">
-        <StatusChip tone={task.project_status ? TASK_STATUS_TONE[task.project_status] : "mut"}>{task.priority}</StatusChip>
+        <StatusChip tone={task.project_status ? TASK_STATUS_TONE[task.project_status] : "mut"}>{TASK_PRIORITY_LABEL[task.priority]}</StatusChip>
         {task.assigned_agent && <span className="rk-aim__asg">{task.assigned_agent}</span>}
         {task.assigned_provider && (
           <span className="rk-aim__asg">{task.assigned_provider}{task.assigned_model ? `/${task.assigned_model}` : ""}</span>
         )}
-        {task.retry_count > 0 && <span className="rk-aim__asg">retry {task.retry_count}/{task.max_retries}</span>}
+        {task.retry_count > 0 && <span className="rk-aim__asg">再試行 {task.retry_count}/{task.max_retries}</span>}
         {task.next_agent && <span className="rk-aim__asg">→ {task.next_agent}</span>}
-        {task.approval_required && <span className="rk-aim__asg">needs approval</span>}
+        {task.approval_required && <span className="rk-aim__asg">承認が必要</span>}
       </div>
 
       {expanded && hasDependencies && (
@@ -370,7 +398,7 @@ function TaskCard({
               <div key={depId} className="rk-aim__qa-check">
                 <span>·</span>
                 <span className="rk-aim__qa-check-name">{dep?.title ?? depId}</span>
-                {dep?.project_status && <span className="rk-aim__qa-check-summary">{dep.project_status.toLowerCase()}</span>}
+                {dep?.project_status && <span className="rk-aim__qa-check-summary">{TASK_STATUS_LABEL[dep.project_status]}</span>}
               </div>
             );
           })}
@@ -399,14 +427,14 @@ function TaskCard({
                 <span className="rk-aim__qa-check-summary">
                   {a.template}/{a.mode}
                   {a.failure_class !== "none" ? ` — ${a.failure_class}` : ""}
-                  {isFinal ? "" : " (superseded)"}
+                  {isFinal ? "" : " (置き換え済み)"}
                 </span>
               </div>
             );
           })}
           {priorAttempts.length > 0 && (
             <div className="rk-aim__qa-check-summary">
-              {priorAttempts.length} prior attempt task{priorAttempts.length === 1 ? "" : "s"} kept for reference.
+              参考として残された過去の試行タスク {priorAttempts.length} 件。
             </div>
           )}
         </div>
@@ -416,7 +444,7 @@ function TaskCard({
         <div className="rk-aim__card-qa">
           {/* Phase 21-B: ran_at was already fetched/typed on qa_report but
               never rendered - no indication anywhere of when QA last ran. */}
-          <div className="rk-aim__qa-ran-at">QA ran {new Date(task.qa_report.ran_at).toLocaleString()}</div>
+          <div className="rk-aim__qa-ran-at">QA実行 {new Date(task.qa_report.ran_at).toLocaleString()}</div>
           {task.qa_report.checks.map((c) => (
             <div key={c.name} className={`rk-aim__qa-check ${c.automated && !c.passed ? "rk-aim__qa-check--fail" : "rk-aim__qa-check--pass"}`}>
               <span>{c.automated ? (c.passed ? "✓" : "✗") : "–"}</span>
@@ -435,13 +463,13 @@ function TaskCard({
 
       {expanded && isWaiting && (
         <div className="rk-aim__resume" onClick={(e) => e.stopPropagation()}>
-          <div className="rk-aim__resume-q">This task is waiting for your input to continue.</div>
+          <div className="rk-aim__resume-q">続行するにはあなたの入力が必要です。</div>
           <div className="rk-aim__resume-row">
             <input
               className="rk-aim__resume-input"
               value={resumeInput}
               onChange={(e) => setResumeInput(e.target.value)}
-              placeholder="Type your answer…"
+              placeholder="回答を入力…"
               onKeyDown={(e) => e.key === "Enter" && resumeInput.trim() && !resuming && void submitResume()}
             />
             <button
@@ -449,7 +477,7 @@ function TaskCard({
               disabled={!resumeInput.trim() || resuming}
               onClick={() => void submitResume()}
             >
-              {resuming ? "…" : "Resume"}
+              {resuming ? "…" : "再開"}
             </button>
           </div>
         </div>
@@ -497,15 +525,15 @@ function RulesEditor({ rules, onSave }: { rules: string[]; onSave: (rules: strin
 
   return (
     <div className="rk-aim__decisions">
-      <div className="rk-aim__dlabel">rules</div>
+      <div className="rk-aim__dlabel">ルール</div>
       {rules.length === 0 ? (
-        <div className="rk-aim__col-empty">No rules set — the Manager follows only the project request.</div>
+        <div className="rk-aim__col-empty">ルールは未設定 — マネージャーはプロジェクトの依頼内容のみに従います。</div>
       ) : (
         rules.map((rule, i) => (
           <div key={i} className="rk-aim__decision">
             <div className="rk-aim__decision-statement">{rule}</div>
             <button className="rk-aim__sbtn" style={{ marginTop: 6 }} disabled={busy} onClick={() => void removeRule(i)}>
-              Remove
+              削除
             </button>
           </div>
         ))
@@ -515,11 +543,11 @@ function RulesEditor({ rules, onSave }: { rules: string[]; onSave: (rules: strin
           className="rk-aim__resume-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Add a rule…"
+          placeholder="ルールを追加…"
           onKeyDown={(e) => e.key === "Enter" && draft.trim() && !busy && void addRule()}
         />
         <button className="rk-aim__sbtn rk-aim__sbtn--pri" disabled={!draft.trim() || busy} onClick={() => void addRule()}>
-          Add
+          追加
         </button>
       </div>
     </div>
@@ -531,20 +559,20 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
   return (
     <div className="rk-aim__handoff">
       <div className="rk-aim__handoff-route">{handoff.from_agent} → {handoff.to_agent}</div>
-      <div className="rk-aim__handoff-summary">{h?.summary ?? "(non-handoff report)"}</div>
+      <div className="rk-aim__handoff-summary">{h?.summary ?? "(ハンドオフ以外のレポート)"}</div>
       {/* Phase 21-A: instructions/artifacts/decisions were already returned
           by the server on every handoff but the type didn't declare them. */}
       {h && h.instructions.length > 0 && (
-        <div className="rk-aim__handoff-meta">Instructions: {h.instructions.join("; ")}</div>
+        <div className="rk-aim__handoff-meta">指示: {h.instructions.join("; ")}</div>
       )}
       {h && h.artifacts.length > 0 && (
-        <div className="rk-aim__handoff-meta">Artifacts: {h.artifacts.join("; ")}</div>
+        <div className="rk-aim__handoff-meta">成果物: {h.artifacts.join("; ")}</div>
       )}
       {h && h.decisions.length > 0 && (
-        <div className="rk-aim__handoff-meta">Decisions: {h.decisions.join("; ")}</div>
+        <div className="rk-aim__handoff-meta">決定: {h.decisions.join("; ")}</div>
       )}
       {h && h.open_questions.length > 0 && (
-        <div className="rk-aim__handoff-meta">Open question: {h.open_questions.join("; ")}</div>
+        <div className="rk-aim__handoff-meta">未解決の質問: {h.open_questions.join("; ")}</div>
       )}
       {h && h.warnings.length > 0 && <div className="rk-aim__handoff-meta">⚠ {h.warnings.join("; ")}</div>}
       <div className="rk-aim__handoff-meta">{h?.status ?? handoff.priority} · {new Date(handoff.created_at).toLocaleString()}</div>
@@ -554,22 +582,22 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
 
 function AgentPerformanceRow({ perf }: { perf: AgentPerformance }) {
   const successPct = perf.success_rate !== null ? `${Math.round(perf.success_rate * 100)}%` : "—";
-  const avgDuration = perf.average_duration_ms !== null ? `${Math.round(perf.average_duration_ms / 1000)}s avg` : "";
+  const avgDuration = perf.average_duration_ms !== null ? `平均 ${Math.round(perf.average_duration_ms / 1000)}秒` : "";
   // Phase 19-C: llm_error_rate/tasks_cancelled/providers_used/models_used
   // were already computed by getAgentPerformance and typed here, but never
   // rendered.
-  const llmErrorPct = perf.llm_error_rate !== null ? `${Math.round(perf.llm_error_rate * 100)}% LLM errors` : "";
+  const llmErrorPct = perf.llm_error_rate !== null ? `LLMエラー ${Math.round(perf.llm_error_rate * 100)}%` : "";
   // Phase 20-A: llm_calls was already computed by getAgentPerformance and
   // typed here, but never rendered.
   return (
     <div className="rk-aim__perf-row">
       <span className="rk-aim__perf-agent">{perf.agent}</span>
-      <span className="rk-aim__perf-stat">{perf.tasks_completed} done</span>
-      {perf.tasks_failed > 0 && <span className="rk-aim__perf-stat">{perf.tasks_failed} failed</span>}
-      {perf.tasks_cancelled > 0 && <span className="rk-aim__perf-stat">{perf.tasks_cancelled} cancelled</span>}
-      <span className="rk-aim__perf-stat">{successPct} success</span>
+      <span className="rk-aim__perf-stat">完了 {perf.tasks_completed}</span>
+      {perf.tasks_failed > 0 && <span className="rk-aim__perf-stat">失敗 {perf.tasks_failed}</span>}
+      {perf.tasks_cancelled > 0 && <span className="rk-aim__perf-stat">キャンセル {perf.tasks_cancelled}</span>}
+      <span className="rk-aim__perf-stat">成功率 {successPct}</span>
       {avgDuration && <span className="rk-aim__perf-stat">{avgDuration}</span>}
-      {perf.llm_calls > 0 && <span className="rk-aim__perf-stat">{perf.llm_calls} LLM calls</span>}
+      {perf.llm_calls > 0 && <span className="rk-aim__perf-stat">LLM呼び出し {perf.llm_calls}</span>}
       {llmErrorPct && <span className="rk-aim__perf-stat">{llmErrorPct}</span>}
       {(perf.providers_used.length > 0 || perf.models_used.length > 0) && (
         <div className="rk-aim__perf-models">
@@ -611,18 +639,18 @@ function CouncilDialog({
     <div className="rk-aim__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-aim__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="rk-aim__dialog-head">
-          <div className="rk-aim__dialog-title">Ask the Council</div>
-          <div className="rk-aim__dialog-sub">Fans a question out to Cheap/Balanced/Quality seats in parallel, then synthesizes a verdict. Recorded as a project Decision.</div>
+          <div className="rk-aim__dialog-title">評議会に諮る</div>
+          <div className="rk-aim__dialog-sub">低コスト/バランス/高品質の各席に並行して質問を投げ、結論を統合します。プロジェクトの決定として記録されます。</div>
         </div>
         <div className="rk-aim__dialog-body">
           {!verdict ? (
             <div>
-              <div className="rk-aim__flab">question</div>
+              <div className="rk-aim__flab">質問</div>
               <textarea
                 className="rk-aim__textarea"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="What should the council weigh in on?"
+                placeholder="評議会に何を検討させますか?"
                 rows={3}
                 autoFocus
               />
@@ -635,23 +663,23 @@ function CouncilDialog({
                   {/* Phase 18-B: `tier` was fetched/typed alongside `mode`
                       but never rendered - shows which tier (e.g. `high`)
                       the cost-mode-derived seat actually resolved to. */}
-                  <div className="rk-aim__council-opinion-head">{op.seat} ({op.mode} · {op.tier}){op.confidence !== null ? ` · confidence ${Math.round(op.confidence * 100)}%` : ""}</div>
-                  <div>{op.error ? `Error: ${op.error}` : op.content}</div>
+                  <div className="rk-aim__council-opinion-head">{op.seat} ({op.mode} · {op.tier}){op.confidence !== null ? ` · 確信度 ${Math.round(op.confidence * 100)}%` : ""}</div>
+                  <div>{op.error ? `エラー: ${op.error}` : op.content}</div>
                 </div>
               ))}
               {verdict.contradictions.length > 0 && (
-                <div className="rk-aim__msg">Contradictions: {verdict.contradictions.join("; ")}</div>
+                <div className="rk-aim__msg">矛盾点: {verdict.contradictions.join("; ")}</div>
               )}
-              <div className="rk-aim__dlabel" style={{ marginTop: 8 }}>synthesis</div>
+              <div className="rk-aim__dlabel" style={{ marginTop: 8 }}>統合結果</div>
               <div className="rk-aim__council-synthesis">{verdict.synthesis}</div>
             </div>
           )}
         </div>
         <div className="rk-aim__dialog-acts">
-          <button className="rk-aim__sbtn" onClick={onClose}>{verdict ? "Close" : "Cancel"}</button>
+          <button className="rk-aim__sbtn" onClick={onClose}>{verdict ? "閉じる" : "キャンセル"}</button>
           {!verdict && (
             <button className="rk-aim__sbtn rk-aim__sbtn--pri" onClick={ask} disabled={busy || !question.trim()}>
-              {busy ? "Convening…" : "Convene"}
+              {busy ? "招集中…" : "招集"}
             </button>
           )}
         </div>
@@ -665,10 +693,10 @@ const GITHUB_ACTION_TOOLS: readonly GitHubActionTool[] = [
   "github_create_issue", "github_create_pr", "github_pr_status", "github_pr_review",
 ];
 const GITHUB_ACTION_LABELS: Record<GitHubActionTool, string> = {
-  github_create_issue: "Create issue",
-  github_create_pr: "Create pull request",
-  github_pr_status: "Check PR status",
-  github_pr_review: "Submit PR review",
+  github_create_issue: "Issueを作成",
+  github_create_pr: "プルリクエストを作成",
+  github_pr_status: "PRステータスを確認",
+  github_pr_review: "PRレビューを送信",
 };
 
 /** Phase 16-C: first interactive GitHub surface — 15-B only added a read-only activity log. */
@@ -729,7 +757,7 @@ function GitHubActionDialog({
       event: needsEvent ? event : undefined,
     });
     if (!r.ok) setError(r.message);
-    else if ("pending" in r) setResult(`Sent for approval (request ${r.approvalId.slice(0, 8)}…) - resolve it from the Authority tab.`);
+    else if ("pending" in r) setResult(`承認待ちで送信しました(リクエスト ${r.approvalId.slice(0, 8)}…) - 権限タブから対応してください。`);
     else setResult(r.result);
     setBusy(false);
   };
@@ -738,14 +766,14 @@ function GitHubActionDialog({
     <div className="rk-aim__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-aim__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="rk-aim__dialog-head">
-          <div className="rk-aim__dialog-title">GitHub action</div>
-          <div className="rk-aim__dialog-sub">Runs the same tool an agent would call, gated by the same authority check.</div>
+          <div className="rk-aim__dialog-title">GitHubアクション</div>
+          <div className="rk-aim__dialog-sub">エージェントが呼び出すのと同じツールを、同じ権限チェックの下で実行します。</div>
         </div>
         <div className="rk-aim__dialog-body">
           {result === null ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div>
-                <div className="rk-aim__flab">action</div>
+                <div className="rk-aim__flab">アクション</div>
                 <select className="rk-aim__cost-select" value={tool} onChange={(e) => setTool(e.target.value as GitHubActionTool)}>
                   {GITHUB_ACTION_TOOLS.map((t) => (
                     <option key={t} value={t}>{GITHUB_ACTION_LABELS[t]}</option>
@@ -753,12 +781,12 @@ function GitHubActionDialog({
                 </select>
               </div>
               <div>
-                <div className="rk-aim__flab">repo path</div>
+                <div className="rk-aim__flab">リポジトリパス</div>
                 <input className="rk-aim__input" value={repoPath} onChange={(e) => setRepoPath(e.target.value)} placeholder="C:\path\to\repo" />
               </div>
               {needsTitle && (
                 <div>
-                  <div className="rk-aim__flab">title</div>
+                  <div className="rk-aim__flab">タイトル</div>
                   <input className="rk-aim__input" value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
               )}
@@ -776,23 +804,23 @@ function GitHubActionDialog({
               )}
               {needsNumber && (
                 <div>
-                  <div className="rk-aim__flab">PR number</div>
+                  <div className="rk-aim__flab">PR番号</div>
                   <input className="rk-aim__input" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="42" inputMode="numeric" />
                 </div>
               )}
               {needsEvent && (
                 <div>
-                  <div className="rk-aim__flab">review</div>
+                  <div className="rk-aim__flab">レビュー</div>
                   <select className="rk-aim__cost-select" value={event} onChange={(e) => setEvent(e.target.value as typeof event)}>
-                    <option value="APPROVE">Approve</option>
-                    <option value="REQUEST_CHANGES">Request changes</option>
-                    <option value="COMMENT">Comment</option>
+                    <option value="APPROVE">承認</option>
+                    <option value="REQUEST_CHANGES">変更を要求</option>
+                    <option value="COMMENT">コメント</option>
                   </select>
                 </div>
               )}
               {(tool === "github_create_issue" || tool === "github_create_pr" || tool === "github_pr_review") && (
                 <div>
-                  <div className="rk-aim__flab">body</div>
+                  <div className="rk-aim__flab">本文</div>
                   <textarea className="rk-aim__textarea" value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
                 </div>
               )}
@@ -803,10 +831,10 @@ function GitHubActionDialog({
           )}
         </div>
         <div className="rk-aim__dialog-acts">
-          <button className="rk-aim__sbtn" onClick={onClose}>{result !== null ? "Close" : "Cancel"}</button>
+          <button className="rk-aim__sbtn" onClick={onClose}>{result !== null ? "閉じる" : "キャンセル"}</button>
           {result === null && (
             <button className="rk-aim__sbtn rk-aim__sbtn--pri" onClick={run} disabled={busy || !canRun}>
-              {busy ? "Running…" : "Run"}
+              {busy ? "実行中…" : "実行"}
             </button>
           )}
         </div>
@@ -848,21 +876,21 @@ function CreateProjectDialog({
     <div className="rk-aim__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-aim__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="rk-aim__dialog-head">
-          <div className="rk-aim__dialog-title">New project</div>
-          <div className="rk-aim__dialog-sub">Describe what you want done. JARVIS plans it into tasks and runs them — this can take a while for multi-step projects.</div>
+          <div className="rk-aim__dialog-title">新規プロジェクト</div>
+          <div className="rk-aim__dialog-sub">やりたいことを説明してください。JARVISがタスクに分解して実行します — 複数ステップのプロジェクトは時間がかかる場合があります。</div>
         </div>
         <div className="rk-aim__dialog-body">
           <div>
-            <div className="rk-aim__flab">name</div>
+            <div className="rk-aim__flab">名前</div>
             <input className="rk-aim__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Transfer Chronicle" autoFocus />
           </div>
           <div>
-            <div className="rk-aim__flab">request</div>
-            <textarea className="rk-aim__textarea" value={request} onChange={(e) => setRequest(e.target.value)} placeholder="What should JARVIS build or do?" rows={4} />
+            <div className="rk-aim__flab">依頼内容</div>
+            <textarea className="rk-aim__textarea" value={request} onChange={(e) => setRequest(e.target.value)} placeholder="JARVISに何を作らせる、あるいは何をさせますか?" rows={4} />
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <div className="rk-aim__flab">execution mode</div>
+              <div className="rk-aim__flab">実行モード</div>
               <select
                 className="rk-aim__cost-select"
                 value={executionMode}
@@ -874,7 +902,7 @@ function CreateProjectDialog({
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <div className="rk-aim__flab">cost mode</div>
+              <div className="rk-aim__flab">コストモード</div>
               <select
                 className="rk-aim__cost-select"
                 value={costMode}
@@ -888,9 +916,9 @@ function CreateProjectDialog({
           </div>
         </div>
         <div className="rk-aim__dialog-acts">
-          <button className="rk-aim__sbtn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="rk-aim__sbtn" onClick={onClose} disabled={busy}>キャンセル</button>
           <button className="rk-aim__sbtn rk-aim__sbtn--pri" onClick={submit} disabled={busy || !name.trim() || !request.trim()}>
-            {busy ? "Running…" : "Start project"}
+            {busy ? "実行中…" : "プロジェクトを開始"}
           </button>
         </div>
       </div>

@@ -42,7 +42,7 @@ export function SiteTopBar({
             <button
               onClick={(e) => { e.stopPropagation(); onCloseTab(project.id); }}
               style={closeBtnStyle}
-              title="Close tab"
+              title="タブを閉じる"
             >
               x
             </button>
@@ -54,7 +54,7 @@ export function SiteTopBar({
           <button
             onClick={() => setShowProjectList(!showProjectList)}
             style={addTabStyle}
-            title="Open project"
+            title="プロジェクトを開く"
           >
             +
           </button>
@@ -71,11 +71,11 @@ export function SiteTopBar({
                 </button>
               ))}
               {projects.filter((p) => !openTabs.some((t) => t.id === p.id)).length === 0 && (
-                <div style={{ padding: "8px 12px", fontSize: "11px", color: "var(--ink3)" }}>No other projects</div>
+                <div style={{ padding: "8px 12px", fontSize: "11px", color: "var(--ink3)" }}>他のプロジェクトはありません</div>
               )}
               <div style={{ borderTop: "1px solid var(--rule)", marginTop: "4px", paddingTop: "4px" }}>
                 <button onClick={() => { onNewProject(); setShowProjectList(false); }} style={{ ...dropdownItemStyle, color: "var(--ink)" }}>
-                  + New Project
+                  + 新規プロジェクト
                 </button>
               </div>
             </div>
@@ -103,22 +103,22 @@ export function SiteTopBar({
                 target="_blank"
                 rel="noopener noreferrer"
                 style={ghIndicatorStyle}
-                title={`View on GitHub: ${activeProject.githubUrl.replace("https://github.com/", "")}`}
+                title={`GitHubで見る: ${activeProject.githubUrl.replace("https://github.com/", "")}`}
               >
                 GH
               </a>
             )}
             {activeProject.status === "running" && (
-              <button onClick={onStopServer} style={stopBtnStyle} title="Stop dev server">
-                Stop
+              <button onClick={onStopServer} style={stopBtnStyle} title="開発サーバーを停止">
+                停止
               </button>
             )}
             {activeProject.status === "starting" && (
-              <span style={{ fontSize: "11px", color: "var(--j-warning)" }}>Starting...</span>
+              <span style={{ fontSize: "11px", color: "var(--j-warning)" }}>起動中...</span>
             )}
           </>
         )}
-        <button onClick={onNewProject} style={newProjectBtnStyle}>New Project</button>
+        <button onClick={onNewProject} style={newProjectBtnStyle}>新規プロジェクト</button>
       </div>
 
       {/* Git panel dropdown */}

@@ -61,12 +61,12 @@ const NAV_ICON: Record<PaletteNavEntry["key"], LucideIcon> = {
 };
 
 const TYPE_LABEL: Record<PaletteResultType, string> = {
-  workflow: "Workflow",
-  memory: "Memory",
-  tool: "Tool",
-  agent: "Agent",
-  authority: "Authority",
-  log: "Log",
+  workflow: "ワークフロー",
+  memory: "メモリ",
+  tool: "ツール",
+  agent: "エージェント",
+  authority: "権限",
+  log: "ログ",
 };
 
 export interface CommandPaletteProps {
@@ -209,7 +209,7 @@ export function CommandPalette({
   if (!open) return null;
 
   return (
-    <div className="v2-palette__scrim" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="v2-palette__scrim" role="dialog" aria-modal="true" aria-label="コマンドパレット">
       <div className="v2-palette" onClick={(e) => e.stopPropagation()}>
         <div className="v2-palette__head">
           <Icon icon={Search} size="sm" />
@@ -223,8 +223,8 @@ export function CommandPalette({
               setActiveIdx(0);
             }}
             onKeyDown={onKeyDown}
-            placeholder="Search workflows, memory, tools, agents, authority, logs…"
-            aria-label="Palette search"
+            placeholder="ワークフロー、メモリ、ツール、エージェント、権限、ログを検索…"
+            aria-label="パレット検索"
           />
           <KBD>Esc</KBD>
         </div>
@@ -232,13 +232,13 @@ export function CommandPalette({
         <div className="v2-palette__list" ref={listRef}>
           {flatItems.length === 0 && !loading && (
             <div className="v2-palette__empty">
-              Nothing matches &ldquo;{query}&rdquo;. Try a different word.
+              &ldquo;{query}&rdquo; に一致するものがありません。別の言葉をお試しください。
             </div>
           )}
 
           {/* Rooms group */}
           {navEntries.length > 0 && (
-            <Group label="Rooms">
+            <Group label="ルーム">
               {navEntries.map((entry, i) => {
                 const idx = i;
                 return (
@@ -251,7 +251,7 @@ export function CommandPalette({
                     icon={NAV_ICON[entry.key]}
                     title={entry.label}
                     hint={entry.hint}
-                    typeLabel="Open Room"
+                    typeLabel="ルームを開く"
                   />
                 );
               })}
@@ -260,7 +260,7 @@ export function CommandPalette({
 
           {/* Recent group (only on empty query) */}
           {recentResults.length > 0 && (
-            <Group label="Recent">
+            <Group label="最近">
               {recentResults.map((r, i) => {
                 const idx = navEntries.length + i;
                 return (
@@ -279,7 +279,7 @@ export function CommandPalette({
 
           {/* Live results group */}
           {objectResults.length > 0 && (
-            <Group label={query.trim() ? "Results" : "Suggested"}>
+            <Group label={query.trim() ? "結果" : "候補"}>
               {objectResults.map((r, i) => {
                 const idx = navEntries.length + recentResults.length + i;
                 return (
@@ -300,16 +300,16 @@ export function CommandPalette({
         <div className="v2-palette__foot">
           <span className="v2-palette__hint">
             <KBD>↑</KBD>
-            <KBD>↓</KBD> navigate
+            <KBD>↓</KBD> 移動
           </span>
           <span className="v2-palette__hint">
-            <KBD>↵</KBD> insert as card
+            <KBD>↵</KBD> カードとして挿入
           </span>
           <span className="v2-palette__hint">
-            <KBD>⇧↵</KBD> open Room
+            <KBD>⇧↵</KBD> ルームを開く
           </span>
           <span className="v2-palette__hint v2-palette__hint--right">
-            <KBD>Esc</KBD> close
+            <KBD>Esc</KBD> 閉じる
           </span>
         </div>
       </div>
@@ -319,7 +319,7 @@ export function CommandPalette({
         type="button"
         className="v2-palette__scrim-catcher"
         onClick={onClose}
-        aria-label="Close palette"
+        aria-label="パレットを閉じる"
       />
     </div>
   );

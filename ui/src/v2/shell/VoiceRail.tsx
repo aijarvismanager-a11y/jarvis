@@ -14,21 +14,21 @@ export type VoiceState =
   | "muted";
 
 const HINT: Record<VoiceState, string> = {
-  idle: "Tap the orb, or say “Hey Jarvis.”",
-  listening: "Listening. Pause to send.",
-  thinking: "Thinking through that…",
-  speaking: "Speaking — the reply is in the thread.",
-  "awaiting-approval": "Answer in the thread, or say “yes”.",
-  muted: "Mic is muted. Tap mute to resume.",
+  idle: "オーブをタップ、または「Hey Jarvis」と話しかける",
+  listening: "聞き取り中。止めると送信されます。",
+  thinking: "考え中…",
+  speaking: "応答中 — 返答はスレッドに表示されます。",
+  "awaiting-approval": "スレッドで回答、または「はい」と話す",
+  muted: "マイクはミュート中。タップで再開。",
 };
 
 const STATUS_LABEL: Record<VoiceState, string> = {
-  idle: "Idle",
-  listening: "Listening",
-  thinking: "Thinking",
-  speaking: "Speaking",
-  "awaiting-approval": "Awaiting confirmation",
-  muted: "Muted",
+  idle: "待機中",
+  listening: "聞き取り中",
+  thinking: "思考中",
+  speaking: "応答中",
+  "awaiting-approval": "確認待ち",
+  muted: "ミュート",
 };
 
 // Phase 7 Pass B — descriptive sentences fed to a screen-reader-only
@@ -36,12 +36,12 @@ const STATUS_LABEL: Record<VoiceState, string> = {
 // change. Mirrors STATUS_LABEL but as a sentence ending in a period so
 // the cadence reads naturally for a TTS narrator like VoiceOver/NVDA.
 const STATUS_ANNOUNCEMENT: Record<VoiceState, string> = {
-  idle: "Microphone idle.",
-  listening: "Listening for your voice.",
-  thinking: "Jarvis is thinking.",
-  speaking: "Jarvis is speaking.",
-  "awaiting-approval": "Awaiting your confirmation.",
-  muted: "Microphone muted.",
+  idle: "マイクは待機中です。",
+  listening: "音声を聞き取っています。",
+  thinking: "Jarvisが考えています。",
+  speaking: "Jarvisが応答しています。",
+  "awaiting-approval": "確認をお待ちしています。",
+  muted: "マイクはミュート中です。",
 };
 
 export interface VoiceRailProps {
@@ -60,7 +60,7 @@ export function VoiceRail({
   state = "idle",
   suggestions = [],
   vu = 0,
-  device = "Default microphone",
+  device = "デフォルトマイク",
   partialTranscript = "",
   onTapOrb,
   onSuggestion,
@@ -69,7 +69,7 @@ export function VoiceRail({
   const isLive = state === "listening" || state === "speaking";
 
   return (
-    <aside className="v2-rail" role="region" aria-label="Voice controls">
+    <aside className="v2-rail" role="region" aria-label="音声コントロール">
       {/* Phase 7 Pass B — sr-only live region announces voice state
           changes. Separate from the visual rail (which uses role="region"
           now instead of role="status" so VO doesn't double-announce
@@ -78,13 +78,13 @@ export function VoiceRail({
         {STATUS_ANNOUNCEMENT[state]}
       </span>
       <div className="v2-rail__head">
-        <span className="v2-rail__label">Voice</span>
+        <span className="v2-rail__label">音声</span>
         <div className="v2-rail__orb-wrap">
           <MicOrb
             state={state as OrbState}
             size={130}
             onClick={onTapOrb}
-            aria-label={`Microphone ${STATUS_LABEL[state]}`}
+            aria-label={`マイク: ${STATUS_LABEL[state]}`}
           />
         </div>
         <StatusChip state={state} />
@@ -95,10 +95,10 @@ export function VoiceRail({
             onClick={onToggleMute}
             data-active={state === "muted"}
           >
-            {state === "muted" ? "Muted" : "Mute"}
+            {state === "muted" ? "ミュート中" : "ミュート"}
           </button>
           <span className="v2-rail__ctrl" aria-hidden="true">
-            ⌴ Hold
+            ⌴ 長押し
           </span>
         </div>
         {state === "listening" && (
@@ -108,7 +108,7 @@ export function VoiceRail({
 
       <div className="v2-rail__hint">
         <div className="v2-rail__hint-text">{HINT[state]}</div>
-        <div className="v2-rail__hint-meta">Replies appear in the thread →</div>
+        <div className="v2-rail__hint-meta">返答はスレッドに表示されます →</div>
       </div>
 
       {/* Phase 6.5.5 — last sentence of Jarvis's most recent reply,
@@ -161,7 +161,7 @@ function Suggestions({
 }) {
   return (
     <div className="v2-rail__sugs">
-      <div className="v2-rail__sugs-label">Try saying</div>
+      <div className="v2-rail__sugs-label">こう言ってみる</div>
       <div className="v2-rail__sugs-list">
         {items.map((s, i) => (
           <button

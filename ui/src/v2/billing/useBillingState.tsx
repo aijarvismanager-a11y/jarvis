@@ -19,9 +19,9 @@ export type BillingTone = "info" | "ok" | "warn" | "neutral" | "danger";
 
 export type PlanKey = "hosted" | "hosted_ai" | "max";
 export const PLANS: Record<PlanKey, { name: string; price: string; blurb: string }> = {
-  hosted: { name: "Hosted", price: "€9.99", blurb: "Bring your own model keys" },
-  hosted_ai: { name: "Hosted + AI", price: "€29", blurb: "Managed models, nothing to configure" },
-  max: { name: "Hosted + AI · Max", price: "€79", blurb: "5× the tokens, highest priority" },
+  hosted: { name: "Hosted", price: "€9.99", blurb: "自前のモデルキーを使用" },
+  hosted_ai: { name: "Hosted + AI", price: "€29", blurb: "管理型モデル、設定不要" },
+  max: { name: "Hosted + AI · Max", price: "€79", blurb: "トークン5倍、最優先" },
 };
 
 /** The plan a returning user is on. Static until the billing backend is wired. */
@@ -40,29 +40,29 @@ export type StateInfo = {
 // `**bold**` markers in copy are rendered by renderBold() below.
 export const STATE_META: Record<BillingState, StateInfo> = {
   trialing: {
-    chip: { tone: "info", label: "Trial" },
-    banner: { tone: "info", icon: "clock", message: "**11 days left in your trial** of Hosted + AI. Add a card to keep it after.", action: { label: "Add card", to: "active" } },
-    planName: "Hosted + AI", price: "€0 now", meta: "Trial ends Jul 26 · then €29/mo · no charge yet",
+    chip: { tone: "info", label: "トライアル" },
+    banner: { tone: "info", icon: "clock", message: "Hosted + AI の**トライアル残り11日**です。継続するにはカードを追加してください。", action: { label: "カードを追加", to: "active" } },
+    planName: "Hosted + AI", price: "€0 now", meta: "トライアルは7月26日終了 · その後€29/月 · まだ課金なし",
   },
   active: {
-    chip: { tone: "ok", label: "Active" },
+    chip: { tone: "ok", label: "有効" },
     banner: null,
-    planName: "Hosted + AI", price: "€29 / mo", meta: "Renews Jul 15, 2026 · Visa •••• 4242",
+    planName: "Hosted + AI", price: "€29 / mo", meta: "2026年7月15日更新 · Visa •••• 4242",
   },
   past_due: {
-    chip: { tone: "warn", label: "Past due" },
-    banner: { tone: "warn", icon: "alert", message: "**We couldn't charge your card** on Jul 15. Update it to keep Jarvis running; we'll retry Jul 18.", action: { label: "Update card", to: "active" } },
-    planName: "Hosted + AI", price: "€29 / mo", meta: "Payment failed · your brain stays online until Jul 22",
+    chip: { tone: "warn", label: "支払い遅延" },
+    banner: { tone: "warn", icon: "alert", message: "7月15日の**カード決済に失敗しました**。Jarvisを継続利用するには更新してください。7月18日に再試行します。", action: { label: "カードを更新", to: "active" } },
+    planName: "Hosted + AI", price: "€29 / mo", meta: "支払い失敗 · 7月22日まで頭脳はオンラインのまま",
   },
   canceled: {
-    chip: { tone: "neutral", label: "Canceling" },
-    banner: { tone: "neutral", icon: "info", message: "Your subscription is **canceled**. You have access until Jul 15.", action: { label: "Resume", to: "active" } },
-    planName: "Hosted + AI", price: "€29 / mo", meta: "Ends Jul 15, 2026 · then you drop to no hosted brain",
+    chip: { tone: "neutral", label: "解約中" },
+    banner: { tone: "neutral", icon: "info", message: "サブスクリプションは**解約済み**です。7月15日までアクセス可能です。", action: { label: "再開", to: "active" } },
+    planName: "Hosted + AI", price: "€29 / mo", meta: "2026年7月15日終了 · その後ホスト型頭脳は利用不可に",
   },
   expired: {
-    chip: { tone: "danger", label: "Expired" },
-    banner: { tone: "danger", icon: "alert", message: "Your subscription **ended**. Your hosted brain is offline.", action: { label: "Resubscribe", to: "active" } },
-    planName: "No active plan", price: "", meta: "Your data is safe. Resubscribe to bring Jarvis back, or self-host.",
+    chip: { tone: "danger", label: "期限切れ" },
+    banner: { tone: "danger", icon: "alert", message: "サブスクリプションが**終了しました**。ホスト型頭脳はオフラインです。", action: { label: "再購読", to: "active" } },
+    planName: "有効なプランなし", price: "", meta: "データは安全です。再購読でJarvisを復帰するか、セルフホストしてください。",
   },
 };
 

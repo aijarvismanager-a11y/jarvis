@@ -74,6 +74,17 @@ interface ActionResult {
   message: string;
 }
 
+const STAGE_LABEL_JA: Record<ContentStage, string> = {
+  idea: "アイデア",
+  research: "リサーチ",
+  outline: "アウトライン",
+  draft: "下書き",
+  assets: "素材",
+  review: "レビュー",
+  scheduled: "予定済み",
+  published: "公開済み",
+};
+
 /**
  * Content Pipeline Room hook — loads /api/content, subscribes to
  * `contentEvents` from LiveDataContext for instant updates, exposes
@@ -99,7 +110,7 @@ export function useContentData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load content");
+      setError(err instanceof Error ? err.message : "コンテンツの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -182,7 +193,7 @@ export function useContentData() {
         refresh();
         return { ok: true, item };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -198,9 +209,9 @@ export function useContentData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Saved." };
+        return { ok: true, message: "保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -214,7 +225,7 @@ export function useContentData() {
       if (!resp.ok) throw new Error(await resp.text() || `HTTP ${resp.status}`);
       const item = (await resp.json()) as ContentItem;
       refresh();
-      return { ok: true, message: `Advanced to ${item.stage}.` };
+      return { ok: true, message: `${STAGE_LABEL_JA[item.stage]}に進みました。` };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -228,7 +239,7 @@ export function useContentData() {
       if (!resp.ok) throw new Error(await resp.text() || `HTTP ${resp.status}`);
       const item = (await resp.json()) as ContentItem;
       refresh();
-      return { ok: true, message: `Moved back to ${item.stage}.` };
+      return { ok: true, message: `${STAGE_LABEL_JA[item.stage]}に戻しました。` };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -241,7 +252,7 @@ export function useContentData() {
         stage: "scheduled" as ContentStage,
       });
       if (!r.ok) return r;
-      return { ok: true, message: `Scheduled for ${formatDateTime(scheduled_at)}.` };
+      return { ok: true, message: `${formatDateTime(scheduled_at)}に予定しました。` };
     },
     [updateContent],
   );
@@ -253,7 +264,7 @@ export function useContentData() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       refresh();
-      return { ok: true, message: "Deleted." };
+      return { ok: true, message: "削除しました。" };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -281,9 +292,9 @@ export function useContentData() {
           body: JSON.stringify({ stage, note, author: "dashboard" }),
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return { ok: true, message: "Note added." };
+        return { ok: true, message: "ノートを追加しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [],
@@ -313,9 +324,9 @@ export function useContentData() {
           body: fd,
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return { ok: true, message: `Uploaded ${file.name}.` };
+        return { ok: true, message: `${file.name} をアップロードしました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [],
@@ -329,9 +340,9 @@ export function useContentData() {
           { method: "DELETE" },
         );
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return { ok: true, message: "Removed." };
+        return { ok: true, message: "削除しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [],

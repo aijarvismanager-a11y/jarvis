@@ -12,9 +12,9 @@ export type ConnectionState = "live" | "degraded" | "offline";
 export type Mode = "active" | "passive" | "off";
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
-  live: "Online",
-  degraded: "Degraded",
-  offline: "Offline",
+  live: "オンライン",
+  degraded: "不安定",
+  offline: "オフライン",
 };
 
 export interface HeaderProps {
@@ -52,12 +52,12 @@ export function Header({
   const hasUnread = notificationCount > 0;
   const badgeText = notificationCount > 9 ? "9+" : String(notificationCount);
   const bellLabel = hasUnread
-    ? `Notifications, ${notificationCount} unread`
-    : "Notifications";
+    ? `通知、未読${notificationCount}件`
+    : "通知";
   return (
     <header className="v2-header" role="banner">
       <div className="v2-header__left">
-        <span className="v2-header__connection" aria-label={`Connection ${CONNECTION_LABEL[connection]}`}>
+        <span className="v2-header__connection" aria-label={`接続状態: ${CONNECTION_LABEL[connection]}`}>
           <span className={`v2-header__conn-dot v2-header__conn-dot--${connection}`} aria-hidden="true" />
           {CONNECTION_LABEL[connection]}
         </span>
@@ -68,12 +68,12 @@ export function Header({
           type="button"
           className="v2-header__palette"
           onClick={onPalette}
-          aria-label="Open command palette"
+          aria-label="コマンドパレットを開く"
         >
           <span className="v2-header__palette-icon">
             <Icon icon={Search} size="sm" />
           </span>
-          <span className="v2-header__palette-label">Quick open</span>
+          <span className="v2-header__palette-label">クイックオープン</span>
           <KBD>⌘K</KBD>
         </button>
 

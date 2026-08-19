@@ -77,7 +77,7 @@ export function useMemoryData() {
       if (rResp.ok) setRelationships((await rResp.json()) as Relationship[]);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load memory");
+      setError(err instanceof Error ? err.message : "メモリの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -150,7 +150,7 @@ export function useMemoryData() {
         refresh();
         return { ok: true, entity };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -177,9 +177,9 @@ export function useMemoryData() {
         });
         if (!resp.ok) throw new Error(await resp.text() || `HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Fact added." };
+        return { ok: true, message: "事実を追加しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -195,9 +195,9 @@ export function useMemoryData() {
         });
         if (!resp.ok) throw new Error(await resp.text() || `HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Relationship added." };
+        return { ok: true, message: "関係を追加しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -218,7 +218,7 @@ export function useMemoryData() {
       const predicateTrim = predicate.trim().toLowerCase();
       const objectTrim = object.trim();
       if (!subjectTrim || !predicateTrim || !objectTrim) {
-        return { ok: false, message: "Subject, predicate, and object are required." };
+        return { ok: false, message: "主語、述語、目的語は必須です。" };
       }
       let entity = findByName(subjectTrim);
       if (!entity) {
@@ -230,7 +230,7 @@ export function useMemoryData() {
       if (!factResult.ok) return factResult;
       return {
         ok: true,
-        message: `Remembered: ${entity.name} → ${predicateTrim} → ${objectTrim}.`,
+        message: `記憶しました: ${entity.name} → ${predicateTrim} → ${objectTrim}`,
       };
     },
     [findByName, addEntity, addFact],

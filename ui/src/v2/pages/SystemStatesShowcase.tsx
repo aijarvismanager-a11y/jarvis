@@ -11,10 +11,10 @@ import "./SystemStatesShowcase.css";
  */
 
 const TAKEOVERS: { kind: TakeoverKind; label: string }[] = [
-  { kind: "offline", label: "Offline · can't reach the brain" },
-  { kind: "updating", label: "Updating" },
-  { kind: "crash", label: "Crash · recovered" },
-  { kind: "quota", label: "Out of tokens" },
+  { kind: "offline", label: "オフライン · 頭脳に接続できません" },
+  { kind: "updating", label: "更新中" },
+  { kind: "crash", label: "クラッシュ · 復旧済み" },
+  { kind: "quota", label: "トークン切れ" },
 ];
 
 function CtxBehind() {
@@ -44,27 +44,27 @@ export function SystemStatesShowcase(): React.ReactElement {
     <div className="sysx">
       <header className="sysx-head">
         <div>
-          <h1>System states</h1>
-          <p>When something's wrong, or changing. Two banners over a usable app; four takeovers when the agent can't act. The drop carries the mood.</p>
+          <h1>システム状態</h1>
+          <p>何かがおかしい、または変化しているとき。使用可能なアプリの上に表示される2種類のバナー、エージェントが動作できないときの4種類のテイクオーバー。ドロップが雰囲気を伝えます。</p>
         </div>
-        <div className="sysx-seg" role="group" aria-label="Theme">
-          <button className={theme !== "dark" ? "on" : ""} onClick={() => flip("light")}>Light</button>
-          <button className={theme === "dark" ? "on" : ""} onClick={() => flip("dark")}>Dark</button>
+        <div className="sysx-seg" role="group" aria-label="テーマ">
+          <button className={theme !== "dark" ? "on" : ""} onClick={() => flip("light")}>ライト</button>
+          <button className={theme === "dark" ? "on" : ""} onClick={() => flip("dark")}>ダーク</button>
         </div>
       </header>
 
       <div className="sysx-grid">
-        <Frame label="Update available · banner">
+        <Frame label="更新あり · バナー">
           <UpdateBanner version="0.9.3" />
           <CtxBehind />
         </Frame>
-        <Frame label="Provider busy · banner (self-clearing)">
+        <Frame label="プロバイダー混雑中 · バナー(自動解除)">
           <ProviderBusyBanner />
           <CtxBehind />
         </Frame>
         {TAKEOVERS.map((t) => (
           <Frame key={t.kind} label={t.label} tall>
-            <SystemTakeoverContent kind={t.kind} data={{ version: "0.9.3", quotaTokens: "2M", quotaPlan: "Hosted + AI", resetDate: "Jul 15" }} />
+            <SystemTakeoverContent kind={t.kind} data={{ version: "0.9.3", quotaTokens: "2M", quotaPlan: "Hosted + AI", resetDate: "7月15日" }} />
           </Frame>
         ))}
       </div>

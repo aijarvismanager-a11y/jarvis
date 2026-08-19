@@ -28,7 +28,7 @@ export function SidecarTab({
     if (r.ok) {
       setEnrollResult({ token: r.token, name: r.name });
       setEnrollName("");
-      onToast(`Enrolled "${r.name}". Copy the token now — it's shown only once.`, "ok");
+      onToast(`「${r.name}」を登録しました。トークンは今すぐコピーしてください — 表示は一度限りです。`, "ok");
     } else {
       onToast(r.message, "warn");
     }
@@ -36,7 +36,7 @@ export function SidecarTab({
   };
 
   const handleRevoke = async (id: string, name: string) => {
-    if (!await confirmDialog(`Revoke sidecar "${name}"? It will lose access to Jarvis.`)) return;
+    if (!await confirmDialog(`サイドカー「${name}」を取り消しますか？ Jarvisへのアクセス権を失います。`)) return;
     const r = await data.revokeSidecar(id);
     onToast(r.message, r.ok ? "ok" : "warn");
   };
@@ -46,12 +46,12 @@ export function SidecarTab({
     // navigator.clipboard is undefined outside secure contexts (plain-HTTP
     // LAN dashboards), which would throw synchronously and skip the toast.
     if (!navigator.clipboard) {
-      onToast("Clipboard unavailable over HTTP — select the token manually.", "warn");
+      onToast("HTTP環境ではクリップボードを使用できません — トークンを手動で選択してください。", "warn");
       return;
     }
     navigator.clipboard.writeText(enrollResult.token).then(
-      () => onToast("Token copied to clipboard.", "ok"),
-      () => onToast("Copy failed — select manually.", "warn"),
+      () => onToast("トークンをクリップボードにコピーしました。", "ok"),
+      () => onToast("コピーに失敗しました — 手動で選択してください。", "warn"),
     );
   };
 
@@ -61,18 +61,18 @@ export function SidecarTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Enroll a new sidecar</h3>
+            <h3 className="v2-set__section-title">新しいサイドカーを登録</h3>
             <div className="v2-set__section-sub">
-              Run the resulting token on the target machine to extend Jarvis there.
+              発行されたトークンを対象マシンで実行すると、そのマシンにJarvisを拡張できます。
             </div>
           </div>
         </div>
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Sidecar name</label>
+          <label className="v2-set__field-label">サイドカー名</label>
           <div style={{ display: "flex", gap: "var(--s-2)" }}>
             <input
               className="v2-set__input"
-              placeholder="e.g. work-laptop"
+              placeholder="例: work-laptop"
               value={enrollName}
               onChange={(e) => setEnrollName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleEnroll()}
@@ -83,7 +83,7 @@ export function SidecarTab({
               onClick={handleEnroll}
               disabled={enrolling || !enrollName.trim()}
             >
-              {enrolling ? "Enrolling…" : "Enroll"}
+              {enrolling ? "登録中…" : "登録"}
             </button>
           </div>
         </div>
@@ -91,21 +91,21 @@ export function SidecarTab({
         {enrollResult && (
           <div className="v2-set__token-box">
             <div className="v2-set__token-label">
-              Token for "{enrollResult.name}" — copy now, this is shown only once
+              「{enrollResult.name}」のトークン — 今すぐコピーしてください。表示は一度限りです
             </div>
             <code className="v2-set__code v2-set__code--block">
               jarvis --token {enrollResult.token}
             </code>
             <div style={{ display: "flex", gap: "var(--s-2)", justifyContent: "flex-end" }}>
               <button type="button" className="v2-set__btn" onClick={copyToken}>
-                Copy token
+                トークンをコピー
               </button>
               <button
                 type="button"
                 className="v2-set__btn"
                 onClick={() => setEnrollResult(null)}
               >
-                Done
+                完了
               </button>
             </div>
           </div>
@@ -116,17 +116,17 @@ export function SidecarTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Enrolled sidecars</h3>
+            <h3 className="v2-set__section-title">登録済みサイドカー</h3>
             <div className="v2-set__section-sub">
               {sidecars.length === 0
-                ? "No sidecars enrolled yet."
-                : `${sidecars.length} sidecar${sidecars.length === 1 ? "" : "s"} · ${data.stats.sidecarsConnected} connected`}
+                ? "まだサイドカーが登録されていません。"
+                : `サイドカー ${sidecars.length}台 · 接続中 ${data.stats.sidecarsConnected}台`}
             </div>
           </div>
         </div>
 
         {sidecars.length === 0 ? (
-          <div className="v2-set__empty">Enroll one above to get started.</div>
+          <div className="v2-set__empty">上で1台登録して始めましょう。</div>
         ) : (
           <ul className="v2-set__sidecar-list" role="list">
             {sidecars.map((sc) => (
@@ -144,13 +144,13 @@ export function SidecarTab({
                     <span>
                       · v{sc.version}
                       {sc.update_status === "suggested" && (
-                        <span style={{ color: "var(--warn)" }} title="A newer sidecar is recommended for this brain">
-                          {" "}· update available
+                        <span style={{ color: "var(--warn)" }} title="このbrainには新しいバージョンのサイドカーを推奨します">
+                          {" "}· 更新あり
                         </span>
                       )}
                       {sc.update_status === "dev" && (
-                        <span style={{ opacity: 0.6 }} title="Unstamped local dev build — never version-blocked">
-                          {" "}· dev build
+                        <span style={{ opacity: 0.6 }} title="バージョン未付与のローカル開発ビルド — バージョン制限の対象外">
+                          {" "}· 開発ビルド
                         </span>
                       )}
                     </span>
@@ -170,7 +170,7 @@ export function SidecarTab({
                     </span>
                   )}
                   {sc.last_seen_at && (
-                    <span>· last seen {new Date(sc.last_seen_at).toLocaleString()}</span>
+                    <span>· 最終確認 {new Date(sc.last_seen_at).toLocaleString()}</span>
                   )}
                 </div>
                 <div className="v2-set__sidecar-actions">
@@ -180,7 +180,7 @@ export function SidecarTab({
                       className="v2-set__btn"
                       onClick={() => setConfigTarget({ id: sc.id, name: sc.name })}
                     >
-                      Configure
+                      設定
                     </button>
                   )}
                   <button
@@ -188,7 +188,7 @@ export function SidecarTab({
                     className="v2-set__btn v2-set__btn--danger"
                     onClick={() => handleRevoke(sc.id, sc.name)}
                   >
-                    Revoke
+                    取り消し
                   </button>
                 </div>
               </li>

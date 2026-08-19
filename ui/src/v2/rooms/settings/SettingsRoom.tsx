@@ -41,14 +41,14 @@ export type SettingsTab =
   | "sidecar";
 
 const TABS: ReadonlyArray<{ key: SettingsTab; label: string; icon: LucideIcon }> = [
-  { key: "general", label: "General", icon: Cog },
-  { key: "profile", label: "Profile", icon: UserCircle2 },
+  { key: "general", label: "一般", icon: Cog },
+  { key: "profile", label: "プロフィール", icon: UserCircle2 },
   { key: "llm", label: "LLM", icon: Bot },
-  { key: "channels", label: "Channels", icon: MessagesSquare },
-  { key: "voice", label: "Voice", icon: Mic },
-  { key: "integrations", label: "Integrations", icon: Cable },
-  { key: "billing", label: "Billing", icon: CreditCard },
-  { key: "sidecar", label: "Sidecar", icon: Server },
+  { key: "channels", label: "チャンネル", icon: MessagesSquare },
+  { key: "voice", label: "音声", icon: Mic },
+  { key: "integrations", label: "連携", icon: Cable },
+  { key: "billing", label: "請求", icon: CreditCard },
+  { key: "sidecar", label: "サイドカー", icon: Server },
 ];
 
 const VALID_TABS = new Set<SettingsTab>(TABS.map((t) => t.key));
@@ -86,7 +86,7 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
       const detail = (lastApplied.errors ?? [])
         .map((e) => `${e.section}: ${e.error}`)
         .join("; ");
-      showToast(`Applying settings failed — ${detail || lastApplied.sections.join(", ")}`, "warn");
+      showToast(`設定の適用に失敗しました — ${detail || lastApplied.sections.join(", ")}`, "warn");
     }
     data.refresh();
     // Keyed on the event object: useWebSocket appends a new array entry per
@@ -108,35 +108,35 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
         const lines: string[] = [];
         if (tab === "general" && data.autostart) {
           lines.push(
-            `${data.autostart.installed ? "Service installed" : "Service not installed"} on ${data.autostart.platform} (${data.autostart.manager}).`,
+            `${data.autostart.platform} (${data.autostart.manager}) で${data.autostart.installed ? "サービスがインストールされています" : "サービスは未インストールです"}。`,
           );
         }
         if (tab === "llm" && data.llm) {
           const names = Object.keys(data.llm.providers);
           const desc = names.length === 0
-            ? "no providers configured"
-            : `${names.length} provider${names.length === 1 ? "" : "s"} configured (${names.join(", ")})`;
+            ? "プロバイダー未設定"
+            : `${names.length}件のプロバイダーを設定済み（${names.join(", ")}）`;
           const model = data.llm.default
-            ? `Default model: ${data.llm.default}.`
+            ? `デフォルトモデル: ${data.llm.default}。`
             : data.llm.tiers.conversation
-              ? "Router-first mode (per-tier models configured)."
-              : "No model selected.";
-          lines.push(`${desc}. ${model}`);
+              ? "ルーターファーストモード（階層別モデル設定済み）。"
+              : "モデル未選択。";
+          lines.push(`${desc}。${model}`);
         }
         if (tab === "channels" && data.channelCfg && data.ttsCfg) {
           lines.push(
-            `Telegram ${data.channelCfg.telegram.enabled ? "on" : "off"}, Discord ${data.channelCfg.discord.enabled ? "on" : "off"}, TTS ${data.ttsCfg.enabled ? "on" : "off"} (${data.ttsCfg.provider}).`,
+            `Telegram ${data.channelCfg.telegram.enabled ? "オン" : "オフ"}、Discord ${data.channelCfg.discord.enabled ? "オン" : "オフ"}、TTS ${data.ttsCfg.enabled ? "オン" : "オフ"}（${data.ttsCfg.provider}）。`,
           );
         }
         if (tab === "integrations" && data.google) {
-          lines.push(`Google: ${data.google.status.replace(/_/g, " ")}.`);
+          lines.push(`Google: ${data.google.status.replace(/_/g, " ")}。`);
         }
         if (tab === "sidecar") {
           lines.push(
-            `${data.sidecars.length} sidecar${data.sidecars.length === 1 ? "" : "s"} enrolled, ${data.stats.sidecarsConnected} connected.`,
+            `サイドカー ${data.sidecars.length}件登録済み、${data.stats.sidecarsConnected}件接続中。`,
           );
         }
-        showToast(lines.join(" ") || "Nothing to report on this tab.", "ok");
+        showToast(lines.join(" ") || "このタブで報告する内容はありません。", "ok");
         return true;
       }
 
@@ -295,13 +295,13 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
           rawScope === "all"
             ? rawScope
             : "all";
-        showToast("Replaying onboarding — reloading…", "ok");
+        showToast("オンボーディングを再生中 — 再読み込みしています…", "ok");
         (async () => {
           try {
             await resetOnboarding(scope);
           } catch (err) {
             showToast(
-              err instanceof Error ? err.message : "Reset failed",
+              err instanceof Error ? err.message : "リセットに失敗しました",
               "warn",
             );
           }
@@ -322,30 +322,30 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
       {/* Stats ribbon */}
       <div className="v2-set__stats">
         <StatCard
-          label="Providers"
+          label="プロバイダー"
           value={stats.providersWithKey}
-          sub="with API key"
+          sub="APIキー設定済み"
           tone={stats.providersWithKey > 0 ? "ok" : "neutral"}
         />
         <StatCard
-          label="Channels"
+          label="チャンネル"
           value={stats.channelsEnabled}
-          sub="enabled"
+          sub="有効"
           tone={stats.channelsEnabled > 0 ? "ok" : "neutral"}
         />
         <StatCard
-          label="Sidecars"
+          label="サイドカー"
           value={`${stats.sidecarsConnected}/${stats.sidecarsTotal}`}
-          sub="connected"
+          sub="接続中"
           tone={stats.sidecarsConnected > 0 ? "ok" : "neutral"}
         />
         <StatCard
-          label="Changes"
-          value={lastApplied ? (lastApplied.ok ? "Applied" : "Failed") : "Live"}
+          label="変更"
+          value={lastApplied ? (lastApplied.ok ? "適用済み" : "失敗") : "ライブ"}
           sub={
             lastApplied
-              ? `last: ${lastApplied.sections.join(", ")}`
-              : "settings hot-applied"
+              ? `直近: ${lastApplied.sections.join(", ")}`
+              : "設定はホットリロードされます"
           }
           tone={lastApplied && !lastApplied.ok ? "warn" : "ok"}
         />
@@ -355,7 +355,7 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
       <nav
         className="v2-set__tabs"
         role="tablist"
-        aria-label="Settings sections"
+        aria-label="設定セクション"
         ref={tabsApi.tablistRef}
       >
         {TABS.map((t) => (
@@ -375,7 +375,7 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
       {/* Tab body */}
       <div className="v2-set__body" {...tabsApi.getPanelProps()}>
         {data.loading && !data.llm ? (
-          <div className="v2-set__empty">Loading settings…</div>
+          <div className="v2-set__empty">設定を読み込み中…</div>
         ) : (
           <>
             {tab === "general" && <GeneralTab data={data} onToast={showToast} />}
@@ -401,7 +401,7 @@ export function SettingsRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function SettingsRoom() {
   return (
-    <RoomShell title="Settings" subtitle="providers · channels · integrations · sidecar" breadcrumb={["Settings"]}>
+    <RoomShell title="設定" subtitle="プロバイダー・チャンネル・連携・サイドカー" breadcrumb={["設定"]}>
       <SettingsRoomBody mode="expanded" />
     </RoomShell>
   );

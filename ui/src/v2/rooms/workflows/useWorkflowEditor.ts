@@ -326,8 +326,8 @@ export function useWorkflowEditor(flowId: string | null) {
         // wiring landed.
         fetch("/api/workflows/connections"),
       ]);
-      if (!catalogRes.ok) throw new Error(`pieces -> ${catalogRes.status}`);
-      if (!detailRes.ok) throw new Error(`flow detail -> ${detailRes.status}`);
+      if (!catalogRes.ok) throw new Error(`ピース取得エラー -> ${catalogRes.status}`);
+      if (!detailRes.ok) throw new Error(`フロー詳細取得エラー -> ${detailRes.status}`);
       const catalogList = (await catalogRes.json()) as PieceCatalogEntry[];
       setCatalog(catalogList);
       if (connRes.ok) {
@@ -1094,7 +1094,7 @@ export function useWorkflowEditor(flowId: string | null) {
       const router: FlowStepNode = {
         name: routerName,
         type: "ROUTER",
-        displayName: `${pieceLabel} error catch`,
+        displayName: `${pieceLabel} エラーキャッチ`,
         settings: {
           executionType: "EXECUTE_FIRST_MATCH",
           // Renameable: error-catch branches start with descriptive
@@ -1105,7 +1105,7 @@ export function useWorkflowEditor(flowId: string | null) {
           branches: [
             {
               branchType: "CONDITION",
-              branchName: "On error",
+              branchName: "エラー時",
               // Engine resolves `{{<stepName>}}` to `step.output`. A failed
               // step never has setOutput() called, so the resolved value
               // is undefined and DOES_NOT_EXIST fires. The router-executor
@@ -1119,7 +1119,7 @@ export function useWorkflowEditor(flowId: string | null) {
                 ],
               ],
             },
-            { branchType: "FALLBACK", branchName: "On success" },
+            { branchType: "FALLBACK", branchName: "成功時" },
           ],
         },
         // children parallel to branches: [CONDITION, FALLBACK].
@@ -1152,7 +1152,7 @@ export function useWorkflowEditor(flowId: string | null) {
   /** Save the draft trigger back to the server. Returns the new version on success. */
   const save = useCallback(async (): Promise<ActionResult> => {
     if (!flowId || !version || !draftTrigger) {
-      return { ok: false, message: "nothing to save" };
+      return { ok: false, message: "保存する内容がありません" };
     }
     try {
       // Build the sidecar payload. Positions are scrubbed of stale entries
@@ -1205,7 +1205,7 @@ export function useWorkflowEditor(flowId: string | null) {
       }
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `save failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `保存に失敗しました: ${res.status}` };
       }
       const updated = (await res.json()) as FlowVersion;
       ignoreNextLoadRef.current = true;
@@ -1221,7 +1221,7 @@ export function useWorkflowEditor(flowId: string | null) {
       // Drop the stack so undo can't accidentally restore a state the
       // user already deliberately overwrote.
       setUndoStack([]);
-      return { ok: true, message: "Saved" };
+      return { ok: true, message: "保存しました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -1249,9 +1249,9 @@ export function useWorkflowEditor(flowId: string | null) {
    */
   const setStepSampleData = useCallback(
     async (stepName: string, output: unknown | null): Promise<ActionResult> => {
-      if (!flowId || !version) return { ok: false, message: "no version loaded" };
+      if (!flowId || !version) return { ok: false, message: "バージョンが読み込まれていません" };
       if (version.state === "LOCKED") {
-        return { ok: false, message: "version is published; create a new draft to edit sample data" };
+        return { ok: false, message: "このバージョンは公開済みです。サンプルデータを編集するには新しい下書きを作成してください" };
       }
       try {
         const res = await fetch(
@@ -1268,7 +1268,7 @@ export function useWorkflowEditor(flowId: string | null) {
         }
         const body = (await res.json()) as { sampleData: Record<string, unknown> | null };
         setVersion((prev) => (prev ? { ...prev, sampleData: body.sampleData } : prev));
-        return { ok: true, message: "Sample data saved" };
+        return { ok: true, message: "サンプルデータを保存しました" };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }
@@ -1284,9 +1284,9 @@ export function useWorkflowEditor(flowId: string | null) {
    */
   const setStepSampleInput = useCallback(
     async (stepName: string, input: Record<string, unknown> | null): Promise<ActionResult> => {
-      if (!flowId || !version) return { ok: false, message: "no version loaded" };
+      if (!flowId || !version) return { ok: false, message: "バージョンが読み込まれていません" };
       if (version.state === "LOCKED") {
-        return { ok: false, message: "version is published; create a new draft to edit sample input" };
+        return { ok: false, message: "このバージョンは公開済みです。サンプル入力を編集するには新しい下書きを作成してください" };
       }
       try {
         const res = await fetch(
@@ -1303,7 +1303,7 @@ export function useWorkflowEditor(flowId: string | null) {
         }
         const body = (await res.json()) as { sampleInput: Record<string, unknown> | null };
         setVersion((prev) => (prev ? { ...prev, sampleInput: body.sampleInput } : prev));
-        return { ok: true, message: "Sample input saved" };
+        return { ok: true, message: "サンプル入力を保存しました" };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }
@@ -1319,7 +1319,7 @@ export function useWorkflowEditor(flowId: string | null) {
    */
   const testStepFromHere = useCallback(
     async (stepName: string): Promise<ActionResult> => {
-      if (!flowId) return { ok: false, message: "no flow loaded" };
+      if (!flowId) return { ok: false, message: "フローが読み込まれていません" };
       try {
         const res = await fetch(`/api/workflows/${flowId}/run`, {
           method: "POST",
@@ -1332,9 +1332,9 @@ export function useWorkflowEditor(flowId: string | null) {
         });
         if (!res.ok) {
           const body = await safeJson(res);
-          return { ok: false, message: body?.error ?? `run failed: ${res.status}` };
+          return { ok: false, message: body?.error ?? `実行に失敗しました: ${res.status}` };
         }
-        return { ok: true, message: `Test run queued for "${stepName}"` };
+        return { ok: true, message: `「${stepName}」のテスト実行をキューに追加しました` };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }

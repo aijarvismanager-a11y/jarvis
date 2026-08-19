@@ -37,8 +37,8 @@ export function PausedTasksBanner() {
   if (tasks.length === 0) return null;
 
   const headline = tasks.length === 1
-    ? "1 pending question"
-    : `${tasks.length} pending questions`;
+    ? "確認待ちの質問が1件"
+    : `確認待ちの質問が${tasks.length}件`;
 
   return (
     <div className="v2-paused">
@@ -47,7 +47,7 @@ export function PausedTasksBanner() {
         className="v2-paused__head"
         onClick={() => setCollapsed((c) => !c)}
         aria-expanded={!collapsed}
-        title={collapsed ? "Expand pending questions" : "Collapse"}
+        title={collapsed ? "展開する" : "折りたたむ"}
       >
         <span className="v2-paused__head-icon">
           <Icon icon={HelpCircle} size="sm" />
@@ -57,7 +57,7 @@ export function PausedTasksBanner() {
         <span className="v2-paused__headline" role="status" aria-live="polite">
           {headline}
         </span>
-        <span className="v2-paused__sub">awaiting your reply in chat</span>
+        <span className="v2-paused__sub">チャットでの返信をお待ちしています</span>
         <Icon icon={collapsed ? ChevronDown : ChevronUp} size="sm" />
       </button>
       {!collapsed && (
@@ -65,7 +65,7 @@ export function PausedTasksBanner() {
           {tasks.map((t) => (
             <li key={t.id} className="v2-paused__item">
               <div className="v2-paused__item-body">
-                <div className="v2-paused__q">{t.question || "(no question text)"}</div>
+                <div className="v2-paused__q">{t.question || "(質問文なし)"}</div>
                 <div className="v2-paused__meta">
                   <span className="v2-paused__tag">{t.template}</span>
                   <span className="v2-paused__intent" title={t.intent}>{t.intent}</span>
@@ -75,10 +75,10 @@ export function PausedTasksBanner() {
                 type="button"
                 className="v2-paused__reply"
                 onClick={focusComposer}
-                title="Focus the chat composer to reply"
+                title="チャット入力欄にフォーカス"
               >
                 <Icon icon={MessageSquare} size="sm" />
-                Reply in chat
+                チャットで返信
               </button>
             </li>
           ))}

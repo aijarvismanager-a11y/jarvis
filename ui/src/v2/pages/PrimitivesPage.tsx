@@ -10,10 +10,10 @@ export function PrimitivesPage() {
       <header className="v2-primitives__topbar">
         <div className="v2-primitives__brand">
           <span className="v2-primitives__brand-dot" aria-hidden="true" />
-          <h1 className="v2-primitives__title">Primitives</h1>
+          <h1 className="v2-primitives__title">プリミティブ</h1>
         </div>
         <Button variant="ghost" size="sm" onClick={() => navigateV2({ kind: "home" })}>
-          ← Back to shell
+          ← シェルに戻る
         </Button>
       </header>
 
@@ -22,54 +22,54 @@ export function PrimitivesPage() {
 
           <Section
             title="Button"
-            note="Primary uses --accent and only appears once per surface. Ghost is the workhorse. Danger uses --warn for destructive standalone actions (system-altering intents still route through ApprovalCard)."
+            note="Primaryは--accentを使い、画面ごとに一度だけ現れます。Ghostは主力です。Dangerは破壊的な単独操作に--warnを使用します(システムを変更する意図は引き続きApprovalCardを経由します)。"
           >
             <div className="v2-demo v2-demo--col">
               <div className="v2-demo__row">
                 <span className="v2-demo__label">Primary</span>
-                <Button variant="primary" size="sm">Approve</Button>
+                <Button variant="primary" size="sm">承認</Button>
                 <Button variant="primary" size="md">
-                  Send
+                  送信
                   <Icon icon={Send} size="sm" />
                 </Button>
               </div>
               <div className="v2-demo__row">
                 <span className="v2-demo__label">Ghost</span>
-                <Button variant="ghost" size="sm">Cancel</Button>
+                <Button variant="ghost" size="sm">キャンセル</Button>
                 <Button variant="ghost" size="md">
                   <Icon icon={ArrowRight} size="sm" />
-                  Open
+                  開く
                 </Button>
               </div>
               <div className="v2-demo__row">
                 <span className="v2-demo__label">Danger</span>
-                <Button variant="danger" size="sm">Revoke</Button>
-                <Button variant="danger" size="md">Delete workflow</Button>
+                <Button variant="danger" size="sm">取り消し</Button>
+                <Button variant="danger" size="md">ワークフローを削除</Button>
               </div>
               <div className="v2-demo__row">
                 <span className="v2-demo__label">Disabled</span>
-                <Button variant="primary" size="sm" disabled>Send</Button>
-                <Button variant="ghost" size="sm" disabled>Cancel</Button>
+                <Button variant="primary" size="sm" disabled>送信</Button>
+                <Button variant="ghost" size="sm" disabled>キャンセル</Button>
               </div>
             </div>
           </Section>
 
           <Section
             title="Chip"
-            note="Status indicators. Accent tone is rare — same accent discipline as Button."
+            note="ステータス表示。accentトーンは稀 — Buttonと同じ規律です。"
           >
             <div className="v2-demo">
-              <Chip tone="neutral">Idle</Chip>
-              <Chip tone="ok">Running</Chip>
-              <Chip tone="warn">Awaiting approval</Chip>
-              <Chip tone="accent">Live</Chip>
-              <Chip tone="neutral" dot={false}>No dot</Chip>
+              <Chip tone="neutral">待機中</Chip>
+              <Chip tone="ok">実行中</Chip>
+              <Chip tone="warn">承認待ち</Chip>
+              <Chip tone="accent">ライブ</Chip>
+              <Chip tone="neutral" dot={false}>ドットなし</Chip>
             </div>
           </Section>
 
           <Section
             title="KBD"
-            note="Keyboard keys. Used in the palette trigger and tooltips."
+            note="キーボードキー。パレットのトリガーとツールチップで使用。"
           >
             <div className="v2-demo">
               <KBD>⌘K</KBD>
@@ -82,10 +82,10 @@ export function PrimitivesPage() {
 
           <Section
             title="Rule"
-            note="Hairline separator. Bold variant for page sections."
+            note="極細の区切り線。ページセクション用のBoldバリアントあり。"
           >
             <div className="v2-demo v2-demo--col" style={{ alignItems: "stretch" }}>
-              <span className="v2-demo__label">Default</span>
+              <span className="v2-demo__label">デフォルト</span>
               <Rule />
               <span className="v2-demo__label" style={{ marginTop: "var(--s-3)" }}>Bold</span>
               <Rule bold />
@@ -94,34 +94,34 @@ export function PrimitivesPage() {
 
           <Section
             title="Meta"
-            note="Timestamps and attribution lines. Mono, uppercase, tertiary ink."
+            note="タイムスタンプと帰属情報の行。等幅、大文字、三次インク。"
           >
             <div className="v2-demo v2-demo--col">
-              <Meta>Today · 13:42 · Researcher</Meta>
+              <Meta>今日 · 13:42 · Researcher</Meta>
               <Meta inline>
                 <Icon icon={Sparkles} size="sm" />
-                4 sources · 18 minutes in
+                4件のソース · 18分経過
               </Meta>
               <Meta as="time" dateTime="2026-04-23T13:42:00Z">
-                13:42 · 4 minutes ago
+                13:42 · 4分前
               </Meta>
             </div>
           </Section>
 
           <Section
             title="Icon"
-            note="Wrapper around lucide-react. Sizes sm (14) / md (16) / lg (20), or any number. Inherits color from parent via currentColor."
+            note="lucide-reactのラッパー。サイズはsm (14) / md (16) / lg (20)、または任意の数値。currentColorで親から色を継承します。"
           >
             <div className="v2-demo">
-              <Icon icon={Mic} size="sm" label="Microphone" />
-              <Icon icon={Search} size="md" label="Search" />
-              <Icon icon={Check} size="lg" label="Confirmed" />
-              <Icon icon={Send} size={24} label="Send" />
+              <Icon icon={Mic} size="sm" label="マイク" />
+              <Icon icon={Search} size="md" label="検索" />
+              <Icon icon={Check} size="lg" label="確認済み" />
+              <Icon icon={Send} size={24} label="送信" />
               <span style={{ color: "var(--accent)" }}>
-                <Icon icon={Sparkles} size="md" label="Suggested" />
+                <Icon icon={Sparkles} size="md" label="提案" />
               </span>
               <span style={{ color: "var(--warn)" }}>
-                <Icon icon={Mic} size="md" label="Muted" />
+                <Icon icon={Mic} size="md" label="ミュート" />
               </span>
             </div>
           </Section>

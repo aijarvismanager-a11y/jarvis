@@ -68,7 +68,7 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
       });
       onCreated(project);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create project");
+      setError(err instanceof Error ? err.message : "プロジェクトの作成に失敗しました");
     } finally {
       setCreating(false);
     }
@@ -78,20 +78,20 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
     <div style={overlayStyle} onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "16px" }}>
-          New Project
+          新規プロジェクト
         </h3>
 
         {/* Git not installed warning */}
         {gitCheck !== null && !gitCheck.installed && (
           <div style={warningBoxStyle}>
-            <strong>Git is not installed.</strong> Git is required to create projects.
-            Please install git and try again.
+            <strong>Gitがインストールされていません。</strong> プロジェクトの作成にはGitが必要です。
+            Gitをインストールしてから再度お試しください。
           </div>
         )}
 
         {/* Project name */}
         <div style={{ marginBottom: "12px" }}>
-          <label style={labelStyle}>Project Name</label>
+          <label style={labelStyle}>プロジェクト名</label>
           <input
             type="text"
             value={name}
@@ -106,7 +106,7 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
 
         {/* Template selection */}
         <div style={{ marginBottom: "16px" }}>
-          <label style={labelStyle}>Template</label>
+          <label style={labelStyle}>テンプレート</label>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {templates.map((t) => (
               <label
@@ -139,20 +139,20 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
         {/* Git author config — always shown when git is available */}
         {gitCheck !== null && gitCheck.installed && (
           <div style={{ marginBottom: "16px" }}>
-            <label style={labelStyle}>Git Author</label>
+            <label style={labelStyle}>Gitの作成者</label>
             <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
               <input
                 type="text"
                 value={gitName}
                 onChange={(e) => setGitName(e.target.value)}
-                placeholder="Name"
+                placeholder="名前"
                 style={inputStyle}
               />
               <input
                 type="email"
                 value={gitEmail}
                 onChange={(e) => setGitEmail(e.target.value)}
-                placeholder="Email"
+                placeholder="メールアドレス"
                 style={inputStyle}
               />
             </div>
@@ -163,7 +163,7 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
                 onChange={(e) => setGitGlobal(e.target.checked)}
                 style={{ accentColor: "var(--ink)" }}
               />
-              Set as global git config
+              グローバルGit設定として保存
             </label>
           </div>
         )}
@@ -177,13 +177,13 @@ export function SiteNewProjectModal({ onClose, onCreated }: Props) {
 
         {/* Actions */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={cancelBtnStyle}>Cancel</button>
+          <button onClick={onClose} style={cancelBtnStyle}>キャンセル</button>
           <button
             onClick={handleCreate}
             disabled={!canCreate || creating}
             style={{ ...createBtnStyle, opacity: canCreate ? 1 : 0.4 }}
           >
-            {creating ? "Creating..." : "Create Project"}
+            {creating ? "作成中..." : "プロジェクトを作成"}
           </button>
         </div>
       </div>

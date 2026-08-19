@@ -66,7 +66,7 @@ export function useFlowRuns(flowId: string | null): FlowRunsState {
     try {
       const res = await fetch(`/api/workflows/${flowId}/runs?limit=20`);
       if (!res.ok) {
-        setError(`GET runs -> ${res.status}`);
+        setError(`実行履歴の取得エラー -> ${res.status}`);
         return;
       }
       const list = (await res.json()) as FlowRun[];
@@ -135,7 +135,7 @@ export function useFlowRuns(flowId: string | null): FlowRunsState {
 
   const start = useCallback<FlowRunsState["start"]>(
     async (payload) => {
-      if (!flowId) return { ok: false, message: "no flow loaded" };
+      if (!flowId) return { ok: false, message: "フローが読み込まれていません" };
       setStarting(true);
       try {
         const res = await fetch(`/api/workflows/${flowId}/run`, {
@@ -155,12 +155,12 @@ export function useFlowRuns(flowId: string | null): FlowRunsState {
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          return { ok: false, message: body.error ?? `run failed: ${res.status}` };
+          return { ok: false, message: body.error ?? `実行に失敗しました: ${res.status}` };
         }
         const body = (await res.json().catch(() => ({}))) as { runId?: string };
         // Optimistic refresh so the new run shows up immediately.
         void refresh();
-        return { ok: true, message: "queued", runId: body.runId };
+        return { ok: true, message: "キューに追加しました", runId: body.runId };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       } finally {
@@ -176,10 +176,10 @@ export function useFlowRuns(flowId: string | null): FlowRunsState {
         const res = await fetch(`/api/workflow-runs/${runId}/cancel`, { method: "POST" });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
-          return { ok: false, message: body.error ?? `cancel failed: ${res.status}` };
+          return { ok: false, message: body.error ?? `キャンセルに失敗しました: ${res.status}` };
         }
         void refresh();
-        return { ok: true, message: "cancel queued" };
+        return { ok: true, message: "キャンセルをキューに追加しました" };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }

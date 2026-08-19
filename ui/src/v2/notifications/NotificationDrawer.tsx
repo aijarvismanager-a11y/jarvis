@@ -27,10 +27,10 @@ export interface NotificationDrawerProps {
 }
 
 const KIND_LABEL: Record<NotificationKind, string> = {
-  approval: "Approval",
-  clarifier: "Clarify",
-  "repeat-back": "Confirm",
-  system: "System",
+  approval: "承認",
+  clarifier: "確認質問",
+  "repeat-back": "復唱確認",
+  system: "システム",
 };
 
 const KIND_ICON: Record<NotificationKind, LucideIcon> = {
@@ -98,29 +98,29 @@ export function NotificationDrawer({
       ref={rootRef}
       className="v2-notif-drawer"
       role="dialog"
-      aria-label="Notifications"
+      aria-label="通知"
       aria-modal="false"
     >
       <div className="v2-notif-drawer__head">
-        <span className="v2-notif-drawer__title">Notifications</span>
+        <span className="v2-notif-drawer__title">通知</span>
         <button
           type="button"
           className="v2-notif-drawer__markall"
           onClick={onMarkAllRead}
           disabled={unreadCount === 0}
-          aria-label="Mark all as read"
+          aria-label="すべて既読にする"
         >
           <Icon icon={Check} size="sm" />
-          Mark all read
+          すべて既読
         </button>
       </div>
 
       {items.length === 0 ? (
         <div className="v2-notif-drawer__empty">
           <Icon icon={Bell} size="md" />
-          <p>You're all caught up.</p>
+          <p>すべて確認済みです。</p>
           <p className="v2-notif-drawer__empty-hint">
-            Approvals, voice confirmations, and system warnings will appear here.
+            承認、音声確認、システム警告がここに表示されます。
           </p>
         </div>
       ) : (
@@ -172,15 +172,15 @@ export function NotificationDrawer({
 function formatRelative(ts: number): string {
   const now = Date.now();
   const diff = now - ts;
-  if (diff < 0) return "just now";
+  if (diff < 0) return "たった今";
   const sec = Math.floor(diff / 1000);
-  if (sec < 45) return "just now";
+  if (sec < 45) return "たった今";
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return `${min}分前`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return `${hr}時間前`;
   const day = Math.floor(hr / 24);
-  if (day === 1) return "yesterday";
-  if (day < 7) return `${day}d ago`;
+  if (day === 1) return "昨日";
+  if (day < 7) return `${day}日前`;
   return new Date(ts).toLocaleDateString();
 }

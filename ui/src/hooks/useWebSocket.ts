@@ -220,10 +220,10 @@ function createSidecarNotice(payload: SidecarEventPayload, timestamp?: number): 
   const reason = payload.event?.reason?.trim();
   const notice: SystemNotice = {
     id: uuid(),
-    title: "Sidecar offline",
+    title: "サイドカーがオフライン",
     text: reason
-      ? `Jarvis sidecar disconnected: ${reason}. Dashboard features may be delayed until it reconnects.`
-      : "Jarvis sidecar disconnected. Dashboard features may be delayed until it reconnects.",
+      ? `JARVISサイドカーが切断されました: ${reason}。再接続するまでダッシュボードの一部機能が遅延する場合があります。`
+      : "JARVISサイドカーが切断されました。再接続するまでダッシュボードの一部機能が遅延する場合があります。",
     level: "warning",
   };
 
@@ -298,17 +298,17 @@ export type ProviderErrorCode =
 function summaryForCode(code: ProviderErrorCode | undefined): string | null {
   switch (code) {
     case "auth":
-      return "Couldn't reach your AI provider. Check your API key and model settings.";
+      return "AIプロバイダーに接続できませんでした。APIキーとモデル設定を確認してください。";
     case "rate_limit":
-      return "Your AI provider is rate-limiting requests. Wait a moment, or check your usage and billing.";
+      return "AIプロバイダーがリクエストを制限しています。しばらく待つか、利用状況と請求を確認してください。";
     case "network":
-      return "Couldn't reach your AI provider right now. Check your connection, provider status, or fallback settings.";
+      return "現在AIプロバイダーに接続できません。接続状況、プロバイダーのステータス、フォールバック設定を確認してください。";
     case "bad_request":
-      return "The AI provider rejected the request. The model or parameters may be invalid.";
+      return "AIプロバイダーがリクエストを拒否しました。モデルまたはパラメータが不正な可能性があります。";
     case "not_found":
-      return "The AI provider couldn't find the requested resource. Check your model settings.";
+      return "AIプロバイダーが要求されたリソースを見つけられませんでした。モデル設定を確認してください。";
     case "server":
-      return "The AI provider had a server error. Try again in a moment.";
+      return "AIプロバイダー側でサーバーエラーが発生しました。しばらくしてから再度お試しください。";
     default:
       return null;
   }
@@ -318,7 +318,7 @@ export function formatProviderErrorMessage(
   raw: string | undefined,
   code?: ProviderErrorCode,
 ): ProviderErrorFormatted {
-  const fallbackSummary = "Couldn't reach your AI provider. Check your API key, network connection, or fallback settings.";
+  const fallbackSummary = "AIプロバイダーに接続できませんでした。APIキー、ネットワーク接続、フォールバック設定を確認してください。";
   if (!raw && !code) return { summary: fallbackSummary, detail: "" };
 
   const original = (raw ?? "").trim();
@@ -358,7 +358,7 @@ export function formatProviderErrorMessage(
     /\b401\b/.test(lowered)
   ) {
     return {
-      summary: "Couldn't reach your AI provider. Check your API key and model settings.",
+      summary: "AIプロバイダーに接続できませんでした。APIキーとモデル設定を確認してください。",
       detail: normalized,
     };
   }
@@ -371,7 +371,7 @@ export function formatProviderErrorMessage(
     /\b429\b/.test(lowered)
   ) {
     return {
-      summary: "Your AI provider is rate-limiting requests. Wait a moment, or check your usage and billing.",
+      summary: "AIプロバイダーがリクエストを制限しています。しばらく待つか、利用状況と請求を確認してください。",
       detail: normalized,
     };
   }
@@ -385,7 +385,7 @@ export function formatProviderErrorMessage(
     /\b503\b/.test(lowered)
   ) {
     return {
-      summary: "Couldn't reach your AI provider right now. Check your connection, provider status, or fallback settings.",
+      summary: "現在AIプロバイダーに接続できません。接続状況、プロバイダーのステータス、フォールバック設定を確認してください。",
       detail: normalized,
     };
   }
@@ -976,7 +976,7 @@ export function useWebSocket() {
       } else {
         content = typeof rawMessage === "string" && rawMessage.trim()
           ? rawMessage
-          : "An unexpected error occurred.";
+          : "予期しないエラーが発生しました。";
       }
 
       setMessages((prev) => [
@@ -1055,8 +1055,8 @@ export function useWebSocket() {
         pendingChatIdsRef.current.delete(id);
         const notice: SystemNotice = {
           id: uuid(),
-          title: "Message not sent",
-          text: `Could not send your message: ${err instanceof Error ? err.message : String(err)}`,
+          title: "メッセージを送信できませんでした",
+          text: `メッセージを送信できませんでした: ${err instanceof Error ? err.message : String(err)}`,
           level: "warning",
         };
         setNotices((prev) => [notice, ...prev.filter((item) => item.text !== notice.text)].slice(0, 3));
@@ -1096,20 +1096,20 @@ function buildIntentLabel(
 ): string {
   const obj = object?.query ?? object?.type ?? "";
   const verbLabel: Record<string, string> = {
-    ask: "Answer about",
-    show: "Open",
-    run: "Run",
-    create: "Create",
-    update: "Update",
-    delete: "Delete",
-    grant: "Grant authority for",
-    revoke: "Revoke authority for",
-    pause: "Pause",
-    resume: "Resume",
-    unknown: "Handle",
+    ask: "について回答",
+    show: "開く",
+    run: "実行",
+    create: "作成",
+    update: "更新",
+    delete: "削除",
+    grant: "権限を付与",
+    revoke: "権限を取り消し",
+    pause: "一時停止",
+    resume: "再開",
+    unknown: "対応",
   };
-  const head = verbLabel[verb] ?? "Handle";
-  if (obj) return `${head} ${obj}`;
+  const head = verbLabel[verb] ?? "対応";
+  if (obj) return `${obj}を${head}`;
   // No object — echo the user's words as the most informative thing we can say.
   const trimmed = transcript.trim();
   return trimmed.length > 0 ? `${head}: "${trimmed}"` : head;

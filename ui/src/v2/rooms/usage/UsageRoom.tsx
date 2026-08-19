@@ -8,20 +8,20 @@ import { useUsageData, type UsageGroupBy, type UsagePeriod, type UsageRawRow } f
 import "./UsageRoom.css";
 
 const PERIOD_LABELS: Record<UsagePeriod, string> = {
-  today: "Today", "7d": "Last 7 days", "30d": "Last 30 days",
-  this_month: "This month", last_month: "Last month", custom: "Custom",
+  today: "今日", "7d": "過去7日間", "30d": "過去30日間",
+  this_month: "今月", last_month: "先月", custom: "カスタム",
 };
 const GROUP_BY_LABELS: Record<UsageGroupBy, string> = {
-  model: "Model", tier: "Difficulty (tier)", subsystem: "Task (subsystem)",
-  provider: "Provider", date: "Date", none: "Raw rows",
+  model: "モデル", tier: "難易度 (ティア)", subsystem: "タスク (サブシステム)",
+  provider: "プロバイダー", date: "日付", none: "生データ行",
 };
-const TIER_LABELS: Record<string, string> = { conversation: "Conversation", high: "High", medium: "Medium", low: "Low" };
+const TIER_LABELS: Record<string, string> = { conversation: "会話", high: "高", medium: "中", low: "低" };
 
 export type RoomBodyMode = "inline" | "expanded";
 
 export function UsageRoom() {
   return (
-    <RoomShell title="Usage" subtitle="LLM token telemetry · filterable" breadcrumb={["Usage"]}>
+    <RoomShell title="使用状況" subtitle="LLMトークン統計 · フィルタ可能" breadcrumb={["使用状況"]}>
       <UsageRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -61,14 +61,14 @@ function FilterBar({ data }: { data: ReturnType<typeof useUsageData> }) {
   return (
     <div className="rk-usage__bar">
       <div className="rk-usage__row">
-        <span className="rk-usage__title">Usage</span>
-        <span className="rk-usage__sub">tokens · latency</span>
+        <span className="rk-usage__title">使用状況</span>
+        <span className="rk-usage__sub">トークン · レイテンシ</span>
         <span style={{ marginLeft: "auto" }} />
-        <button className="rk-usage__refresh" onClick={refresh} title="Refresh"><Icon icon={RefreshCw} size="sm" /> refresh</button>
+        <button className="rk-usage__refresh" onClick={refresh} title="更新"><Icon icon={RefreshCw} size="sm" /> 更新</button>
       </div>
 
       <div className="rk-usage__row">
-        <span className="rk-usage__lab"><Icon icon={Calendar} size="sm" /> period</span>
+        <span className="rk-usage__lab"><Icon icon={Calendar} size="sm" /> 期間</span>
         <Select value={filters.period} onChange={(e) => setFilter("period", e.target.value as UsagePeriod)}>
           {(Object.keys(PERIOD_LABELS) as UsagePeriod[]).map((p) => <option key={p} value={p}>{PERIOD_LABELS[p]}</option>)}
         </Select>
@@ -79,7 +79,7 @@ function FilterBar({ data }: { data: ReturnType<typeof useUsageData> }) {
             <input type="date" className="rk-usage__date" value={filters.customTo ?? ""} onChange={(e) => setFilter("customTo", e.target.value || null)} />
           </>
         )}
-        <span className="rk-usage__lab" style={{ marginLeft: 6 }}><Icon icon={BarChart3} size="sm" /> group by</span>
+        <span className="rk-usage__lab" style={{ marginLeft: 6 }}><Icon icon={BarChart3} size="sm" /> グループ化</span>
         <Select value={filters.groupBy} onChange={(e) => setFilter("groupBy", e.target.value as UsageGroupBy)}>
           {(Object.keys(GROUP_BY_LABELS) as UsageGroupBy[]).map((g) => <option key={g} value={g}>{GROUP_BY_LABELS[g]}</option>)}
         </Select>
@@ -88,7 +88,7 @@ function FilterBar({ data }: { data: ReturnType<typeof useUsageData> }) {
 
       {(options?.tiers?.length ?? 0) > 0 && (
         <div className="rk-usage__row">
-          <span className="rk-usage__lab">difficulty</span>
+          <span className="rk-usage__lab">難易度</span>
           {(options?.tiers ?? []).map((v) => (
             <FilterChip key={v} on={filters.tiers.includes(v)} onClick={() => toggleListFilter("tiers", v)}>{TIER_LABELS[v] ?? v}</FilterChip>
           ))}
@@ -96,11 +96,11 @@ function FilterBar({ data }: { data: ReturnType<typeof useUsageData> }) {
       )}
 
       <div className="rk-usage__row">
-        <MultiSelectDropdown label="Model" options={options?.models ?? []} selected={filters.models} onToggle={(v) => toggleListFilter("models", v)} onClear={() => setFilter("models", [])} />
-        <MultiSelectDropdown label="Task" options={options?.subsystems ?? []} selected={filters.subsystems} onToggle={(v) => toggleListFilter("subsystems", v)} onClear={() => setFilter("subsystems", [])} />
-        <MultiSelectDropdown label="Provider" options={options?.providers ?? []} selected={filters.providers} onToggle={(v) => toggleListFilter("providers", v)} onClear={() => setFilter("providers", [])} />
-        <Check on={filters.errorsOnly} onClick={() => setFilter("errorsOnly", !filters.errorsOnly)}>errors only</Check>
-        {anyFilter && <FilterChip onClick={clearFilters}>✕ clear filters</FilterChip>}
+        <MultiSelectDropdown label="モデル" options={options?.models ?? []} selected={filters.models} onToggle={(v) => toggleListFilter("models", v)} onClear={() => setFilter("models", [])} />
+        <MultiSelectDropdown label="タスク" options={options?.subsystems ?? []} selected={filters.subsystems} onToggle={(v) => toggleListFilter("subsystems", v)} onClear={() => setFilter("subsystems", [])} />
+        <MultiSelectDropdown label="プロバイダー" options={options?.providers ?? []} selected={filters.providers} onToggle={(v) => toggleListFilter("providers", v)} onClear={() => setFilter("providers", [])} />
+        <Check on={filters.errorsOnly} onClick={() => setFilter("errorsOnly", !filters.errorsOnly)}>エラーのみ</Check>
+        {anyFilter && <FilterChip onClick={clearFilters}>✕ フィルタを解除</FilterChip>}
       </div>
     </div>
   );
@@ -127,13 +127,13 @@ function TotalsStrip({ totals }: { totals?: { calls: number; input_tokens: numbe
   );
   return (
     <div className="rk-stats">
-      <StatCell k="calls" n={formatNumber(calls)} />
-      <StatCell k="input" n={formatNumber(input)} />
-      <StatCell k="cached" n={cacheRead > 0 ? `${formatNumber(cacheRead)} (${cacheHitPct}%)` : "—"} />
-      <StatCell k="output" n={formatNumber(output)} />
-      <StatCell k="total tokens" n={formatNumber(total)} hi />
-      <StatCell k="avg latency" n={avg > 0 ? `${avg} ms` : "—"} />
-      <StatCell k="errors" n={String(errors)} tone={errors > 0 ? "amber" : undefined} />
+      <StatCell k="呼び出し" n={formatNumber(calls)} />
+      <StatCell k="入力" n={formatNumber(input)} />
+      <StatCell k="キャッシュ" n={cacheRead > 0 ? `${formatNumber(cacheRead)} (${cacheHitPct}%)` : "—"} />
+      <StatCell k="出力" n={formatNumber(output)} />
+      <StatCell k="合計トークン" n={formatNumber(total)} hi />
+      <StatCell k="平均レイテンシ" n={avg > 0 ? `${avg} ms` : "—"} />
+      <StatCell k="エラー" n={String(errors)} tone={errors > 0 ? "amber" : undefined} />
     </div>
   );
 }
@@ -145,13 +145,13 @@ function GroupedTable({ rows, groupBy, grand, loading }: {
   rows: { key: string; calls: number; input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number; total_latency_ms: number; errors: number }[];
   groupBy: UsageGroupBy; grand: number; loading: boolean;
 }) {
-  if (loading && rows.length === 0) return <div className="rk-usage__empty">Loading…</div>;
-  if (rows.length === 0) return <div className="rk-usage__empty">No usage in this period for the selected filters.</div>;
-  const keyHeader = groupBy === "tier" ? "Difficulty" : groupBy === "subsystem" ? "Task" : groupBy === "model" ? "Model" : groupBy === "provider" ? "Provider" : groupBy === "date" ? "Date" : "Group";
+  if (loading && rows.length === 0) return <div className="rk-usage__empty">読み込み中…</div>;
+  if (rows.length === 0) return <div className="rk-usage__empty">この期間・選択したフィルタでは使用状況がありません。</div>;
+  const keyHeader = groupBy === "tier" ? "難易度" : groupBy === "subsystem" ? "タスク" : groupBy === "model" ? "モデル" : groupBy === "provider" ? "プロバイダー" : groupBy === "date" ? "日付" : "グループ";
 
   return (
-    <Table label={`Usage grouped by ${keyHeader}`}>
-      <Row cols={GROUP_COLS} head><HCell>{keyHeader}</HCell><HCell className="rk-num">calls</HCell><HCell className="rk-num">input</HCell><HCell className="rk-num">cached</HCell><HCell className="rk-num">output</HCell><HCell className="rk-num">total</HCell><HCell className="rk-num">latency</HCell><HCell className="rk-num">errors</HCell></Row>
+    <Table label={`${keyHeader}別の使用状況`}>
+      <Row cols={GROUP_COLS} head><HCell>{keyHeader}</HCell><HCell className="rk-num">呼び出し</HCell><HCell className="rk-num">入力</HCell><HCell className="rk-num">キャッシュ</HCell><HCell className="rk-num">出力</HCell><HCell className="rk-num">合計</HCell><HCell className="rk-num">レイテンシ</HCell><HCell className="rk-num">エラー</HCell></Row>
       {rows.map((r) => {
         const tot = r.input_tokens + r.cache_read_input_tokens + r.cache_creation_input_tokens + r.output_tokens;
         const share = Math.max(2, Math.round((tot / grand) * 100));
@@ -178,13 +178,13 @@ function GroupedTable({ rows, groupBy, grand, loading }: {
 const RAW_COLS = "112px 88px 1.4fr 1.1fr 76px 64px 64px 64px 74px 84px";
 
 function RawRowsTable({ rows, truncated, loading }: { rows: UsageRawRow[]; truncated?: boolean; loading: boolean }) {
-  if (loading && rows.length === 0) return <div className="rk-usage__empty">Loading…</div>;
-  if (rows.length === 0) return <div className="rk-usage__empty">No calls in this period.</div>;
+  if (loading && rows.length === 0) return <div className="rk-usage__empty">読み込み中…</div>;
+  if (rows.length === 0) return <div className="rk-usage__empty">この期間の呼び出しはありません。</div>;
   return (
     <>
-      {truncated && <div className="rk-usage__hint">Showing the 500 most recent rows. Narrow the period or add filters to see more.</div>}
-      <Table label="Raw usage rows">
-        <Row cols={RAW_COLS} head><HCell>time</HCell><HCell>difficulty</HCell><HCell>task</HCell><HCell>model</HCell><HCell>provider</HCell><HCell className="rk-num">in</HCell><HCell className="rk-num">cached</HCell><HCell className="rk-num">out</HCell><HCell className="rk-num">latency</HCell><HCell className="rk-num">error</HCell></Row>
+      {truncated && <div className="rk-usage__hint">直近500件を表示しています。期間を絞るかフィルタを追加すると詳細が見られます。</div>}
+      <Table label="使用状況の生データ行">
+        <Row cols={RAW_COLS} head><HCell>時刻</HCell><HCell>難易度</HCell><HCell>タスク</HCell><HCell>モデル</HCell><HCell>プロバイダー</HCell><HCell className="rk-num">入力</HCell><HCell className="rk-num">キャッシュ</HCell><HCell className="rk-num">出力</HCell><HCell className="rk-num">レイテンシ</HCell><HCell className="rk-num">エラー</HCell></Row>
         {rows.map((r, i) => (
           <Row key={`${r.ts}-${i}`} cols={RAW_COLS}>
             <Cell className="rk-usage__raw-mono">{new Date(r.ts).toLocaleString()}</Cell>

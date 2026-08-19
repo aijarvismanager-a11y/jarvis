@@ -46,8 +46,8 @@ function derive(opts: ConfirmOptions) {
   const body = opts.title ? raw : nl >= 0 ? raw.slice(nl).trim() : "";
   const danger = opts.danger ?? DANGER_RE.test(raw);
   const verb = raw.match(VERB_RE)?.[1];
-  const confirmLabel = opts.confirmLabel ?? (verb ? verb.charAt(0).toUpperCase() + verb.slice(1).toLowerCase() : danger ? "Confirm" : "Continue");
-  return { title, body, danger, confirmLabel, cancelLabel: opts.cancelLabel ?? "Cancel" };
+  const confirmLabel = opts.confirmLabel ?? (danger ? "確認" : "続ける");
+  return { title, body, danger, confirmLabel, cancelLabel: opts.cancelLabel ?? "キャンセル" };
 }
 
 export function ConfirmHost() {

@@ -67,7 +67,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
       setUsername(result.username);
       setMode("choose");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to validate token");
+      setError(err instanceof Error ? err.message : "トークンの検証に失敗しました");
     }
     setLoading(false);
   };
@@ -85,7 +85,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
       await api(`/api/sites/projects/${projectId}/github/push`, { method: "POST" });
       onConnected();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create repo");
+      setError(err instanceof Error ? err.message : "リポジトリの作成に失敗しました");
     }
     setLoading(false);
   };
@@ -100,7 +100,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
       });
       onConnected();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect repo");
+      setError(err instanceof Error ? err.message : "リポジトリの接続に失敗しました");
     }
     setLoading(false);
   };
@@ -128,10 +128,10 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
         {/* Header */}
         <div style={headerStyle}>
           <span style={{ fontWeight: 600, fontSize: "14px" }}>
-            {mode === "setup-token" ? "Connect GitHub" :
-             mode === "choose" ? "Push to GitHub" :
-             mode === "create-repo" ? "Create New Repository" :
-             mode === "connect-repo" ? "Connect Existing Repository" :
+            {mode === "setup-token" ? "GitHubと接続" :
+             mode === "choose" ? "GitHubへプッシュ" :
+             mode === "create-repo" ? "新規リポジトリを作成" :
+             mode === "connect-repo" ? "既存のリポジトリと接続" :
              "GitHub"}
           </span>
           <button onClick={onClose} style={closeBtnStyle}>x</button>
@@ -145,14 +145,14 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
         {/* Token setup */}
         {mode === "check-token" && (
           <div style={bodyStyle}>
-            <div style={{ color: "var(--ink3)", fontSize: "12px" }}>Checking GitHub connection...</div>
+            <div style={{ color: "var(--ink3)", fontSize: "12px" }}>GitHub接続を確認中...</div>
           </div>
         )}
 
         {mode === "setup-token" && (
           <div style={bodyStyle}>
             <p style={descStyle}>
-              Enter a GitHub Personal Access Token with <strong>repo</strong> scope to create and push to repositories.
+              リポジトリの作成・プッシュには<strong>repo</strong>スコープ付きのGitHub個人アクセストークンを入力してください。
             </p>
             <a
               href="https://github.com/settings/tokens/new?scopes=repo&description=JARVIS+Site+Builder"
@@ -160,7 +160,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
               rel="noopener noreferrer"
               style={linkStyle}
             >
-              Generate a new token on GitHub
+              GitHubで新しいトークンを発行
             </a>
             <input
               type="password"
@@ -172,7 +172,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
               autoFocus
             />
             <button onClick={handleSaveToken} disabled={loading || !token.trim()} style={primaryBtnStyle}>
-              {loading ? "Validating..." : "Save Token"}
+              {loading ? "検証中..." : "トークンを保存"}
             </button>
           </div>
         )}
@@ -181,19 +181,19 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
         {mode === "choose" && (
           <div style={bodyStyle}>
             <p style={descStyle}>
-              Signed in as <strong>{username}</strong>
+              <strong>{username}</strong> としてサインイン中
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <button onClick={() => setMode("create-repo")} style={optionBtnStyle}>
-                <span style={{ fontWeight: 600 }}>Create New Repository</span>
+                <span style={{ fontWeight: 600 }}>新規リポジトリを作成</span>
                 <span style={{ fontSize: "11px", color: "var(--ink3)" }}>
-                  Create a new GitHub repo and push this project
+                  新しいGitHubリポジトリを作成してこのプロジェクトをプッシュ
                 </span>
               </button>
               <button onClick={() => setMode("connect-repo")} style={optionBtnStyle}>
-                <span style={{ fontWeight: 600 }}>Connect Existing Repository</span>
+                <span style={{ fontWeight: 600 }}>既存のリポジトリと接続</span>
                 <span style={{ fontSize: "11px", color: "var(--ink3)" }}>
-                  Link to a repository you already have on GitHub
+                  すでにGitHub上にあるリポジトリとリンク
                 </span>
               </button>
             </div>
@@ -206,7 +206,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
               }}
               style={{ ...smallTextBtn, marginTop: "12px" }}
             >
-              Disconnect GitHub account
+              GitHubアカウントの接続を解除
             </button>
           </div>
         )}
@@ -214,8 +214,8 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
         {/* Create new repo */}
         {mode === "create-repo" && (
           <div style={bodyStyle}>
-            <button onClick={() => setMode("choose")} style={backBtnStyle}>Back</button>
-            <label style={labelStyle}>Repository name</label>
+            <button onClick={() => setMode("choose")} style={backBtnStyle}>戻る</button>
+            <label style={labelStyle}>リポジトリ名</label>
             <input
               type="text"
               value={repoName}
@@ -223,12 +223,12 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
               style={inputStyle}
               autoFocus
             />
-            <label style={labelStyle}>Description (optional)</label>
+            <label style={labelStyle}>説明（任意）</label>
             <input
               type="text"
               value={repoDesc}
               onChange={(e) => setRepoDesc(e.target.value)}
-              placeholder="A short description..."
+              placeholder="簡単な説明..."
               style={inputStyle}
             />
             <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
@@ -237,10 +237,10 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
                 checked={repoPrivate}
                 onChange={(e) => setRepoPrivate(e.target.checked)}
               />
-              Private repository
+              非公開リポジトリ
             </label>
             <button onClick={handleCreateRepo} disabled={loading || !repoName.trim()} style={primaryBtnStyle}>
-              {loading ? "Creating..." : "Create & Push"}
+              {loading ? "作成中..." : "作成してプッシュ"}
             </button>
           </div>
         )}
@@ -248,21 +248,21 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
         {/* Connect existing repo */}
         {mode === "connect-repo" && (
           <div style={bodyStyle}>
-            <button onClick={() => setMode("choose")} style={backBtnStyle}>Back</button>
+            <button onClick={() => setMode("choose")} style={backBtnStyle}>戻る</button>
             <input
               type="text"
               value={repoSearch}
               onChange={(e) => setRepoSearch(e.target.value)}
-              placeholder="Search your repositories..."
+              placeholder="リポジトリを検索..."
               style={inputStyle}
               autoFocus
             />
             <div style={{ maxHeight: 250, overflow: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
               {loadingRepos ? (
-                <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "8px 0" }}>Loading repositories...</div>
+                <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "8px 0" }}>リポジトリを読み込み中...</div>
               ) : filteredRepos.length === 0 ? (
                 <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "8px 0" }}>
-                  {repoSearch ? "No matching repositories" : "No repositories found"}
+                  {repoSearch ? "一致するリポジトリがありません" : "リポジトリが見つかりません"}
                 </div>
               ) : (
                 filteredRepos.map((r) => (
@@ -273,7 +273,7 @@ export function SiteGitHubModal({ projectId, projectName, onClose, onConnected }
                     style={repoItemStyle}
                   >
                     <span style={{ fontWeight: 500 }}>{r.fullName}</span>
-                    {r.private && <span style={privateBadge}>private</span>}
+                    {r.private && <span style={privateBadge}>非公開</span>}
                   </button>
                 ))
               )}

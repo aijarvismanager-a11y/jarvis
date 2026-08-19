@@ -71,7 +71,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
         try {
           payload = yamlToConfig(yamlText);
         } catch (err: any) {
-          setError("Invalid format: " + err.message);
+          setError("形式が不正です: " + err.message);
           setSaving(false);
           return;
         }
@@ -84,7 +84,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
       });
       setConfig(result);
       setYamlText(configToYaml(result));
-      setSuccess("Config saved successfully");
+      setSuccess("設定を保存しました");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -103,7 +103,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
         setConfig(parsed);
         setYamlError("");
       } catch (err: any) {
-        setYamlError("Cannot switch: " + err.message);
+        setYamlError("切り替えできません: " + err.message);
         return;
       }
     }
@@ -121,7 +121,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
         <div style={modalHeaderStyle}>
           <div>
             <span style={{ fontWeight: 600, fontSize: "15px", color: "var(--ink)" }}>
-              Configure: {sidecarName}
+              設定: {sidecarName}
             </span>
           </div>
           <button onClick={onClose} style={closeButtonStyle}>&times;</button>
@@ -133,7 +133,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
             onClick={() => switchMode("form")}
             style={mode === "form" ? activeTabStyle : tabStyle}
           >
-            Form
+            フォーム
           </button>
           <button
             onClick={() => switchMode("yaml")}
@@ -150,7 +150,7 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
         {/* Content */}
         <div style={modalBodyStyle}>
           {loading ? (
-            <div style={{ color: "var(--ink3)", padding: "20px", textAlign: "center" }}>Loading config...</div>
+            <div style={{ color: "var(--ink3)", padding: "20px", textAlign: "center" }}>設定を読み込み中...</div>
           ) : error && !config ? (
             <div style={{ color: "var(--j-error, #f44)", padding: "20px" }}>{error}</div>
           ) : mode === "form" && config ? (
@@ -176,9 +176,9 @@ export function SidecarConfigEditor({ sidecarId, sidecarName, unavailableCapabil
             <span style={{ color: "var(--j-success, #4f4)", fontSize: "12px", flex: 1 }}>{success}</span>
           )}
           {!error && !success && <span style={{ flex: 1 }} />}
-          <button onClick={onClose} style={cancelButtonStyle}>Cancel</button>
+          <button onClick={onClose} style={cancelButtonStyle}>キャンセル</button>
           <button onClick={handleSave} disabled={saving || loading} style={saveButtonStyle}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? "保存中..." : "保存"}
           </button>
         </div>
       </div>
@@ -197,7 +197,7 @@ function FormMode({ config, updateConfig, unavailableCapabilities = [] }: {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <ConfigSection title="Capabilities">
+      <ConfigSection title="機能">
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
           {ALL_CAPABILITIES.map((cap) => {
             const unavailReason = unavailableMap.get(cap);
@@ -227,73 +227,73 @@ function FormMode({ config, updateConfig, unavailableCapabilities = [] }: {
         </div>
       </ConfigSection>
 
-      <ConfigSection title="Terminal">
+      <ConfigSection title="ターミナル">
         <ConfigNumberField
-          label="Timeout (ms)"
+          label="タイムアウト (ms)"
           value={config.terminal.timeout_ms}
           onChange={(v) => updateConfig((c) => ({ ...c, terminal: { ...c.terminal, timeout_ms: v } }))}
         />
         <ConfigTextField
-          label="Default Shell"
+          label="デフォルトシェル"
           value={config.terminal.default_shell}
           placeholder="/bin/bash"
           onChange={(v) => updateConfig((c) => ({ ...c, terminal: { ...c.terminal, default_shell: v } }))}
         />
         <ConfigListField
-          label="Blocked Commands"
+          label="ブロックするコマンド"
           items={config.terminal.blocked_commands}
-          placeholder="e.g. rm -rf"
+          placeholder="例: rm -rf"
           onChange={(items) => updateConfig((c) => ({ ...c, terminal: { ...c.terminal, blocked_commands: items } }))}
         />
       </ConfigSection>
 
-      <ConfigSection title="Filesystem">
+      <ConfigSection title="ファイルシステム">
         <ConfigNumberField
-          label="Max File Size (KB)"
+          label="最大ファイルサイズ (KB)"
           value={config.filesystem.max_file_size_kb}
           onChange={(v) => updateConfig((c) => ({ ...c, filesystem: { ...c.filesystem, max_file_size_kb: v } }))}
         />
         <ConfigListField
-          label="Blocked Paths"
+          label="ブロックするパス"
           items={config.filesystem.blocked_paths}
-          placeholder="e.g. /etc/shadow"
+          placeholder="例: /etc/shadow"
           onChange={(items) => updateConfig((c) => ({ ...c, filesystem: { ...c.filesystem, blocked_paths: items } }))}
         />
       </ConfigSection>
 
-      <ConfigSection title="Browser">
+      <ConfigSection title="ブラウザ">
         <ConfigNumberField
-          label="CDP Port"
+          label="CDPポート"
           value={config.browser.cdp_port}
           onChange={(v) => updateConfig((c) => ({ ...c, browser: { ...c.browser, cdp_port: v } }))}
         />
         <ConfigTextField
-          label="Profile Directory"
+          label="プロファイルディレクトリ"
           value={config.browser.profile_dir}
-          placeholder="Chrome profile path"
+          placeholder="Chromeプロファイルのパス"
           onChange={(v) => updateConfig((c) => ({ ...c, browser: { ...c.browser, profile_dir: v } }))}
         />
       </ConfigSection>
 
-      <ConfigSection title="Awareness">
+      <ConfigSection title="アウェアネス">
         <ConfigNumberField
-          label="Screen Interval (ms)"
+          label="画面間隔 (ms)"
           value={config.awareness.screen_interval_ms}
           onChange={(v) => updateConfig((c) => ({ ...c, awareness: { ...c.awareness, screen_interval_ms: v } }))}
         />
         <ConfigNumberField
-          label="Window Interval (ms)"
+          label="ウィンドウ間隔 (ms)"
           value={config.awareness.window_interval_ms}
           onChange={(v) => updateConfig((c) => ({ ...c, awareness: { ...c.awareness, window_interval_ms: v } }))}
         />
         <ConfigNumberField
-          label="Min Change Threshold"
+          label="最小変化しきい値"
           value={config.awareness.min_change_threshold}
           step={0.01}
           onChange={(v) => updateConfig((c) => ({ ...c, awareness: { ...c.awareness, min_change_threshold: v } }))}
         />
         <ConfigNumberField
-          label="Stuck Threshold (ms)"
+          label="停滞しきい値 (ms)"
           value={config.awareness.stuck_threshold_ms}
           onChange={(v) => updateConfig((c) => ({ ...c, awareness: { ...c.awareness, stuck_threshold_ms: v } }))}
         />
@@ -393,7 +393,7 @@ function ConfigListField({ label, items, placeholder, onChange }: {
           </span>
         ))}
         {items.length === 0 && (
-          <span style={{ fontSize: "11px", color: "var(--ink2)" }}>None</span>
+          <span style={{ fontSize: "11px", color: "var(--ink2)" }}>なし</span>
         )}
       </div>
       <div style={{ display: "flex", gap: "4px" }}>
@@ -405,7 +405,7 @@ function ConfigListField({ label, items, placeholder, onChange }: {
           onKeyDown={(e) => e.key === "Enter" && addItem()}
           style={{ ...fieldInputStyle, flex: 1 }}
         />
-        <button onClick={addItem} disabled={!newItem.trim()} style={addButtonStyle}>Add</button>
+        <button onClick={addItem} disabled={!newItem.trim()} style={addButtonStyle}>追加</button>
       </div>
     </div>
   );

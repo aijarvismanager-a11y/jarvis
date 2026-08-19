@@ -52,7 +52,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
           }
         }
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "fetch failed");
+        if (alive) setError(err instanceof Error ? err.message : "取得に失敗しました");
       } finally {
         // Re-poll only while running (fast) or after a transient fetch error
         // (status undefined). A terminal record is immutable, so stop — this is
@@ -77,10 +77,10 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
     return (
       <div className="task-result task-result--error">
         <div className="task-result__error">
-          <div className="task-result__error-eyebrow">unavailable</div>
+          <div className="task-result__error-eyebrow">利用不可</div>
           <div className="task-result__error-msg">{error}</div>
           <div className="task-result__error-hint">
-            Task may have aged out (kept ~10 min after completion).
+            タスクの保持期限が切れた可能性があります(完了後 約10分保持)。
           </div>
         </div>
       </div>
@@ -90,7 +90,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
     return (
       <div className="task-result task-result--loading">
         <div className="task-result__loading-dot" />
-        <div className="task-result__loading-line">loading task…</div>
+        <div className="task-result__loading-line">タスクを読み込み中…</div>
       </div>
     );
   }
@@ -116,7 +116,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
 
       {task.summary && (
         <section className="task-result__summary">
-          <div className="task-result__section-eyebrow">summary</div>
+          <div className="task-result__section-eyebrow">要約</div>
           <p className="task-result__summary-body">{task.summary}</p>
         </section>
       )}
@@ -124,7 +124,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
       <section className="task-result__response">
         <div className="task-result__response-head">
           <div className="task-result__section-eyebrow">
-            {task.summary ? "full response" : "response"}
+            {task.summary ? "全文" : "レスポンス"}
           </div>
           {task.summary && (
             <button
@@ -132,7 +132,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
               className="task-result__raw-toggle"
               onClick={() => setShowRaw((v) => !v)}
             >
-              {showRaw ? "hide ▴" : "show ▾"}
+              {showRaw ? "隠す ▴" : "表示 ▾"}
             </button>
           )}
         </div>
@@ -142,7 +142,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.response}</ReactMarkdown>
             </div>
           ) : (
-            <div className="task-result__response-body task-result__response-empty">(no output)</div>
+            <div className="task-result__response-body task-result__response-empty">(出力なし)</div>
           )
         )}
       </section>
@@ -151,7 +151,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
         <footer className="task-result__footer">
           {task.tools_used.length > 0 && (
             <div className="task-result__tools">
-              <span className="task-result__section-eyebrow">tools</span>
+              <span className="task-result__section-eyebrow">ツール</span>
               {task.tools_used.map((t) => (
                 <span key={t} className="task-result__tool-chip">{t}</span>
               ))}
@@ -159,7 +159,7 @@ export function TaskResultRoom({ taskId }: { taskId: string }) {
           )}
           {task.tokens_used && (
             <div className="task-result__tokens">
-              {task.tokens_used.input} in · {task.tokens_used.output} out
+              入力 {task.tokens_used.input} · 出力 {task.tokens_used.output}
             </div>
           )}
         </footer>

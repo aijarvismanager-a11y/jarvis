@@ -29,11 +29,19 @@ import "./HandoffPacket.css";
  * renders as a normal flow element below it.
  */
 
+const TASK_TEMPLATE_LABEL: Record<string, string> = {
+  research: "リサーチ",
+  code: "コード",
+  plan: "プラン",
+  write: "ライティング",
+  general: "全般",
+};
+
 export function formatHandoffAgentLabel(id: string): string {
-  if (id === "manager") return "Manager";
+  if (id === "manager") return "マネージャー";
   if (id.startsWith("task_")) {
     const rest = id.slice("task_".length);
-    return rest.charAt(0).toUpperCase() + rest.slice(1);
+    return TASK_TEMPLATE_LABEL[rest] ?? rest.charAt(0).toUpperCase() + rest.slice(1);
   }
   return id;
 }
@@ -116,7 +124,7 @@ export function HandoffTicker({ projectId = null }: { projectId?: string | null 
           </span>
         ))
       ) : (
-        <span className="cin-handoff-empty">No handoffs yet.</span>
+        <span className="cin-handoff-empty">まだハンドオフはありません。</span>
       )}
     </div>
   );

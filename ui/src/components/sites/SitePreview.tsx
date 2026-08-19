@@ -9,15 +9,15 @@ export function SitePreview({ project }: Props) {
   const [iframeKey, setIframeKey] = useState(0);
 
   if (!project) {
-    return <div style={emptyStyle}>Select a project to see the preview</div>;
+    return <div style={emptyStyle}>プレビューを見るにはプロジェクトを選択してください</div>;
   }
 
   if (project.status === "stopped") {
     return (
       <div style={emptyStyle}>
-        <div style={{ fontSize: "14px", marginBottom: "8px" }}>Server is stopped</div>
+        <div style={{ fontSize: "14px", marginBottom: "8px" }}>サーバーは停止中です</div>
         <div style={{ fontSize: "12px", color: "var(--ink3)" }}>
-          Open the project tab to auto-start the dev server
+          プロジェクトのタブを開くと開発サーバーが自動起動します
         </div>
       </div>
     );
@@ -27,7 +27,7 @@ export function SitePreview({ project }: Props) {
     return (
       <div style={emptyStyle}>
         <div style={spinnerStyle} />
-        <div style={{ fontSize: "12px", marginTop: "12px" }}>Starting dev server...</div>
+        <div style={{ fontSize: "12px", marginTop: "12px" }}>開発サーバーを起動中...</div>
       </div>
     );
   }
@@ -35,8 +35,8 @@ export function SitePreview({ project }: Props) {
   if (project.status === "error") {
     return (
       <div style={{ ...emptyStyle, color: "var(--j-error)" }}>
-        <div style={{ fontSize: "14px", marginBottom: "8px" }}>Server error</div>
-        <div style={{ fontSize: "12px" }}>Check the logs for details</div>
+        <div style={{ fontSize: "14px", marginBottom: "8px" }}>サーバーエラー</div>
+        <div style={{ fontSize: "12px" }}>詳細はログを確認してください</div>
       </div>
     );
   }
@@ -56,7 +56,7 @@ export function SitePreview({ project }: Props) {
       <button
         onClick={() => setIframeKey((k) => k + 1)}
         style={reloadBtnStyle}
-        title="Reload preview"
+        title="プレビューを再読み込み"
       >
         &#8635;
       </button>
@@ -78,7 +78,7 @@ export function SitePreview({ project }: Props) {
           border: "none",
           background: "#fff",
         }}
-        title={`Preview: ${project.name}`}
+        title={`プレビュー: ${project.name}`}
       />
     </div>
   );

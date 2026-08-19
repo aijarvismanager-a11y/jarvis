@@ -19,13 +19,13 @@ export function SiteRightPanel({ rightTab, setRightTab, project, openFilePath }:
           onClick={() => setRightTab("preview")}
           style={rightTab === "preview" ? activeTabBtnStyle : tabBtnStyle}
         >
-          Preview
+          プレビュー
         </button>
         <button
           onClick={() => setRightTab("editor")}
           style={rightTab === "editor" ? activeTabBtnStyle : tabBtnStyle}
         >
-          Editor
+          エディタ
           {openFilePath && (
             <span style={{ marginLeft: 6, fontSize: "10px", color: "var(--ink3)", fontWeight: 400 }}>
               {openFilePath.split("/").pop()}

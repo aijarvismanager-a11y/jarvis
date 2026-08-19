@@ -40,7 +40,7 @@ export function useApiData<T>(
       const result = await api<T>(path);
       setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "不明なエラー");
     } finally {
       setLoading(false);
     }

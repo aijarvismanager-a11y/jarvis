@@ -75,7 +75,7 @@ export function buildVariableRows(
       // typographically distinct so the user can tell "first item" from
       // "iterate".
       const len = usable.value.length;
-      const iterateLabel = `(${len} item${len === 1 ? "" : "s"})`;
+      const iterateLabel = `(${len}件)`;
       rows.push({ step, field: "", label: iterateLabel, template: `{{${step.name}}}` });
       const first = usable.value[0];
       if (first && typeof first === "object" && !Array.isArray(first)) {
@@ -93,7 +93,7 @@ export function buildVariableRows(
     } else {
       // No usable shape anywhere -- offer the whole-step template; the
       // user can drill in with `.field` manually.
-      rows.push({ step, field: "", label: "(output)", template: `{{${step.name}}}` });
+      rows.push({ step, field: "", label: "(出力)", template: `{{${step.name}}}` });
     }
   }
   return rows;

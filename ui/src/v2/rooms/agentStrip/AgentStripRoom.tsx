@@ -43,12 +43,12 @@ function formatElapsed(seconds: number): string {
 
 function formatRelativeCompleted(completedAt: number, now: number): string {
   const diff = Math.max(0, Math.round((now - completedAt) / 1000));
-  if (diff < 5) return "just now";
-  if (diff < 60) return `${diff}s ago`;
+  if (diff < 5) return "たった今";
+  if (diff < 60) return `${diff}秒前`;
   const m = Math.floor(diff / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `${m}分前`;
   const h = Math.floor(m / 60);
-  return `${h}h ago`;
+  return `${h}時間前`;
 }
 
 /**
@@ -161,9 +161,9 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
             }`}
             aria-hidden="true"
           />
-          <span className="agent-strip__title">AGENTS</span>
+          <span className="agent-strip__title">エージェント</span>
         </div>
-        <span className="agent-strip__count" title={`${running} running / ${total} total`}>
+        <span className="agent-strip__count" title={`実行中 ${running} / 合計 ${total}`}>
           {running}<span className="agent-strip__count-sep">/</span>{total}
         </span>
       </header>
@@ -171,17 +171,17 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
       <div className="agent-strip__list" role="list">
         {error && !payload && (
           <div className="agent-strip__empty">
-            <div className="agent-strip__empty-eyebrow">offline</div>
-            <div className="agent-strip__empty-line">daemon unreachable</div>
+            <div className="agent-strip__empty-eyebrow">オフライン</div>
+            <div className="agent-strip__empty-line">デーモンに接続できません</div>
           </div>
         )}
 
         {payload && sortedTasks.length === 0 && (
           <div className="agent-strip__empty">
             <span className="agent-strip__empty-dot" aria-hidden="true" />
-            <div className="agent-strip__empty-eyebrow">standing by</div>
+            <div className="agent-strip__empty-eyebrow">待機中</div>
             <div className="agent-strip__empty-line">
-              Say "Jarvis, in the background…" to launch one
+              「ジャービス、バックグラウンドで…」と話しかけて起動
             </div>
           </div>
         )}
@@ -230,7 +230,7 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
                   }`}
                 >
                   <div className="agent-strip__result-eyebrow">
-                    {isFailed ? "error" : "result"}
+                    {isFailed ? "エラー" : "結果"}
                   </div>
                   <div className="agent-strip__result-body">
                     {task.result_preview}
@@ -241,7 +241,7 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
                       className="agent-strip__result-toggle"
                       onClick={() => toggleResult(task.task_id)}
                     >
-                      {expanded ? "show less" : "show more"}
+                      {expanded ? "閉じる" : "もっと見る"}
                     </button>
                   )}
                 </div>
@@ -249,10 +249,10 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
               {(isCompleted || isFailed) && !hasResult && (
                 <div className="agent-strip__result agent-strip__result--empty">
                   <div className="agent-strip__result-eyebrow">
-                    {isFailed ? "error" : "done"}
+                    {isFailed ? "エラー" : "完了"}
                   </div>
                   <div className="agent-strip__result-body agent-strip__result-body--muted">
-                    no output captured
+                    出力なし
                   </div>
                 </div>
               )}
@@ -276,9 +276,9 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
               {expandedIdle ? "▾" : "▸"}
             </span>
             <span className="agent-strip__idle-label">
-              {idleAgents.length} idle
+              待機 {idleAgents.length}
             </span>
-            <span className="agent-strip__last-update" title={`last poll ${lastUpdateLabel}`}>
+            <span className="agent-strip__last-update" title={`最終更新 ${lastUpdateLabel}`}>
               {lastUpdateLabel}
             </span>
           </button>
@@ -305,7 +305,7 @@ export function AgentStripRoom(_: { mode?: RoomBodyMode }) {
 
       {idleAgents.length === 0 && sortedTasks.length > 0 && (
         <footer className="agent-strip__last-update-bar">
-          <span className="agent-strip__last-update">last poll {lastUpdateLabel}</span>
+          <span className="agent-strip__last-update">最終更新 {lastUpdateLabel}</span>
         </footer>
       )}
     </div>

@@ -40,12 +40,12 @@ export function ClarifierCard({
     <article
       className="v2-clarifier"
       role="alertdialog"
-      aria-label={`Clarify: did you mean ${primary.label}?`}
+      aria-label={`確認: ${primary.label} のことですか?`}
     >
       <div className="v2-clarifier__attribution">
         <span className="v2-clarifier__attribution-dot" aria-hidden="true" />
         Jarvis
-        <span className="v2-clarifier__attribution-tag">· not quite sure</span>
+        <span className="v2-clarifier__attribution-tag">· 確信が持てません</span>
         <Chip tone="warn" dot={false}>{`${Math.round(confidence * 100)}%`}</Chip>
       </div>
 
@@ -55,7 +55,7 @@ export function ClarifierCard({
       </div>
 
       <h3 className="v2-clarifier__primary">
-        Did you mean: <em>{primary.label}</em>?
+        <em>{primary.label}</em> のことですか?
       </h3>
 
       {alternatives.length > 0 && (
@@ -71,12 +71,12 @@ export function ClarifierCard({
 
       <div className="v2-clarifier__actions">
         <Button variant="primary" size="md" disabled={busy} onClick={click(onConfirm ?? (() => undefined))}>
-          Yes, do that
+          はい、それでお願いします
         </Button>
         <Button variant="ghost" size="md" disabled={busy} onClick={click(onCancel ?? (() => undefined))}>
-          Cancel
+          キャンセル
         </Button>
-        <span className="v2-clarifier__hint">or say &ldquo;yes&rdquo; / &ldquo;no&rdquo;</span>
+        <span className="v2-clarifier__hint">または「はい」/「いいえ」と言ってください</span>
       </div>
     </article>
   );

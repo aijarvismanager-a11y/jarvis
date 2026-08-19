@@ -31,14 +31,14 @@ export interface CoreStatusInput {
 }
 
 export const CORE_STATUS_LABEL: Record<CoreStatus, string> = {
-  IDLE: "Idle",
-  ANALYZING: "Analyzing",
-  PLANNING: "Planning",
-  EXECUTING: "Executing",
-  WAITING: "Waiting on approval",
-  VERIFYING: "Verifying",
-  BLOCKED: "Blocked",
-  ERROR: "Error",
+  IDLE: "待機中",
+  ANALYZING: "分析中",
+  PLANNING: "計画中",
+  EXECUTING: "実行中",
+  WAITING: "承認待ち",
+  VERIFYING: "検証中",
+  BLOCKED: "ブロック中",
+  ERROR: "エラー",
 };
 
 export function deriveCoreStatus({ hasActiveProject, totalTasks, taskCounts }: CoreStatusInput): CoreStatus {

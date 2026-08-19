@@ -112,7 +112,7 @@ export function useLogsFeed() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load logs");
+      setError(err instanceof Error ? err.message : "ログの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -164,7 +164,7 @@ export function useLogsFeed() {
         summary: `${a.authority_decision.replace("_", " ")} · ${a.action_category}`,
         detail:
           a.execution_time_ms != null
-            ? `${a.tool_name} ran in ${a.execution_time_ms}ms (${a.action_category})`
+            ? `${a.tool_name} は ${a.execution_time_ms}ms で実行 (${a.action_category})`
             : `${a.tool_name} (${a.action_category})`,
         tags: [a.action_category, a.authority_decision],
         // Tone rule (logs design §03): denied → red, escalated/approval → amber,
@@ -179,7 +179,7 @@ export function useLogsFeed() {
       out.push({
         id: `task:${t.task.id}:${t.timestamp}`,
         source: "tasks",
-        title: t.task.what || `Task ${t.action}`,
+        title: t.task.what || `タスク ${t.action}`,
         summary: `${t.action} · ${t.task.status}`,
         detail: t.task.context || t.task.result || undefined,
         tags: [t.action, t.task.status, t.task.priority],

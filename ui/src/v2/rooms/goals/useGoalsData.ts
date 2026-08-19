@@ -63,6 +63,22 @@ interface ActionResult {
   message: string;
 }
 
+const STATUS_LABEL_JA: Record<GoalStatus, string> = {
+  draft: "下書き",
+  active: "実行中",
+  paused: "一時停止",
+  completed: "完了",
+  failed: "失敗",
+  killed: "強制終了",
+};
+
+const HEALTH_LABEL_JA: Record<GoalHealth, string> = {
+  on_track: "順調",
+  at_risk: "リスクあり",
+  behind: "遅延",
+  critical: "危機的",
+};
+
 /**
  * Goals Room hook — loads the full goal list, metrics, and overdue
  * subset in parallel; exposes write actions for create/score/status/
@@ -92,7 +108,7 @@ export function useGoalsData() {
       if (oResp.ok) setOverdue((await oResp.json()) as Goal[]);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load goals");
+      setError(err instanceof Error ? err.message : "目標の読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -165,7 +181,7 @@ export function useGoalsData() {
         refresh();
         return { ok: true, goal };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -181,9 +197,9 @@ export function useGoalsData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Score updated to ${(score * 100).toFixed(0)}%.` };
+        return { ok: true, message: `スコアを${(score * 100).toFixed(0)}%に更新しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -199,9 +215,9 @@ export function useGoalsData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Status set to ${status}.` };
+        return { ok: true, message: `ステータスを${STATUS_LABEL_JA[status]}に設定しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -217,9 +233,9 @@ export function useGoalsData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Health set to ${health.replace(/_/g, " ")}.` };
+        return { ok: true, message: `健全性を${HEALTH_LABEL_JA[health]}に設定しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

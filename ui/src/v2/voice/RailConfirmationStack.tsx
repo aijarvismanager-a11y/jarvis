@@ -31,9 +31,9 @@ export function RailConfirmationStack() {
   if (total === 0) return null;
 
   return (
-    <div className="v2-rail-confirm" role="region" aria-label="Pending confirmations">
+    <div className="v2-rail-confirm" role="region" aria-label="対応待ちの確認">
       <div className="v2-rail-confirm__head">
-        <span className="v2-rail-confirm__label">Pending</span>
+        <span className="v2-rail-confirm__label">対応待ち</span>
         <span className="v2-rail-confirm__count">{total}</span>
       </div>
       <div className="v2-rail-confirm__list">
@@ -54,13 +54,13 @@ export function RailConfirmationStack() {
             key={r.id}
             kind="repeat-back"
             id={r.id}
-            title="Confirm what I heard"
+            title="聞き取った内容を確認"
             transcript={r.transcript}
           />
         ))}
       </div>
       <div className="v2-rail-confirm__voice-hint">
-        Or say <em>“approve”</em> / <em>“cancel”</em>
+        または <em>「承認」</em> / <em>「キャンセル」</em>と言ってください
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ function ApprovalRow({
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "失敗しました");
       setBusy(false);
     }
   };
@@ -100,9 +100,9 @@ function ApprovalRow({
     <div className="v2-rail-confirm__card" data-tone={impactTone(impact)}>
       <div className="v2-rail-confirm__card-meta">
         <Icon icon={ShieldAlert} size="sm" />
-        <span className="v2-rail-confirm__card-kind">Approval</span>
+        <span className="v2-rail-confirm__card-kind">承認</span>
         <span className="v2-rail-confirm__card-impact" data-impact={impact}>
-          {impact}
+          {IMPACT_LABEL_JA[impact]}
         </span>
       </div>
       <div className="v2-rail-confirm__card-title">{intent}</div>
@@ -116,7 +116,7 @@ function ApprovalRow({
           disabled={busy}
         >
           <Icon icon={X} size="sm" />
-          Cancel
+          キャンセル
         </button>
         <button
           type="button"
@@ -125,12 +125,19 @@ function ApprovalRow({
           disabled={busy}
         >
           <Icon icon={Check} size="sm" />
-          Approve
+          承認
         </button>
       </div>
     </div>
   );
 }
+
+const IMPACT_LABEL_JA: Record<"read" | "write" | "destructive" | "external", string> = {
+  read: "読み取り",
+  write: "書き込み",
+  destructive: "破壊的",
+  external: "外部",
+};
 
 function VoiceConfirmRow({
   kind,
@@ -157,7 +164,7 @@ function VoiceConfirmRow({
       );
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "失敗しました");
       setBusy(false);
     }
   };
@@ -167,7 +174,7 @@ function VoiceConfirmRow({
       <div className="v2-rail-confirm__card-meta">
         <Icon icon={MessageSquare} size="sm" />
         <span className="v2-rail-confirm__card-kind">
-          {kind === "clarifier" ? "Clarify" : "Confirm"}
+          {kind === "clarifier" ? "確認質問" : "確認"}
         </span>
       </div>
       <div className="v2-rail-confirm__card-title">{title}</div>
@@ -181,7 +188,7 @@ function VoiceConfirmRow({
           disabled={busy}
         >
           <Icon icon={X} size="sm" />
-          No
+          いいえ
         </button>
         <button
           type="button"
@@ -190,7 +197,7 @@ function VoiceConfirmRow({
           disabled={busy}
         >
           <Icon icon={Check} size="sm" />
-          Yes
+          はい
         </button>
       </div>
     </div>

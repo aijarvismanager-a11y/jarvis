@@ -57,7 +57,7 @@ export function useCalendarData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load calendar");
+      setError(err instanceof Error ? err.message : "カレンダーの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -147,11 +147,11 @@ export function useCalendarData() {
         return {
           ok: true,
           message: input.whenMs
-            ? `Scheduled "${input.title}" for ${formatDateTime(input.whenMs)}.`
-            : `Added "${input.title}" to your task list.`,
+            ? `「${input.title}」を${formatDateTime(input.whenMs)}に予定しました。`
+            : `「${input.title}」をタスクリストに追加しました。`,
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

@@ -14,11 +14,11 @@ import "./BillingShowcase.css";
 const STATES: BillingState[] = ["trialing", "active", "past_due", "canceled", "expired"];
 
 const CardActions: Record<BillingState, React.ReactNode> = {
-  trialing: (<><button className="bl-btn bl-btn--pri">Add payment method</button><button className="bl-btn">Compare plans</button></>),
-  active: (<><button className="bl-btn">Change plan</button><button className="bl-btn bl-btn--red">Cancel</button></>),
-  past_due: (<><button className="bl-btn bl-btn--pri">Update card</button><button className="bl-btn">Retry now</button></>),
-  canceled: (<button className="bl-btn bl-btn--pri">Resume subscription</button>),
-  expired: (<><button className="bl-btn bl-btn--pri">Resubscribe</button><button className="bl-btn">Self-host guide</button></>),
+  trialing: (<><button className="bl-btn bl-btn--pri">支払い方法を追加</button><button className="bl-btn">プランを比較</button></>),
+  active: (<><button className="bl-btn">プランを変更</button><button className="bl-btn bl-btn--red">解約</button></>),
+  past_due: (<><button className="bl-btn bl-btn--pri">カードを更新</button><button className="bl-btn">今すぐ再試行</button></>),
+  canceled: (<button className="bl-btn bl-btn--pri">サブスクリプションを再開</button>),
+  expired: (<><button className="bl-btn bl-btn--pri">再購読</button><button className="bl-btn">セルフホストガイド</button></>),
 };
 
 const Clock = () => (<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6" /><path d="M8 4.8V8l2.2 1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>);
@@ -39,7 +39,7 @@ function PlanCard({ state }: { state: BillingState }) {
         <div className="bl-plan__meta">{info.meta}</div>
         <div className="bl-plan__act">{CardActions[state]}</div>
       </div>
-      {state === "active" && <div className="bl-allgood"><span className="dot" />All good. Nothing needs you.</div>}
+      {state === "active" && <div className="bl-allgood"><span className="dot" />問題なし。対応は不要です。</div>}
       <div className="blx-lab">{state.replace("_", " ")}</div>
     </div>
   );
@@ -65,58 +65,58 @@ export function BillingShowcase(): React.ReactElement {
   const flip = (t: string) => { document.documentElement.setAttribute("data-theme", t); setTheme(t); };
   const [choice, setChoice] = useState<"up" | "down">("up");
   const PRORATE = {
-    up: "You'll be charged **€33.20 today**, prorated for the 10 days left this cycle. Then **€79/mo** from Jul 15.",
-    down: "No charge today. Your plan changes to **Hosted** at renewal on Jul 15, and you keep everything until then. After that, **€9.99/mo**.",
+    up: "本日、今サイクルの残り10日分を日割りした**€33.20が請求されます**。その後7月15日から**€79/月**。",
+    down: "本日の請求はありません。7月15日の更新時にプランは**Hosted**に変わり、それまでは現在の内容を維持します。その後は**€9.99/月**。",
   };
 
   return (
     <div className="blx">
       <header className="blx-head">
         <div>
-          <h1>Billing states</h1>
-          <p>The subscription lifecycle: the Settings → Billing plan card by state, the top-of-app banner, and the change-plan modal. Tone tells the truth before the words do.</p>
+          <h1>課金状態</h1>
+          <p>サブスクリプションのライフサイクル: 設定 → 課金の状態別プランカード、アプリ上部のバナー、プラン変更モーダル。言葉より先にトーンが真実を語ります。</p>
         </div>
-        <div className="blx-seg" role="group" aria-label="Theme">
-          <button className={theme !== "dark" ? "on" : ""} onClick={() => flip("light")}>Light</button>
-          <button className={theme === "dark" ? "on" : ""} onClick={() => flip("dark")}>Dark</button>
+        <div className="blx-seg" role="group" aria-label="テーマ">
+          <button className={theme !== "dark" ? "on" : ""} onClick={() => flip("light")}>ライト</button>
+          <button className={theme === "dark" ? "on" : ""} onClick={() => flip("dark")}>ダーク</button>
         </div>
       </header>
 
-      <div className="blx-sec">Today · Settings → Billing (billing not enabled)</div>
+      <div className="blx-sec">現在 · 設定 → 課金(課金機能は未有効)</div>
       <div className="blx-soonframe">
         <div className="bl-soon">
           <div className="bl-soon__mark"><CreditCard size={22} strokeWidth={1.6} /></div>
-          <div className="bl-soon__title">Billing is coming soon</div>
-          <div className="bl-soon__sub">Hosted plans and subscriptions will live here. For now Jarvis runs on your own model keys or self-hosted, at no charge.</div>
-          <span className="bl-chip info"><span className="d" />Coming soon</span>
+          <div className="bl-soon__title">課金機能は近日公開</div>
+          <div className="bl-soon__sub">ホスト型プランとサブスクリプションはここに表示されます。現在Jarvisは無料で、あなた自身のモデルキーまたはセルフホストで動作しています。</div>
+          <span className="bl-chip info"><span className="d" />近日公開</span>
         </div>
       </div>
 
-      <div className="blx-sec">Plan card · when billing ships</div>
+      <div className="blx-sec">プランカード · 課金機能公開時</div>
       <div className="blx-grid">{STATES.map((s) => <PlanCard key={s} state={s} />)}</div>
 
-      <div className="blx-sec">State banner · top of app</div>
+      <div className="blx-sec">状態バナー · アプリ上部</div>
       <div className="blx-banners">{STATES.map((s) => <Banner key={s} state={s} />)}</div>
 
-      <div className="blx-sec">Change plan · modal</div>
+      <div className="blx-sec">プラン変更 · モーダル</div>
       <div className="blx-modalframe">
         <div className="bl-modal__box" style={{ position: "static", transform: "none" }}>
           <div className="bl-modal__head">
-            <div className="bl-modal__title">Change your plan</div>
-            <div className="bl-modal__sub">You're on Hosted + AI · €29/mo</div>
+            <div className="bl-modal__title">プランを変更</div>
+            <div className="bl-modal__sub">現在 Hosted + AI · €29/月</div>
           </div>
-          <div className="bl-opts" role="radiogroup" aria-label="Plan">
+          <div className="bl-opts" role="radiogroup" aria-label="プラン">
             <button type="button" role="radio" aria-checked={choice === "up"} className="bl-opt" onClick={() => setChoice("up")}>
-              <span className="rad" /><span className="ot"><span className="otn">Hosted + AI · Max</span><span className="otd">5× the tokens, highest priority</span></span><span className="op">€79</span>
+              <span className="rad" /><span className="ot"><span className="otn">Hosted + AI · Max</span><span className="otd">トークン5倍、最優先</span></span><span className="op">€79</span>
             </button>
             <button type="button" role="radio" aria-checked={choice === "down"} className="bl-opt" onClick={() => setChoice("down")}>
-              <span className="rad" /><span className="ot"><span className="otn">Hosted</span><span className="otd">Bring your own model keys</span></span><span className="op">€9.99</span>
+              <span className="rad" /><span className="ot"><span className="otn">Hosted</span><span className="otd">自前のモデルキーを使用</span></span><span className="op">€9.99</span>
             </button>
           </div>
           <div className="bl-prorate">{renderBold(PRORATE[choice])}</div>
           <div className="bl-modal__foot">
-            <button className="bl-btn">Cancel</button>
-            <button className="bl-btn bl-btn--pri">{choice === "up" ? "Switch to Max" : "Schedule downgrade"}</button>
+            <button className="bl-btn">キャンセル</button>
+            <button className="bl-btn bl-btn--pri">{choice === "up" ? "Maxに切り替え" : "ダウングレードを予約"}</button>
           </div>
         </div>
       </div>

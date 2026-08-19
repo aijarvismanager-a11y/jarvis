@@ -34,17 +34,17 @@ export const TASK_FLOW_EXCEPTIONS: ProjectTaskStatus[] = TASK_COLUMNS.filter(
 );
 
 export const TASK_FLOW_STEP_LABELS: Record<ProjectTaskStatus, string> = {
-  PENDING: "Pending",
-  PLANNING: "Planning",
-  READY: "Ready",
-  RUNNING: "Running",
-  WAITING: "Waiting",
-  BLOCKED: "Blocked",
-  REVIEW: "Review",
+  PENDING: "保留中",
+  PLANNING: "計画中",
+  READY: "準備完了",
+  RUNNING: "実行中",
+  WAITING: "待機中",
+  BLOCKED: "ブロック中",
+  REVIEW: "レビュー中",
   QA: "QA",
-  COMPLETED: "Completed",
-  FAILED: "Failed",
-  CANCELLED: "Cancelled",
+  COMPLETED: "完了",
+  FAILED: "失敗",
+  CANCELLED: "キャンセル",
 };
 
 // Exhaustiveness guard: TASK_FLOW_STEP_LABELS is a Record<ProjectTaskStatus,

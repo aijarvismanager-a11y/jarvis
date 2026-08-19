@@ -11,7 +11,7 @@ import "./TasksRoom.css";
 
 const TASK_STATUSES: TaskStatus[] = ["pending", "active", "completed", "failed", "escalated"];
 const TASK_PRIORITIES: TaskPriority[] = ["low", "normal", "high", "critical"];
-const STATUS_LABEL: Record<TaskStatus, string> = { pending: "Pending", active: "Active", completed: "Completed", failed: "Failed", escalated: "Escalated" };
+const STATUS_LABEL: Record<TaskStatus, string> = { pending: "保留中", active: "実行中", completed: "完了", failed: "失敗", escalated: "エスカレーション" };
 
 // Status remap (tasks §02): active→blue (running), escalated→amber (waits on
 // you), pending neutral, completed green, failed red.
@@ -100,31 +100,31 @@ export function TasksRoomBody({ mode }: { mode: RoomBodyMode }) {
   return (
     <div className="rk-tasks">
       <div className="rk-tasks__tool">
-        <span className="rk-tasks__title">Tasks</span>
-        {mode === "expanded" && <Tabs tabs={[{ key: "kanban", label: "Board" }, { key: "list", label: "List" }]} active={view} onChange={(k) => setView(k as "kanban" | "list")} />}
-        <div className="rk-tasks__search"><Icon icon={Search} size="sm" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="search tasks…" aria-label="Search tasks" /></div>
-        <button className="rk-tasks__icbtn" onClick={data.refresh} aria-label="Refresh"><Icon icon={RefreshCw} size="sm" /></button>
-        <button className="rk-tasks__new" onClick={() => setCreateOpen(true)}>New task</button>
+        <span className="rk-tasks__title">タスク</span>
+        {mode === "expanded" && <Tabs tabs={[{ key: "kanban", label: "ボード" }, { key: "list", label: "リスト" }]} active={view} onChange={(k) => setView(k as "kanban" | "list")} />}
+        <div className="rk-tasks__search"><Icon icon={Search} size="sm" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="タスクを検索…" aria-label="タスクを検索" /></div>
+        <button className="rk-tasks__icbtn" onClick={data.refresh} aria-label="更新"><Icon icon={RefreshCw} size="sm" /></button>
+        <button className="rk-tasks__new" onClick={() => setCreateOpen(true)}>新規タスク</button>
       </div>
 
       <div className="rk-tasks__stats">
-        <Stat k="active" n={data.stats.active} />
-        <Stat k="completed today" n={data.stats.completedToday} />
-        <Stat k="overdue" n={data.stats.overdue} amber={data.stats.overdue > 0} />
-        <Stat k="total" n={data.stats.total} />
+        <Stat k="実行中" n={data.stats.active} />
+        <Stat k="今日完了" n={data.stats.completedToday} />
+        <Stat k="期限超過" n={data.stats.overdue} amber={data.stats.overdue > 0} />
+        <Stat k="合計" n={data.stats.total} />
       </div>
 
       <div className="rk-tasks__fbar">
-        <span className="rk-tasks__flabel">status</span>
-        <FilterChip on={statusFilter === "all"} onClick={() => setStatusFilter("all")}>all</FilterChip>
+        <span className="rk-tasks__flabel">ステータス</span>
+        <FilterChip on={statusFilter === "all"} onClick={() => setStatusFilter("all")}>すべて</FilterChip>
         {TASK_STATUSES.map((s) => <FilterChip key={s} on={statusFilter === s} onClick={() => setStatusFilter(s)}>{s}</FilterChip>)}
-        <span className="rk-tasks__flabel" style={{ marginLeft: 8 }}>priority</span>
-        <FilterChip on={priorityFilter === "all"} onClick={() => setPriorityFilter("all")}>all</FilterChip>
+        <span className="rk-tasks__flabel" style={{ marginLeft: 8 }}>優先度</span>
+        <FilterChip on={priorityFilter === "all"} onClick={() => setPriorityFilter("all")}>すべて</FilterChip>
         {TASK_PRIORITIES.map((p) => <FilterChip key={p} on={priorityFilter === p} onClick={() => setPriorityFilter(p)}>{p}</FilterChip>)}
         {assignees.length > 1 && (
           <div style={{ marginLeft: "auto" }}>
             <Select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
-              <option value="all">all assignees</option>
+              <option value="all">すべての担当者</option>
               {assignees.map((a) => <option key={a} value={a}>{a}</option>)}
             </Select>
           </div>
@@ -153,7 +153,7 @@ export function TasksRoomBody({ mode }: { mode: RoomBodyMode }) {
           </div>
         ) : (
           <div className="rk-tasks__list">
-            {listItems.length === 0 ? <div className="rk-tasks__empty"><EmptyState title="No tasks match">Clear a filter, or press <b>New task</b> to add one.</EmptyState></div>
+            {listItems.length === 0 ? <div className="rk-tasks__empty"><EmptyState title="一致するタスクがありません">フィルタを解除するか、<b>新規タスク</b>を押して追加してください。</EmptyState></div>
               : listItems.map((t) => {
                 const over = isOverdue(t);
                 const terminal = t.status === "completed" || t.status === "failed";
@@ -180,7 +180,7 @@ export function TasksRoomBody({ mode }: { mode: RoomBodyMode }) {
         <CreateDialog onClose={() => setCreateOpen(false)} onCreate={async (input) => {
           const parsed = input.when ? parseRelativeDate(input.when) : null;
           const r = await data.createTask({ what: input.what, when_due: parsed?.ts, priority: input.priority, assigned_to: input.assigned_to || undefined, context: input.context || undefined });
-          setToast({ text: r.ok ? `Created task "${input.what}".` : r.message, tone: r.ok ? "ok" : "warn" });
+          setToast({ text: r.ok ? `タスク「${input.what}」を作成しました。` : r.message, tone: r.ok ? "ok" : "warn" });
           if (r.ok) setSelectedId(r.task.id);
           return r.ok;
         }} />
@@ -193,7 +193,7 @@ export function TasksRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function TasksRoom() {
   return (
-    <RoomShell title="Tasks" subtitle="kanban · due dates · priority" breadcrumb={["Tasks"]}>
+    <RoomShell title="タスク" subtitle="カンバン · 期限 · 優先度" breadcrumb={["タスク"]}>
       <TasksRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -210,11 +210,11 @@ function TaskCard({ task, selected, onClick, onComplete, onFail, onPriority }: {
     <div className={`rk-tasks__card${selected ? " rk-tasks__card--sel" : ""}${over ? " rk-tasks__card--over" : ""}${terminal ? " rk-tasks__card--terminal" : ""}`} onClick={onClick} role="button">
       {!terminal && (
         <div className="rk-tasks__card-acts">
-          <select className="rk-tasks__prio" value={task.priority} aria-label="Set priority" title="Set priority" onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); onPriority(e.target.value as TaskPriority); }}>
+          <select className="rk-tasks__prio" value={task.priority} aria-label="優先度を設定" title="優先度を設定" onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); onPriority(e.target.value as TaskPriority); }}>
             {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
-          <button className="rk-tasks__act rk-tasks__act--no" title="Mark failed" onClick={(e) => { e.stopPropagation(); onFail(); }}>✕</button>
-          <button className="rk-tasks__act rk-tasks__act--ok" title="Complete" onClick={(e) => { e.stopPropagation(); onComplete(); }}>✓</button>
+          <button className="rk-tasks__act rk-tasks__act--no" title="失敗にする" onClick={(e) => { e.stopPropagation(); onFail(); }}>✕</button>
+          <button className="rk-tasks__act rk-tasks__act--ok" title="完了にする" onClick={(e) => { e.stopPropagation(); onComplete(); }}>✓</button>
         </div>
       )}
       <div className="rk-tasks__card-what">{task.what}</div>
@@ -236,24 +236,24 @@ function TaskDrawer({ task, onClose, onStatus }: { task: Task; onClose: () => vo
       <div className="rk-tasks__dh">
         <div>
           <div className="rk-tasks__dn">{task.what}</div>
-          <div className="rk-tasks__dm">{task.assigned_to ? `assigned ${task.assigned_to}` : "unassigned"} · created {formatDay(task.created_at)}</div>
+          <div className="rk-tasks__dm">{task.assigned_to ? `担当 ${task.assigned_to}` : "未割り当て"} · 作成 {formatDay(task.created_at)}</div>
         </div>
-        <button className="rk-tasks__icbtn" onClick={onClose} aria-label="Close"><Icon icon={X} size="sm" /></button>
+        <button className="rk-tasks__icbtn" onClick={onClose} aria-label="閉じる"><Icon icon={X} size="sm" /></button>
       </div>
       <div className="rk-tasks__dbody">
         <div className="rk-tasks__drow"><StatusChip tone={STATUS_TONE[task.status]} dot>{STATUS_LABEL[task.status]}</StatusChip><StatusChip tone={PRIORITY_TONE[task.priority]}>{task.priority}</StatusChip>{task.when_due != null && <span className="rk-tasks__row-due">{formatDue(task)}</span>}</div>
-        {task.context && <><div className="rk-tasks__dlabel">context</div><div className="rk-tasks__dtext">{task.context}</div></>}
-        {task.result && <><div className="rk-tasks__dlabel">result</div><div className="rk-tasks__dtext">{task.result}</div></>}
-        {task.status === "escalated" && <div style={{ marginTop: 12 }}><DeepLink onClick={() => openRoom("authority")}>→ open the blocking approval in Authority</DeepLink></div>}
+        {task.context && <><div className="rk-tasks__dlabel">コンテキスト</div><div className="rk-tasks__dtext">{task.context}</div></>}
+        {task.result && <><div className="rk-tasks__dlabel">結果</div><div className="rk-tasks__dtext">{task.result}</div></>}
+        {task.status === "escalated" && <div style={{ marginTop: 12 }}><DeepLink onClick={() => openRoom("authority")}>→ 権限でブロック中の承認を開く</DeepLink></div>}
       </div>
       <div className="rk-tasks__da">
         {!terminal ? (
           <>
-            <button className="rk-tasks__sbtn rk-tasks__sbtn--pri" onClick={() => onStatus("completed")}>Complete</button>
-            <button className="rk-tasks__sbtn rk-tasks__sbtn--red" onClick={() => onStatus("failed")}>Fail</button>
+            <button className="rk-tasks__sbtn rk-tasks__sbtn--pri" onClick={() => onStatus("completed")}>完了</button>
+            <button className="rk-tasks__sbtn rk-tasks__sbtn--red" onClick={() => onStatus("failed")}>失敗</button>
           </>
         ) : (
-          <button className="rk-tasks__sbtn" onClick={() => onStatus("pending")}>Reactivate</button>
+          <button className="rk-tasks__sbtn" onClick={() => onStatus("pending")}>再アクティブ化</button>
         )}
       </div>
     </aside>
@@ -272,18 +272,18 @@ function CreateDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (i
   return (
     <div className="rk-tasks__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-tasks__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="rk-tasks__dialog-head"><div className="rk-tasks__dialog-title">New task</div><div className="rk-tasks__dialog-sub">Quick create. It appears in the Pending column.</div></div>
+        <div className="rk-tasks__dialog-head"><div className="rk-tasks__dialog-title">新規タスク</div><div className="rk-tasks__dialog-sub">クイック作成。「保留中」列に表示されます。</div></div>
         <div className="rk-tasks__dialog-body">
-          <div><div className="rk-tasks__flab">task</div><input className="rk-tasks__input" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What needs doing?" autoFocus /></div>
-          <div><div className="rk-tasks__flab">when · optional</div><input className="rk-tasks__input" value={when} onChange={(e) => setWhen(e.target.value)} placeholder="friday at 5pm" />
-            <div className="rk-tasks__parse">{when.trim() ? (parsed ? `→ ${formatFull(parsed.ts)}` : "Couldn't parse. The task will have no due date.") : "Leave blank for an undated task."}</div></div>
-          <div><div className="rk-tasks__flab">priority</div><div className="rk-tasks__chiprow">{TASK_PRIORITIES.map((p) => <button key={p} className={`rk-tasks__sbtn${priority === p ? " rk-tasks__sbtn--pri" : ""}`} onClick={() => setPriority(p)}>{p}</button>)}</div></div>
-          <div><div className="rk-tasks__flab">assignee · optional</div><input className="rk-tasks__input" value={assigned} onChange={(e) => setAssigned(e.target.value)} placeholder="you / jarvis / agent name" /></div>
-          <div><div className="rk-tasks__flab">context · optional</div><input className="rk-tasks__input" value={context} onChange={(e) => setContext(e.target.value)} placeholder="Background or notes." /></div>
+          <div><div className="rk-tasks__flab">タスク</div><input className="rk-tasks__input" value={what} onChange={(e) => setWhat(e.target.value)} placeholder="何をする必要がありますか?" autoFocus /></div>
+          <div><div className="rk-tasks__flab">期限 · 任意</div><input className="rk-tasks__input" value={when} onChange={(e) => setWhen(e.target.value)} placeholder="金曜17時" />
+            <div className="rk-tasks__parse">{when.trim() ? (parsed ? `→ ${formatFull(parsed.ts)}` : "解析できませんでした。期限なしのタスクになります。") : "空欄のままにすると期限なしのタスクになります。"}</div></div>
+          <div><div className="rk-tasks__flab">優先度</div><div className="rk-tasks__chiprow">{TASK_PRIORITIES.map((p) => <button key={p} className={`rk-tasks__sbtn${priority === p ? " rk-tasks__sbtn--pri" : ""}`} onClick={() => setPriority(p)}>{p}</button>)}</div></div>
+          <div><div className="rk-tasks__flab">担当者 · 任意</div><input className="rk-tasks__input" value={assigned} onChange={(e) => setAssigned(e.target.value)} placeholder="you / jarvis / エージェント名" /></div>
+          <div><div className="rk-tasks__flab">コンテキスト · 任意</div><input className="rk-tasks__input" value={context} onChange={(e) => setContext(e.target.value)} placeholder="背景やメモ。" /></div>
         </div>
         <div className="rk-tasks__dialog-acts">
-          <button className="rk-tasks__sbtn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="rk-tasks__sbtn rk-tasks__sbtn--pri" onClick={submit} disabled={busy || !what.trim()}>{busy ? "Creating…" : "Create"}</button>
+          <button className="rk-tasks__sbtn" onClick={onClose} disabled={busy}>キャンセル</button>
+          <button className="rk-tasks__sbtn rk-tasks__sbtn--pri" onClick={submit} disabled={busy || !what.trim()}>{busy ? "作成中…" : "作成"}</button>
         </div>
       </div>
     </div>
@@ -296,11 +296,11 @@ function formatDue(t: Task): string {
   if (t.when_due == null) return "";
   const d = new Date(t.when_due); const now = new Date();
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  if (isOverdue(t)) return `overdue · ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  if (isOverdue(t)) return `期限超過 · ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (sameDay(d, now)) return `Today ${hm}`;
+  if (sameDay(d, now)) return `今日 ${hm}`;
   const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
-  if (sameDay(d, tmr)) return `Tomorrow ${hm}`;
+  if (sameDay(d, tmr)) return `明日 ${hm}`;
   const diff = (d.getTime() - now.getTime()) / 86_400_000;
   if (diff > 0 && diff < 7) return `${d.toLocaleDateString(undefined, { weekday: "short" })} ${hm}`;
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${hm}`;

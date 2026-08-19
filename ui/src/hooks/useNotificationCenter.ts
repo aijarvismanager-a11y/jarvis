@@ -137,7 +137,7 @@ export function useNotificationCenter({
       out.push({
         id: r.id,
         kind: "repeat-back",
-        title: "Confirm what I heard",
+        title: "聞き取った内容を確認",
         text: r.transcript,
         timestamp: r.timestamp,
         tone: "warn",

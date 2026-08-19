@@ -61,10 +61,10 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
         method: "POST",
         body: JSON.stringify({ name }),
       });
-      setActionMessage({ text: `Switched to ${name}`, type: "ok" });
+      setActionMessage({ text: `${name}に切り替えました`, type: "ok" });
       refresh();
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Switch failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "切り替えに失敗しました", type: "error" });
     }
   };
 
@@ -77,10 +77,10 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
       });
       setNewBranchName("");
       setShowNewBranch(false);
-      setActionMessage({ text: `Created branch ${newBranchName}`, type: "ok" });
+      setActionMessage({ text: `ブランチ ${newBranchName} を作成しました`, type: "ok" });
       refresh();
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Create failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "作成に失敗しました", type: "error" });
     }
   };
 
@@ -92,14 +92,14 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
         body: JSON.stringify({ branch: mergeBranch, strategy: mergeStrategy }),
       });
       if (result.success) {
-        setActionMessage({ text: `${mergeStrategy === "merge" ? "Merged" : "Rebased"} ${mergeBranch}`, type: "ok" });
+        setActionMessage({ text: `${mergeBranch} を${mergeStrategy === "merge" ? "マージ" : "リベース"}しました`, type: "ok" });
       } else {
-        setActionMessage({ text: `Conflicts in: ${result.conflicts?.join(", ")}`, type: "error" });
+        setActionMessage({ text: `競合が発生: ${result.conflicts?.join(", ")}`, type: "error" });
       }
       setMergeBranch(null);
       refresh();
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Merge failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "マージに失敗しました", type: "error" });
     }
   };
 
@@ -119,12 +119,12 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
     setActionMessage(null);
     try {
       await api(`/api/sites/projects/${projectId}/github/push`, { method: "POST" });
-      setActionMessage({ text: "Pushed to GitHub", type: "ok" });
+      setActionMessage({ text: "GitHubにプッシュしました", type: "ok" });
       // Refresh status
       const status = await api<GitRemoteStatus>(`/api/sites/projects/${projectId}/github/status`);
       setRemoteStatus(status);
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Push failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "プッシュに失敗しました", type: "error" });
     }
     setPushing(false);
   };
@@ -137,30 +137,30 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
         `/api/sites/projects/${projectId}/github/pull`, { method: "POST" }
       );
       if (result.success) {
-        setActionMessage({ text: "Pulled from GitHub", type: "ok" });
+        setActionMessage({ text: "GitHubからプルしました", type: "ok" });
       } else if (result.conflicts?.length) {
-        setActionMessage({ text: `Conflicts: ${result.conflicts.join(", ")}`, type: "error" });
+        setActionMessage({ text: `競合: ${result.conflicts.join(", ")}`, type: "error" });
       } else {
-        setActionMessage({ text: result.error ?? "Pull failed", type: "error" });
+        setActionMessage({ text: result.error ?? "プルに失敗しました", type: "error" });
       }
       refresh();
       const status = await api<GitRemoteStatus>(`/api/sites/projects/${projectId}/github/status`);
       setRemoteStatus(status);
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Pull failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "プルに失敗しました", type: "error" });
     }
     setPulling(false);
   };
 
   const handleDisconnect = async () => {
-    if (!await confirmDialog("Disconnect this project from GitHub? (The remote repo will not be deleted.)")) return;
+    if (!await confirmDialog("このプロジェクトのGitHub接続を解除しますか？（リモートリポジトリは削除されません）")) return;
     try {
       await api(`/api/sites/projects/${projectId}/github/repo`, { method: "DELETE" });
       setRemoteStatus(null);
-      setActionMessage({ text: "Disconnected from GitHub", type: "ok" });
+      setActionMessage({ text: "GitHubとの接続を解除しました", type: "ok" });
       onGitHubChange();
     } catch (err) {
-      setActionMessage({ text: err instanceof Error ? err.message : "Disconnect failed", type: "error" });
+      setActionMessage({ text: err instanceof Error ? err.message : "接続解除に失敗しました", type: "error" });
     }
   };
 
@@ -184,8 +184,8 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
       {/* Branches */}
       <div style={sectionStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={sectionLabelStyle}>Branches</span>
-          <button onClick={() => setShowNewBranch(!showNewBranch)} style={smallBtnStyle}>+ New</button>
+          <span style={sectionLabelStyle}>ブランチ</span>
+          <button onClick={() => setShowNewBranch(!showNewBranch)} style={smallBtnStyle}>+ 新規</button>
         </div>
 
         {showNewBranch && (
@@ -199,12 +199,12 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
               style={inputStyle}
               autoFocus
             />
-            <button onClick={handleCreateBranch} style={smallBtnStyle}>Create</button>
+            <button onClick={handleCreateBranch} style={smallBtnStyle}>作成</button>
           </div>
         )}
 
         {loading ? (
-          <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "4px 0" }}>Loading...</div>
+          <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "4px 0" }}>読み込み中...</div>
         ) : (
           branches.map((b) => (
             <div
@@ -223,7 +223,7 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
                   onClick={(e) => { e.stopPropagation(); setMergeBranch(b.name); }}
                   style={{ ...smallBtnStyle, fontSize: "10px", padding: "1px 6px" }}
                 >
-                  Merge
+                  マージ
                 </button>
               )}
             </div>
@@ -235,7 +235,7 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
       {mergeBranch && (
         <div style={{ ...sectionStyle, background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.2)", borderRadius: "4px", margin: "0 8px 8px" }}>
           <div style={{ fontSize: "11px", marginBottom: 6, color: "var(--ink)" }}>
-            Merge <strong>{mergeBranch}</strong> into <strong>{currentBranch}</strong>
+            <strong>{mergeBranch}</strong> を <strong>{currentBranch}</strong> にマージ
           </div>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             <select
@@ -243,18 +243,18 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
               onChange={(e) => setMergeStrategy(e.target.value as "merge" | "rebase")}
               style={{ ...inputStyle, flex: "none", width: 80 }}
             >
-              <option value="merge">Merge</option>
-              <option value="rebase">Rebase</option>
+              <option value="merge">マージ</option>
+              <option value="rebase">リベース</option>
             </select>
-            <button onClick={handleMerge} style={smallBtnStyle}>Confirm</button>
-            <button onClick={() => setMergeBranch(null)} style={{ ...smallBtnStyle, color: "var(--ink3)" }}>Cancel</button>
+            <button onClick={handleMerge} style={smallBtnStyle}>確認</button>
+            <button onClick={() => setMergeBranch(null)} style={{ ...smallBtnStyle, color: "var(--ink3)" }}>キャンセル</button>
           </div>
         </div>
       )}
 
       {/* Commit log */}
       <div style={sectionStyle}>
-        <span style={sectionLabelStyle}>Commits</span>
+        <span style={sectionLabelStyle}>コミット</span>
         <div style={{ maxHeight: 300, overflow: "auto", marginTop: 4 }}>
           {commits.map((c) => (
             <div key={c.hash} style={commitStyle} title={`${c.hash}\n${c.author}\n${new Date(c.date).toLocaleString()}`}>
@@ -270,7 +270,7 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
             </div>
           ))}
           {commits.length === 0 && !loading && (
-            <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "4px 0" }}>No commits yet</div>
+            <div style={{ fontSize: "11px", color: "var(--ink3)", padding: "4px 0" }}>まだコミットがありません</div>
           )}
         </div>
       </div>
@@ -286,32 +286,32 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
             {remoteStatus && (
               <div style={{ display: "flex", gap: "8px", fontSize: "11px" }}>
                 {remoteStatus.ahead > 0 && (
-                  <span style={{ color: "var(--ink)" }}>{remoteStatus.ahead} ahead</span>
+                  <span style={{ color: "var(--ink)" }}>{remoteStatus.ahead} 件先行</span>
                 )}
                 {remoteStatus.behind > 0 && (
-                  <span style={{ color: "var(--j-warning)" }}>{remoteStatus.behind} behind</span>
+                  <span style={{ color: "var(--j-warning)" }}>{remoteStatus.behind} 件遅れ</span>
                 )}
                 {remoteStatus.ahead === 0 && remoteStatus.behind === 0 && (
-                  <span style={{ color: "var(--ink3)" }}>Up to date</span>
+                  <span style={{ color: "var(--ink3)" }}>最新の状態</span>
                 )}
               </div>
             )}
             <div style={{ display: "flex", gap: "4px", marginTop: 2 }}>
               <button onClick={handlePush} disabled={pushing} style={smallBtnStyle}>
-                {pushing ? "Pushing..." : "Push"}
+                {pushing ? "プッシュ中..." : "プッシュ"}
               </button>
               <button onClick={handlePull} disabled={pulling} style={smallBtnStyle}>
-                {pulling ? "Pulling..." : "Pull"}
+                {pulling ? "プル中..." : "プル"}
               </button>
               <button onClick={handleDisconnect} style={{ ...smallBtnStyle, color: "var(--ink3)", borderColor: "var(--rule)", marginLeft: "auto" }}>
-                Disconnect
+                接続解除
               </button>
             </div>
           </div>
         ) : (
           <div style={{ marginTop: 6 }}>
             <button onClick={() => setShowGitHubModal(true)} style={smallBtnStyle}>
-              Push to GitHub
+              GitHubにプッシュ
             </button>
           </div>
         )}
@@ -335,10 +335,10 @@ export function SiteGitPanel({ projectId, projectName, githubUrl, onClose, onGit
 
 function formatRelativeDate(ts: number): string {
   const diff = Date.now() - ts;
-  if (diff < 60_000) return "just now";
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
-  return `${Math.floor(diff / 86400_000)}d ago`;
+  if (diff < 60_000) return "たった今";
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}分前`;
+  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}時間前`;
+  return `${Math.floor(diff / 86400_000)}日前`;
 }
 
 const panelStyle: React.CSSProperties = {

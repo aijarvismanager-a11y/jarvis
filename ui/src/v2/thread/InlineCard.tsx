@@ -37,19 +37,19 @@ const TYPE_ICON: Record<ObjectType, LucideIcon> = {
 };
 
 const TYPE_LABEL: Record<ObjectType, string> = {
-  workflow: "Workflow",
-  memory: "Memory",
-  tool: "Tool",
-  agent: "Agent",
-  authority: "Authority",
-  log: "Log",
-  calendar: "Calendar",
-  goals: "Goals",
-  tasks: "Tasks",
-  content: "Content",
-  workspaces: "Workspaces",
-  usage: "Usage",
-  settings: "Settings",
+  workflow: "ワークフロー",
+  memory: "メモリ",
+  tool: "ツール",
+  agent: "エージェント",
+  authority: "権限",
+  log: "ログ",
+  calendar: "カレンダー",
+  goals: "目標",
+  tasks: "タスク",
+  content: "コンテンツ",
+  workspaces: "ワークスペース",
+  usage: "使用状況",
+  settings: "設定",
 };
 
 export interface InlineCardProps {
@@ -97,8 +97,8 @@ export function InlineCard({
       </div>
 
       <div className="v2-card__actions">
-        <Button variant="ghost" size="sm" onClick={onFocus} aria-label="Focus — open in room">
-          Focus
+        <Button variant="ghost" size="sm" onClick={onFocus} aria-label="フォーカス — ルームで開く">
+          フォーカス
           <Icon icon={ArrowUpRight} size="sm" />
         </Button>
       </div>

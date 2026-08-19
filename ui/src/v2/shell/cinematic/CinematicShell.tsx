@@ -74,13 +74,13 @@ export function CinematicShell() {
   const providers = useMemo(() => providerSummary(providerStatus), [providerStatus]);
 
   return (
-    <div className="cin-shell" data-status={status.toLowerCase()} role="region" aria-label="Cinematic Mode">
+    <div className="cin-shell" data-status={status.toLowerCase()} role="region" aria-label="シネマティックモード">
       {entering && (
         <BootSplash variant="pulse" autoReadyMs={900} onDone={() => setEntering(false)} />
       )}
 
       <div className="cin-project-strip">
-        {activeProjectId == null ? "No project pinned" : projectName ?? "Pinned project"}
+        {activeProjectId == null ? "ピン留めされたプロジェクトなし" : projectName ?? "ピン留めされたプロジェクト"}
       </div>
 
       <AgentOrbit coreStatus={status} projectId={activeProjectId} />
@@ -92,7 +92,7 @@ export function CinematicShell() {
 
       <div className="cin-readout">
         <div className="cin-stat">
-          <span className="k">Tasks</span>
+          <span className="k">タスク</span>
           <span className="v">
             {activeProjectDetailLoading && !activeProjectDetail
               ? "…"
@@ -102,22 +102,22 @@ export function CinematicShell() {
           </span>
         </div>
         <div className="cin-stat">
-          <span className="k">Agents on project</span>
+          <span className="k">プロジェクトのエージェント</span>
           <span className="v">{activeProjectDetail?.agentPerformance.length ?? "—"}</span>
         </div>
         <div className="cin-stat">
-          <span className="k">Providers</span>
+          <span className="k">プロバイダー</span>
           <span className="v">
             {providerStatusLoading && providers.total === 0
               ? "…"
               : providers.total === 0
                 ? "—"
-                : `${providers.online} online${providers.error > 0 ? ` · ${providers.error} error` : ""}`}
+                : `${providers.online}件オンライン${providers.error > 0 ? ` · ${providers.error}件エラー` : ""}`}
           </span>
         </div>
       </div>
 
-      <div className="cin-hint">Switch modes from the top bar to return to the standard dashboard.</div>
+      <div className="cin-hint">トップバーからモードを切り替えると標準ダッシュボードに戻ります。</div>
     </div>
   );
 }

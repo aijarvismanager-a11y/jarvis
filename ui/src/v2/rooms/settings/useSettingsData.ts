@@ -357,7 +357,7 @@ async function postJson<T>(
   });
   if (!r.ok) {
     const text = await r.text();
-    throw new Error(text || `HTTP ${r.status}`);
+    throw new Error(text || `HTTP ${r.status} エラー`);
   }
   return (await r.json()) as T;
 }
@@ -524,9 +524,9 @@ export function useSettingsData() {
           { providers: { [name]: input } },
         );
         await refresh();
-        return { ok: true, message: r.message || `Provider '${name}' saved.` };
+        return { ok: true, message: r.message || `プロバイダー「${name}」を保存しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -541,9 +541,9 @@ export function useSettingsData() {
           { providers: { [name]: null } },
         );
         await refresh();
-        return { ok: true, message: r.message || `Provider '${name}' removed.` };
+        return { ok: true, message: r.message || `プロバイダー「${name}」を削除しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -560,10 +560,10 @@ export function useSettingsData() {
         await refresh();
         return {
           ok: true,
-          message: r.message || (ref ? `Default model set to ${ref}.` : "Default model cleared."),
+          message: r.message || (ref ? `デフォルトモデルを ${ref} に設定しました。` : "デフォルトモデルをクリアしました。"),
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -580,10 +580,10 @@ export function useSettingsData() {
         await refresh();
         return {
           ok: true,
-          message: r.message || (ref ? `${tier} tier set to ${ref}.` : `${tier} tier cleared.`),
+          message: r.message || (ref ? `${tier} 階層を ${ref} に設定しました。` : `${tier} 階層をクリアしました。`),
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -605,10 +605,10 @@ export function useSettingsData() {
         await refresh();
         return {
           ok: true,
-          message: r.message || (refs.length ? `${tier} fallback chain updated.` : `${tier} fallback chain cleared.`),
+          message: r.message || (refs.length ? `${tier} のフォールバックチェーンを更新しました。` : `${tier} のフォールバックチェーンをクリアしました。`),
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -626,7 +626,7 @@ export function useSettingsData() {
         { tiers: { conversation: null, high: null, medium: null, low: null } },
       );
       await refresh();
-      return { ok: true, message: r.message || "All tiers cleared." };
+      return { ok: true, message: r.message || "すべての階層をクリアしました。" };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -656,11 +656,11 @@ export function useSettingsData() {
           message:
             r.message ||
             (mode === "single"
-              ? "Switched to single-LLM mode (tier config cleared)."
-              : "Switched to multi-tier mode."),
+              ? "単一LLMモードに切り替えました（階層設定はクリアされました）。"
+              : "マルチ階層モードに切り替えました。"),
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -690,11 +690,11 @@ export function useSettingsData() {
           body,
         );
         if (r.ok) {
-          return { ok: true, message: `${name}: ${r.model ?? "connected"}.`, models: r.models };
+          return { ok: true, message: `${name}: ${r.model ?? "接続済み"}。`, models: r.models };
         }
-        return { ok: false, message: r.error ?? "Test failed." };
+        return { ok: false, message: r.error ?? "テストに失敗しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Test failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "テストに失敗しました" };
       }
     },
     [],
@@ -714,10 +714,10 @@ export function useSettingsData() {
         );
         await refresh();
         return r.ok
-          ? { ok: true, message: r.message || "Telegram saved and applied." }
-          : { ok: false, message: r.message || "Failed to apply Telegram config." };
+          ? { ok: true, message: r.message || "Telegramの設定を保存し適用しました。" }
+          : { ok: false, message: r.message || "Telegramの設定の適用に失敗しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -737,10 +737,10 @@ export function useSettingsData() {
         );
         await refresh();
         return r.ok
-          ? { ok: true, message: r.message || "Discord saved and applied." }
-          : { ok: false, message: r.message || "Failed to apply Discord config." };
+          ? { ok: true, message: r.message || "Discordの設定を保存し適用しました。" }
+          : { ok: false, message: r.message || "Discordの設定の適用に失敗しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -771,10 +771,10 @@ export function useSettingsData() {
         );
         await refresh();
         return r.ok
-          ? { ok: true, message: r.message || `STT set to ${provider}.` }
-          : { ok: false, message: r.message || "Failed to apply STT config." };
+          ? { ok: true, message: r.message || `STTを ${provider} に設定しました。` }
+          : { ok: false, message: r.message || "STTの設定の適用に失敗しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -809,9 +809,9 @@ export function useSettingsData() {
           },
         );
         await refresh();
-        return { ok: true, message: r.message || "TTS updated." };
+        return { ok: true, message: r.message || "TTSを更新しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh, ttsCfg],
@@ -826,9 +826,9 @@ export function useSettingsData() {
           patch,
         );
         await refresh();
-        return { ok: true, message: r.message || "Voice settings saved." };
+        return { ok: true, message: r.message || "音声設定を保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -843,7 +843,7 @@ export function useSettingsData() {
     async (_minutes: number): Promise<ActionResult> => {
       return {
         ok: false,
-        message: "Heartbeat write endpoint not yet wired in daemon.",
+        message: "ハートビート書き込みエンドポイントはまだデーモンに接続されていません。",
       };
     },
     [],
@@ -853,7 +853,7 @@ export function useSettingsData() {
     async (_level: "passive" | "moderate" | "aggressive"): Promise<ActionResult> => {
       return {
         ok: false,
-        message: "Heartbeat write endpoint not yet wired in daemon.",
+        message: "ハートビート書き込みエンドポイントはまだデーモンに接続されていません。",
       };
     },
     [],
@@ -868,7 +868,7 @@ export function useSettingsData() {
       );
       // Refetch later — daemon may be down briefly
       window.setTimeout(refresh, 3000);
-      return { ok: true, message: r.message || "Restart scheduled." };
+      return { ok: true, message: r.message || "再起動を予約しました。" };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -882,9 +882,9 @@ export function useSettingsData() {
           answers,
         });
         await refresh();
-        return { ok: true, message: r.message || "Profile saved." };
+        return { ok: true, message: r.message || "プロフィールを保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -897,7 +897,7 @@ export function useSettingsData() {
         {},
       );
       await refresh();
-      return { ok: true, message: r.message || "Profile cleared." };
+      return { ok: true, message: r.message || "プロフィールをクリアしました。" };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -909,9 +909,9 @@ export function useSettingsData() {
       try {
         await postJson("/api/config/google", input);
         await refresh();
-        return { ok: true, message: "Google credentials saved." };
+        return { ok: true, message: "Googleの認証情報を保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -940,8 +940,8 @@ export function useSettingsData() {
       );
       await refresh();
       return r.ok
-        ? { ok: true, message: r.message || "Google disconnected. Observers stopped." }
-        : { ok: false, message: r.message || "Disconnect failed." };
+        ? { ok: true, message: r.message || "Googleとの接続を解除しました。オブザーバーは停止しました。" }
+        : { ok: false, message: r.message || "接続解除に失敗しました。" };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Failed" };
     }
@@ -953,9 +953,9 @@ export function useSettingsData() {
       try {
         await postJson("/api/config/image", { provider, api_key });
         await refresh();
-        return { ok: true, message: "Image provider key saved." };
+        return { ok: true, message: "画像プロバイダーのキーを保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -966,9 +966,9 @@ export function useSettingsData() {
       try {
         await postJson("/api/config/github", { token });
         await refresh();
-        return { ok: true, message: "GitHub token saved." };
+        return { ok: true, message: "GitHubトークンを保存しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -987,7 +987,7 @@ export function useSettingsData() {
         await refresh();
         return { ok: true, token: r.token, name: r.name };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -998,9 +998,9 @@ export function useSettingsData() {
       try {
         await postJson(`/api/sidecars/${encodeURIComponent(id)}`, undefined, "DELETE");
         await refresh();
-        return { ok: true, message: "Sidecar revoked." };
+        return { ok: true, message: "サイドカーを失効させました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

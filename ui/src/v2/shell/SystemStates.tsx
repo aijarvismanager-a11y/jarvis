@@ -79,30 +79,30 @@ function TakeoverBody({ kind, on, data }: { kind: TakeoverKind; on: TakeoverHand
     return (
       <div className="sys-wrap">
         {head}
-        <h2 className="sys-h2">Can't reach your daemon.</h2>
-        <div className="sys-sub">The dashboard lost its connection to the Jarvis runtime on this machine. Retrying automatically.</div>
+        <h2 className="sys-h2">デーモンに接続できません。</h2>
+        <div className="sys-sub">このマシン上のJarvisランタイムへの接続が切れました。自動的に再接続を試みています。</div>
         <div className="sys-statuslist">
-          <div className="sr ok"><span className="si"><IChk /></span><span><b>Nothing is lost</b>, your work is saved</span></div>
-          <div className="sr wait"><span className="si"><ISpin /></span><span>Reconnecting every few seconds…</span></div>
-          <div className="sr no"><span className="si"><ICross /></span><span>The agent <b>can't think or act</b> until it's back</span></div>
+          <div className="sr ok"><span className="si"><IChk /></span><span><b>作業内容は失われていません</b>、保存済みです</span></div>
+          <div className="sr wait"><span className="si"><ISpin /></span><span>数秒ごとに再接続中…</span></div>
+          <div className="sr no"><span className="si"><ICross /></span><span>復旧するまでエージェントは<b>思考も行動もできません</b></span></div>
         </div>
         <div className="sys-btnrow">
-          <button className="sys-btn sys-btn--pri" onClick={on.onRetry}>Retry now</button>
+          <button className="sys-btn sys-btn--pri" onClick={on.onRetry}>今すぐ再試行</button>
         </div>
-        <div className="sys-fine">if it stays down, start it yourself: <span style={{ fontFamily: "var(--mono)" }}>jarvis start</span></div>
+        <div className="sys-fine">復旧しない場合は自分で起動してください: <span style={{ fontFamily: "var(--mono)" }}>jarvis start</span></div>
       </div>
     );
   }
 
   if (kind === "updating") {
-    const v = data.version ?? "the latest version";
+    const v = data.version ?? "最新バージョン";
     return (
       <div className="sys-wrap">
         {head}
-        <h2 className="sys-h2">Updating to {v}</h2>
-        <div className="sys-sub">This takes a few seconds. You can leave it running.</div>
+        <h2 className="sys-h2">{v}に更新中</h2>
+        <div className="sys-sub">数秒で完了します。そのままお待ちください。</div>
         <div className="sys-pbar run"><i /></div>
-        <div className="sys-fine">Don't close Jarvis while it updates.</div>
+        <div className="sys-fine">更新中はJarvisを閉じないでください。</div>
       </div>
     );
   }
@@ -111,13 +111,13 @@ function TakeoverBody({ kind, on, data }: { kind: TakeoverKind; on: TakeoverHand
     return (
       <div className="sys-wrap">
         {head}
-        <h2 className="sys-h2">Jarvis stopped unexpectedly.</h2>
-        <div className="sys-sub">We recovered your session, so you won't lose your place. Reopen to pick up where you left off.</div>
+        <h2 className="sys-h2">Jarvisが予期せず停止しました。</h2>
+        <div className="sys-sub">セッションは復旧済みなので、続きから再開できます。再度開いて元の状態に戻りましょう。</div>
         <div className="sys-btnrow">
-          <button className="sys-btn sys-btn--pri" onClick={on.onReopen}>Reopen Jarvis</button>
-          <button className="sys-btn sys-btn--ghost" onClick={on.onSendReport}>Send a report</button>
+          <button className="sys-btn sys-btn--pri" onClick={on.onReopen}>Jarvisを開き直す</button>
+          <button className="sys-btn sys-btn--ghost" onClick={on.onSendReport}>レポートを送信</button>
         </div>
-        <div className="sys-fine">A report helps us fix it. It never includes your screen or file contents, only what crashed.</div>
+        <div className="sys-fine">レポートは修正に役立ちます。画面やファイルの内容は含まれず、クラッシュ内容のみ送信されます。</div>
       </div>
     );
   }
@@ -125,27 +125,27 @@ function TakeoverBody({ kind, on, data }: { kind: TakeoverKind; on: TakeoverHand
   // quota / out-of-tokens
   const tokens = data.quotaTokens ?? "2M";
   const plan = data.quotaPlan ?? "Hosted + AI";
-  const reset = data.resetDate ?? "next cycle";
+  const reset = data.resetDate ?? "次の更新日";
   return (
     <div className="sys-wrap">
       {head}
-      <h2 className="sys-h2">You've used this month's tokens.</h2>
-      <div className="sys-sub">Your {tokens} tokens on {plan} reset on {reset}. Until then, pick one:</div>
+      <h2 className="sys-h2">今月分のトークンを使い切りました。</h2>
+      <div className="sys-sub">{plan}の{tokens}トークンは{reset}にリセットされます。それまでは以下から選択してください:</div>
       <div className="sys-opts">
         <div className="sys-opt">
-          <div className="ot"><div className="otn">Upgrade to Max</div><div className="otd">10M tokens / month</div></div>
-          <span className="op">€79/mo</span>
-          <button className="ob pri" onClick={on.onUpgrade}>Upgrade</button>
+          <div className="ot"><div className="otn">Maxにアップグレード</div><div className="otd">月1000万トークン</div></div>
+          <span className="op">€79/月</span>
+          <button className="ob pri" onClick={on.onUpgrade}>アップグレード</button>
         </div>
         <div className="sys-opt">
-          <div className="ot"><div className="otn">Buy a top-up</div><div className="otd">1M tokens, this cycle</div></div>
+          <div className="ot"><div className="otn">追加購入</div><div className="otd">今サイクル分、100万トークン</div></div>
           <span className="op">€9</span>
-          <button className="ob" onClick={on.onTopUp}>Add</button>
+          <button className="ob" onClick={on.onTopUp}>追加</button>
         </div>
         <div className="sys-opt free">
-          <div className="ot"><div className="otn">Switch to a local model</div><div className="otd">Runs on your machine</div></div>
+          <div className="ot"><div className="otn">ローカルモデルに切り替え</div><div className="otd">このマシン上で動作</div></div>
           <span className="op">€0</span>
-          <button className="ob" onClick={on.onSwitchLocal}>Switch</button>
+          <button className="ob" onClick={on.onSwitchLocal}>切り替え</button>
         </div>
       </div>
     </div>
@@ -161,10 +161,10 @@ export function SystemTakeoverContent({
 }
 
 const TAKEOVER_LABEL: Record<TakeoverKind, string> = {
-  offline: "Can't reach your brain",
-  updating: "Updating Jarvis",
-  crash: "Jarvis stopped unexpectedly",
-  quota: "Out of tokens this month",
+  offline: "頭脳に接続できません",
+  updating: "Jarvisを更新中",
+  crash: "Jarvisが予期せず停止しました",
+  quota: "今月のトークンを使い切りました",
 };
 
 /**
@@ -205,14 +205,14 @@ export type BannerHandlers = {
 };
 
 export function UpdateBanner({ version, on = {} }: { version?: string; on?: BannerHandlers }) {
-  const v = version ?? "A new version";
+  const v = version ?? "新しいバージョン";
   return (
     <div className="sys-bnr info" role="status">
       <span className="bi"><IDown /></span>
-      <span className="bm"><b>Jarvis {v} is ready.</b> Restart to get the latest, or keep working and update later.</span>
+      <span className="bm"><b>Jarvis {v}の準備ができました。</b> 再起動して最新版を適用するか、後で更新できます。</span>
       <span className="ba">
-        <button className="sys-sbtn pri" onClick={on.onRestartUpdate}>Restart &amp; update</button>
-        <button className="sys-sbtn" onClick={on.onLater}>Later</button>
+        <button className="sys-sbtn pri" onClick={on.onRestartUpdate}>再起動して更新</button>
+        <button className="sys-sbtn" onClick={on.onLater}>後で</button>
       </span>
     </div>
   );
@@ -222,7 +222,7 @@ export function ProviderBusyBanner() {
   return (
     <div className="sys-bnr warn" role="status" aria-live="polite">
       <span className="bi"><span className="ratespin"><ISpin /></span></span>
-      <span className="bm"><b>The model provider is busy.</b> Jarvis is retrying, this usually clears in a few seconds.</span>
+      <span className="bm"><b>モデルプロバイダーが混雑しています。</b> 再試行中です。通常は数秒で解消します。</span>
     </div>
   );
 }

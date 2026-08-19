@@ -15,7 +15,9 @@ type ViewMode = "week" | "day";
 // failed/cancelled→red, high→amber, done→green, pending→neutral.
 const PRIORITY_TONE: Record<string, Tone> = { critical: "fail", high: "hold", normal: "mut", low: "mut" };
 const STATUS_TONE: Record<string, Tone> = { done: "ok", completed: "ok", failed: "fail", cancelled: "fail", active: "run", pending: "mut" };
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const PRIORITY_LABEL: Record<string, string> = { critical: "緊急", high: "高", normal: "通常", low: "低" };
+const STATUS_LABEL: Record<string, string> = { done: "完了", completed: "完了", failed: "失敗", cancelled: "キャンセル", active: "実行中", pending: "待機中" };
+const DOW = ["月", "火", "水", "木", "金", "土", "日"];
 
 export type RoomBodyMode = "inline" | "expanded";
 
@@ -91,23 +93,23 @@ export function CalendarRoomBody({ mode }: { mode: RoomBodyMode }) {
   return (
     <div className={`rk-cal rk-cal--${mode}`} style={{ position: "relative" }}>
       <div className="rk-cal__tool">
-        <span className="rk-cal__title">Calendar</span>
+        <span className="rk-cal__title">カレンダー</span>
         {mode === "expanded" && (
-          <Tabs tabs={[{ key: "week", label: "Week" }, { key: "day", label: "Day" }]} active={view} onChange={(k) => setView(k as ViewMode)} />
+          <Tabs tabs={[{ key: "week", label: "週" }, { key: "day", label: "日" }]} active={view} onChange={(k) => setView(k as ViewMode)} />
         )}
         <div className="rk-cal__search">
           <Icon icon={Search} size="sm" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="search events…" aria-label="Search events" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="イベントを検索…" aria-label="イベントを検索" />
         </div>
-        <button className="rk-cal__icbtn" onClick={data.refresh} aria-label="Refresh"><Icon icon={RefreshCw} size="sm" /></button>
-        <button className="rk-cal__new" onClick={() => setCreateOpen(true)}>New event</button>
+        <button className="rk-cal__icbtn" onClick={data.refresh} aria-label="更新"><Icon icon={RefreshCw} size="sm" /></button>
+        <button className="rk-cal__new" onClick={() => setCreateOpen(true)}>新規イベント</button>
       </div>
 
       <div className="rk-cal__nav">
-        <button className="rk-cal__nb" onClick={() => data.goToWeek(-1)} aria-label="Previous week"><Icon icon={ChevronLeft} size="sm" /></button>
-        <button className="rk-cal__nb" onClick={() => data.goToWeek(1)} aria-label="Next week"><Icon icon={ChevronRight} size="sm" /></button>
+        <button className="rk-cal__nb" onClick={() => data.goToWeek(-1)} aria-label="前の週"><Icon icon={ChevronLeft} size="sm" /></button>
+        <button className="rk-cal__nb" onClick={() => data.goToWeek(1)} aria-label="次の週"><Icon icon={ChevronRight} size="sm" /></button>
         <span className="rk-cal__wk">{weekRangeLabel(data.weekStart)}</span>
-        <button className="rk-cal__tw" onClick={data.goToToday}>This week</button>
+        <button className="rk-cal__tw" onClick={data.goToToday}>今週</button>
       </div>
 
       <div className="rk-cal__strip">
@@ -125,8 +127,8 @@ export function CalendarRoomBody({ mode }: { mode: RoomBodyMode }) {
       ) : (
         <div className="rk-cal__body">
           <div className="rk-cal__lanes">
-            <Lane label="tasks" shape="task" events={tasksForDay} selectedId={selectedEventId} onSelect={(id) => setSelectedEventId(selectedEventId === id ? null : id)} />
-            <Lane label="content" shape="content" events={contentForDay} selectedId={selectedEventId} onSelect={(id) => setSelectedEventId(selectedEventId === id ? null : id)} />
+            <Lane label="タスク" shape="task" events={tasksForDay} selectedId={selectedEventId} onSelect={(id) => setSelectedEventId(selectedEventId === id ? null : id)} />
+            <Lane label="コンテンツ" shape="content" events={contentForDay} selectedId={selectedEventId} onSelect={(id) => setSelectedEventId(selectedEventId === id ? null : id)} />
           </div>
           {mode === "expanded" && selectedEvent && (
             <div className="rk-cal__side"><div className="rk-cal__side-inner"><SideDetail event={selectedEvent} onClose={() => setSelectedEventId(null)} /></div></div>
@@ -153,7 +155,7 @@ export function CalendarRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function CalendarRoom() {
   return (
-    <RoomShell title="Calendar" subtitle="this week · commitments" breadcrumb={["Calendar"]}>
+    <RoomShell title="カレンダー" subtitle="今週 · コミットメント" breadcrumb={["カレンダー"]}>
       <CalendarRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -189,7 +191,7 @@ function Lane({ label, shape, events, selectedId, onSelect }: { label: string; s
       <div className="rk-cal__lh"><span className={`cdot${shape === "content" ? " cdot--content" : ""}`} />{label}<span className="c">{events.length}</span></div>
       <div className="rk-cal__lane-scroll">
         {events.length === 0 ? (
-          <div className="rk-cal__lane-empty">Nothing {shape === "task" ? "due" : "scheduled"} this day.</div>
+          <div className="rk-cal__lane-empty">{shape === "task" ? "この日に期限のタスクはありません。" : "この日に予定されたコンテンツはありません。"}</div>
         ) : (
           events.map((e) => <EventCard key={e.id} event={e} selected={selectedId === e.id} onClick={() => onSelect(e.id)} />)
         )}
@@ -201,11 +203,11 @@ function Lane({ label, shape, events, selectedId, onSelect }: { label: string; s
 function EventCard({ event, selected, onClick }: { event: CalendarEvent; selected: boolean; onClick: () => void }) {
   return (
     <button className={`rk-cal__card${selected ? " rk-cal__card--sel" : ""}`} onClick={onClick}>
-      <span className="rk-cal__card-time">{formatTime(event.timestamp)}{event.has_due_date === false ? " · on creation date" : ""}</span>
+      <span className="rk-cal__card-time">{formatTime(event.timestamp)}{event.has_due_date === false ? " · 作成日で表示" : ""}</span>
       <span className="rk-cal__card-title">{event.title}</span>
       <span className="rk-cal__card-chips">
-        <StatusChip tone={STATUS_TONE[event.status] ?? "mut"}>{event.status}</StatusChip>
-        {event.priority && event.type === "commitment" && <StatusChip tone={PRIORITY_TONE[event.priority] ?? "mut"}>{event.priority}</StatusChip>}
+        <StatusChip tone={STATUS_TONE[event.status] ?? "mut"}>{STATUS_LABEL[event.status] ?? event.status}</StatusChip>
+        {event.priority && event.type === "commitment" && <StatusChip tone={PRIORITY_TONE[event.priority] ?? "mut"}>{PRIORITY_LABEL[event.priority] ?? event.priority}</StatusChip>}
         {event.assigned_to && <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--ink3)" }}>→ {event.assigned_to}</span>}
       </span>
     </button>
@@ -219,20 +221,20 @@ function SideDetail({ event, onClose }: { event: CalendarEvent; onClose?: () => 
     <>
       <div style={{ display: "flex", alignItems: "flex-start" }}>
         <div style={{ flex: 1 }}>
-          <div className="rk-cal__eyebrow">{isContent ? "content" : "task"}</div>
+          <div className="rk-cal__eyebrow">{isContent ? "コンテンツ" : "タスク"}</div>
           <div className="rk-cal__side-title">{event.title}</div>
         </div>
-        {onClose && <button className="rk-cal__icbtn" onClick={onClose} aria-label="Close"><Icon icon={X} size="sm" /></button>}
+        {onClose && <button className="rk-cal__icbtn" onClick={onClose} aria-label="閉じる"><Icon icon={X} size="sm" /></button>}
       </div>
-      <div className="rk-cal__kv"><span className="k">when</span><span className="v">{formatFullDateTime(event.timestamp)}</span></div>
-      <div className="rk-cal__kv"><span className="k">{isContent ? "stage" : "status"}</span><span className="v"><StatusChip tone={STATUS_TONE[event.status] ?? "mut"}>{event.status}</StatusChip></span></div>
-      {event.priority && !isContent && <div className="rk-cal__kv"><span className="k">priority</span><span className="v"><StatusChip tone={PRIORITY_TONE[event.priority] ?? "mut"}>{event.priority}</StatusChip></span></div>}
-      {event.content_type && <div className="rk-cal__kv"><span className="k">type</span><span className="v">{event.content_type}</span></div>}
-      {event.assigned_to && <div className="rk-cal__kv"><span className="k">assignee</span><span className="v">{event.assigned_to}</span></div>}
+      <div className="rk-cal__kv"><span className="k">日時</span><span className="v">{formatFullDateTime(event.timestamp)}</span></div>
+      <div className="rk-cal__kv"><span className="k">{isContent ? "ステージ" : "ステータス"}</span><span className="v"><StatusChip tone={STATUS_TONE[event.status] ?? "mut"}>{STATUS_LABEL[event.status] ?? event.status}</StatusChip></span></div>
+      {event.priority && !isContent && <div className="rk-cal__kv"><span className="k">優先度</span><span className="v"><StatusChip tone={PRIORITY_TONE[event.priority] ?? "mut"}>{PRIORITY_LABEL[event.priority] ?? event.priority}</StatusChip></span></div>}
+      {event.content_type && <div className="rk-cal__kv"><span className="k">タイプ</span><span className="v">{event.content_type}</span></div>}
+      {event.assigned_to && <div className="rk-cal__kv"><span className="k">担当</span><span className="v">{event.assigned_to}</span></div>}
       <div className="rk-cal__acts">
-        <DeepLink onClick={() => openRoom(isContent ? "content" : "tasks")}>Open in {isContent ? "Content" : "Tasks"} →</DeepLink>
+        <DeepLink onClick={() => openRoom(isContent ? "content" : "tasks")}>{isContent ? "コンテンツ" : "タスク"}で開く →</DeepLink>
       </div>
-      {event.has_due_date === false && <div className="rk-cal__note">Showing on creation date</div>}
+      {event.has_due_date === false && <div className="rk-cal__note">作成日で表示中</div>}
     </>
   );
 }
@@ -256,13 +258,13 @@ function DayView({ weekStart, idx, events, selectedId, onSelect, selectedEvent }
       <div className="rk-cal__hours">
         {undated.length > 0 && (
           <div className="rk-cal__tray">
-            <span className="rk-cal__tray-lab">due today</span>
+            <span className="rk-cal__tray-lab">本日期限</span>
             {undated.map((e) => <button key={e.id} className={`rk-cal__card${selectedId === e.id ? " rk-cal__card--sel" : ""}`} style={{ padding: "5px 9px" }} onClick={() => onSelect(e.id)}><span className="rk-cal__card-title" style={{ fontSize: 11.5 }}>{e.title}</span></button>)}
           </div>
         )}
         {offGrid.length > 0 && (
           <div className="rk-cal__tray">
-            <span className="rk-cal__tray-lab">earlier / later</span>
+            <span className="rk-cal__tray-lab">時間外</span>
             {offGrid.map((e) => <button key={e.id} className={`rk-cal__card${selectedId === e.id ? " rk-cal__card--sel" : ""}`} style={{ padding: "5px 9px" }} onClick={() => onSelect(e.id)}><span className="rk-cal__card-title" style={{ fontSize: 11.5 }}>{formatTime(e.timestamp)} · {e.title}</span></button>)}
           </div>
         )}
@@ -283,11 +285,11 @@ function DayView({ weekStart, idx, events, selectedId, onSelect, selectedEvent }
               );
             })}
           </div>
-          {nowTop != null && <div className="rk-cal__nowline" style={{ top: nowTop }}><i>now</i></div>}
+          {nowTop != null && <div className="rk-cal__nowline" style={{ top: nowTop }}><i>現在</i></div>}
         </div>
       </div>
       <div className="rk-cal__side-inner">
-        {detail ? <SideDetail event={detail} /> : <div className="rk-cal__side-empty">Select an event to inspect it.</div>}
+        {detail ? <SideDetail event={detail} /> : <div className="rk-cal__side-empty">イベントを選択すると詳細が表示されます。</div>}
       </div>
     </div>
   );
@@ -313,31 +315,31 @@ function CreateDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (i
     <div className="rk-cal__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-cal__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="rk-cal__dialog-head">
-          <div className="rk-cal__dialog-title">New event</div>
-          <div className="rk-cal__dialog-sub">Schedules a task, on the commitment surface Tasks already owns.</div>
+          <div className="rk-cal__dialog-title">新規イベント</div>
+          <div className="rk-cal__dialog-sub">タスク室が管理するコミットメント上にタスクを予定します。</div>
         </div>
         <div className="rk-cal__dialog-body">
           <div>
-            <div className="rk-cal__field-lab">title</div>
-            <input className="rk-cal__dialog-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What's the event?" autoFocus />
+            <div className="rk-cal__field-lab">タイトル</div>
+            <input className="rk-cal__dialog-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="イベントの内容は?" autoFocus />
           </div>
           <div>
-            <div className="rk-cal__field-lab">when</div>
-            <input className="rk-cal__dialog-input" value={when} onChange={(e) => setWhen(e.target.value)} placeholder="e.g. tomorrow at 3pm, next monday" />
-            <div className="rk-cal__parse">{when.trim() ? (parsed ? `→ ${formatFullDateTime(parsed.ts)}` : "Couldn't parse that — leave blank for an undated task.") : "Leave blank for an undated task."}</div>
+            <div className="rk-cal__field-lab">日時</div>
+            <input className="rk-cal__dialog-input" value={when} onChange={(e) => setWhen(e.target.value)} placeholder="例: 明日の15時、来週の月曜日" />
+            <div className="rk-cal__parse">{when.trim() ? (parsed ? `→ ${formatFullDateTime(parsed.ts)}` : "解析できませんでした — 空欄にすると日付なしのタスクになります。") : "空欄にすると日付なしのタスクになります。"}</div>
           </div>
           <div>
-            <div className="rk-cal__field-lab">priority</div>
+            <div className="rk-cal__field-lab">優先度</div>
             <div style={{ display: "flex", gap: 6 }}>
               {(["low", "normal", "high", "critical"] as CalendarPriority[]).map((p) => (
-                <button key={p} className={`rk-cal__sbtn${priority === p ? " rk-cal__sbtn--pri" : ""}`} onClick={() => setPriority(p)}>{p}</button>
+                <button key={p} className={`rk-cal__sbtn${priority === p ? " rk-cal__sbtn--pri" : ""}`} onClick={() => setPriority(p)}>{PRIORITY_LABEL[p]}</button>
               ))}
             </div>
           </div>
         </div>
         <div className="rk-cal__dialog-acts" style={{ padding: "0 18px 16px" }}>
-          <button className="rk-cal__sbtn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="rk-cal__sbtn rk-cal__sbtn--pri" onClick={submit} disabled={busy || !title.trim()}>{busy ? "Creating…" : "Create"}</button>
+          <button className="rk-cal__sbtn" onClick={onClose} disabled={busy}>キャンセル</button>
+          <button className="rk-cal__sbtn rk-cal__sbtn--pri" onClick={submit} disabled={busy || !title.trim()}>{busy ? "作成中…" : "作成"}</button>
         </div>
       </div>
     </div>

@@ -6,11 +6,11 @@ import { Chip } from "../../../ui";
 const REALTIME_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "sage", "shimmer", "verse"];
 
 const REASONING_EFFORTS: ReadonlyArray<{ id: RealtimeReasoningEffort; label: string }> = [
-  { id: "minimal", label: "Minimal - fastest, least deliberate" },
-  { id: "low", label: "Low - default, low latency" },
-  { id: "medium", label: "Medium - balanced" },
-  { id: "high", label: "High - more deliberate" },
-  { id: "xhigh", label: "X-High - most deliberate, highest latency/cost" },
+  { id: "minimal", label: "最小 - 最速・最も簡略" },
+  { id: "low", label: "低 - デフォルト・低遅延" },
+  { id: "medium", label: "中 - バランス型" },
+  { id: "high", label: "高 - より熟考する" },
+  { id: "xhigh", label: "最高 - 最も熟考する・遅延/コスト最大" },
 ];
 
 export function VoiceTab({
@@ -24,22 +24,22 @@ export function VoiceTab({
   const rt = voice?.realtime;
 
   const statusChip = !rt?.enabled
-    ? { label: "Off", tone: undefined }
+    ? { label: "オフ", tone: undefined }
     : rt.available
-      ? { label: "Active", tone: "ok" as const }
-      : { label: "No OpenAI key", tone: "warn" as const };
+      ? { label: "有効", tone: "ok" as const }
+      : { label: "OpenAIキーなし", tone: "warn" as const };
 
   return (
     <div className="v2-set__tabpane">
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Premium Realtime Voice</h3>
+            <h3 className="v2-set__section-title">プレミアム リアルタイムボイス</h3>
             <div className="v2-set__section-sub">
-              Speech-to-speech via OpenAI&apos;s gpt-realtime-2 - lower latency, natural
-              turn-taking, reasons mid-conversation. Reuses the OpenAI provider key from
-              Settings &gt; LLM (you are billed by OpenAI, ~$0.30/min). Off by default;
-              the standard voice pipeline is unaffected.
+              OpenAIのgpt-realtime-2による音声対音声変換 - 低遅延、自然な会話の
+              ターン交代、会話中に推論します。設定 &gt; LLM のOpenAIプロバイダーキーを
+              再利用します（OpenAIから課金され、約$0.30/分）。デフォルトはオフで、
+              標準の音声パイプラインには影響しません。
             </div>
           </div>
           <Chip tone={statusChip.tone}>{statusChip.label}</Chip>
@@ -57,21 +57,21 @@ export function VoiceTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           />
-          <span>Enable premium realtime voice</span>
+          <span>プレミアム リアルタイムボイスを有効化</span>
         </label>
 
         {rt?.enabled && (
           <>
             {!rt.available && (
               <p className="v2-set__hint" data-tone="warn">
-                Enabled, but no OpenAI provider is configured. Add one under Settings &gt; LLM.
-                Until then JARVIS uses the standard voice pipeline.
+                有効化されていますが、OpenAIプロバイダーが設定されていません。設定 &gt; LLM で追加してください。
+                それまではJARVISは標準の音声パイプラインを使用します。
               </p>
             )}
 
             {/* Voice */}
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Voice</label>
+              <label className="v2-set__field-label">音声</label>
               <select
                 className="v2-set__select"
                 value={rt.voice ?? "marin"}
@@ -90,7 +90,7 @@ export function VoiceTab({
 
             {/* Reasoning effort */}
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Reasoning effort</label>
+              <label className="v2-set__field-label">推論の強度</label>
               <select
                 className="v2-set__select"
                 value={rt.reasoning_effort ?? "low"}
@@ -108,14 +108,14 @@ export function VoiceTab({
                 ))}
               </select>
               <p className="v2-set__hint">
-                Higher effort = more deliberate answers, but more latency and cost. Start with
-                Low for everyday use.
+                強度を高めるほど回答は熟考されますが、遅延とコストが増加します。日常使いには
+                「低」から始めてください。
               </p>
             </div>
 
             {/* Cost guards */}
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Max session length (minutes)</label>
+              <label className="v2-set__field-label">最大セッション時間（分）</label>
               <select
                 className="v2-set__select"
                 value={String(rt.max_session_minutes ?? 10)}
@@ -128,19 +128,19 @@ export function VoiceTab({
               >
                 {[5, 10, 15, 30, 60].map((m) => (
                   <option key={m} value={m}>
-                    {m} min
+                    {m}分
                   </option>
                 ))}
               </select>
               <p className="v2-set__hint">
-                A session closes automatically at this limit to cap runaway cost.
+                コストの暴走を防ぐため、この上限に達するとセッションは自動的に終了します。
               </p>
             </div>
 
             <p className="v2-set__hint" data-tone="warn">
-              Continuous audio is streamed to OpenAI while a realtime session is live. Tool calls
-              are auto-approved during realtime sessions (hard denies still apply). Monitor usage
-              at platform.openai.com.
+              リアルタイムセッションが有効な間、音声は継続的にOpenAIへストリーミングされます。
+              リアルタイムセッション中はツール呼び出しが自動承認されます（強制拒否は引き続き適用されます）。
+              使用状況はplatform.openai.comで確認できます。
             </p>
           </>
         )}

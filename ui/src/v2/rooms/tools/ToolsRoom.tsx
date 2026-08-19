@@ -24,7 +24,7 @@ const IMPACT_ORDER: Record<Impact, number> = { read: 0, write: 1, external: 2, d
 
 type Filter = "all" | Impact;
 const FILTER_ORDER: Filter[] = ["all", "read", "write", "external", "destructive"];
-const FILTER_LABEL: Record<Filter, string> = { all: "All", read: "Read", write: "Write", external: "External", destructive: "Destructive" };
+const FILTER_LABEL: Record<Filter, string> = { all: "すべて", read: "読み取り", write: "書き込み", external: "外部", destructive: "破壊的" };
 
 export type RoomBodyMode = "inline" | "expanded";
 
@@ -40,7 +40,7 @@ export function ToolsRoomBody({ mode }: { mode: RoomBodyMode }) {
     fetch("/api/tools")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data: Tool[]) => { if (!cancelled) setTools(Array.isArray(data) ? data : []); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load tools"); });
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "ツールの読み込みに失敗しました"); });
     return () => { cancelled = true; };
   }, []);
 
@@ -84,24 +84,24 @@ export function ToolsRoomBody({ mode }: { mode: RoomBodyMode }) {
         <div className="rk-tools__bar">
           <div className="rk-tools__search">
             <Icon icon={Search} size="sm" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tools…" aria-label="Search tools" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ツールを検索…" aria-label="ツールを検索" />
           </div>
-          <div className="rk-tools__filters" role="tablist" aria-label="Filter by impact">
+          <div className="rk-tools__filters" role="tablist" aria-label="影響範囲で絞り込み">
             {FILTER_ORDER.map((f) => (
               <FilterChip key={f} on={filter === f} onClick={() => setFilter(f)}>{FILTER_LABEL[f]}</FilterChip>
             ))}
           </div>
         </div>
 
-        <div className="rk-tools__scroll" role="listbox" aria-label="Tools">
+        <div className="rk-tools__scroll" role="listbox" aria-label="ツール">
           {error ? (
             <div className="rk-tools__msg">{error}</div>
           ) : tools === null ? (
             <div className="rk-tools__empty"><Skeleton lines={6} /></div>
           ) : filtered.length === 0 ? (
             <div className="rk-tools__empty">
-              <EmptyState title="No tools match">
-                {query ? <>Nothing matches “{query}”. </> : <>No tools in this blast radius. </>}Clear the filter or search a different name.
+              <EmptyState title="一致するツールがありません">
+                {query ? <>"{query}" に一致するものがありません。</> : <>この影響範囲にツールはありません。</>}フィルタを解除するか別の名前で検索してください。
               </EmptyState>
             </div>
           ) : (
@@ -118,7 +118,7 @@ export function ToolsRoomBody({ mode }: { mode: RoomBodyMode }) {
                     <span className="rk-toolrow__desc">{t.description}</span>
                     <span className="rk-toolrow__meta"><span>{t.category}</span><span>·</span><span>{t.actionCategory}</span></span>
                     {mode === "inline" && active && (
-                      <div style={{ marginTop: 6 }}>{t.parameters.length === 0 ? <div className="rk-tool-noparams">No parameters.</div> : <ParamList params={t.parameters} />}</div>
+                      <div style={{ marginTop: 6 }}>{t.parameters.length === 0 ? <div className="rk-tool-noparams">パラメータなし。</div> : <ParamList params={t.parameters} />}</div>
                     )}
                   </span>
                 </button>
@@ -130,7 +130,7 @@ export function ToolsRoomBody({ mode }: { mode: RoomBodyMode }) {
 
       {mode === "expanded" && (
         <div className="rk-tools__detail">
-          {selected ? <ToolDetail tool={selected} /> : <Drawer empty="Select a tool to inspect its parameters." />}
+          {selected ? <ToolDetail tool={selected} /> : <Drawer empty="ツールを選択するとパラメータを確認できます。" />}
         </div>
       )}
     </div>
@@ -144,9 +144,9 @@ export function ToolsRoom() {
     fetch("/api/tools").then((r) => (r.ok ? r.json() : null)).then((data) => { if (!cancelled && Array.isArray(data)) setCount(data.length); }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const subtitle = count === null ? "loading…" : `${count} ${count === 1 ? "tool" : "tools"}`;
+  const subtitle = count === null ? "読み込み中…" : `${count} 件のツール`;
   return (
-    <RoomShell title="Tools" subtitle={subtitle} breadcrumb={["Tools"]}>
+    <RoomShell title="ツール" subtitle={subtitle} breadcrumb={["ツール"]}>
       <ToolsRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -157,11 +157,11 @@ function ToolDetail({ tool }: { tool: Tool }) {
     <Drawer
       title={<span style={{ fontFamily: "var(--mono)" }}>{tool.name}</span>}
       meta={<><StatusChip tone={IMPACT_TONE[tool.impact]}>{tool.impact}</StatusChip><span>{tool.category} · {tool.actionCategory}</span></>}
-      actions={<DeepLink onClick={() => openRoom("authority")}>→ Governed in Authority · {tool.impact}</DeepLink>}
+      actions={<DeepLink onClick={() => openRoom("authority")}>→ 権限で管理 · {tool.impact}</DeepLink>}
     >
       <DrawerText>{tool.description}</DrawerText>
-      <DrawerLabel>parameters</DrawerLabel>
-      {tool.parameters.length === 0 ? <div className="rk-tool-noparams">No parameters.</div> : <ParamList params={tool.parameters} />}
+      <DrawerLabel>パラメータ</DrawerLabel>
+      {tool.parameters.length === 0 ? <div className="rk-tool-noparams">パラメータなし。</div> : <ParamList params={tool.parameters} />}
     </Drawer>
   );
 }
@@ -174,7 +174,7 @@ function ParamList({ params }: { params: Tool["parameters"] }) {
           <div className="rk-tool-param__head">
             <code className="rk-tool-param__name">{p.name}</code>
             <span className="rk-tool-param__type">{p.type}</span>
-            {p.required && <span className="rk-tool-param__req">required</span>}
+            {p.required && <span className="rk-tool-param__req">必須</span>}
           </div>
           {p.description && <div className="rk-tool-param__desc">{p.description}</div>}
         </li>

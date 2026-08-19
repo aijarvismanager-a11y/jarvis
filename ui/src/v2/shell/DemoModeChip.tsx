@@ -17,11 +17,11 @@ export function DemoModeChip() {
     <span
       className="rs-chip bad"
       role="status"
-      aria-label="Demo mode — this deployment is showing non-real data"
-      title="Demo mode: this deployment is showing non-real data, not a live JARVIS instance"
+      aria-label="デモモード — この環境は実データではなく表示用データです"
+      title="デモモード: この環境は実データではなく表示用データを表示しています。稼働中のJARVISではありません"
     >
       <span className="rs-dot" style={{ background: "var(--listen)" }} />
-      demo mode
+      デモ
     </span>
   );
 }

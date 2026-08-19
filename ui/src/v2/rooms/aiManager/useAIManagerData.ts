@@ -159,6 +159,13 @@ interface ActionResult {
   message: string;
 }
 
+const PROJECT_STATUS_MSG_LABEL: Record<ProjectStatus, string> = {
+  active: "実行中",
+  paused: "一時停止",
+  completed: "完了",
+  archived: "アーカイブ済み",
+};
+
 
 /**
  * AI Manager Room hook - loads projects from /api/ai-manager/projects and,
@@ -193,7 +200,7 @@ export function useAIManagerData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects");
+      setError(err instanceof Error ? err.message : "プロジェクトの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -218,7 +225,7 @@ export function useAIManagerData() {
       setAgentPerformance(performanceResp.ok ? ((await performanceResp.json()) as AgentPerformance[]) : []);
       setGithubActivity(githubResp.ok ? ((await githubResp.json()) as GitHubActivityEntry[]) : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project detail");
+      setError(err instanceof Error ? err.message : "プロジェクト詳細の読み込みに失敗しました");
     } finally {
       setDetailLoading(false);
     }
@@ -277,7 +284,7 @@ export function useAIManagerData() {
         setSelectedId(result.project.id);
         return { ok: true, project: result.project };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed to start project" };
+        return { ok: false, message: err instanceof Error ? err.message : "プロジェクトの開始に失敗しました" };
       } finally {
         setRunning(false);
       }
@@ -295,9 +302,9 @@ export function useAIManagerData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refreshProjects();
-        return { ok: true, message: `Project ${status}.` };
+        return { ok: true, message: `プロジェクトを${PROJECT_STATUS_MSG_LABEL[status]}にしました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refreshProjects],
@@ -314,9 +321,9 @@ export function useAIManagerData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refreshProjects();
-        return { ok: true, message: `Cost mode set to ${cost_mode}.` };
+        return { ok: true, message: `コストモードを${cost_mode}に設定しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refreshProjects],
@@ -333,9 +340,9 @@ export function useAIManagerData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refreshProjects();
-        return { ok: true, message: `Execution mode set to ${execution_mode}.` };
+        return { ok: true, message: `実行モードを${execution_mode}に設定しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refreshProjects],
@@ -352,9 +359,9 @@ export function useAIManagerData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refreshProjects();
-        return { ok: true, message: "Rules updated." };
+        return { ok: true, message: "ルールを更新しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refreshProjects],
@@ -374,9 +381,9 @@ export function useAIManagerData() {
         );
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         if (selectedId === projectId) await refreshDetail(projectId);
-        return { ok: true, message: "Task resumed." };
+        return { ok: true, message: "タスクを再開しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed to resume task" };
+        return { ok: false, message: err instanceof Error ? err.message : "タスクの再開に失敗しました" };
       }
     },
     [refreshDetail, selectedId],
@@ -396,7 +403,7 @@ export function useAIManagerData() {
         if (selectedId === projectId) await refreshDetail(projectId);
         return { ok: true, verdict };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Council convene failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "評議会の招集に失敗しました" };
       }
     },
     [refreshDetail, selectedId],
@@ -445,7 +452,7 @@ export function useAIManagerData() {
         if (selectedId) await refreshDetail(selectedId);
         return { ok: true, result };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "GitHub action failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "GitHubアクションに失敗しました" };
       }
     },
     [refreshDetail, selectedId],
@@ -461,9 +468,9 @@ export function useAIManagerData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         if (selectedId === projectId) await refreshDetail(projectId);
-        return { ok: true, message: "Decision recorded." };
+        return { ok: true, message: "決定を記録しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refreshDetail, selectedId],

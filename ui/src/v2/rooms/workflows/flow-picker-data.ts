@@ -44,7 +44,7 @@ export function normalizeFlowsResponse(body: unknown): FlowPickerEntry[] {
     const id = (row as { id?: unknown }).id;
     if (typeof id !== "string" || id.length === 0) continue;
     const raw = (row as { displayName?: unknown }).displayName;
-    const displayName = typeof raw === "string" && raw.length > 0 ? raw : "(unnamed)";
+    const displayName = typeof raw === "string" && raw.length > 0 ? raw : "(名前なし)";
     out.push({ id, displayName });
   }
   return out;

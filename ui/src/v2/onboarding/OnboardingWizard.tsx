@@ -16,9 +16,9 @@ type StepKey =
   | "welcome" | "perms" | "brain" | "hear" | "speak" | "connect" | "interview" | "tour" | "allset";
 
 const STEPS: ReadonlyArray<[StepKey, string]> = [
-  ["welcome", "Welcome"], ["perms", "Permissions"], ["brain", "The brain"],
-  ["hear", "Hearing"], ["speak", "Speaking"], ["connect", "Connect"],
-  ["interview", "The interview"], ["tour", "The tour"], ["allset", "All set"],
+  ["welcome", "ようこそ"], ["perms", "権限"], ["brain", "頭脳"],
+  ["hear", "聞く"], ["speak", "話す"], ["connect", "連携"],
+  ["interview", "インタビュー"], ["tour", "ツアー"], ["allset", "完了"],
 ];
 
 /* — inline SVG glyphs (design I{}) — */
@@ -46,37 +46,37 @@ type Provider = {
   keyLabel?: string; urlLabel?: string; urlPh?: string; models?: string[]; hint?: string;
 };
 const PROVIDERS: Provider[] = [
-  { id: "jarvis", name: "Jarvis AI", abbr: "JA", kind: "no key", soon: true, noConfig: true },
-  { id: "anthropic", name: "Anthropic", abbr: "A", kind: "API key", needsKey: true, optionalBaseUrl: true, keyLabel: "API key", urlLabel: "Custom endpoint URL", urlPh: "https://gateway.example.com", models: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"], hint: "Enable the custom endpoint option to use ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN-style authentication." },
-  { id: "openai", name: "OpenAI", abbr: "O", kind: "API key", needsKey: true, models: ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5-mini", "o4-mini"] },
-  { id: "groq", name: "Groq", abbr: "G", kind: "API key", needsKey: true, models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"] },
-  { id: "gemini", name: "Gemini", abbr: "Ge", kind: "API key", needsKey: true, models: ["gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro"] },
-  { id: "ollama", name: "Ollama", abbr: "Ol", kind: "local", needsBaseUrl: true, urlLabel: "Ollama base URL", urlPh: "http://localhost:11434", models: ["llama3.1", "llama3.2", "mistral", "qwen2.5"] },
-  { id: "openrouter", name: "OpenRouter", abbr: "OR", kind: "API key", needsKey: true, models: ["anthropic/claude-opus-4", "openai/gpt-5.4", "google/gemini-2.5-pro"] },
-  { id: "nvidia", name: "NVIDIA NIM", abbr: "N", kind: "API key", needsKey: true, models: ["meta/llama-3.3-70b-instruct"], hint: "Live model catalog loads from your NVIDIA account." },
-  { id: "openai_compatible", name: "OpenAI-compatible", abbr: "C", kind: "self-hosted", needsBaseUrl: true, freeModel: true, urlLabel: "Base URL", urlPh: "http://localhost:8080/v1", hint: "Any server that speaks /v1/chat/completions: llama.cpp, vLLM, LM Studio, TGI. Include the /v1 suffix." },
-  { id: "litellm", name: "LiteLLM", abbr: "L", kind: "proxy", needsBaseUrl: true, freeModel: true, urlLabel: "LiteLLM proxy URL", urlPh: "http://localhost:4000/v1", hint: "The model below must match an alias defined on your proxy." },
-  { id: "omniroute", name: "OmniRoute", abbr: "Om", kind: "gateway", needsKey: true, keyOptional: true, needsBaseUrl: true, urlLabel: "OmniRoute API URL", urlPh: "http://localhost:20128/v1", models: ["auto"], hint: "Loads every route and combo from your OmniRoute instance. Tool calls and streaming are supported through its OpenAI-compatible API." },
+  { id: "jarvis", name: "Jarvis AI", abbr: "JA", kind: "キー不要", soon: true, noConfig: true },
+  { id: "anthropic", name: "Anthropic", abbr: "A", kind: "APIキー", needsKey: true, optionalBaseUrl: true, keyLabel: "APIキー", urlLabel: "カスタムエンドポイントURL", urlPh: "https://gateway.example.com", models: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"], hint: "カスタムエンドポイントを有効にすると、ANTHROPIC_BASE_URL および ANTHROPIC_AUTH_TOKEN 形式の認証を使用できます。" },
+  { id: "openai", name: "OpenAI", abbr: "O", kind: "APIキー", needsKey: true, models: ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5-mini", "o4-mini"] },
+  { id: "groq", name: "Groq", abbr: "G", kind: "APIキー", needsKey: true, models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"] },
+  { id: "gemini", name: "Gemini", abbr: "Ge", kind: "APIキー", needsKey: true, models: ["gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro"] },
+  { id: "ollama", name: "Ollama", abbr: "Ol", kind: "ローカル", needsBaseUrl: true, urlLabel: "Ollamaベース URL", urlPh: "http://localhost:11434", models: ["llama3.1", "llama3.2", "mistral", "qwen2.5"] },
+  { id: "openrouter", name: "OpenRouter", abbr: "OR", kind: "APIキー", needsKey: true, models: ["anthropic/claude-opus-4", "openai/gpt-5.4", "google/gemini-2.5-pro"] },
+  { id: "nvidia", name: "NVIDIA NIM", abbr: "N", kind: "APIキー", needsKey: true, models: ["meta/llama-3.3-70b-instruct"], hint: "モデルカタログはあなたのNVIDIAアカウントからリアルタイムで読み込まれます。" },
+  { id: "openai_compatible", name: "OpenAI-compatible", abbr: "C", kind: "セルフホスト", needsBaseUrl: true, freeModel: true, urlLabel: "ベースURL", urlPh: "http://localhost:8080/v1", hint: "/v1/chat/completions に対応するサーバーなら何でも: llama.cpp、vLLM、LM Studio、TGI。/v1 サフィックスを含めてください。" },
+  { id: "litellm", name: "LiteLLM", abbr: "L", kind: "プロキシ", needsBaseUrl: true, freeModel: true, urlLabel: "LiteLLMプロキシURL", urlPh: "http://localhost:4000/v1", hint: "以下のモデルはプロキシで定義したエイリアスと一致させてください。" },
+  { id: "omniroute", name: "OmniRoute", abbr: "Om", kind: "ゲートウェイ", needsKey: true, keyOptional: true, needsBaseUrl: true, urlLabel: "OmniRoute API URL", urlPh: "http://localhost:20128/v1", models: ["auto"], hint: "OmniRouteインスタンスからすべてのルートとコンボを読み込みます。OpenAI互換APIを通じてツール呼び出しとストリーミングに対応しています。" },
 ];
 
 const EDGE_VOICES = [
-  { label: "Aria · US Female", id: "en-US-AriaNeural" },
-  { label: "Guy · US Male", id: "en-US-GuyNeural" },
-  { label: "Sonia · UK Female", id: "en-GB-SoniaNeural" },
-  { label: "Natasha · AU Female", id: "en-AU-NatashaNeural" },
-  { label: "Jenny · US Female", id: "en-US-JennyNeural" },
-  { label: "Davis · US Male", id: "en-US-DavisNeural" },
+  { label: "Aria · 米国女性", id: "en-US-AriaNeural" },
+  { label: "Guy · 米国男性", id: "en-US-GuyNeural" },
+  { label: "Sonia · 英国女性", id: "en-GB-SoniaNeural" },
+  { label: "Natasha · 豪州女性", id: "en-AU-NatashaNeural" },
+  { label: "Jenny · 米国女性", id: "en-US-JennyNeural" },
+  { label: "Davis · 米国男性", id: "en-US-DavisNeural" },
 ];
 
 // ElevenLabs premade voice ids — stable, no /voices call needed (so a key
 // that can synthesize but lacks the voices_read scope still works).
 const ELEVEN_PREMADE = [
-  { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel · calm" },
-  { voice_id: "AZnzlk1XvdvUeBnXmlld", name: "Domi · strong" },
-  { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Bella · soft" },
-  { voice_id: "ErXwobaYiN019PkySvjV", name: "Antoni · warm" },
-  { voice_id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli · emotional" },
-  { voice_id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh · deep" },
+  { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel · 落ち着いた声" },
+  { voice_id: "AZnzlk1XvdvUeBnXmlld", name: "Domi · 力強い声" },
+  { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Bella · 柔らかい声" },
+  { voice_id: "ErXwobaYiN019PkySvjV", name: "Antoni · 温かい声" },
+  { voice_id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli · 感情豊かな声" },
+  { voice_id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh · 低い声" },
 ];
 
 const IS_MAC = typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.userAgent || (navigator as { platform?: string }).platform || "");
@@ -99,11 +99,11 @@ async function playPreviewAudio(res: Response): Promise<void> {
 }
 
 const TOUR = [
-  { sm: "This is the Pebble, your companion. It lives at your cursor. Click it any time to talk to me.", t: "→ Click the Pebble to try", pos: { right: 18, bottom: 50 } },
-  { sm: "Press ⌘J to summon Talk, the conversation panel. Everything we say lives there, across sessions.", t: "→ Press ⌘J", pos: { right: 18, top: 60 } },
-  { sm: "The Index, on the left, is every room. Names spelled out, badges flag what needs you. Recognition over recall.", t: "", pos: { left: 130, top: 58 } },
-  { sm: "Now is your monitoring surface: what I’m doing and what’s waiting on you, at a glance.", t: "", pos: { left: 130, top: 104 } },
-  { sm: "Authority is your control panel, with a kill-switch. Nothing with real-world impact happens without your yes.", t: "", pos: { left: 130, top: 150 } },
+  { sm: "これがペブル、あなたの相棒です。カーソルのそばに常駐します。いつでもクリックして私に話しかけてください。", t: "→ ペブルをクリックして試す", pos: { right: 18, bottom: 50 } },
+  { sm: "⌘Jを押すと会話パネル「Talk」が開きます。私たちのやり取りはすべてここに、セッションを越えて残ります。", t: "→ ⌘Jを押す", pos: { right: 18, top: 60 } },
+  { sm: "左側のインデックスはすべてのルームです。名前が明示され、バッジがあなたの対応が必要な項目を知らせます。記憶より認識を優先します。", t: "", pos: { left: 130, top: 58 } },
+  { sm: "Nowは監視画面です。私が何をしているか、あなたを待っているものが一目でわかります。", t: "", pos: { left: 130, top: 104 } },
+  { sm: "Authorityはキルスイッチを備えたコントロールパネルです。現実世界に影響する操作は、あなたの承認なしには一切行われません。", t: "", pos: { left: 130, top: 150 } },
 ];
 
 type TestState = { status: "idle" | "testing" | "ok" | "err"; msg?: string; validatedModel?: string };
@@ -308,12 +308,12 @@ export function OnboardingWizard({
       const testModel = modelForOnboardingTest(provId, customEndpoint, model, discoveredModels);
       if (testModel) body.model = testModel;
       if (prov.needsKey) {
-        if (!apiKey && !prov.keyOptional) { setTest({ status: "err", msg: "Enter an API key first." }); return; }
+        if (!apiKey && !prov.keyOptional) { setTest({ status: "err", msg: "先にAPIキーを入力してください。" }); return; }
         if (apiKey) body.api_key = apiKey;
       }
-      if (prov.needsBaseUrl) { if (!baseUrl.trim()) { setTest({ status: "err", msg: "Enter a base URL first." }); return; } body.base_url = baseUrl.trim(); }
+      if (prov.needsBaseUrl) { if (!baseUrl.trim()) { setTest({ status: "err", msg: "先にベースURLを入力してください。" }); return; } body.base_url = baseUrl.trim(); }
       if (prov.optionalBaseUrl && customEndpoint) {
-        if (!baseUrl.trim()) { setTest({ status: "err", msg: "Enter a custom endpoint URL first." }); return; }
+        if (!baseUrl.trim()) { setTest({ status: "err", msg: "先にカスタムエンドポイントURLを入力してください。" }); return; }
         body.base_url = baseUrl.trim();
       }
       if ((provId === "openai_compatible" || provId === "litellm") && apiKey) body.api_key = apiKey;
@@ -330,10 +330,10 @@ export function OnboardingWizard({
           setModel(validatedModel);
         }
       }
-      else setTest({ status: "err", msg: data.error ?? "Test failed." });
+      else setTest({ status: "err", msg: data.error ?? "テストに失敗しました。" });
     } catch (e) {
       if (epoch !== testEpoch.current) return;
-      setTest({ status: "err", msg: e instanceof Error ? e.message : "Test failed." });
+      setTest({ status: "err", msg: e instanceof Error ? e.message : "テストに失敗しました。" });
     }
   }, [provId, model, apiKey, baseUrl, customEndpoint, discoveredModels, prov]);
 
@@ -368,7 +368,7 @@ export function OnboardingWizard({
       if (!r.ok) throw new Error((await r.text().catch(() => "")) || `HTTP ${r.status}`);
       go(5);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Setup failed.");
+      setError(e instanceof Error ? e.message : "セットアップに失敗しました。");
     } finally { setBusy(false); }
   }, [prov, provId, apiKey, baseUrl, customEndpoint, model, test, tts, edgeVoice, elevenKey, elevenVoice, elevenModel, stt, sttKey, sttEndpoint]);
 
@@ -380,7 +380,7 @@ export function OnboardingWizard({
       onComplete();
     } catch (e) {
       // Closing anyway would replay onboarding next launch — surface it instead.
-      setError(e instanceof Error && e.message ? `Couldn't save the skip: ${e.message}` : "Couldn't reach the daemon — try again.");
+      setError(e instanceof Error && e.message ? `スキップの保存に失敗しました: ${e.message}` : "デーモンに接続できませんでした — もう一度お試しください。");
     } finally { setBusy(false); }
   }, [onComplete]);
 
@@ -389,20 +389,20 @@ export function OnboardingWizard({
   // sample), so it validates the key without depending on the voices-list
   // scope. If it 401s, the key is genuinely bad.
   const testElevenLabs = useCallback(async () => {
-    if (!elevenKey.trim()) { setTtsTest({ status: "err", msg: "Paste your ElevenLabs key first." }); return; }
+    if (!elevenKey.trim()) { setTtsTest({ status: "err", msg: "先にElevenLabsのキーを貼り付けてください。" }); return; }
     setTtsTest({ status: "testing" });
     try {
       const r = await fetch("/api/tts/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "elevenlabs", api_key: elevenKey.trim(), voice_id: elevenVoice, model: elevenModel }) });
       if (!r.ok) {
         const t = await r.json().catch(() => ({ error: "" })) as { error?: string };
-        const m = (t.error || "").includes("401") ? "ElevenLabs rejected this key. Check it's valid and has text-to-speech access." : (t.error || "Test failed.").slice(0, 90);
+        const m = (t.error || "").includes("401") ? "ElevenLabsがこのキーを拒否しました。有効でtext-to-speechの権限があるか確認してください。" : (t.error || "テストに失敗しました。").slice(0, 90);
         setTtsTest({ status: "err", msg: m });
         return;
       }
       await playPreviewAudio(r);
-      setTtsTest({ status: "ok", msg: "voice ready" });
+      setTtsTest({ status: "ok", msg: "音声準備完了" });
     } catch (e) {
-      setTtsTest({ status: "err", msg: e instanceof Error ? e.message : "Test failed." });
+      setTtsTest({ status: "err", msg: e instanceof Error ? e.message : "テストに失敗しました。" });
     }
   }, [elevenKey, elevenVoice, elevenModel]);
 
@@ -420,8 +420,8 @@ export function OnboardingWizard({
         setGoogleState("idle");
         setConnectErr(
           (d.error || "").toLowerCase().includes("credential")
-            ? "Google needs its API credentials first. Add them in Settings → Integrations, then connect here."
-            : (d.error || "Couldn't start Google sign-in.").slice(0, 120),
+            ? "GoogleのAPI認証情報が先に必要です。設定 → 連携で追加してから、ここで接続してください。"
+            : (d.error || "Googleサインインを開始できませんでした。").slice(0, 120),
         );
         return;
       }
@@ -429,12 +429,12 @@ export function OnboardingWizard({
       if (!win) {
         // No popup → no sign-in in flight; don't sit in "Connecting…" polling.
         setGoogleState("idle");
-        setConnectErr("Your browser blocked the sign-in window. Allow pop-ups, or open Settings → Integrations to connect.");
+        setConnectErr("ブラウザがサインインウィンドウをブロックしました。ポップアップを許可するか、設定 → 連携から接続してください。");
         return;
       }
     } catch {
       setGoogleState("idle");
-      setConnectErr("Couldn't reach the daemon to start Google sign-in.");
+      setConnectErr("Googleサインインの開始でデーモンに接続できませんでした。");
       return;
     }
     let tries = 0;
@@ -471,9 +471,9 @@ export function OnboardingWizard({
       // treat that as a failure so the wizard doesn't claim "connected".
       const body = r.ok ? await r.json().catch(() => null) as { ok?: boolean; message?: string } | null : null;
       if (r.ok && body?.ok !== false) { setConnected((c) => new Set(c).add("telegram")); setTgOpen(false); setTgToken(""); }
-      else if (r.ok) setConnectErr((body?.message || "Telegram token saved, but the bot couldn't connect.").slice(0, 120));
-      else setConnectErr(((await r.text().catch(() => "")) || `Couldn't save the Telegram token (HTTP ${r.status}).`).slice(0, 120));
-    } catch { setConnectErr("Couldn't reach the daemon to save the Telegram token."); }
+      else if (r.ok) setConnectErr((body?.message || "Telegramトークンは保存されましたが、ボットが接続できませんでした。").slice(0, 120));
+      else setConnectErr(((await r.text().catch(() => "")) || `Telegramトークンを保存できませんでした (HTTP ${r.status})。`).slice(0, 120));
+    } catch { setConnectErr("Telegramトークンの保存でデーモンに接続できませんでした。"); }
     finally { setTgBusy(false); }
   }, [tgToken]);
 
@@ -486,7 +486,7 @@ export function OnboardingWizard({
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       go(8);
     } catch {
-      setError("Couldn't reach the daemon to save your progress — try again.");
+      setError("進行状況の保存でデーモンに接続できませんでした — もう一度お試しください。");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -517,7 +517,7 @@ export function OnboardingWizard({
       <div className="obw-steps">
         {STEPS.map((_, i) => <i key={i} className={i < step ? "done" : i === step ? "cur" : ""} />)}
       </div>
-      <div className="obw-steplab">Step {step + 1} of 9 · {STEPS[step]![1]}</div>
+      <div className="obw-steplab">ステップ {step + 1} / 9 · {STEPS[step]![1]}</div>
     </>
   );
 
@@ -531,7 +531,7 @@ export function OnboardingWizard({
     <div className="obw">
       <div className="obw-bar">
         <i /><i /><i />
-        <span className="obw-wt">{key === "welcome" || key === "interview" || key === "tour" || key === "allset" ? "Jarvis" : "Jarvis · Setup"}</span>
+        <span className="obw-wt">{key === "welcome" || key === "interview" || key === "tour" || key === "allset" ? "Jarvis" : "Jarvis · セットアップ"}</span>
       </div>
       {progress}
 
@@ -555,19 +555,19 @@ export function OnboardingWizard({
             {drop("", 60)}
           </div>
           <div className="obw-word" style={{ fontSize: 15, marginBottom: 11 }}><span className="u">use</span>jarvis</div>
-          <h2>This is your Jarvis.</h2>
+          <h2>これがあなたのJarvisです。</h2>
           <div className="obw-sub" style={{ maxWidth: "34ch", margin: "9px auto 0" }}>
-            Let’s spend about five minutes setting it up: what it can touch, the brain and voice it runs on, and a little about you. You can skip anything and finish later.
+            5分ほどかけて設定しましょう: 何に触れられるか、動作する頭脳と声、そしてあなたについて少し。いつでもスキップして後で仕上げられます。
           </div>
           <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 11, alignItems: "center" }}>
-            <div className="obw-themelab">Choose your look</div>
+            <div className="obw-themelab">見た目を選択</div>
             <div className="obw-themeseg">
-              <button className={themePreference === "light" ? "on" : ""} onClick={() => setThemePreference("light")}>Light</button>
-              <button className={themePreference === "dark" ? "on" : ""} onClick={() => setThemePreference("dark")}>Dark</button>
-              <button className={themePreference === "system" ? "on" : ""} onClick={() => setThemePreference("system")}>System</button>
+              <button className={themePreference === "light" ? "on" : ""} onClick={() => setThemePreference("light")}>ライト</button>
+              <button className={themePreference === "dark" ? "on" : ""} onClick={() => setThemePreference("dark")}>ダーク</button>
+              <button className={themePreference === "system" ? "on" : ""} onClick={() => setThemePreference("system")}>システム</button>
             </div>
-            <button className="obw-btn obw-btn-pri" style={{ minWidth: 208, marginTop: 8 }} onClick={next}>Set up Jarvis</button>
-            <button className="obw-skip" disabled={busy} onClick={skipAll}>I’ll do this later</button>
+            <button className="obw-btn obw-btn-pri" style={{ minWidth: 208, marginTop: 8 }} onClick={next}>Jarvisをセットアップ</button>
+            <button className="obw-skip" disabled={busy} onClick={skipAll}>後で行う</button>
             {error && <div className="obw-hint" style={{ color: "var(--listen)" }}>{error}</div>}
           </div>
         </div></div>
@@ -575,35 +575,35 @@ export function OnboardingWizard({
 
       case "perms": {
         const rows: Array<[string, string, string, boolean]> = [
-          ["access", "Accessibility", "Click, type, and read on-screen controls so Jarvis can operate your apps.", true],
-          ["screen", "Screen Recording", "See your screen for Awareness: OCR, and noticing when you’re stuck.", false],
-          ["auto", "Automation", "Drive other apps directly: your calendar, browser, and mail.", false],
-          ["files", "Files & Folders", "Read and write the files and folders you point it at.", false],
+          ["access", "アクセシビリティ", "Jarvisがあなたのアプリを操作できるよう、クリック・入力・画面読み取りを許可します。", true],
+          ["screen", "画面収録", "Awarenessのために画面を見ます: OCR、そしてあなたが行き詰まったときの検知。", false],
+          ["auto", "自動化", "カレンダー、ブラウザ、メールなど他のアプリを直接操作します。", false],
+          ["files", "ファイルとフォルダ", "指定したファイルやフォルダの読み書きを行います。", false],
         ];
         return (
           <div className="obw-body"><div className="obw-wrap wide">
-            <h2>Let Jarvis reach your machine.</h2>
-            <div className="obw-sub">It acts on your computer through these. Jarvis can’t grant them itself (the OS won’t let it), so each one opens the exact settings pane. Grant what you’re comfortable with, or approve later when your {IS_MAC ? "Mac" : "PC"} asks.</div>
+            <h2>Jarvisにあなたのマシンへのアクセスを許可する。</h2>
+            <div className="obw-sub">Jarvisはこれらを通じてあなたのコンピューター上で動作します。Jarvis自身では権限を付与できないため(OSが許可しません)、それぞれが該当の設定画面を開きます。安心できるものだけ許可するか、{IS_MAC ? "Mac" : "PC"}が確認を求めたときに後で承認してください。</div>
             <div className="obw-rows" style={{ marginTop: 16 }}>
               {rows.map(([id, name, body, req]) => (
                 <button key={id} type="button" className="obw-prow" style={{ cursor: "pointer", textAlign: "left", width: "100%", background: "var(--raise)" }}
                   onClick={() => { try { window.open((IS_MAC ? PERM_PANE[id]?.mac : PERM_PANE[id]?.win) || "", "_blank"); } catch { /* webview may block the scheme */ } }}>
                   <span className="pg"><Glyph k={id} /></span>
-                  <div className="pt"><div className="pn">{name}{req && <span className="req">required</span>}</div><div className="pb">{body}</div></div>
-                  <span className="obw-grant" style={{ pointerEvents: "none" }}>Open settings ↗</span>
+                  <div className="pt"><div className="pn">{name}{req && <span className="req">必須</span>}</div><div className="pb">{body}</div></div>
+                  <span className="obw-grant" style={{ pointerEvents: "none" }}>設定を開く ↗</span>
                 </button>
               ))}
             </div>
-            <div className="obw-hint" style={{ marginTop: 12 }}>Review or revoke any of these anytime in {IS_MAC ? "System Settings → Privacy & Security" : "Windows Settings → Privacy & security"}, or from Settings → Permissions.</div>
-            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>Back</button><span className="grow" /><button className="obw-btn obw-btn-pri" onClick={next}>Continue</button></div>
+            <div className="obw-hint" style={{ marginTop: 12 }}>{IS_MAC ? "システム設定 → プライバシーとセキュリティ" : "Windows設定 → プライバシーとセキュリティ"}、または設定 → 権限からいつでも確認・取り消しできます。</div>
+            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>戻る</button><span className="grow" /><button className="obw-btn obw-btn-pri" onClick={next}>続ける</button></div>
           </div></div>
         );
       }
 
       case "brain": return (
         <div className="obw-body"><div className="obw-wrap wide">
-          <h2>Pick a brain for Jarvis.</h2>
-          <div className="obw-sub">Bring your own: Ollama runs locally with no key, or add an API key for Anthropic, OpenAI, and more. Jarvis AI, our hosted brain, is coming soon. Change it anytime in Settings.</div>
+          <h2>Jarvisの頭脳を選択してください。</h2>
+          <div className="obw-sub">自前のものを持ち込む: Ollamaはキー不要でローカル動作、またはAnthropic、OpenAIなどのAPIキーを追加します。ホスト型頭脳のJarvis AIは近日公開予定です。設定からいつでも変更できます。</div>
           <div className="obw-provgrid" style={{ marginTop: 14 }}>
             {PROVIDERS.map((p) => (
               <button
@@ -615,29 +615,29 @@ export function OnboardingWizard({
               >
                 <span className="pd">{p.abbr}</span>
                 <div>
-                  <div className="pn">{p.name}{p.soon && <span className="obw-soon">Soon</span>}</div>
-                  <div className="pk">{p.soon ? "coming soon" : p.kind}</div>
+                  <div className="pn">{p.name}{p.soon && <span className="obw-soon">近日公開</span>}</div>
+                  <div className="pk">{p.soon ? "近日公開" : p.kind}</div>
                 </div>
               </button>
             ))}
           </div>
           <div className="obw-provdetail">{renderProvDetail()}</div>
-          <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>Back</button><span className="grow" /><button className="obw-btn obw-btn-pri" disabled={!brainReady} onClick={next}>Continue</button></div>
-          {!brainReady && !prov.noConfig && <div className="obw-hint" style={{ marginTop: 8 }}>Test the connection to continue.</div>}
+          <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>戻る</button><span className="grow" /><button className="obw-btn obw-btn-pri" disabled={!brainReady} onClick={next}>続ける</button></div>
+          {!brainReady && !prov.noConfig && <div className="obw-hint" style={{ marginTop: 8 }}>接続をテストして続けてください。</div>}
         </div></div>
       );
 
       case "hear": {
         const opts: Array<["skip" | "openai" | "groq" | "local", string, string, string]> = [
-          ["skip", "micoff", "Skip for now", "Text only. Wire up speech later from Settings."],
-          ["openai", "mic", "OpenAI Whisper", "Cloud Whisper. Accurate, needs an OpenAI key."],
-          ["groq", "mic", "Groq Whisper", "Fastest hosted Whisper. Needs a Groq key."],
-          ["local", "mic", "Local Whisper.cpp", "Runs on your machine. No key needed."],
+          ["skip", "micoff", "今はスキップ", "テキストのみ。後で設定から音声を設定できます。"],
+          ["openai", "mic", "OpenAI Whisper", "クラウドWhisper。高精度、OpenAIキーが必要です。"],
+          ["groq", "mic", "Groq Whisper", "最速のホスト型Whisper。Groqキーが必要です。"],
+          ["local", "mic", "ローカル Whisper.cpp", "あなたのマシン上で動作します。キー不要です。"],
         ];
         return (
           <div className="obw-body"><div className="obw-wrap wide">
-            <h2>How should Jarvis hear you?</h2>
-            <div className="obw-sub">Speech to text powers voice messages and the mic button. Skip if you only plan to type; wire it up later in Settings.</div>
+            <h2>Jarvisはどうやってあなたの声を聞くべきですか?</h2>
+            <div className="obw-sub">音声認識(Speech to text)は音声メッセージとマイクボタンを支えます。入力のみで使う予定ならスキップし、後で設定から設定してください。</div>
             <div className="obw-choices" style={{ marginTop: 14 }}>
               {opts.map(([v, ic, nm, bd]) => (
                 <button key={v} className={`obw-choice ${stt === v ? "on" : ""}`} onClick={() => setStt(v)}>
@@ -648,27 +648,27 @@ export function OnboardingWizard({
               ))}
             </div>
             {(stt === "openai" || stt === "groq") && (
-              <div className="obw-subctl"><input className="obw-inp" type="password" placeholder={`paste your ${stt === "openai" ? "OpenAI" : "Groq"} key`} value={sttKey} onChange={(e) => setSttKey(e.target.value)} /></div>
+              <div className="obw-subctl"><input className="obw-inp" type="password" placeholder={`${stt === "openai" ? "OpenAI" : "Groq"}のキーを貼り付け`} value={sttKey} onChange={(e) => setSttKey(e.target.value)} /></div>
             )}
             {stt === "local" && (
               <div className="obw-subctl"><input className="obw-inp" placeholder="http://localhost:8080" value={sttEndpoint} onChange={(e) => setSttEndpoint(e.target.value)} /></div>
             )}
             {stt !== "skip" && <MicLevelCheck />}
-            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>Back</button><span className="grow" /><button className="obw-btn obw-btn-pri" onClick={next}>Continue</button></div>
+            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>戻る</button><span className="grow" /><button className="obw-btn obw-btn-pri" onClick={next}>続ける</button></div>
           </div></div>
         );
       }
 
       case "speak": {
         const opts: Array<["off" | "edge" | "elevenlabs", string, string, string]> = [
-          ["off", "voloff", "No voice", "Text replies only. Lightest option."],
-          ["edge", "vol", "Edge TTS", "Free, clean, ships with Jarvis. Pick a voice below."],
-          ["elevenlabs", "vol", "ElevenLabs", "Higher fidelity. Needs an ElevenLabs key."],
+          ["off", "voloff", "音声なし", "テキスト返信のみ。最も軽量な選択肢。"],
+          ["edge", "vol", "Edge TTS", "無料でクリア、Jarvisに標準搭載。下から声を選択。"],
+          ["elevenlabs", "vol", "ElevenLabs", "より高音質。ElevenLabsキーが必要です。"],
         ];
         return (
           <div className="obw-body"><div className="obw-wrap wide">
-            <h2>Should Jarvis speak to you?</h2>
-            <div className="obw-sub">Voice replies are optional. Hear a voice before you choose; you can change this in Settings later.</div>
+            <h2>Jarvisはあなたに話しかけるべきですか?</h2>
+            <div className="obw-sub">音声応答は任意です。選ぶ前に声を試聴できます。後で設定から変更できます。</div>
             <div className="obw-choices" style={{ marginTop: 14 }}>
               {opts.map(([v, ic, nm, bd]) => (
                 <button key={v} className={`obw-choice ${tts === v ? "on" : ""}`} onClick={() => setTts(v)}>
@@ -684,7 +684,7 @@ export function OnboardingWizard({
                   {EDGE_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>
                 <span className={`obw-drop ${previewing ? "s-speak" : ""}`} style={{ width: 24, height: 24, flexShrink: 0 }}><span className="in" /></span>
-                <button className="obw-btn obw-btn-ghost sm" disabled={previewing} onClick={preview}>{previewing ? "Playing…" : "Preview"}</button>
+                <button className="obw-btn obw-btn-ghost sm" disabled={previewing} onClick={preview}>{previewing ? "再生中…" : "試聴"}</button>
                 {previewing && <span className="obw-wave">{Array.from({ length: 5 }, (_, i) => <b key={i} style={{ animationDelay: `${(i * 0.12).toFixed(2)}s` }} />)}</span>}
               </div>
             )}
@@ -695,39 +695,39 @@ export function OnboardingWizard({
                     {ELEVEN_PREMADE.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.name}</option>)}
                   </select>
                   <select className="obw-inp" style={{ width: 148 }} value={elevenModel} onChange={(e) => setElevenModel(e.target.value)}>
-                    <option value="eleven_flash_v2_5">Flash v2.5 (fast)</option>
+                    <option value="eleven_flash_v2_5">Flash v2.5 (高速)</option>
                     <option value="eleven_multilingual_v2">Multilingual v2</option>
                     <option value="eleven_turbo_v2_5">Turbo v2.5</option>
                   </select>
                 </div>
                 <div className="obw-subctl" style={{ flexWrap: "wrap" }}>
-                  <input className="obw-inp" type="password" style={{ flex: 1, minWidth: 180 }} placeholder="paste your ElevenLabs key" value={elevenKey} onChange={(e) => setElevenKey(e.target.value)} />
-                  <button className="obw-btn obw-btn-ghost sm" disabled={ttsTest.status === "testing" || !elevenKey.trim()} onClick={testElevenLabs}>{ttsTest.status === "testing" ? "Testing…" : "Test & hear"}</button>
+                  <input className="obw-inp" type="password" style={{ flex: 1, minWidth: 180 }} placeholder="ElevenLabsのキーを貼り付け" value={elevenKey} onChange={(e) => setElevenKey(e.target.value)} />
+                  <button className="obw-btn obw-btn-ghost sm" disabled={ttsTest.status === "testing" || !elevenKey.trim()} onClick={testElevenLabs}>{ttsTest.status === "testing" ? "テスト中…" : "テストして試聴"}</button>
                   <span className={`obw-drop ${previewing ? "s-speak" : ""}`} style={{ width: 24, height: 24, flexShrink: 0 }}><span className="in" /></span>
-                  {ttsTest.status === "ok" && <span className="obw-testres ok"><span className="dot" />Connected · {ttsTest.msg}</span>}
+                  {ttsTest.status === "ok" && <span className="obw-testres ok"><span className="dot" />接続済み · {ttsTest.msg}</span>}
                   {ttsTest.status === "err" && <span className="obw-testres err"><span className="dot" />{ttsTest.msg}</span>}
                 </div>
               </div>
             )}
             {error && <div className="obw-hint" style={{ color: "var(--listen)", marginTop: 10 }}>{error}</div>}
-            {!speakReady && <div className="obw-hint" style={{ marginTop: 10 }}>Test your ElevenLabs key and pick a voice to continue.</div>}
-            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>Back</button><span className="grow" /><button className="obw-btn obw-btn-pri" disabled={busy || !speakReady} onClick={saveSetup}>{busy ? "Setting up…" : "Continue"}</button></div>
+            {!speakReady && <div className="obw-hint" style={{ marginTop: 10 }}>続けるにはElevenLabsのキーをテストして声を選んでください。</div>}
+            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>戻る</button><span className="grow" /><button className="obw-btn obw-btn-pri" disabled={busy || !speakReady} onClick={saveSetup}>{busy ? "セットアップ中…" : "続ける"}</button></div>
           </div></div>
         );
       }
 
       case "connect": {
         const rows: Array<[string, string, string, string, boolean]> = [
-          ["google", "calendar", "Google Calendar", "Read your schedule and add holds.", false],
-          ["gmail", "mail", "Gmail", "Triage and draft, with your approval.", false],
-          ["telegram", "send", "Telegram", "Talk to Jarvis from your phone.", false],
-          ["discord", "chat", "Discord", "In the code as a stub today.", true],
-          ["whatsapp", "chat", "WhatsApp", "In the code as a stub today.", true],
+          ["google", "calendar", "Google カレンダー", "予定を読み取り、予約枠を追加します。", false],
+          ["gmail", "mail", "Gmail", "承認のもとで振り分けと下書きを行います。", false],
+          ["telegram", "send", "Telegram", "スマートフォンからJarvisと話せます。", false],
+          ["discord", "chat", "Discord", "現在コード上はスタブです。", true],
+          ["whatsapp", "chat", "WhatsApp", "現在コード上はスタブです。", true],
         ];
         return (
           <div className="obw-body"><div className="obw-wrap wide">
-            <h2>Connect your world.</h2>
-            <div className="obw-sub">Hook up the apps Jarvis should know about. All optional, all revocable from Settings.</div>
+            <h2>あなたの世界とつなげる。</h2>
+            <div className="obw-sub">Jarvisに知っておいてほしいアプリを連携します。すべて任意で、設定からいつでも解除できます。</div>
             <div className="obw-rows" style={{ marginTop: 14 }}>
               {rows.map(([id, ic, nm, bd, soon]) => {
                 const isGoogle = id === "google" || id === "gmail";
@@ -736,19 +736,19 @@ export function OnboardingWizard({
                   <div key={id} className="obw-prow" style={{ flexWrap: "wrap" }}>
                     <span className="pg"><Glyph k={ic} /></span>
                     <div className="pt"><div className="pn">{nm}</div><div className="pb">{bd}</div></div>
-                    {soon ? <span className="obw-pill">Soon</span>
-                      : isConnected ? <span className="obw-granted"><Glyph k="check" />Connected</span>
+                    {soon ? <span className="obw-pill">近日公開</span>
+                      : isConnected ? <span className="obw-granted"><Glyph k="check" />接続済み</span>
                       : isGoogle ? (
                         googleState === "pending"
-                          ? <button className="obw-grant" onClick={cancelGoogle} title="Stop waiting for the sign-in">Connecting… ✕</button>
-                          : <button className="obw-grant" onClick={connectGoogle}>Connect</button>
+                          ? <button className="obw-grant" onClick={cancelGoogle} title="サインインの待機を中止">接続中… ✕</button>
+                          : <button className="obw-grant" onClick={connectGoogle}>接続</button>
                       )
-                      : id === "telegram" ? <button className="obw-grant" onClick={() => setTgOpen((o) => !o)}>Connect</button>
-                      : <span className="obw-pill">Soon</span>}
+                      : id === "telegram" ? <button className="obw-grant" onClick={() => setTgOpen((o) => !o)}>接続</button>
+                      : <span className="obw-pill">近日公開</span>}
                     {id === "telegram" && tgOpen && !isConnected && (
                       <div style={{ flexBasis: "100%", display: "flex", gap: 8, marginTop: 10 }}>
-                        <input className="obw-inp" style={{ flex: 1 }} placeholder="Bot token from @BotFather" value={tgToken} onChange={(e) => setTgToken(e.target.value)} />
-                        <button className="obw-btn obw-btn-pri sm" disabled={tgBusy || !tgToken.trim()} onClick={saveTelegram}>{tgBusy ? "Saving…" : "Save"}</button>
+                        <input className="obw-inp" style={{ flex: 1 }} placeholder="@BotFatherから取得したボットトークン" value={tgToken} onChange={(e) => setTgToken(e.target.value)} />
+                        <button className="obw-btn obw-btn-pri sm" disabled={tgBusy || !tgToken.trim()} onClick={saveTelegram}>{tgBusy ? "保存中…" : "保存"}</button>
                       </div>
                     )}
                   </div>
@@ -756,7 +756,7 @@ export function OnboardingWizard({
               })}
             </div>
             {connectErr && <div className="obw-hint" style={{ color: "var(--listen)", marginTop: 12 }}>{connectErr}</div>}
-            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>Back</button><button className="obw-skip grow" onClick={next} style={{ textAlign: "left", marginLeft: 8 }}>Skip for now</button><button className="obw-btn obw-btn-pri" onClick={next}>Continue</button></div>
+            <div className="obw-btnrow"><button className="obw-btn obw-btn-ghost" onClick={back}>戻る</button><button className="obw-skip grow" onClick={next} style={{ textAlign: "left", marginLeft: 8 }}>今はスキップ</button><button className="obw-btn obw-btn-pri" onClick={next}>続ける</button></div>
           </div></div>
         );
       }
@@ -767,24 +767,24 @@ export function OnboardingWizard({
             <span className="obw-bloom ok" style={{ width: 150, height: 150, left: "50%", top: "50%", transform: "translate(-50%,-52%)" }} />
             <span className="obw-drop s-done" style={{ width: 58, height: 58 }}><span className="in" /></span>
           </div>
-          <h2>You’re all set.</h2>
+          <h2>準備が整いました。</h2>
           <div className="obw-sub" style={{ maxWidth: "33ch", margin: "9px auto 0" }}>
-            {recapLine()} Bringing your dashboard online now.
+            {recapLine()} ダッシュボードを起動しています。
           </div>
           <div className="obw-recap">
             {configuredThisSession ? (
               <>
-                <div><span className="ok">✓</span> brain · {prov.name}</div>
-                <div><span className="ok">✓</span> voice · {tts === "off" ? "text only" : tts === "edge" ? `Edge (${EDGE_VOICES.find((v) => v.id === edgeVoice)?.label.split(" ")[0]})` : "ElevenLabs"}{stt !== "skip" ? " + Whisper" : ""}</div>
-                <div><span className="ok">✓</span> profile saved to your Vault</div>
+                <div><span className="ok">✓</span> 頭脳 · {prov.name}</div>
+                <div><span className="ok">✓</span> 音声 · {tts === "off" ? "テキストのみ" : tts === "edge" ? `Edge (${EDGE_VOICES.find((v) => v.id === edgeVoice)?.label.split(" ")[0]})` : "ElevenLabs"}{stt !== "skip" ? " + Whisper" : ""}</div>
+                <div><span className="ok">✓</span> プロフィールをVaultに保存しました</div>
               </>
             ) : (
               // Resumed past the setup steps: this session never touched
               // brain/voice, so don't print their defaults as saved config.
-              <div><span className="ok">✓</span> profile saved to your Vault</div>
+              <div><span className="ok">✓</span> プロフィールをVaultに保存しました</div>
             )}
           </div>
-          <div style={{ marginTop: 22 }}><button className="obw-btn obw-btn-pri" style={{ minWidth: 208 }} onClick={onComplete}>Open Jarvis</button></div>
+          <div style={{ marginTop: 22 }}><button className="obw-btn obw-btn-pri" style={{ minWidth: 208 }} onClick={onComplete}>Jarvisを開く</button></div>
         </div></div>
       );
 
@@ -793,12 +793,12 @@ export function OnboardingWizard({
   }
 
   function recapLine() {
-    if (!configuredThisSession) return "Your brain is wired up, and I know a little about you.";
-    return `${prov.name} is wired up${tts !== "off" ? ", voice is on" : ""}, and I know a little about you.`;
+    if (!configuredThisSession) return "頭脳の接続が完了し、あなたについても少し把握しました。";
+    return `${prov.name}の接続が完了${tts !== "off" ? "、音声も有効に" : ""}し、あなたについても少し把握しました。`;
   }
 
   function renderProvDetail() {
-    if (prov.noConfig) return <div className="obw-testres ok" style={{ fontSize: 12 }}><span className="dot" />Jarvis AI is included with your plan. Nothing to configure.</div>;
+    if (prov.noConfig) return <div className="obw-testres ok" style={{ fontSize: 12 }}><span className="dot" />Jarvis AIはあなたのプランに含まれています。設定は不要です。</div>;
     // The live catalog when we have one, the curated list otherwise. A custom
     // Anthropic gateway serves its own catalog — the curated public ids would
     // be misleading there, so before discovery the picker is replaced by a
@@ -827,23 +827,23 @@ export function OnboardingWizard({
                 setBaseUrl("");
               }}
             />
-            <span>Use a custom Anthropic endpoint</span>
+            <span>カスタムAnthropicエンドポイントを使用</span>
           </label>
         )}
         {(prov.needsBaseUrl || (prov.optionalBaseUrl && customEndpoint)) && <div className="obw-field"><label>{prov.urlLabel}</label><input className="obw-inp" placeholder={prov.urlPh} value={baseUrl} onChange={(e) => { urlByProvider.current[provId] = e.target.value; setBaseUrl(e.target.value); }} /></div>}
-        {prov.needsKey && <div className="obw-field"><label>{prov.optionalBaseUrl && customEndpoint ? "Auth token" : (prov.keyLabel ?? `API key${prov.keyOptional ? " (optional)" : ""}`)}</label><input className="obw-inp" type="password" placeholder="paste your key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>}
+        {prov.needsKey && <div className="obw-field"><label>{prov.optionalBaseUrl && customEndpoint ? "認証トークン" : (prov.keyLabel ?? `APIキー${prov.keyOptional ? "(任意)" : ""}`)}</label><input className="obw-inp" type="password" placeholder="キーを貼り付け" value={apiKey} onChange={(e) => setApiKey(e.target.value)} /></div>}
         {prov.freeModel
-          ? <div className="obw-field"><label>Model</label><input className="obw-inp" placeholder="model id" value={model} onChange={(e) => setModel(e.target.value)} /></div>
+          ? <div className="obw-field"><label>モデル</label><input className="obw-inp" placeholder="モデルID" value={model} onChange={(e) => setModel(e.target.value)} /></div>
           : customAnthropic && pickerModels.length === 0
-            ? <div className="obw-field"><label>Model</label><div className="obw-hint">Models are read from the gateway when you test the connection.</div></div>
-            : <div className="obw-field"><label>Model</label><select className="obw-inp" value={model} onChange={(e) => setModel(e.target.value)}>{pickerModels.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>}
-        {provId === "ollama" && ollamaLoading && <div className="obw-hint">Reading installed models from Ollama…</div>}
-        {provId === "ollama" && !ollamaLoading && ollamaModels?.length === 0 && <div className="obw-hint">Could not reach Ollama at this URL — showing suggestions instead. Make sure Ollama is running (models must include their tag, e.g. llama3.1:8b).</div>}
-        {provId === "omniroute" && omniRouteLoading && <div className="obw-hint">Loading every OmniRoute model and combo…</div>}
-        {provId === "omniroute" && !omniRouteLoading && omniRouteModels?.length === 0 && <div className="obw-hint">Could not read this OmniRoute catalog. Check the URL and API key; you can still test the auto route.</div>}
+            ? <div className="obw-field"><label>モデル</label><div className="obw-hint">接続をテストすると、ゲートウェイからモデルが読み込まれます。</div></div>
+            : <div className="obw-field"><label>モデル</label><select className="obw-inp" value={model} onChange={(e) => setModel(e.target.value)}>{pickerModels.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>}
+        {provId === "ollama" && ollamaLoading && <div className="obw-hint">Ollamaからインストール済みモデルを読み込み中…</div>}
+        {provId === "ollama" && !ollamaLoading && ollamaModels?.length === 0 && <div className="obw-hint">このURLでOllamaに接続できませんでした — 代わりに候補を表示しています。Ollamaが起動しているか確認してください(モデルにはタグを含める必要があります。例: llama3.1:8b)。</div>}
+        {provId === "omniroute" && omniRouteLoading && <div className="obw-hint">すべてのOmniRouteモデルとコンボを読み込み中…</div>}
+        {provId === "omniroute" && !omniRouteLoading && omniRouteModels?.length === 0 && <div className="obw-hint">このOmniRouteカタログを読み込めませんでした。URLとAPIキーを確認してください。autoルートは引き続きテストできます。</div>}
         <div className="obw-testrow">
-          <button className="obw-btn obw-btn-ghost sm" disabled={test.status === "testing"} onClick={runTest}>{test.status === "testing" ? "Testing…" : "Test connection"}</button>
-          {test.status === "ok" && <span className="obw-testres ok"><span className="dot" />Connected · {test.msg}</span>}
+          <button className="obw-btn obw-btn-ghost sm" disabled={test.status === "testing"} onClick={runTest}>{test.status === "testing" ? "テスト中…" : "接続をテスト"}</button>
+          {test.status === "ok" && <span className="obw-testres ok"><span className="dot" />接続済み · {test.msg}</span>}
           {test.status === "err" && <span className="obw-testres err"><span className="dot" />{test.msg}</span>}
         </div>
         {prov.hint && <div className="obw-hint">{prov.hint}</div>}
@@ -859,25 +859,25 @@ export function OnboardingWizard({
         <div className="obw-tourframe">
           <div className="obw-miniapp">
             <div className="mrail">
-              <div className="mh">Run</div><div className="mr">Workflows</div><div className="mr">Agents</div><div className="mr">Tasks</div>
-              <div className="mh">Know</div><div className="mr">Memory</div><div className="mr">Goals</div>
-              <div className="mh">Guard</div><div className="mr">Authority <span className="bd">2</span></div><div className="mr on">Now</div>
+              <div className="mh">実行</div><div className="mr">ワークフロー</div><div className="mr">エージェント</div><div className="mr">タスク</div>
+              <div className="mh">認識</div><div className="mr">メモリ</div><div className="mr">目標</div>
+              <div className="mh">保護</div><div className="mr">権限 <span className="bd">2</span></div><div className="mr on">Now</div>
             </div>
             <div className="mmain">
-              <div className="mtop">Now · good morning</div>
+              <div className="mtop">Now · おはようございます</div>
               <div className="mgrid"><div className="mcard" /><div className="mcard" /><div className="mcard" /><div className="mcard" /></div>
               <span className="mpeb obw-drop" style={{ width: 26, height: 26 }}><span className="in" /></span>
             </div>
           </div>
           <div className="obw-tourdim" />
           <div className="obw-spot" style={pos}>
-            <div className="sh"><span className="sd"><span className="in" /></span><span className="sl">Jarvis · tour</span><span className="sc">{tourI + 1} of 5</span></div>
+            <div className="sh"><span className="sd"><span className="in" /></span><span className="sl">Jarvis · ツアー</span><span className="sc">{tourI + 1} / 5</span></div>
             <div className="sm">{T.sm}</div>
             {T.t && <div className="stry">{T.t}</div>}
             {error && <div className="stry" style={{ color: "var(--listen)" }}>{error}</div>}
             <div className="sb">
-              <button className="obw-skip" onClick={skipTour}>Skip tour</button><span className="grow" />
-              <button className="obw-btn obw-btn-pri sm" onClick={() => (tourI === TOUR.length - 1 ? finishTour() : setTourI(tourI + 1))}>{tourI === TOUR.length - 1 ? "Finish" : "Next"}</button>
+              <button className="obw-skip" onClick={skipTour}>ツアーをスキップ</button><span className="grow" />
+              <button className="obw-btn obw-btn-pri sm" onClick={() => (tourI === TOUR.length - 1 ? finishTour() : setTourI(tourI + 1))}>{tourI === TOUR.length - 1 ? "完了" : "次へ"}</button>
             </div>
           </div>
         </div>
@@ -934,11 +934,11 @@ function MicLevelCheck() {
         {Array.from({ length: BARS }, (_, i) => <b key={i} className={micState === "live" && level * BARS >= i + 0.5 ? "on" : ""} />)}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)" }}>Default microphone</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)" }}>既定のマイク</div>
         <div style={{ fontSize: 11, color: "var(--ink3)" }}>
           {micState === "denied"
-            ? "Couldn't access the microphone — you can test it later in Settings."
-            : micState === "live" ? "Say something to check your level" : "Requesting microphone access…"}
+            ? "マイクにアクセスできませんでした — 後で設定からテストできます。"
+            : micState === "live" ? "何か話してレベルを確認してください" : "マイクへのアクセスを要求中…"}
         </div>
       </div>
     </div>
@@ -950,7 +950,7 @@ function MicLevelCheck() {
    lifecycle, TTS playback, live STT, facts counter, skip and done are all
    preserved; only the presentation is rebuilt to Monochrome Lab. */
 const IV_PHASE_CLASS: Record<string, string> = { thinking: "s-think", speaking: "s-speak", done: "s-done" };
-const IV_PHASE_LABEL: Record<string, string> = { connecting: "connecting…", ready: "ready", error: "reconnecting…", thinking: "thinking", speaking: "speaking", listening: "listening", done: "done" };
+const IV_PHASE_LABEL: Record<string, string> = { connecting: "接続中…", ready: "準備完了", error: "再接続中…", thinking: "考え中", speaking: "話しています", listening: "聞いています", done: "完了" };
 
 function InterviewStep({ ttsDisabled, onComplete }: { ttsDisabled: boolean; onComplete: () => void }) {
   const session = useInterviewSession({ ttsDisabled });
@@ -1001,7 +1001,7 @@ function InterviewStep({ ttsDisabled, onComplete }: { ttsDisabled: boolean; onCo
       onComplete();
     } catch {
       // Completing anyway would replay the interview next launch.
-      setSkipErr("Couldn't reach the daemon — try again.");
+      setSkipErr("デーモンに接続できませんでした — もう一度お試しください。");
     }
   };
 
@@ -1012,27 +1012,27 @@ function InterviewStep({ ttsDisabled, onComplete }: { ttsDisabled: boolean; onCo
           <span className="obw-bloom ok" style={{ width: 140, height: 140, left: "50%", top: "50%", transform: "translate(-50%,-52%)" }} />
           <span className="obw-drop s-done" style={{ width: 52, height: 52 }}><span className="in" /></span>
         </div>
-        <h2>Got it.</h2>
-        <div className="obw-sub" style={{ maxWidth: "34ch", margin: "9px auto 0" }}>{session.farewell || "I have plenty to start with. Welcome to Jarvis."}</div>
-        <div className="obw-recap" style={{ marginTop: 10 }}><div>{session.factsRecorded} {session.factsRecorded === 1 ? "fact" : "facts"} in your Vault</div></div>
-        <div style={{ marginTop: 20 }}><button className="obw-btn obw-btn-pri" style={{ minWidth: 180 }} onClick={onComplete}>Continue</button></div>
+        <h2>把握しました。</h2>
+        <div className="obw-sub" style={{ maxWidth: "34ch", margin: "9px auto 0" }}>{session.farewell || "始めるのに十分な情報が集まりました。Jarvisへようこそ。"}</div>
+        <div className="obw-recap" style={{ marginTop: 10 }}><div>Vaultに{session.factsRecorded}件の情報を保存しました</div></div>
+        <div style={{ marginTop: 20 }}><button className="obw-btn obw-btn-pri" style={{ minWidth: 180 }} onClick={onComplete}>続ける</button></div>
       </div></div></div>
     );
   }
 
   const msgs = session.messages;
   const lastAsstIdx = msgs.map((m) => m.role).lastIndexOf("assistant");
-  const currentQ = lastAsstIdx >= 0 ? msgs[lastAsstIdx]!.text : (session.phase === "connecting" ? "Getting ready to chat…" : "…");
+  const currentQ = lastAsstIdx >= 0 ? msgs[lastAsstIdx]!.text : (session.phase === "connecting" ? "会話の準備をしています…" : "…");
   const history = (lastAsstIdx >= 0 ? msgs.slice(0, lastAsstIdx) : msgs).slice(-4);
 
   return (
     <div className="obw-iv">
       <div className="obw-ivhead">
-        <span className="l">Jarvis · getting to know you</span>
+        <span className="l">Jarvis · あなたのことを知る</span>
         <span className="r">
-          <span className="facts"><b>{session.factsRecorded}</b> facts</span>
+          <span className="facts"><b>{session.factsRecorded}</b> 件の情報</span>
           {skipErr && <span className="obw-hint" style={{ color: "var(--listen)" }}>{skipErr}</span>}
-          <button type="button" className="obw-skip" onClick={skip}>Skip</button>
+          <button type="button" className="obw-skip" onClick={skip}>スキップ</button>
         </span>
       </div>
       <div className="obw-ivstage">
@@ -1052,11 +1052,11 @@ function InterviewStep({ ttsDisabled, onComplete }: { ttsDisabled: boolean; onCo
         )}
       </div>
       <div className="obw-ivcomposer">
-        <input className="obw-inp" placeholder="Type your answer, or just talk" value={composerText}
+        <input className="obw-inp" placeholder="回答を入力するか、話しかけてください" value={composerText}
           onChange={(e) => setComposerText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") sendTyped(); }} />
-        {session.phase === "listening" && !session.textOnly && <span className="obw-voicepill"><span className="ld" />Listening</span>}
-        <button type="button" className="obw-btn obw-btn-pri sm" onClick={sendTyped}>Send</button>
+        {session.phase === "listening" && !session.textOnly && <span className="obw-voicepill"><span className="ld" />聞いています</span>}
+        <button type="button" className="obw-btn obw-btn-pri sm" onClick={sendTyped}>送信</button>
       </div>
     </div>
   );

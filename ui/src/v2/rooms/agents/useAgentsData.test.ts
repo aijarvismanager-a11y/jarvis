@@ -2,18 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { formatAgentActivityText } from "./useAgentsData";
 
 describe("formatAgentActivityText", () => {
-  test("tool_call -> 'called <name>'", () => {
+  test("tool_call -> '<name> を呼び出し'", () => {
     expect(formatAgentActivityText({ eventType: "tool_call", data: { name: "web_search" } })).toBe(
-      "called web_search",
+      "web_search を呼び出し",
     );
   });
 
-  test("tool_call with no name -> 'called unknown'", () => {
-    expect(formatAgentActivityText({ eventType: "tool_call", data: {} })).toBe("called unknown");
+  test("tool_call with no name -> '不明 を呼び出し'", () => {
+    expect(formatAgentActivityText({ eventType: "tool_call", data: {} })).toBe("不明 を呼び出し");
   });
 
-  test("done -> 'completed task'", () => {
-    expect(formatAgentActivityText({ eventType: "done", data: null })).toBe("completed task");
+  test("done -> 'タスク完了'", () => {
+    expect(formatAgentActivityText({ eventType: "done", data: null })).toBe("タスク完了");
   });
 
   test("text under 50 chars -> shown verbatim", () => {

@@ -11,11 +11,11 @@ import "./BootSplash.css";
 type VariantId = "summon" | "pulse" | "boot" | "pillars" | "stars";
 
 const VARIANTS: Record<VariantId, { name: string; status: string[]; weight: number }> = {
-  summon: { name: "The Summon", status: ["starting the brain…", "mounting the vault…", "waking your agents…", "pebble live · :3142"], weight: 4 },
-  pulse: { name: "The Heartbeat", status: ["waking the runtime"], weight: 1 },
+  summon: { name: "The Summon", status: ["頭脳を起動中…", "ボールトをマウント中…", "エージェントを起こしています…", "ペブル起動 · :3142"], weight: 4 },
+  pulse: { name: "The Heartbeat", status: ["ランタイムを起動中"], weight: 1 },
   boot: { name: "The Boot Log", status: [], weight: 1 },
-  pillars: { name: "The Pillars", status: ["bringing the pillars online", "memory · awareness", "action · orchestration", "all systems · live"], weight: 1 },
-  stars: { name: "The Constellation", status: ["connecting what it knows", "1,840 facts linked", "context restored"], weight: 1 },
+  pillars: { name: "The Pillars", status: ["各コンポーネントを起動中", "記憶 · 認識", "行動 · 統制", "全システム · 稼働中"], weight: 1 },
+  stars: { name: "The Constellation", status: ["知識を接続中", "1,840件の事実をリンク", "コンテキストを復元しました"], weight: 1 },
 };
 
 const STAR_POS: Array<[number, number, number]> = [
@@ -130,10 +130,10 @@ export function BootSplash({ variant: forcedVariant, autoReadyMs, onDone }: Boot
   if (done || variant === null) return null;
 
   const st = VARIANTS[variant].status;
-  const statusText = blocked ? "still mounting the vault…" : st.length ? st[Math.min(statusIdx, st.length - 1)] : "";
+  const statusText = blocked ? "ボールトをマウント中…" : st.length ? st[Math.min(statusIdx, st.length - 1)] : "";
 
   return (
-    <div className={`jboot ${out ? "out" : ""}`} role="status" aria-label="Starting Jarvis" aria-live="polite">
+    <div className={`jboot ${out ? "out" : ""}`} role="status" aria-label="Jarvis起動中" aria-live="polite">
       {variant === "summon" && (
         <div className="lstage st-summon">
           <div className="dropwrap"><div className="lbloom" /><Drop /></div>
@@ -156,10 +156,10 @@ export function BootSplash({ variant: forcedVariant, autoReadyMs, onDone }: Boot
           <div className="blhead"><Drop /><Word /></div>
           <div className="bootlog">
             <div className="bl" style={{ ["--i" as string]: 0 }}><span className="mut">$</span> jarvis start</div>
-            <div className="bl" style={{ ["--i" as string]: 1 }}>brain · awake</div>
-            <div className="bl" style={{ ["--i" as string]: 2 }}>vault · 1,840 facts mounted</div>
-            <div className="bl" style={{ ["--i" as string]: 3 }}>sidecars · 2/2 online</div>
-            <div className="bl ok" style={{ ["--i" as string]: 4 }}>✓ pebble live · localhost:3142</div>
+            <div className="bl" style={{ ["--i" as string]: 1 }}>頭脳 · 起動</div>
+            <div className="bl" style={{ ["--i" as string]: 2 }}>ボールト · 1,840件の事実をマウント</div>
+            <div className="bl" style={{ ["--i" as string]: 3 }}>サイドカー · 2/2 オンライン</div>
+            <div className="bl ok" style={{ ["--i" as string]: 4 }}>✓ ペブル起動 · localhost:3142</div>
           </div>
         </div>
       )}

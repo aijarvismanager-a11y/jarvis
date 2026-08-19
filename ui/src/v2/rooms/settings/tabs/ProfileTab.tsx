@@ -62,7 +62,7 @@ export function ProfileTab({
   };
 
   const handleClear = async () => {
-    if (!await confirmDialog("Clear the saved user profile context?")) return;
+    if (!await confirmDialog("保存済みのユーザープロフィールコンテキストをクリアしますか？")) return;
     const r = await data.clearProfile();
     if (r.ok) {
       setAnswers({});
@@ -73,7 +73,7 @@ export function ProfileTab({
   };
 
   if (!profile) {
-    return <div className="v2-set__empty">Loading profile…</div>;
+    return <div className="v2-set__empty">プロフィールを読み込み中…</div>;
   }
 
   return (
@@ -82,9 +82,9 @@ export function ProfileTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Initial User Context</h3>
+            <h3 className="v2-set__section-title">初期ユーザーコンテキスト</h3>
             <div className="v2-set__section-sub">
-              Durable context Jarvis uses for every conversation. Not a one-shot — refine it any time.
+              Jarvisがすべての会話で使用する永続的なコンテキストです。一度きりではなく、いつでも調整できます。
             </div>
           </div>
           <div style={{ display: "flex", gap: "var(--s-2)", flexWrap: "wrap" }}>
@@ -96,11 +96,11 @@ export function ProfileTab({
                 setStepIndex(0);
               }}
             >
-              {profile.has_profile ? "Edit profile" : "Start wizard"}
+              {profile.has_profile ? "プロフィールを編集" : "ウィザードを開始"}
             </button>
             {profile.has_profile && (
               <button type="button" className="v2-set__btn v2-set__btn--danger" onClick={handleClear}>
-                Clear
+                クリア
               </button>
             )}
           </div>
@@ -108,9 +108,9 @@ export function ProfileTab({
 
         <div className="v2-set__field">
           <div className="v2-set__row">
-            <span className="v2-set__row-label">Completion</span>
+            <span className="v2-set__row-label">完了状況</span>
             <span className="v2-set__row-value">
-              {answered}/{total} answered
+              {answered}/{total} 件回答済み
             </span>
           </div>
           <div className="v2-set__wizard-progress">
@@ -120,7 +120,7 @@ export function ProfileTab({
 
         {profile.profile?.updated_at && (
           <div className="v2-set__row">
-            <span className="v2-set__row-label">Last updated</span>
+            <span className="v2-set__row-label">最終更新</span>
             <span className="v2-set__row-value">
               {new Date(profile.profile.updated_at).toLocaleString()}
             </span>
@@ -134,14 +134,14 @@ export function ProfileTab({
           <div className="v2-set__section-head">
             <div>
               <div className="v2-set__wizard-step">
-                Step {stepIndex + 1} of {steps.length}
+                ステップ {stepIndex + 1} / {steps.length}
               </div>
               <h3 className="v2-set__section-title" style={{ marginTop: 4 }}>
                 {currentStep.title}
               </h3>
             </div>
             <button type="button" className="v2-set__btn" onClick={() => setEditing(false)}>
-              Cancel
+              キャンセル
             </button>
           </div>
 
@@ -180,7 +180,7 @@ export function ProfileTab({
               disabled={stepIndex === 0}
               onClick={() => setStepIndex((p) => Math.max(p - 1, 0))}
             >
-              Previous
+              前へ
             </button>
             {stepIndex < steps.length - 1 ? (
               <button
@@ -188,7 +188,7 @@ export function ProfileTab({
                 className="v2-set__btn v2-set__btn--primary"
                 onClick={() => setStepIndex((p) => Math.min(p + 1, steps.length - 1))}
               >
-                Next
+                次へ
               </button>
             ) : (
               <button
@@ -197,14 +197,14 @@ export function ProfileTab({
                 onClick={handleSave}
                 disabled={saving}
               >
-                {saving ? "Saving…" : "Save profile"}
+                {saving ? "保存中…" : "プロフィールを保存"}
               </button>
             )}
           </div>
         </section>
       ) : profile.has_profile ? (
         <section className="v2-set__section">
-          <h3 className="v2-set__section-title">Saved context</h3>
+          <h3 className="v2-set__section-title">保存済みコンテキスト</h3>
           <div className="v2-set__profile-snapshot">
             {steps.map((step) => {
               const answered = step.questions.filter((q) => {
@@ -233,8 +233,8 @@ export function ProfileTab({
       ) : (
         <section className="v2-set__section">
           <p className="v2-set__hint">
-            No user profile saved yet. Start the wizard to give Jarvis a strong initial
-            understanding of your identity, goals, preferences, routines, and context.
+            まだユーザープロフィールが保存されていません。ウィザードを開始して、
+            あなたの人物像・目標・好み・習慣・状況についてJarvisに強い初期理解を与えましょう。
           </p>
         </section>
       )}
@@ -261,13 +261,13 @@ function OnboardingReplaySection({
   const replay = async (scope: "profile" | "tutorial") => {
     const label =
       scope === "profile"
-        ? "Re-run the profile interview? Your saved profile facts will be cleared first. The page will reload."
-        : "Replay the dashboard tutorial? The page will reload.";
+        ? "プロフィールインタビューを再実行しますか？保存済みのプロフィール情報は先にクリアされます。ページが再読み込みされます。"
+        : "ダッシュボードチュートリアルを再生しますか？ページが再読み込みされます。";
     if (!await confirmDialog(label)) return;
     setBusy(scope === "profile" ? "interview" : "tutorial");
     try {
       await resetOnboarding(scope);
-      onToast("Replay queued — reloading…", "ok");
+      onToast("再生を予約しました — 再読み込みしています…", "ok");
     } catch (err) {
       onToast(err instanceof Error ? err.message : String(err), "warn");
       setBusy(null);
@@ -278,10 +278,10 @@ function OnboardingReplaySection({
     <section className="v2-set__section">
       <div className="v2-set__section-head">
         <div>
-          <h3 className="v2-set__section-title">Replay onboarding</h3>
+          <h3 className="v2-set__section-title">オンボーディングを再生</h3>
           <div className="v2-set__section-sub">
-            Re-run the conversational interview to refresh what Jarvis knows about
-            you, or take the dashboard tour again.
+            会話形式のインタビューを再実行してJarvisがあなたについて知っている情報を更新するか、
+            ダッシュボードツアーをもう一度体験できます。
           </div>
         </div>
       </div>
@@ -292,7 +292,7 @@ function OnboardingReplaySection({
           onClick={() => replay("profile")}
           disabled={busy !== null}
         >
-          {busy === "interview" ? "Restarting…" : "Re-run profile interview"}
+          {busy === "interview" ? "再起動中…" : "プロフィールインタビューを再実行"}
         </button>
         <button
           type="button"
@@ -300,7 +300,7 @@ function OnboardingReplaySection({
           onClick={() => replay("tutorial")}
           disabled={busy !== null}
         >
-          {busy === "tutorial" ? "Restarting…" : "Replay tutorial"}
+          {busy === "tutorial" ? "再起動中…" : "チュートリアルを再生"}
         </button>
       </div>
     </section>

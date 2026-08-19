@@ -18,40 +18,40 @@ type Row =
   | { kind: "now"; label: string; kbd: string };
 
 const ROWS: Row[] = [
-  { kind: "now", label: "Now", kbd: "⌘1" },
-  { kind: "heading", label: "run" },
-  { kind: "room", key: "workflows", label: "Workflows", kbd: "⌘2" },
-  { kind: "room", key: "agents", label: "Agents", kbd: "⌘3" },
-  { kind: "room", key: "tasks", label: "Tasks", kbd: "⌘4" },
-  { kind: "room", key: "ai_manager", label: "AI Manager" },
-  { kind: "room", key: "workers", label: "Workers" },
-  { kind: "heading", label: "know" },
-  { kind: "room", key: "memory", label: "Memory", kbd: "⌘5" },
-  { kind: "room", key: "goals", label: "Goals", kbd: "⌘6" },
-  { kind: "room", key: "calendar", label: "Calendar", kbd: "⌘7" },
-  { kind: "room", key: "content", label: "Content", kbd: "⌘8" },
-  { kind: "heading", label: "guard" },
-  { kind: "room", key: "authority", label: "Authority" },
-  { kind: "room", key: "logs", label: "Logs" },
-  { kind: "room", key: "usage", label: "Usage" },
-  { kind: "heading", label: "build" },
-  { kind: "room", key: "workspaces", label: "Workspaces" },
-  { kind: "room", key: "tools", label: "Tools" },
-  { kind: "room", key: "settings", label: "Settings", kbd: "⌘9", spaced: true },
+  { kind: "now", label: "ナウ", kbd: "⌘1" },
+  { kind: "heading", label: "実行" },
+  { kind: "room", key: "workflows", label: "ワークフロー", kbd: "⌘2" },
+  { kind: "room", key: "agents", label: "エージェント", kbd: "⌘3" },
+  { kind: "room", key: "tasks", label: "タスク", kbd: "⌘4" },
+  { kind: "room", key: "ai_manager", label: "AIマネージャー" },
+  { kind: "room", key: "workers", label: "ワーカー" },
+  { kind: "heading", label: "情報" },
+  { kind: "room", key: "memory", label: "記憶", kbd: "⌘5" },
+  { kind: "room", key: "goals", label: "目標", kbd: "⌘6" },
+  { kind: "room", key: "calendar", label: "カレンダー", kbd: "⌘7" },
+  { kind: "room", key: "content", label: "コンテンツ", kbd: "⌘8" },
+  { kind: "heading", label: "監視" },
+  { kind: "room", key: "authority", label: "権限" },
+  { kind: "room", key: "logs", label: "ログ" },
+  { kind: "room", key: "usage", label: "使用量" },
+  { kind: "heading", label: "構築" },
+  { kind: "room", key: "workspaces", label: "ワークスペース" },
+  { kind: "room", key: "tools", label: "ツール" },
+  { kind: "room", key: "settings", label: "設定", kbd: "⌘9", spaced: true },
 ];
 
 /** Cluster → its rooms, for collapsed tiles + hover-peek. */
 const CLUSTERS: { id: string; ic: string; label: string; lead: RoomKey | "now"; rooms: { key: RoomKey; label: string }[] }[] = [
-  { id: "now", ic: "◉", label: "Now", lead: "now", rooms: [] },
-  { id: "run", ic: "▶", label: "Run", lead: "workflows", rooms: [
-    { key: "workflows", label: "Workflows" }, { key: "agents", label: "Agents" }, { key: "tasks", label: "Tasks" }, { key: "ai_manager", label: "AI Manager" }, { key: "workers", label: "Workers" } ] },
-  { id: "know", ic: "◆", label: "Know", lead: "memory", rooms: [
-    { key: "memory", label: "Memory" }, { key: "goals", label: "Goals" }, { key: "calendar", label: "Calendar" }, { key: "content", label: "Content" } ] },
-  { id: "guard", ic: "▣", label: "Guard", lead: "authority", rooms: [
-    { key: "authority", label: "Authority" }, { key: "logs", label: "Logs" }, { key: "usage", label: "Usage" } ] },
-  { id: "build", ic: "⌗", label: "Build", lead: "workspaces", rooms: [
-    { key: "workspaces", label: "Workspaces" }, { key: "tools", label: "Tools" } ] },
-  { id: "sys", ic: "⚙", label: "Sys", lead: "settings", rooms: [{ key: "settings", label: "Settings" }] },
+  { id: "now", ic: "◉", label: "ナウ", lead: "now", rooms: [] },
+  { id: "run", ic: "▶", label: "実行", lead: "workflows", rooms: [
+    { key: "workflows", label: "ワークフロー" }, { key: "agents", label: "エージェント" }, { key: "tasks", label: "タスク" }, { key: "ai_manager", label: "AIマネージャー" }, { key: "workers", label: "ワーカー" } ] },
+  { id: "know", ic: "◆", label: "情報", lead: "memory", rooms: [
+    { key: "memory", label: "記憶" }, { key: "goals", label: "目標" }, { key: "calendar", label: "カレンダー" }, { key: "content", label: "コンテンツ" } ] },
+  { id: "guard", ic: "▣", label: "監視", lead: "authority", rooms: [
+    { key: "authority", label: "権限" }, { key: "logs", label: "ログ" }, { key: "usage", label: "使用量" } ] },
+  { id: "build", ic: "⌗", label: "構築", lead: "workspaces", rooms: [
+    { key: "workspaces", label: "ワークスペース" }, { key: "tools", label: "ツール" } ] },
+  { id: "sys", ic: "⚙", label: "設定", lead: "settings", rooms: [{ key: "settings", label: "設定" }] },
 ];
 
 // ⌘1–9 → navigation target, in row order.
@@ -151,7 +151,7 @@ export function IndexSidebar({
   const peekCluster = peek ? CLUSTERS.find((c) => c.id === peek.id) : null;
 
   return (
-    <nav className="rs-side" aria-label="Index">
+    <nav className="rs-side" aria-label="インデックス">
       {/* Expanded */}
       <div className="rs-full">
         <div className="rs-brand">
@@ -173,7 +173,7 @@ export function IndexSidebar({
             >
               {row.label}
               {badge ? (
-                <span className={`rs-badge ${badge.tone}`} aria-label={`${row.label}, ${badge.count} ${badge.tone === "amber" ? "waiting" : "failing"}`}>
+                <span className={`rs-badge ${badge.tone}`} aria-label={`${row.label}、${badge.count}件${badge.tone === "amber" ? "待機中" : "失敗"}`}>
                   {badge.count}
                 </span>
               ) : (
@@ -183,7 +183,7 @@ export function IndexSidebar({
           );
         })}
         <div style={{ flex: 1 }} />
-        <button className="rs-clps" onClick={onToggleCollapse}>« collapse</button>
+        <button className="rs-clps" onClick={onToggleCollapse}>« 折りたたむ</button>
       </div>
 
       {/* Collapsed cluster tiles */}
@@ -209,7 +209,7 @@ export function IndexSidebar({
           );
         })}
         <div style={{ flex: 1 }} />
-        <button className="rs-clps" onClick={onToggleCollapse} aria-label="Expand sidebar">»</button>
+        <button className="rs-clps" onClick={onToggleCollapse} aria-label="サイドバーを展開">»</button>
       </div>
 
       {/* Hover peek */}

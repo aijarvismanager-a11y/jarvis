@@ -30,9 +30,9 @@ export function SiteFileTree({ projectId, onFileSelect }: Props) {
     });
   };
 
-  if (!projectId) return <div style={emptyStyle}>Select a project</div>;
-  if (loading) return <div style={emptyStyle}>Loading files...</div>;
-  if (!tree) return <div style={emptyStyle}>No files found</div>;
+  if (!projectId) return <div style={emptyStyle}>プロジェクトを選択してください</div>;
+  if (loading) return <div style={emptyStyle}>ファイルを読み込み中...</div>;
+  if (!tree) return <div style={emptyStyle}>ファイルが見つかりません</div>;
 
   return (
     <div style={{ padding: "4px 0", fontSize: "12px" }}>

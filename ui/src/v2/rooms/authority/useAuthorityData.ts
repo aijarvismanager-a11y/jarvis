@@ -117,6 +117,13 @@ interface ActionResult {
   message: string;
 }
 
+const EMERGENCY_TRANSITION_LABEL: Record<"pause" | "resume" | "kill" | "reset", string> = {
+  pause: "一時停止",
+  resume: "再開",
+  kill: "強制停止",
+  reset: "リセット",
+};
+
 /**
  * Authority Room data hook — polls 5 endpoints in parallel + exposes
  * write actions for approve/deny, config mutations, learning accept/
@@ -161,7 +168,7 @@ export function useAuthorityData() {
       if (lResp.ok) setSuggestions((await lResp.json()) as LearningSuggestion[]);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load authority data");
+      setError(err instanceof Error ? err.message : "権限データの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -184,9 +191,9 @@ export function useAuthorityData() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       refresh();
-      return { ok: true, message: "Approved." };
+      return { ok: true, message: "承認しました。" };
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
     }
   }, [refresh]);
 
@@ -197,9 +204,9 @@ export function useAuthorityData() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       refresh();
-      return { ok: true, message: "Denied." };
+      return { ok: true, message: "拒否しました。" };
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
     }
   }, [refresh]);
 
@@ -212,9 +219,9 @@ export function useAuthorityData() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       refresh();
-      return { ok: true, message: "Config updated." };
+      return { ok: true, message: "設定を更新しました。" };
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+      return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
     }
   }, [refresh]);
 
@@ -231,11 +238,11 @@ export function useAuthorityData() {
         return {
           ok: true,
           message: allow
-            ? `Granted: ${action.replace(/_/g, " ")}.`
-            : `Revoked: ${action.replace(/_/g, " ")}.`,
+            ? `許可: ${action.replace(/_/g, " ")}。`
+            : `取消: ${action.replace(/_/g, " ")}。`,
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -251,9 +258,9 @@ export function useAuthorityData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Suggestion accepted." };
+        return { ok: true, message: "提案を承認しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -269,9 +276,9 @@ export function useAuthorityData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Suggestion dismissed." };
+        return { ok: true, message: "提案を却下しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -285,9 +292,9 @@ export function useAuthorityData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Emergency: ${transition}.` };
+        return { ok: true, message: `緊急操作: ${EMERGENCY_TRANSITION_LABEL[transition]}。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

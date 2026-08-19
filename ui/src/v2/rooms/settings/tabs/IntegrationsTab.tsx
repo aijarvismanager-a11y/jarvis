@@ -69,7 +69,7 @@ export function IntegrationsTab({
           pollRef.current = null;
         }
         setPhase("idle");
-        onToast("Connected. Gmail and Calendar observers are starting.", "ok");
+        onToast("接続しました。GmailとCalendarのオブザーバーを起動しています。", "ok");
         data.refresh();
       }
     },
@@ -90,7 +90,7 @@ export function IntegrationsTab({
 
   const handleSaveCredentials = async () => {
     if (!clientId.trim() || !clientSecret.trim()) {
-      onToast("Both Client ID and Client Secret are required.", "warn");
+      onToast("Client IDとClient Secretの両方が必要です。", "warn");
       return;
     }
     setPhase("saving");
@@ -123,7 +123,7 @@ export function IntegrationsTab({
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
         setPhase("idle");
-        onToast("Authorization timed out. Try again.", "warn");
+        onToast("認証がタイムアウトしました。もう一度お試しください。", "warn");
         return;
       }
       try {
@@ -133,7 +133,7 @@ export function IntegrationsTab({
           pollRef.current = null;
           setPhase("idle");
           onToast(
-            "Connected. Gmail and Calendar observers are starting.",
+            "接続しました。GmailとCalendarのオブザーバーを起動しています。",
             "ok",
           );
           data.refresh();
@@ -145,7 +145,7 @@ export function IntegrationsTab({
   };
 
   const handleDisconnect = async () => {
-    if (!await confirmDialog("Disconnect Google? You'll need to re-authorize to reconnect.")) return;
+    if (!await confirmDialog("Googleとの接続を解除しますか? 再接続するには再認証が必要です。")) return;
     const r = await data.disconnectGoogle();
     onToast(r.message, r.ok ? "ok" : "warn");
   };
@@ -157,7 +157,7 @@ export function IntegrationsTab({
           <div>
             <h3 className="v2-set__section-title">Google</h3>
             <div className="v2-set__section-sub">
-              Connect Gmail and Google Calendar (read-only). Restart-required after connect/disconnect.
+              GmailとGoogleカレンダーに接続します(読み取り専用)。接続/切断後は再起動が必要です。
             </div>
           </div>
           {g && (
@@ -171,34 +171,38 @@ export function IntegrationsTab({
                     : "")
               }
             >
-              {g.status.replace(/_/g, " ")}
+              {g.status === "connected"
+                ? "接続済み"
+                : g.status === "credentials_saved"
+                  ? "認証情報を保存済み"
+                  : g.status.replace(/_/g, " ")}
             </span>
           )}
         </div>
 
         {!g ? (
-          <div className="v2-set__empty">Loading Google status…</div>
+          <div className="v2-set__empty">Google のステータスを読み込み中…</div>
         ) : g.status === "not_configured" && phase !== "saving" ? (
           <>
             <p className="v2-set__hint">
-              You'll need OAuth2 credentials from Google Cloud Console &gt; APIs &amp; Credentials.
+              Google Cloud Console &gt; APIs &amp; Credentials からOAuth2認証情報を取得する必要があります。
             </p>
             <div className="v2-set__section" style={{ marginBottom: 0 }}>
-              <div className="v2-set__field-label">Setup steps</div>
+              <div className="v2-set__field-label">セットアップ手順</div>
               <ol style={{ margin: 0, paddingLeft: 20, color: "var(--ink-2)", fontSize: "var(--text-xs)", lineHeight: 1.7 }}>
                 <li>
-                  Enable <strong>Gmail API</strong> and <strong>Google Calendar API</strong> in your Google Cloud project
+                  Google Cloudプロジェクトで<strong>Gmail API</strong>と<strong>Google Calendar API</strong>を有効化する
                 </li>
                 <li>
-                  Create an <strong>OAuth 2.0 Client ID</strong> (type: Web application)
+                  <strong>OAuth 2.0 Client ID</strong>を作成する(タイプ: ウェブアプリケーション)
                 </li>
                 <li>
-                  Add this Authorized redirect URI:
+                  次のAuthorized redirect URIを追加する:
                   <code className="v2-set__code v2-set__code--block">
                     http://localhost:3142/api/auth/google/callback
                   </code>
                 </li>
-                <li>Paste the Client ID and Client Secret below</li>
+                <li>下にClient IDとClient Secretを貼り付ける</li>
               </ol>
             </div>
             <div className="v2-set__field">
@@ -224,46 +228,46 @@ export function IntegrationsTab({
                 className="v2-set__btn v2-set__btn--primary"
                 onClick={handleSaveCredentials}
               >
-                Save credentials
+                認証情報を保存
               </button>
             </div>
           </>
         ) : phase === "saving" ? (
-          <div className="v2-set__empty">Saving…</div>
+          <div className="v2-set__empty">保存中…</div>
         ) : g.status === "credentials_saved" && phase === "idle" ? (
           <>
-            <p className="v2-set__hint">Credentials saved. Connect a Google account to authorize.</p>
+            <p className="v2-set__hint">認証情報を保存しました。Googleアカウントを接続して認可してください。</p>
             <div style={{ display: "flex", gap: "var(--s-2)", flexWrap: "wrap" }}>
               <button
                 type="button"
                 className="v2-set__btn v2-set__btn--primary"
                 onClick={handleConnect}
               >
-                Connect Google account
+                Googleアカウントを接続
               </button>
             </div>
-            <p className="v2-set__hint">Opens the consent page in a new window.</p>
+            <p className="v2-set__hint">新しいウィンドウで同意画面が開きます。</p>
           </>
         ) : phase === "authenticating" ? (
-          <div className="v2-set__empty">Waiting for Google authorization in the popup…</div>
+          <div className="v2-set__empty">ポップアップでGoogleの認可を待っています…</div>
         ) : (
           /* connected */
           <>
             <div className="v2-set__row">
               <span className="v2-set__row-label">Gmail</span>
               <span className="v2-set__row-value">
-                <span className="v2-set__dot v2-set__dot--ok" /> read-only
+                <span className="v2-set__dot v2-set__dot--ok" /> 読み取り専用
               </span>
             </div>
             <div className="v2-set__row">
               <span className="v2-set__row-label">Google Calendar</span>
               <span className="v2-set__row-value">
-                <span className="v2-set__dot v2-set__dot--ok" /> read-only
+                <span className="v2-set__dot v2-set__dot--ok" /> 読み取り専用
               </span>
             </div>
             {g.token_expiry && (
               <div className="v2-set__row">
-                <span className="v2-set__row-label">Token expires</span>
+                <span className="v2-set__row-label">トークンの有効期限</span>
                 <span className="v2-set__row-value">
                   {new Date(g.token_expiry).toLocaleString()}
                 </span>
@@ -271,7 +275,7 @@ export function IntegrationsTab({
             )}
             {g.scopes.length > 0 && (
               <div className="v2-set__field">
-                <label className="v2-set__field-label">Scopes</label>
+                <label className="v2-set__field-label">スコープ</label>
                 <div className="v2-set__chip-row">
                   {g.scopes.map((s) => (
                     <span key={s} className="v2-set__chip" title={s}>
@@ -287,7 +291,7 @@ export function IntegrationsTab({
                 className="v2-set__btn v2-set__btn--danger"
                 onClick={handleDisconnect}
               >
-                Disconnect Google
+                Googleとの接続を解除
               </button>
             </div>
           </>
@@ -299,7 +303,7 @@ export function IntegrationsTab({
           <div>
             <h3 className="v2-set__section-title">Image Agent</h3>
             <div className="v2-set__section-sub">
-              Provider keys for image_generate (Phase 8). Applied immediately, no restart needed.
+              image_generate用のプロバイダーキー(Phase 8)。即座に反映され、再起動は不要です。
             </div>
           </div>
         </div>
@@ -308,7 +312,7 @@ export function IntegrationsTab({
           <label className="v2-set__field-label">
             OpenAI (gpt-image-1 / dall-e-3)
             {data.imageProviders?.providers["openai-image"].has_api_key && (
-              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>saved</span>
+              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>保存済み</span>
             )}
           </label>
           <div style={{ display: "flex", gap: "var(--s-2)" }}>
@@ -325,7 +329,7 @@ export function IntegrationsTab({
               onClick={() => handleSaveImageKey("openai-image", openaiImageKey, () => setOpenaiImageKey(""))}
               disabled={!openaiImageKey.trim()}
             >
-              Save
+              保存
             </button>
           </div>
         </div>
@@ -334,7 +338,7 @@ export function IntegrationsTab({
           <label className="v2-set__field-label">
             Gemini (Imagen)
             {data.imageProviders?.providers["gemini-image"].has_api_key && (
-              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>saved</span>
+              <span className="v2-set__chip v2-set__chip--ok" style={{ marginLeft: 8 }}>保存済み</span>
             )}
           </label>
           <div style={{ display: "flex", gap: "var(--s-2)" }}>
@@ -351,21 +355,21 @@ export function IntegrationsTab({
               onClick={() => handleSaveImageKey("gemini-image", geminiImageKey, () => setGeminiImageKey(""))}
               disabled={!geminiImageKey.trim()}
             >
-              Save
+              保存
             </button>
           </div>
         </div>
 
         <div className="v2-set__field">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <label className="v2-set__field-label">Recent generations</label>
+            <label className="v2-set__field-label">最近の生成履歴</label>
             <button type="button" className="v2-set__btn" onClick={loadGenerations} disabled={generationsLoading}>
-              {generationsLoading ? "Loading…" : generations === null ? "Load" : "Refresh"}
+              {generationsLoading ? "読み込み中…" : generations === null ? "読み込む" : "更新"}
             </button>
           </div>
           {generations !== null && (
             generations.length === 0 ? (
-              <div className="v2-set__hint">No images generated yet.</div>
+              <div className="v2-set__hint">まだ画像は生成されていません。</div>
             ) : (
               <div>
                 {generations.map((g) => (
@@ -374,7 +378,7 @@ export function IntegrationsTab({
                       {g.prompt}
                     </span>
                     <span className="v2-set__row-value">
-                      {g.provider} · {g.file_paths.length} file{g.file_paths.length === 1 ? "" : "s"} · {new Date(g.created_at).toLocaleDateString()}
+                      {g.provider} · {g.file_paths.length}ファイル · {new Date(g.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 ))}
@@ -389,18 +393,18 @@ export function IntegrationsTab({
           <div>
             <h3 className="v2-set__section-title">GitHub</h3>
             <div className="v2-set__section-sub">
-              Personal access token for git operations (Phase 7). Push/force-push/delete stay gated by Authority.
+              Git操作用のパーソナルアクセストークン(Phase 7)。push/force-push/deleteは引き続き権限で制御されます。
             </div>
           </div>
           {data.github && (
             <span className={"v2-set__chip " + (data.github.has_token ? "v2-set__chip--ok" : "")}>
-              {data.github.has_token ? "connected" : "not connected"}
+              {data.github.has_token ? "接続済み" : "未接続"}
             </span>
           )}
         </div>
 
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Personal access token</label>
+          <label className="v2-set__field-label">パーソナルアクセストークン</label>
           <div style={{ display: "flex", gap: "var(--s-2)" }}>
             <input
               className="v2-set__input"
@@ -415,7 +419,7 @@ export function IntegrationsTab({
               onClick={handleSaveGithubToken}
               disabled={!githubToken.trim()}
             >
-              Save
+              保存
             </button>
           </div>
         </div>

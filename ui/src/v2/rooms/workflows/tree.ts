@@ -224,7 +224,7 @@ export function insertStepAfter(
   const newStep: FlowStepNode = {
     name: newName,
     type: "PIECE",
-    displayName: "New step",
+    displayName: "新しいステップ",
     settings: { input: {} },
     nextAction: predecessor.nextAction,
   };
@@ -246,7 +246,7 @@ export function addStepToHead(
   const newStep: FlowStepNode = {
     name: newName,
     type: "PIECE",
-    displayName: "New step",
+    displayName: "新しいステップ",
     settings: { input: {} },
   };
 

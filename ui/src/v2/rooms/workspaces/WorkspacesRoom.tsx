@@ -47,10 +47,10 @@ const STATUS_TONE: Record<ProjectStatus, Tone> = {
 };
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
-  stopped: "Stopped",
-  starting: "Starting…",
-  running: "Running",
-  error: "Error",
+  stopped: "停止中",
+  starting: "起動中…",
+  running: "実行中",
+  error: "エラー",
 };
 
 export type RoomBodyMode = "inline" | "expanded";
@@ -205,7 +205,7 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
           const r = await data.createProject({ name, template });
           if (r.ok) {
             openProject(r.project);
-            setToast({ text: `Created "${r.project.name}".`, tone: "ok" });
+            setToast({ text: `「${r.project.name}」を作成しました。`, tone: "ok" });
           } else {
             setToast({ text: r.message, tone: "warn" });
           }
@@ -251,10 +251,10 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
             type="button"
             className="v2-ws__back-btn"
             onClick={backToList}
-            aria-label="Back to project list"
+            aria-label="プロジェクト一覧に戻る"
           >
             <Icon icon={ArrowLeft} size="sm" />
-            All projects
+            すべてのプロジェクト
           </button>
           <div className="v2-ws__detail-title">
             <span className="v2-ws__project-name">{activeProject.name}</span>
@@ -329,23 +329,23 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
     <div className={`v2-ws v2-ws--${mode}`}>
       {/* Stats */}
       <div className="v2-ws__stats">
-        <StatCard label="Projects" value={data.stats.total} sub="all workspaces" />
+        <StatCard label="プロジェクト" value={data.stats.total} sub="全ワークスペース" />
         <StatCard
-          label="Running"
+          label="実行中"
           value={data.stats.running}
-          sub="dev servers up"
+          sub="起動中の開発サーバー"
           tone={data.stats.running > 0 ? "ok" : "neutral"}
         />
         <StatCard
-          label="Dirty"
+          label="未コミット"
           value={data.stats.dirty}
-          sub="uncommitted changes"
+          sub="未コミットの変更"
           tone={data.stats.dirty > 0 ? "warn" : "neutral"}
         />
         <StatCard
-          label="Linked"
+          label="連携済み"
           value={data.stats.linked}
-          sub="connected to GitHub"
+          sub="GitHubに接続"
         />
       </div>
 
@@ -356,18 +356,18 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
           <input
             className="v2-ws__search-input"
             type="text"
-            placeholder="Search projects…"
+            placeholder="プロジェクトを検索…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search projects"
+            aria-label="プロジェクトを検索"
           />
         </div>
         <button
           type="button"
           className="v2-ws__refresh"
           onClick={data.refresh}
-          aria-label="Refresh"
-          title="Refresh"
+          aria-label="更新"
+          title="更新"
         >
           <Icon icon={RefreshCw} size="sm" />
         </button>
@@ -377,7 +377,7 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
           onClick={() => setCreateOpen(true)}
         >
           <Icon icon={Plus} size="sm" />
-          New project
+          新規プロジェクト
         </button>
       </div>
 
@@ -385,12 +385,12 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
 
       {/* Project grid */}
       {data.loading && filteredProjects.length === 0 ? (
-        <div className="v2-ws__empty">Loading projects…</div>
+        <div className="v2-ws__empty">プロジェクトを読み込み中…</div>
       ) : filteredProjects.length === 0 ? (
         <div className="v2-ws__empty">
           {search.trim()
-            ? "No projects match the search."
-            : "No projects yet. Create one to get started."}
+            ? "検索に一致するプロジェクトがありません。"
+            : "まだプロジェクトがありません。作成して始めましょう。"}
         </div>
       ) : (
         <ul className="v2-ws__grid" role="list">
@@ -408,7 +408,7 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
                   setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                 }}
                 onDelete={async () => {
-                  if (!await confirmDialog(`Delete "${p.name}"? Cannot be undone.`)) return;
+                  if (!await confirmDialog(`「${p.name}」を削除しますか? 元に戻せません。`)) return;
                   const r = await data.deleteProject(p.id);
                   setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
                 }}
@@ -441,9 +441,9 @@ export function WorkspacesRoomBody({ mode }: { mode: RoomBodyMode }) {
 export function WorkspacesRoom() {
   return (
     <RoomShell
-      title="Workspaces"
-      subtitle="dev projects · git · dev servers"
-      breadcrumb={["Workspaces"]}
+      title="ワークスペース"
+      subtitle="開発プロジェクト · git · 開発サーバー"
+      breadcrumb={["ワークスペース"]}
     >
       <WorkspacesRoomBody mode="expanded" />
     </RoomShell>
@@ -527,7 +527,7 @@ function ProjectCard({
             <Icon icon={ExternalLink} size="sm" />
           </a>
         )}
-        <span className="v2-ws__card-time">opened {formatRelative(project.lastOpenedAt)}</span>
+        <span className="v2-ws__card-time">開いたのは {formatRelative(project.lastOpenedAt)}</span>
       </div>
 
       <div className="v2-ws__card-actions">
@@ -538,7 +538,7 @@ function ProjectCard({
             onClick={onStop}
           >
             <Icon icon={Square} size="sm" />
-            Stop
+            停止
           </button>
         ) : (
           <button
@@ -547,15 +547,15 @@ function ProjectCard({
             onClick={onStart}
           >
             <Icon icon={Power} size="sm" />
-            Start
+            開始
           </button>
         )}
         <button
           type="button"
           className="v2-ws__btn v2-ws__btn--icon"
           onClick={onDelete}
-          aria-label="Delete project"
-          title="Delete"
+          aria-label="プロジェクトを削除"
+          title="削除"
         >
           <Icon icon={X} size="sm" />
         </button>
@@ -565,7 +565,7 @@ function ProjectCard({
           className="v2-ws__btn v2-ws__btn--primary"
           onClick={onOpen}
         >
-          Open
+          開く
         </button>
       </div>
     </article>
@@ -577,13 +577,13 @@ function ProjectCard({
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return "たった今";
+  if (min < 60) return `${min}分前`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return `${hr}時間前`;
   const day = Math.floor(hr / 24);
-  if (day === 1) return "yesterday";
-  if (day < 7) return `${day}d ago`;
+  if (day === 1) return "昨日";
+  if (day < 7) return `${day}日前`;
   return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 

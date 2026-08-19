@@ -95,7 +95,7 @@ export function AgentOrbit({
           <div className="cin-orbit-detail-head">
             <span className="cin-orbit-detail-name">{selected.name}</span>
             <span className="cin-orbit-detail-state" data-active={selected.isActive}>
-              {selected.isActive ? "Active" : "Idle"}
+              {selected.isActive ? "稼働中" : "待機中"}
             </span>
           </div>
           {selected.live?.current_task && (
@@ -106,7 +106,7 @@ export function AgentOrbit({
               {selectedFullResponse ?? selected.live.latest_task.result.response}
             </div>
           )}
-          {!selected.live && <div className="cin-orbit-detail-task">Not currently spawned.</div>}
+          {!selected.live && <div className="cin-orbit-detail-task">現在起動していません。</div>}
         </div>
       )}
 
@@ -120,7 +120,7 @@ export function AgentOrbit({
             </span>
           ))
         ) : (
-          <span className="cin-orbit-ticker-empty">No recent agent activity.</span>
+          <span className="cin-orbit-ticker-empty">最近のエージェント活動はありません。</span>
         )}
       </div>
 

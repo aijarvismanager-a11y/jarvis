@@ -63,7 +63,7 @@ export function useTasksData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+      setError(err instanceof Error ? err.message : "タスクの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -162,7 +162,7 @@ export function useTasksData() {
         refresh();
         return { ok: true, task };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -180,9 +180,9 @@ export function useTasksData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Task ${status}.` };
+        return { ok: true, message: `タスクを${status}にしました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -198,9 +198,9 @@ export function useTasksData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: `Priority set to ${priority}.` };
+        return { ok: true, message: `優先度を${priority}に設定しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -219,11 +219,11 @@ export function useTasksData() {
         return {
           ok: true,
           message: assigned_to
-            ? `Reassigned to ${assigned_to}.`
-            : `Unassigned.`,
+            ? `${assigned_to}に再割り当てしました。`
+            : `割り当てを解除しました。`,
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

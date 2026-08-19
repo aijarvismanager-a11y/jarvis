@@ -84,7 +84,7 @@ describe("buildVariableRows", () => {
     const step = piece({ name: "step_1", pieceName: "gmail", actionName: "execute_http" });
     const rows = buildVariableRows([step], {}, [gmail]);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.label).toBe("(output)");
+    expect(rows[0]!.label).toBe("(出力)");
     expect(rows[0]!.template).toBe("{{step_1}}");
   });
 
@@ -92,7 +92,7 @@ describe("buildVariableRows", () => {
     const trig = emptyTrigger("trigger");
     const rows = buildVariableRows([trig], {}, [gmail]);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.label).toBe("(output)");
+    expect(rows[0]!.label).toBe("(出力)");
   });
 
   test("orders predecessors most-recent first", () => {
@@ -117,7 +117,7 @@ describe("buildVariableRows", () => {
     const step = piece({ name: "step_1", pieceName: "ghost-piece", actionName: "any" });
     const rows = buildVariableRows([step], {}, [gmail]);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.label).toBe("(output)");
+    expect(rows[0]!.label).toBe("(出力)");
   });
 
   describe("sibling-step shape sharing", () => {
@@ -165,7 +165,7 @@ describe("buildVariableRows", () => {
         [sendA, httpA],
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(output)");
+      expect(rows[0]!.label).toBe("(出力)");
     });
 
     test("does not bleed across different pieces", () => {
@@ -178,7 +178,7 @@ describe("buildVariableRows", () => {
         [gmailHttp, ghostHttp],
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(output)");
+      expect(rows[0]!.label).toBe("(出力)");
     });
 
     test("trigger siblings would match if there were multiple (defensive)", () => {
@@ -195,7 +195,7 @@ describe("buildVariableRows", () => {
       );
       // Kind differs (PIECE_TRIGGER vs PIECE), so no inheritance.
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(output)");
+      expect(rows[0]!.label).toBe("(出力)");
     });
   });
 
@@ -226,7 +226,7 @@ describe("buildVariableRows", () => {
       const step = piece({ name: "step_1", pieceName: "listy", actionName: "fetch_all" });
       const rows = buildVariableRows([step], {}, [listy]);
       // Iterate row first, then one row per first-element key.
-      expect(rows[0]!.label).toBe("(3 items)");
+      expect(rows[0]!.label).toBe("(3件)");
       expect(rows[0]!.template).toBe("{{step_1}}");
       expect(rows[0]!.field).toBe("");
       const drillLabels = rows.slice(1).map((r) => r.label).sort();
@@ -248,7 +248,7 @@ describe("buildVariableRows", () => {
       const step = piece({ name: "step_1", pieceName: "listy", actionName: "fetch_all" });
       const rows = buildVariableRows([step], {}, [primPiece]);
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(3 items)");
+      expect(rows[0]!.label).toBe("(3件)");
     });
 
     test("drill rows omitted when first element is an array (nested)", () => {
@@ -264,7 +264,7 @@ describe("buildVariableRows", () => {
       const step = piece({ name: "step_1", pieceName: "listy", actionName: "fetch_all" });
       const rows = buildVariableRows([step], {}, [nestedPiece]);
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(2 items)");
+      expect(rows[0]!.label).toBe("(2件)");
     });
 
     test("singular label when sample has one element", () => {
@@ -279,7 +279,7 @@ describe("buildVariableRows", () => {
       };
       const step = piece({ name: "step_1", pieceName: "listy", actionName: "fetch_all" });
       const rows = buildVariableRows([step], {}, [onePiece]);
-      expect(rows[0]!.label).toBe("(1 item)");
+      expect(rows[0]!.label).toBe("(1件)");
     });
 
     test("captured array beats declared object", () => {
@@ -298,7 +298,7 @@ describe("buildVariableRows", () => {
       const rows = buildVariableRows([step], { step_1: [{ x: 1 }, { x: 2 }] }, [objLike]);
       // 1 iterate row + 1 drill row for {x}.
       expect(rows).toHaveLength(2);
-      expect(rows[0]!.label).toBe("(2 items)");
+      expect(rows[0]!.label).toBe("(2件)");
       expect(rows[0]!.template).toBe("{{step_1}}");
       expect(rows[1]!.label).toBe("[0].x");
       expect(rows[1]!.template).toBe("{{step_1[0].x}}");
@@ -317,7 +317,7 @@ describe("buildVariableRows", () => {
       const step = piece({ name: "step_1", pieceName: "listy", actionName: "fetch_all" });
       const rows = buildVariableRows([step], {}, [empty]);
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.label).toBe("(output)");
+      expect(rows[0]!.label).toBe("(出力)");
     });
 
     test("sibling step's captured array is inherited (with drill rows)", () => {
@@ -337,7 +337,7 @@ describe("buildVariableRows", () => {
       // AND the drill on the first element's `id` key. Templates point
       // at a2 (the step being rendered), not a1 (the sibling source).
       expect(rows).toHaveLength(2);
-      expect(rows[0]!.label).toBe("(2 items)");
+      expect(rows[0]!.label).toBe("(2件)");
       expect(rows[0]!.template).toBe("{{step_2}}");
       expect(rows[1]!.label).toBe("[0].id");
       expect(rows[1]!.template).toBe("{{step_2[0].id}}");

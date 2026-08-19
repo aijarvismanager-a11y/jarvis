@@ -30,9 +30,9 @@ import "./GoalsRoom.css";
 type TabId = "constellation" | "timeline" | "metrics";
 
 const TAB_LABEL: Record<TabId, string> = {
-  constellation: "Constellation",
-  timeline: "Timeline",
-  metrics: "Metrics",
+  constellation: "コンステレーション",
+  timeline: "タイムライン",
+  metrics: "メトリクス",
 };
 
 const TAB_ICON: Record<TabId, LucideIcon> = {
@@ -58,6 +58,30 @@ const HEALTH_TONE: Record<GoalHealth, "ok" | "neutral" | "warn" | "accent"> = {
 };
 
 const LEVEL_INDENT_PX = 22;
+
+const STATUS_LABEL: Record<GoalStatus, string> = {
+  draft: "下書き",
+  active: "実行中",
+  paused: "一時停止",
+  completed: "完了",
+  failed: "失敗",
+  killed: "強制終了",
+};
+
+const HEALTH_LABEL: Record<GoalHealth, string> = {
+  on_track: "順調",
+  at_risk: "リスクあり",
+  behind: "遅延",
+  critical: "危機的",
+};
+
+const LEVEL_LABEL: Record<GoalLevel, string> = {
+  objective: "目標",
+  key_result: "主要な結果",
+  milestone: "マイルストーン",
+  task: "タスク",
+  daily_action: "日次アクション",
+};
 
 export type RoomBodyMode = "inline" | "expanded";
 
@@ -152,7 +176,7 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
           const r = await data.createQuick({ title, level, deadline });
           if (r.ok) {
             setSelectedId(r.goal.id);
-            setToast({ text: `Created "${r.goal.title}".`, tone: "ok" });
+            setToast({ text: `「${r.goal.title}」を作成しました。`, tone: "ok" });
           } else {
             setToast({ text: r.message, tone: "warn" });
           }
@@ -169,29 +193,29 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
       {/* Stats */}
       <div className="v2-goals__stats">
         <StatCard
-          label="Active"
+          label="実行中"
           value={data.metrics?.active ?? 0}
-          sub={`of ${data.metrics?.total ?? 0} total`}
+          sub={`全 ${data.metrics?.total ?? 0} 件中`}
         />
         <StatCard
-          label="Avg score"
+          label="平均スコア"
           value={
             data.metrics
               ? `${Math.round(data.metrics.avg_score * 100)}%`
               : "—"
           }
-          sub="across all goals"
+          sub="全目標の平均"
         />
         <StatCard
-          label="Overdue"
+          label="期限超過"
           value={data.overdue.length}
-          sub="active + past deadline"
+          sub="実行中 かつ 期限超過"
           tone={data.overdue.length > 0 ? "warn" : "neutral"}
         />
         <StatCard
-          label="Critical"
+          label="危機的"
           value={data.metrics?.critical ?? 0}
-          sub="health = critical"
+          sub="健全性 = 危機的"
           tone={(data.metrics?.critical ?? 0) > 0 ? "accent" : "neutral"}
         />
       </div>
@@ -201,7 +225,7 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
         <div
           className="v2-goals__tabs"
           role="tablist"
-          aria-label="Goals view"
+          aria-label="目標の表示"
           ref={tabsApi.tablistRef}
         >
           {TAB_KEYS.map((t) => (
@@ -226,21 +250,21 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
           <input
             className="v2-goals__search-input"
             type="text"
-            placeholder="Search goals…"
+            placeholder="目標を検索…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search goals"
+            aria-label="目標を検索"
           />
         </div>
         <FilterPills
-          label="Status"
+          label="ステータス"
           options={["all", ...GOAL_STATUSES]}
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as GoalStatus | "all")}
         />
         {mode === "expanded" && (
           <FilterPills
-            label="Health"
+            label="健全性"
             options={["all", ...GOAL_HEALTHS]}
             value={healthFilter}
             onChange={(v) => setHealthFilter(v as GoalHealth | "all")}
@@ -250,8 +274,8 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
           type="button"
           className="v2-goals__refresh"
           onClick={data.refresh}
-          aria-label="Refresh"
-          title="Refresh"
+          aria-label="更新"
+          title="更新"
         >
           <Icon icon={RefreshCw} size="sm" />
         </button>
@@ -261,7 +285,7 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
           onClick={() => setCreateOpen(true)}
         >
           <Icon icon={Plus} size="sm" />
-          New
+          新規
         </button>
       </div>
 
@@ -324,7 +348,7 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
             const r = await data.createQuick(input);
             if (r.ok) {
               setSelectedId(r.goal.id);
-              setToast({ text: `Created "${r.goal.title}".`, tone: "ok" });
+              setToast({ text: `「${r.goal.title}」を作成しました。`, tone: "ok" });
               return true;
             }
             setToast({ text: r.message, tone: "warn" });
@@ -345,9 +369,9 @@ export function GoalsRoomBody({ mode }: { mode: RoomBodyMode }) {
 export function GoalsRoom() {
   return (
     <RoomShell
-      title="Goals"
-      subtitle="OKR hierarchy · check-ins · progress"
-      breadcrumb={["Goals"]}
+      title="目標"
+      subtitle="OKR階層 · チェックイン · 進捗"
+      breadcrumb={["目標"]}
     >
       <GoalsRoomBody mode="expanded" />
     </RoomShell>
@@ -388,7 +412,7 @@ function FilterPills<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="v2-goals__filter-row" role="tablist" aria-label={`Filter by ${label}`}>
+    <div className="v2-goals__filter-row" role="tablist" aria-label={`${label}で絞り込み`}>
       {options.map((opt) => (
         <button
           key={opt}
@@ -397,11 +421,17 @@ function FilterPills<T extends string>({
           data-active={value === opt}
           onClick={() => onChange(opt)}
         >
-          {opt.replace(/_/g, " ")}
+          {filterPillLabel(opt)}
         </button>
       ))}
     </div>
   );
+}
+
+/** Shared label for FilterPills — handles "all" plus any GoalStatus/GoalHealth value. */
+function filterPillLabel(opt: string): string {
+  if (opt === "all") return "すべて";
+  return (STATUS_LABEL as Record<string, string>)[opt] ?? (HEALTH_LABEL as Record<string, string>)[opt] ?? opt.replace(/_/g, " ");
 }
 
 /* ─────────── Constellation tab (OKR tree) ─────────── */
@@ -422,12 +452,12 @@ function Constellation({
   loading: boolean;
 }) {
   if (loading && roots.length === 0) {
-    return <div className="v2-goals__empty">Loading goals…</div>;
+    return <div className="v2-goals__empty">目標を読み込み中…</div>;
   }
   if (roots.length === 0) {
     return (
       <div className="v2-goals__empty">
-        No goals match the current filters. Click <strong>New</strong> to create one.
+        現在の絞り込み条件に一致する目標がありません。<strong>新規</strong>をクリックして作成してください。
       </div>
     );
   }
@@ -485,7 +515,7 @@ function TreeNode({
               e.stopPropagation();
               setExpanded((v) => !v);
             }}
-            aria-label={expanded ? "Collapse" : "Expand"}
+            aria-label={expanded ? "折りたたむ" : "展開"}
             data-expanded={expanded}
           >
             <Icon icon={ChevronRight} size="sm" />
@@ -499,10 +529,10 @@ function TreeNode({
         <span className="v2-goals__tree-title">{goal.title}</span>
         <ScoreBar score={goal.score} />
         <Chip tone={STATUS_TONE[goal.status]} dot>
-          {goal.status}
+          {STATUS_LABEL[goal.status]}
         </Chip>
         <Chip tone={HEALTH_TONE[goal.health]} dot>
-          {goal.health.replace(/_/g, " ")}
+          {HEALTH_LABEL[goal.health]}
         </Chip>
       </div>
       {expanded && children.length > 0 && (
@@ -528,7 +558,7 @@ function ScoreBar({ score }: { score: number }) {
   const pct = Math.max(0, Math.min(1, score)) * 100;
   const tone = score >= 0.7 ? "ok" : score >= 0.4 ? "warn" : "accent";
   return (
-    <div className="v2-goals__score-bar" title={`Score ${(score * 100).toFixed(0)}%`}>
+    <div className="v2-goals__score-bar" title={`スコア ${(score * 100).toFixed(0)}%`}>
       <div className="v2-goals__score-bar-fill" data-tone={tone} style={{ width: `${pct}%` }} />
       <span className="v2-goals__score-bar-label">{Math.round(pct)}%</span>
     </div>
@@ -645,12 +675,12 @@ function ConstellationSky({
   );
 
   if (loading && nodes.length === 0) {
-    return <div className="v2-goals__empty">Loading goals…</div>;
+    return <div className="v2-goals__empty">目標を読み込み中…</div>;
   }
   if (nodes.length === 0) {
     return (
       <div className="v2-goals__empty">
-        No goals match the current filters. Click <strong>New</strong> to create one.
+        現在の絞り込み条件に一致する目標がありません。<strong>新規</strong>をクリックして作成してください。
       </div>
     );
   }
@@ -692,7 +722,7 @@ function ConstellationSky({
           }
           onClick={() => onSelect(selectedId === n.goal.id ? null : n.goal.id)}
           title={`${n.goal.title} · ${(n.goal.score * 100).toFixed(0)}%`}
-          aria-label={`${n.goal.title}, ${n.goal.level.replace(/_/g, " ")}, score ${(n.goal.score * 100).toFixed(0)} percent`}
+          aria-label={`${n.goal.title}, ${LEVEL_LABEL[n.goal.level]}, スコア ${(n.goal.score * 100).toFixed(0)}%`}
         >
           <span className="v2-goals__gring">
             {n.size >= 32 && <b className="v2-goals__scin">{scoreLabel(n.goal.score)}</b>}
@@ -708,11 +738,11 @@ function ConstellationSky({
 
 const GANTT_ORDER: ReadonlyArray<GoalLevel> = ["objective", "key_result", "milestone", "task", "daily_action"];
 const GANTT_LEVEL_LABEL: Record<GoalLevel, string> = {
-  objective: "Objectives",
-  key_result: "Key results",
-  milestone: "Milestones",
-  task: "Tasks",
-  daily_action: "Daily actions",
+  objective: "目標",
+  key_result: "主要な結果",
+  milestone: "マイルストーン",
+  task: "タスク",
+  daily_action: "日次アクション",
 };
 const RULER_H = 30;
 const LVL_H = 22;
@@ -774,7 +804,7 @@ function Timeline({
   if (!model) {
     return (
       <div className="v2-goals__empty">
-        No goals to display. Create your first goal to see the timeline.
+        表示できる目標がありません。最初の目標を作成するとタイムラインが表示されます。
       </div>
     );
   }
@@ -786,7 +816,7 @@ function Timeline({
     <div className="v2-goals__gantt" style={{ ["--gantt-h" as string]: `${model.totalH}px` } as React.CSSProperties}>
       {/* left: the ladder */}
       <div className="v2-goals__gantt-labels">
-        <div className="v2-goals__gantt-spacer">goal tree</div>
+        <div className="v2-goals__gantt-spacer">目標ツリー</div>
         {model.rows.map((r) =>
           r.kind === "header" ? (
             <div key={r.id} className="v2-goals__glvl" style={{ top: r.top, height: LVL_H }}>
@@ -818,7 +848,7 @@ function Timeline({
           ))}
         </div>
         <div className="v2-goals__today" style={{ left: `${pct(now)}%` }}>
-          <i>today</i>
+          <i>今日</i>
         </div>
         {model.rows.map((r) =>
           r.kind === "goal" ? (
@@ -838,7 +868,7 @@ function Timeline({
                 } as React.CSSProperties
               }
               onClick={() => onSelect(selectedId === r.goal.id ? null : r.goal.id)}
-              aria-label={`${r.goal.title} timeline bar`}
+              aria-label={`${r.goal.title} タイムラインバー`}
             >
               <i />
               {r.dated && <span className="v2-goals__gbar-dl">{shortDate(r.goal.deadline!)}</span>}
@@ -1270,7 +1300,7 @@ function CreateDialog({
 /* ─────────── helpers ─────────── */
 
 function shortLevel(level: GoalLevel): string {
-  return level.replace(/_/g, " ");
+  return LEVEL_LABEL[level];
 }
 
 function shortDate(ts: number): string {

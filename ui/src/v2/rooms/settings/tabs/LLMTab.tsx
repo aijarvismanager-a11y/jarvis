@@ -136,7 +136,7 @@ export function LLMTab({
   );
   const providerCatalogs = useLiveProviderCatalogs(llm?.providers ?? {});
 
-  if (!llm) return <div className="v2-set__empty">Loading LLM config...</div>;
+  if (!llm) return <div className="v2-set__empty">LLM設定を読み込み中...</div>;
 
   // The mode comes straight from the backend (persisted), so it's the single
   // source of truth for which section renders. No local mirror state.
@@ -160,10 +160,10 @@ export function LLMTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">How should Jarvis think?</h3>
+            <h3 className="v2-set__section-title">Jarvisはどう思考すべきか？</h3>
             <div className="v2-set__section-sub">
-              Pick the architecture that drives chat and background work.
-              You can switch any time.
+              チャットとバックグラウンド作業を動かすアーキテクチャを選択してください。
+              いつでも切り替えられます。
             </div>
           </div>
         </div>
@@ -178,9 +178,9 @@ export function LLMTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Providers</h3>
+            <h3 className="v2-set__section-title">プロバイダー</h3>
             <div className="v2-set__section-sub">
-              Configure credentials once per provider. Models are picked below.
+              プロバイダーごとに認証情報を一度設定してください。モデルは下で選択します。
             </div>
           </div>
         </div>
@@ -208,7 +208,7 @@ function ModeChooser({
   onMulti: () => void;
 }) {
   return (
-    <div className="v2-set__mode" role="radiogroup" aria-label="LLM mode">
+    <div className="v2-set__mode" role="radiogroup" aria-label="LLMモード">
       <button
         type="button"
         role="radio"
@@ -218,10 +218,10 @@ function ModeChooser({
         onClick={onSingle}
         disabled={switching}
       >
-        <div className="v2-set__mode-title">Single LLM</div>
+        <div className="v2-set__mode-title">単一LLM</div>
         <div className="v2-set__mode-sub">
-          One model handles user chat AND background work. Simplest, cheapest
-          to wire, fewer moving parts. Recommended default.
+          1つのモデルがユーザーチャットとバックグラウンド作業の両方を処理します。最もシンプルで
+          構築コストが低く、可動部が少ないです。推奨デフォルト。
         </div>
       </button>
       <button
@@ -233,11 +233,10 @@ function ModeChooser({
         onClick={onMulti}
         disabled={switching}
       >
-        <div className="v2-set__mode-title">Multi-tier (router-first)</div>
+        <div className="v2-set__mode-title">マルチ階層（ルーターファースト）</div>
         <div className="v2-set__mode-sub">
-          A small fast model owns dialogue and delegates work to heavier
-          task models in the background. Better at long-running tasks; needs
-          more setup.
+          小型の高速モデルが対話を担当し、バックグラウンドでより重いタスクモデルに作業を
+          委任します。長時間タスクに強い反面、セットアップが多く必要です。
         </div>
       </button>
     </div>
@@ -262,7 +261,7 @@ function ProvidersList({
   return (
     <div>
       {names.length === 0 && !adding && (
-        <div className="v2-set__empty">No providers configured yet.</div>
+        <div className="v2-set__empty">プロバイダーはまだ設定されていません。</div>
       )}
 
       {names.map((name) => (
@@ -293,7 +292,7 @@ function ProvidersList({
           style={{ marginTop: "var(--s-3)" }}
           onClick={() => setAdding(true)}
         >
-          <Icon icon={Plus} size={14} /> Add provider
+          <Icon icon={Plus} size={14} /> プロバイダーを追加
         </button>
       )}
     </div>
@@ -359,14 +358,14 @@ function ProviderRow({
         <span className="v2-set__row-name">
           {name}{" "}
           <span className="v2-set__chip" style={{ marginLeft: 6 }}>
-            kind: {LLM_PROVIDER_KIND_LABELS[entry.kind]}
+            種類: {LLM_PROVIDER_KIND_LABELS[entry.kind]}
           </span>
         </span>
         <span className="v2-set__row-state">
           {configured ? (
-            <span className="v2-set__chip v2-set__chip--ok">configured</span>
+            <span className="v2-set__chip v2-set__chip--ok">設定済み</span>
           ) : (
-            <span className="v2-set__chip">not set</span>
+            <span className="v2-set__chip">未設定</span>
           )}
           <Icon icon={ChevronRight} size={14} />
         </span>
@@ -377,12 +376,12 @@ function ProviderRow({
           {usesKey && (
             <div className="v2-set__field">
               <label className="v2-set__field-label">
-                {entry.kind === "anthropic" && customEndpoint ? "Auth token" : `API key${needsKey ? "" : " (optional)"}`}
+                {entry.kind === "anthropic" && customEndpoint ? "認証トークン" : `APIキー${needsKey ? "" : "（任意）"}`}
               </label>
               <input
                 type="password"
                 className="v2-set__input"
-                placeholder={entry.has_api_key ? "•••• stored ••••" : "paste key here"}
+                placeholder={entry.has_api_key ? "•••• 保存済み ••••" : "ここにキーを貼り付け"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
@@ -402,13 +401,13 @@ function ProviderRow({
                   setTestResult(null);
                 }}
               />
-              <span>Use a custom Anthropic endpoint</span>
+              <span>カスタムAnthropicエンドポイントを使用</span>
             </label>
           )}
           {supportsUrl && (
             <div className="v2-set__field">
               <label className="v2-set__field-label">
-                {optionalUrl ? "Custom endpoint URL" : "Base URL"}
+                {optionalUrl ? "カスタムエンドポイントURL" : "ベースURL"}
               </label>
               <input
                 type="text"
@@ -419,7 +418,7 @@ function ProviderRow({
               />
               {entry.kind === "anthropic" && (
                 <div className="v2-set__hint">
-                  Jarvis appends /v1/messages and authenticates with the token above.
+                  Jarvisが /v1/messages を末尾に付加し、上記トークンで認証します。
                 </div>
               )}
             </div>
@@ -446,7 +445,7 @@ function ProviderRow({
                 setTesting(false);
               }}
             >
-              {testing ? "Testing…" : "Test connection"}
+              {testing ? "テスト中…" : "接続テスト"}
             </button>
             <button
               type="button"
@@ -466,25 +465,25 @@ function ProviderRow({
                 setSaving(false);
               }}
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? "保存中…" : "保存"}
             </button>
             <button
               type="button"
               className="v2-set__btn v2-set__btn--danger"
               style={{ marginLeft: "auto" }}
               onClick={async () => {
-                if (!await confirmDialog(`Remove provider '${name}'? This deletes the stored API key.`)) return;
+                if (!await confirmDialog(`プロバイダー「${name}」を削除しますか？保存済みのAPIキーも削除されます。`)) return;
                 const r = await data.removeProvider(name);
                 onToast(r.message, r.ok ? "ok" : "warn");
               }}
             >
-              <Icon icon={Trash2} size={14} /> Remove
+              <Icon icon={Trash2} size={14} /> 削除
             </button>
           </div>
 
           {endpointChanged && !apiKey && (
             <div className="v2-set__hint v2-set__hint--warn">
-              Enter the API key or auth token again before testing or saving a changed endpoint URL.
+              変更したエンドポイントURLをテストまたは保存する前に、APIキーまたは認証トークンを再入力してください。
             </div>
           )}
 
@@ -529,7 +528,7 @@ function NewProviderRow({
       <div className="v2-set__row-body">
         <div className="v2-set__provider-grid">
           <div className="v2-set__field">
-            <label className="v2-set__field-label">Provider kind</label>
+            <label className="v2-set__field-label">プロバイダーの種類</label>
             <select
               className="v2-set__select"
               value={kind}
@@ -550,7 +549,7 @@ function NewProviderRow({
 
         <div className="v2-set__field">
           <label className="v2-set__field-label">
-            Name <span style={{ opacity: 0.6 }}>(how you reference this in model strings)</span>
+            名前 <span style={{ opacity: 0.6 }}>（モデル文字列内での参照名）</span>
           </label>
           <input
             type="text"
@@ -561,7 +560,7 @@ function NewProviderRow({
           />
           {duplicate && (
             <div className="v2-set__hint v2-set__hint--warn">
-              A provider named &quot;{effectiveName}&quot; already exists. Pick a different name.
+              「{effectiveName}」という名前のプロバイダーは既に存在します。別の名前を選んでください。
             </div>
           )}
         </div>
@@ -580,14 +579,14 @@ function NewProviderRow({
                 setTestResult(null);
               }}
             />
-            <span>Use a custom Anthropic endpoint</span>
+            <span>カスタムAnthropicエンドポイントを使用</span>
           </label>
         )}
 
         {usesKey && (
           <div className="v2-set__field">
             <label className="v2-set__field-label">
-              {kind === "anthropic" && customEndpoint ? "Auth token" : `API key${needsKey ? "" : " (optional)"}`}
+              {kind === "anthropic" && customEndpoint ? "認証トークン" : `APIキー${needsKey ? "" : "（任意）"}`}
             </label>
             <input
               type="password"
@@ -600,7 +599,7 @@ function NewProviderRow({
         {supportsUrl && (
           <div className="v2-set__field">
             <label className="v2-set__field-label">
-              {optionalUrl ? "Custom endpoint URL" : "Base URL"}
+              {optionalUrl ? "カスタムエンドポイントURL" : "ベースURL"}
             </label>
             <input
               type="text"
@@ -611,7 +610,7 @@ function NewProviderRow({
             />
             {kind === "anthropic" && (
               <div className="v2-set__hint">
-                Jarvis appends /v1/messages and authenticates with the token above.
+                Jarvisが /v1/messages を末尾に付加し、上記トークンで認証します。
               </div>
             )}
           </div>
@@ -620,7 +619,7 @@ function NewProviderRow({
 
         <div className="v2-set__row-actions" style={{ display: "flex", gap: "var(--s-2)", marginTop: "var(--s-3)" }}>
           <button type="button" className="v2-set__btn" onClick={onDone}>
-            Cancel
+            キャンセル
           </button>
           <button
             type="button"
@@ -638,7 +637,7 @@ function NewProviderRow({
               setTesting(false);
             }}
           >
-            {testing ? "Testing…" : "Test connection"}
+            {testing ? "テスト中…" : "接続テスト"}
           </button>
           <button
             type="button"
@@ -655,7 +654,7 @@ function NewProviderRow({
               if (r.ok) onDone();
             }}
           >
-            {saving ? "Saving…" : "Add"}
+            {saving ? "保存中…" : "追加"}
           </button>
         </div>
         {testResult && (
@@ -675,7 +674,7 @@ function ProviderTestResult({
     <div className={"v2-set__provider-test " + (result.ok ? "v2-set__provider-test--ok" : "v2-set__provider-test--warn")}>
       <div>{result.text}</div>
       {result.ok && result.models && result.models.length > 0 && (
-        <div className="v2-set__provider-models" aria-label="Models discovered">
+        <div className="v2-set__provider-models" aria-label="検出されたモデル">
           {result.models.map((model) => (
             <span className="v2-set__chip" key={model}>{model}</span>
           ))}
@@ -704,15 +703,15 @@ function SingleModelSection({
     <section className="v2-set__section">
       <div className="v2-set__section-head">
         <div>
-          <h3 className="v2-set__section-title">Model</h3>
+          <h3 className="v2-set__section-title">モデル</h3>
           <div className="v2-set__section-sub">
-            Pick one model. The system uses it for everything.
+            モデルを1つ選択してください。システムはすべての処理にこれを使用します。
           </div>
         </div>
       </div>
 
       <ModelSelector
-        label="Default model"
+        label="デフォルトモデル"
         value={llm.default}
         providers={llm.providers}
         ollamaModels={ollamaModels}
@@ -744,23 +743,23 @@ function MultiTierSection({
   const TIERS: Array<{ id: LLMTier; label: string; sub: string }> = [
     {
       id: "conversation",
-      label: "Conversation",
-      sub: "Thin LLM that owns dialogue and routes work to the task tiers.",
+      label: "会話",
+      sub: "対話を担当し、作業をタスク階層へルーティングする軽量LLM。",
     },
     {
       id: "high",
-      label: "High intelligence",
-      sub: "Complex reasoning, planning, deep code work.",
+      label: "高知能",
+      sub: "複雑な推論、計画立案、高度なコード作業。",
     },
     {
       id: "medium",
-      label: "Medium intelligence",
-      sub: "General tool use, workflow orchestration, structured tasks.",
+      label: "中知能",
+      sub: "一般的なツール利用、ワークフローのオーケストレーション、構造化タスク。",
     },
     {
       id: "low",
-      label: "Low intelligence",
-      sub: "Classification, summarization, fast cheap calls (voice intent, extractor).",
+      label: "低知能",
+      sub: "分類、要約、高速で低コストな呼び出し（音声インテント、抽出処理）。",
     },
   ];
 
@@ -768,11 +767,11 @@ function MultiTierSection({
     <section className="v2-set__section">
       <div className="v2-set__section-head">
         <div>
-          <h3 className="v2-set__section-title">Per-tier models</h3>
+          <h3 className="v2-set__section-title">階層別モデル</h3>
           <div className="v2-set__section-sub">
-            Different models for different jobs. Tiers without an explicit
-            model fall up: low -&gt; medium -&gt; high. The default below acts
-            as the fallback when no tier matches.
+            用途ごとに異なるモデルを設定します。明示的なモデルがない階層は
+            低 -&gt; 中 -&gt; 高 の順にフォールアップします。下のデフォルトは
+            どの階層にも該当しない場合のフォールバックとして使われます。
           </div>
         </div>
       </div>
@@ -809,9 +808,9 @@ function MultiTierSection({
       ))}
 
       <div className="v2-set__field" style={{ marginTop: "var(--s-4)" }}>
-        <h4 className="v2-set__section-title">Default (fallback)</h4>
+        <h4 className="v2-set__section-title">デフォルト（フォールバック）</h4>
         <div className="v2-set__section-sub" style={{ marginBottom: "var(--s-2)" }}>
-          Used when a tier has no explicit model and the fall-up chain has nothing either.
+          階層に明示的なモデルがなく、フォールアップチェーンにも何もない場合に使用されます。
         </div>
         <ModelSelector
           label=""
@@ -864,7 +863,7 @@ function TierFallbackEditor({
   return (
     <div style={{ marginTop: "var(--s-2)", paddingLeft: "var(--s-3)", borderLeft: "2px solid var(--border-2, rgba(255,255,255,0.08))" }}>
       <div className="v2-set__hint">
-        Fallback chain — tried in order only if {tier}&apos;s model above fails after its own retries.
+        フォールバックチェーン — 上記の{tier}のモデルが独自のリトライ後も失敗した場合のみ、順番に試行されます。
       </div>
 
       {chain.length > 0 && (
@@ -874,7 +873,7 @@ function TierFallbackEditor({
               {idx + 1}. {ref}
               <button
                 type="button"
-                aria-label={`Remove ${ref} from ${tier} fallback chain`}
+                aria-label={`${ref} を ${tier} のフォールバックチェーンから削除`}
                 onClick={() => removeAt(idx)}
                 style={{ marginLeft: 6, cursor: "pointer", background: "none", border: "none", color: "inherit", padding: 0, font: "inherit" }}
               >
@@ -907,7 +906,7 @@ function TierFallbackEditor({
               setPendingRef(null);
             }}
           >
-            Add
+            追加
           </button>
           <button
             type="button"
@@ -917,7 +916,7 @@ function TierFallbackEditor({
               setPendingRef(null);
             }}
           >
-            Cancel
+            キャンセル
           </button>
         </div>
       ) : (
@@ -927,7 +926,7 @@ function TierFallbackEditor({
           style={{ marginTop: "var(--s-2)" }}
           onClick={() => setAdding(true)}
         >
-          <Icon icon={Plus} size={14} /> Add fallback
+          <Icon icon={Plus} size={14} /> フォールバックを追加
         </button>
       )}
     </div>
@@ -1009,7 +1008,7 @@ function ModelSelector({
         {label && <label className="v2-set__field-label">{label}</label>}
         {sub && <div className="v2-set__section-sub">{sub}</div>}
         <div className="v2-set__hint v2-set__hint--warn">
-          No providers configured. Add one above first.
+          プロバイダーが設定されていません。まず上で追加してください。
         </div>
       </div>
     );
@@ -1048,7 +1047,7 @@ function ModelSelector({
           <input
             type="text"
             className="v2-set__input"
-            placeholder="model id"
+            placeholder="モデルID"
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
             onBlur={() => customModel && commit(selectedProvider, customModel.trim())}
@@ -1070,7 +1069,7 @@ function ModelSelector({
             {models.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
-            <option value="__custom__">Custom…</option>
+            <option value="__custom__">カスタム…</option>
           </select>
         )}
 
@@ -1078,7 +1077,7 @@ function ModelSelector({
           <input
             type="text"
             className="v2-set__input"
-            placeholder="model id"
+            placeholder="モデルID"
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
             onBlur={() => customModel && commit(selectedProvider, customModel.trim())}
@@ -1092,13 +1091,13 @@ function ModelSelector({
             className="v2-set__btn"
             onClick={() => onChange(null)}
           >
-            Clear
+            クリア
           </button>
         )}
       </div>
       {effectiveModel && (
         <div className="v2-set__hint" style={{ marginTop: "var(--s-2)" }}>
-          Saved as <code>{selectedProvider}:{effectiveModel}</code>
+          保存形式: <code>{selectedProvider}:{effectiveModel}</code>
         </div>
       )}
     </div>

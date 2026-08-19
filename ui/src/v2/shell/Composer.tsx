@@ -13,7 +13,7 @@ export interface ComposerProps {
 export function Composer({
   onSubmit,
   onSlash,
-  placeholder = "Ask Jarvis, or press / to summon a tool…",
+  placeholder = "Jarvisに質問、または / でツールを呼び出す…",
   disabled,
 }: ComposerProps) {
   const [value, setValue] = useState("");
@@ -99,13 +99,13 @@ export function Composer({
             }
           }}
           disabled={disabled}
-          aria-label="Message Jarvis"
+          aria-label="Jarvisにメッセージ"
         />
         <button
           type="button"
           className="v2-composer__slash"
           onClick={onSlash}
-          aria-label="Open command palette"
+          aria-label="コマンドパレットを開く"
         >
           /
         </button>
@@ -113,7 +113,7 @@ export function Composer({
           type="submit"
           className="v2-composer__send"
           disabled={disabled || value.trim().length === 0}
-          aria-label="Send"
+          aria-label="送信"
         >
           <Icon icon={ArrowRight} size={12} strokeWidth={2} />
         </button>

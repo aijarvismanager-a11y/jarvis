@@ -42,36 +42,36 @@ function isDestructive(s: string): boolean {
 }
 
 const WELCOME_SET = [
-  "What's on my calendar today?",
-  "Summarize yesterday's logs",
-  "Open workflows",
-  "What did the researcher finish overnight?",
+  "今日の予定は?",
+  "昨日のログを要約して",
+  "ワークフローを開く",
+  "リサーチャーは夜間に何を終わらせた?",
 ];
 
 const SPEECH_FOLLOWUPS = [
-  "Tell me more",
-  "Why?",
-  "What's the source?",
-  "Take me back",
+  "もっと詳しく",
+  "なぜ?",
+  "情報源は?",
+  "戻して",
 ];
 
 const CARD_FOLLOWUPS = [
-  "Open it",
-  "Show details",
-  "What's its status?",
-  "Take me back",
+  "開く",
+  "詳細を表示",
+  "ステータスは?",
+  "戻して",
 ];
 
 const RESULT_FOLLOWUPS = [
-  "What's next?",
-  "Show me the details",
-  "Why?",
+  "次は?",
+  "詳細を見せて",
+  "なぜ?",
 ];
 
 const GENERAL = [
-  "What's the latest?",
-  "What can you do?",
-  "Open workflows",
+  "最新情報は?",
+  "何ができるの?",
+  "ワークフローを開く",
 ];
 
 function pickSet(items: ThreadItem[]): string[] {

@@ -10,12 +10,12 @@
 export type SpecLevel = 0 | 1 | 2 | 3 | 4 | 5;
 
 export const SPEC_LEVEL_LABELS: Record<SpecLevel, string> = {
-  0: "No access",
-  1: "Read only",
-  2: "Read + write",
-  3: "Command execution",
-  4: "Agent management",
-  5: "Full access",
+  0: "アクセスなし",
+  1: "読み取り専用",
+  2: "読み書き",
+  3: "コマンド実行",
+  4: "エージェント管理",
+  5: "フルアクセス",
 };
 
 export function toSpecLevel(authorityLevel: number): SpecLevel {

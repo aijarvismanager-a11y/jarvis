@@ -152,20 +152,20 @@ export function AgentsRoomBody({ mode }: { mode: RoomBodyMode }) {
         <div
           className="v2-agents__tabs"
           role="tablist"
-          aria-label="Agents view"
+          aria-label="エージェント表示"
           ref={tabsApi.tablistRef}
         >
           <TabButton tabProps={tabsApi.getTabProps("command")} active={activeTab === "command"}>
-            Command Center
+            コマンドセンター
             <span className="v2-agents__tab-badge">{data.stats.total}</span>
           </TabButton>
           <TabButton tabProps={tabsApi.getTabProps("orbital")} active={activeTab === "orbital"}>
-            Orbital View
-            <span className="v2-agents__tab-badge">{data.stats.active} active</span>
+            オービタルビュー
+            <span className="v2-agents__tab-badge">実行中 {data.stats.active}</span>
           </TabButton>
           <TabButton tabProps={tabsApi.getTabProps("builder")} active={activeTab === "builder"}>
-            Agent Builder
-            <span className="v2-agents__tab-badge">→ Workflows</span>
+            エージェントビルダー
+            <span className="v2-agents__tab-badge">→ ワークフロー</span>
           </TabButton>
         </div>
       )}
@@ -177,10 +177,10 @@ export function AgentsRoomBody({ mode }: { mode: RoomBodyMode }) {
           <input
             className="v2-agents__search-input"
             type="text"
-            placeholder="Search agents…"
+            placeholder="エージェントを検索…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search agents"
+            aria-label="エージェントを検索"
           />
         </div>
         <button
@@ -189,7 +189,7 @@ export function AgentsRoomBody({ mode }: { mode: RoomBodyMode }) {
           onClick={() => setSpawnOpen(true)}
         >
           <Icon icon={Plus} size="sm" />
-          Spawn agent
+          エージェントを起動
         </button>
       </div>
 
@@ -229,7 +229,7 @@ export function AgentsRoomBody({ mode }: { mode: RoomBodyMode }) {
 /** Overlay-mode wrapper. Direct URL / palette Shift+Enter / explicit "expand". */
 export function AgentsRoom() {
   return (
-    <RoomShell title="Agents" subtitle="roster · health · delegation" breadcrumb={["Agents"]}>
+    <RoomShell title="エージェント" subtitle="名簿 · 状態 · 委任" breadcrumb={["エージェント"]}>
       <AgentsRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -250,17 +250,17 @@ function StatsBar({
 }) {
   return (
     <div className="v2-agents__stats">
-      <StatCard label="Active agents" value={`${active}`} sub={`of ${total}`} />
+      <StatCard label="稼働中" value={`${active}`} sub={`全 ${total} 中`} />
       <StatCard
-        label="Tasks completed"
+        label="完了タスク"
         value={`${completed24h}`}
-        sub="this session"
+        sub="このセッション"
       />
-      <StatCard label="Avg response" value="—" sub="median" />
+      <StatCard label="平均応答" value="—" sub="中央値" />
       <StatCard
-        label="Delegation depth"
+        label="委任の深さ"
         value={`${delegationDepth}`}
-        sub="active hierarchy"
+        sub="アクティブな階層"
       />
     </div>
   );
@@ -307,7 +307,7 @@ function CommandCenter({ roster }: { roster: AgentRosterEntry[] }) {
   return (
     <div className="v2-agents__command">
       {active.length > 0 && (
-        <Section label="Active">
+        <Section label="稼働中">
           <div className="v2-agents__grid">
             {active.map((a) => (
               <AgentCard key={a.roleId} agent={a} />
@@ -316,7 +316,7 @@ function CommandCenter({ roster }: { roster: AgentRosterEntry[] }) {
         </Section>
       )}
       {idle.length > 0 && (
-        <Section label="Idle">
+        <Section label="待機中">
           <div className="v2-agents__grid">
             {idle.map((a) => (
               <AgentCard key={a.roleId} agent={a} />
@@ -325,7 +325,7 @@ function CommandCenter({ roster }: { roster: AgentRosterEntry[] }) {
         </Section>
       )}
       {roster.length === 0 && (
-        <div className="v2-agents__empty">No agents match the current search.</div>
+        <div className="v2-agents__empty">検索条件に一致するエージェントがありません。</div>
       )}
     </div>
   );
@@ -360,21 +360,21 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
   let statusLabel: string;
   let statusTone: Tone;
   if (agent.isPrimary) {
-    statusLabel = "Primary";
+    statusLabel = "プライマリ";
     statusTone = "fail";
   } else if (agent.live?.busy) {
-    statusLabel = "Active";
+    statusLabel = "稼働中";
     statusTone = "run";
   } else {
-    statusLabel = "Idle";
+    statusLabel = "待機中";
     statusTone = "mut";
   }
 
   let timeLabel = "";
   if (sinceTs) {
     timeLabel = agent.isActive
-      ? `since ${formatTime(sinceTs)}`
-      : `last: ${formatRelative(sinceTs)}`;
+      ? `${formatTime(sinceTs)} から`
+      : `最終: ${formatRelative(sinceTs)}`;
   }
 
   return (
@@ -386,7 +386,7 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
         <div className="v2-agents__card-id">
           <div className="v2-agents__card-name">{agent.name}</div>
           <div className="v2-agents__card-task" data-empty={!currentTask}>
-            {currentTask ?? "Waiting for tasks…"}
+            {currentTask ?? "タスク待ち…"}
           </div>
         </div>
         <StatusChip tone={statusTone} dot>
@@ -400,7 +400,7 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
         >
           <summary className="v2-agents__card-result-summary">
             <StatusChip tone={finishedResult.success ? "ok" : "hold"} dot>
-              {finishedResult.success ? "Result ready" : "Task failed"}
+              {finishedResult.success ? "結果あり" : "タスク失敗"}
             </StatusChip>
             <span className="v2-agents__card-result-hint">
               {latestTask?.completed_at
@@ -416,7 +416,7 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
       <div className="v2-agents__card-foot">
         <AuthorityBar authority={agent.authority} active={agent.isActive} />
         <div className="v2-agents__card-foot-spacer" />
-        <span className="v2-agents__tools">{agent.tools} tools</span>
+        <span className="v2-agents__tools">ツール {agent.tools}</span>
         {timeLabel && <span className="v2-agents__since">{timeLabel}</span>}
       </div>
     </article>
@@ -425,7 +425,7 @@ function AgentCard({ agent }: { agent: AgentRosterEntry }) {
 
 function AuthorityBar({ authority, active }: { authority: number; active: boolean }) {
   return (
-    <div className="v2-agents__authority" aria-label={`Authority ${authority} of 10`}>
+    <div className="v2-agents__authority" aria-label={`権限 10 段階中 ${authority}`}>
       {Array.from({ length: 10 }, (_, i) => (
         <span
           key={i}
@@ -434,7 +434,7 @@ function AuthorityBar({ authority, active }: { authority: number; active: boolea
           data-active={active}
         />
       ))}
-      <span className="v2-agents__authority-label">Auth {authority}</span>
+      <span className="v2-agents__authority-label">権限 {authority}</span>
     </div>
   );
 }
@@ -531,7 +531,7 @@ function Orbital({
             <div className="v2-agents__orbital-detail-head">
               <span className="v2-agents__orbital-detail-name">{selected.name}</span>
               <StatusChip tone={selected.isActive ? "run" : "mut"} dot>
-                {selected.isPrimary ? "Primary" : selected.isActive ? "Active" : "Idle"}
+                {selected.isPrimary ? "プライマリ" : selected.isActive ? "稼働中" : "待機中"}
               </StatusChip>
             </div>
             {selected.live?.current_task && (
@@ -543,14 +543,14 @@ function Orbital({
               <div className="v2-agents__orbital-detail-result">
                 <div className="v2-agents__orbital-detail-result-label">
                   {selected.live.latest_task.result.success
-                    ? "Latest result"
-                    : "Latest task failed"}
+                    ? "最新の結果"
+                    : "直近のタスクが失敗"}
                 </div>
                 {selectedFullResponse ?? selected.live.latest_task.result.response}
               </div>
             )}
             <div className="v2-agents__orbital-detail-meta">
-              Auth {selected.authority} · {selected.tools} tools · {selected.ring} ring
+              権限 {selected.authority} · ツール {selected.tools} · {selected.ring === "center" ? "中心" : selected.ring === "inner" ? "内周" : "外周"}
             </div>
           </div>
         )}
@@ -558,7 +558,7 @@ function Orbital({
 
       {/* Activity ticker */}
       <div className="v2-agents__ticker">
-        <span className="v2-agents__ticker-label">Live</span>
+        <span className="v2-agents__ticker-label">ライブ</span>
         <div className="v2-agents__ticker-track">
           {looped.length > 0 ? (
             <div className="v2-agents__ticker-scroll">
@@ -578,7 +578,7 @@ function Orbital({
               ))}
             </div>
           ) : (
-            <span className="v2-agents__ticker-empty">No recent activity.</span>
+            <span className="v2-agents__ticker-empty">最近のアクティビティはありません。</span>
           )}
         </div>
       </div>
@@ -591,18 +591,18 @@ function Orbital({
 function BuilderRedirect() {
   return (
     <div className="v2-agents__builder-redirect">
-      <h3 className="v2-agents__builder-title">Agent composition lives in Workflows</h3>
+      <h3 className="v2-agents__builder-title">エージェント構成はワークフローで管理します</h3>
       <p className="v2-agents__builder-body">
-        The legacy node-based <em>Agent Builder</em> is being unified with the
-        Workflows Room (Phase 6.4) where the same xyflow canvas powers all
-        composable graphs — agent delegations, automations, and triggers.
+        旧来のノードベース<em>エージェントビルダー</em>は、同じxyflowキャンバスで
+        エージェントの委任・自動化・トリガーなどすべての構成グラフを扱う
+        ワークフロー室(フェーズ6.4)に統合されつつあります。
       </p>
       <button
         type="button"
         className="v2-agents__builder-cta"
         onClick={() => openRoom("workflows")}
       >
-        Open Workflows
+        ワークフローを開く
         <Icon icon={ArrowRight} size="sm" />
       </button>
     </div>
@@ -676,10 +676,10 @@ function SpawnDialog({
         <div className="v2-agents__dialog-head">
           <div>
             <div id="v2-agents-spawn-title" className="v2-agents__dialog-title">
-              Spawn agent
+              エージェントを起動
             </div>
             <div className="v2-agents__dialog-subtitle">
-              Create a persistent specialist and optionally hand off a task.
+              永続的なスペシャリストを作成し、必要ならタスクを割り当てます。
             </div>
           </div>
           <button
@@ -687,7 +687,7 @@ function SpawnDialog({
             className="v2-agents__dialog-close"
             onClick={onClose}
             disabled={spawning}
-            aria-label="Close"
+            aria-label="閉じる"
           >
             <Icon icon={X} size="sm" />
           </button>
@@ -695,10 +695,10 @@ function SpawnDialog({
 
         <div className="v2-agents__dialog-body">
           <label className="v2-agents__field">
-            <span className="v2-agents__field-label">Specialist</span>
+            <span className="v2-agents__field-label">スペシャリスト</span>
             <div className="v2-agents__specialist-list">
               {specialists.length === 0 ? (
-                <span className="v2-agents__empty-line">Loading specialists…</span>
+                <span className="v2-agents__empty-line">スペシャリストを読み込み中…</span>
               ) : (
                 specialists.map((s) => (
                   <button
@@ -718,29 +718,29 @@ function SpawnDialog({
           {selectedMeta && (
             <div className="v2-agents__specialist-meta">
               {selectedMeta.description}
-              {" · "}Auth {selectedMeta.authority_level} ({specLevelLabel(selectedMeta.authority_level)}) · {selectedMeta.tools.length} tools
+              {" · "}権限 {selectedMeta.authority_level} ({specLevelLabel(selectedMeta.authority_level)}) · ツール {selectedMeta.tools.length}
             </div>
           )}
 
           <label className="v2-agents__field">
-            <span className="v2-agents__field-label">Task</span>
+            <span className="v2-agents__field-label">タスク</span>
             <textarea
               className="v2-agents__textarea"
               value={task}
               onChange={(e) => setTask(e.target.value)}
               rows={2}
-              placeholder="Optional. Leave blank to spawn the agent in idle mode."
+              placeholder="任意。空欄の場合は待機状態で起動します。"
             />
           </label>
 
           <label className="v2-agents__field">
-            <span className="v2-agents__field-label">Context</span>
+            <span className="v2-agents__field-label">コンテキスト</span>
             <textarea
               className="v2-agents__textarea"
               value={context}
               onChange={(e) => setContext(e.target.value)}
               rows={2}
-              placeholder="Optional background context for the task."
+              placeholder="任意。タスクの背景情報。"
             />
           </label>
         </div>
@@ -752,7 +752,7 @@ function SpawnDialog({
             onClick={onClose}
             disabled={spawning}
           >
-            Cancel
+            キャンセル
           </button>
           <button
             type="button"
@@ -760,7 +760,7 @@ function SpawnDialog({
             onClick={handleSubmit}
             disabled={spawning || !selectedMeta}
           >
-            {spawning ? "Spawning…" : task.trim() ? "Spawn and assign" : "Spawn agent"}
+            {spawning ? "起動中…" : task.trim() ? "起動して割り当て" : "エージェントを起動"}
           </button>
         </div>
       </div>
@@ -779,11 +779,11 @@ function formatTime(ts: number): string {
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return "たった今";
+  if (min < 60) return `${min}分前`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return `${hr}時間前`;
   const day = Math.floor(hr / 24);
-  if (day === 1) return "yesterday";
-  return `${day}d ago`;
+  if (day === 1) return "昨日";
+  return `${day}日前`;
 }

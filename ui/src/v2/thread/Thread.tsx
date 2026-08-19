@@ -212,9 +212,9 @@ export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({
             type="button"
             className="v2-thread__dev-btn"
             onClick={dev.onAppend}
-            aria-label="Append a mock thread item"
+            aria-label="モックのスレッド項目を追加"
           >
-            + mock item
+            + モック項目
           </button>
         </div>
       )}
@@ -230,7 +230,7 @@ export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({
         role="log"
         aria-live="polite"
         aria-relevant="additions"
-        aria-label="Conversation"
+        aria-label="会話"
       >
         <div className="v2-thread__inner">
           {items.length === 0 ? (
@@ -273,7 +273,7 @@ export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({
       {!stickToBottom && unseen > 0 && (
         <button type="button" className="v2-thread__jump" onClick={jump}>
           <span className="v2-thread__jump-dot" aria-hidden="true" />
-          {unseen} new · jump to latest
+          {unseen}件の新着 · 最新へ移動
           <Icon icon={ArrowDown} size="sm" />
         </button>
       )}
@@ -389,13 +389,13 @@ function ItemRenderer({
 function EmptyState() {
   return (
     <section className="v2-thread__empty">
-      <span className="v2-thread__empty-eyebrow">Phase 3A · thread ready</span>
+      <span className="v2-thread__empty-eyebrow">Phase 3A · スレッド準備完了</span>
       <h1 className="v2-thread__empty-title">
-        The thread is <em>the whole app.</em>
+        スレッドが<em>アプリのすべてです。</em>
       </h1>
       <p className="v2-thread__empty-lede">
-        Nothing yet. Tap the orb, press <kbd>/</kbd>, or wait for the morning brief — every
-        message flows through this surface.
+        まだ何もありません。オーブをタップするか、<kbd>/</kbd>を押すか、モーニングブリーフを待ってください —
+        すべてのメッセージがこの画面を通じて流れます。
       </p>
     </section>
   );

@@ -52,9 +52,8 @@ export function RestartRequiredBanner({ status }: { status: OnboardingStatus | n
     >
       <span aria-hidden style={{ fontSize: 16 }}>↻</span>
       <span>
-        <strong>Restart Jarvis</strong> to enable background processing —
-        your heartbeat, commitments, and awareness services will activate
-        after the next start.
+        バックグラウンド処理を有効にするには<strong>Jarvisを再起動</strong>してください —
+        次回起動後にハートビート、コミットメント、認識サービスが有効になります。
       </span>
       <code
         style={{

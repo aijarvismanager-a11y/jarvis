@@ -80,7 +80,7 @@ export function useConnections(): ConnectionsState {
     try {
       const r = await fetch("/api/workflows/connections");
       if (!r.ok) {
-        setError(`fetch failed: ${r.status}`);
+        setError(`取得に失敗しました: ${r.status}`);
         return;
       }
       const body = (await r.json()) as {
@@ -113,7 +113,7 @@ export function useConnections(): ConnectionsState {
           return { ok: false, message: body.error ?? `HTTP ${r.status}` };
         }
         await refresh();
-        return { ok: true, message: "created" };
+        return { ok: true, message: "作成しました" };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       }
@@ -134,7 +134,7 @@ export function useConnections(): ConnectionsState {
           return { ok: false, message: body.error ?? `HTTP ${r.status}` };
         }
         await refresh();
-        return { ok: true, message: "updated" };
+        return { ok: true, message: "更新しました" };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       }
@@ -153,7 +153,7 @@ export function useConnections(): ConnectionsState {
           return { ok: false, message: body.error ?? `HTTP ${r.status}` };
         }
         await refresh();
-        return { ok: true, message: "deleted" };
+        return { ok: true, message: "削除しました" };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       }

@@ -36,10 +36,10 @@ import "./AuthorityRoom.css";
 type TabId = "approvals" | "audit" | "grants" | "learning";
 
 const TAB_LABEL: Record<TabId, string> = {
-  approvals: "Approvals",
-  audit: "Audit",
-  grants: "Grants",
-  learning: "Learning",
+  approvals: "承認",
+  audit: "監査",
+  grants: "権限付与",
+  learning: "学習",
 };
 
 const TAB_ICON: Record<TabId, LucideIcon> = {
@@ -52,10 +52,25 @@ const TAB_ICON: Record<TabId, LucideIcon> = {
 type AuditFilter = "all" | AuthorityDecisionType;
 
 const AUDIT_FILTER_LABEL: Record<AuditFilter, string> = {
-  all: "All",
-  allowed: "Allowed",
-  denied: "Denied",
-  approval_required: "Approval req.",
+  all: "すべて",
+  allowed: "許可",
+  denied: "拒否",
+  approval_required: "承認要",
+};
+
+const APPROVAL_STATUS_LABEL: Record<"pending" | "approved" | "denied" | "expired" | "executed", string> = {
+  pending: "保留中",
+  approved: "承認済み",
+  denied: "拒否済み",
+  expired: "期限切れ",
+  executed: "実行済み",
+};
+
+const IMPACT_LABEL: Record<"read" | "write" | "external" | "destructive", string> = {
+  read: "読み取り",
+  write: "書き込み",
+  external: "外部",
+  destructive: "破壊的",
 };
 
 export type RoomBodyMode = "inline" | "expanded";
@@ -130,10 +145,10 @@ export function AuthorityRoomBody({ mode }: { mode: RoomBodyMode }) {
 
       {/* Stats strip */}
       <div className="v2-auth__stats">
-        <StatCard label="Pending" value={data.stats.pending} sub="awaiting decision" tone={data.stats.pending > 0 ? "accent" : "neutral"} />
-        <StatCard label="Default level" value={data.config?.default_level ?? "—"} sub={data.config ? `1-10 authority floor · ${specLevelLabel(data.config.default_level)}` : "1-10 authority floor"} />
-        <StatCard label="Allowed (recent)" value={data.stats.allowed} sub={`of ${data.stats.total}`} />
-        <StatCard label="Denied (recent)" value={data.stats.denied} sub="last 20 decisions" />
+        <StatCard label="保留中" value={data.stats.pending} sub="判断待ち" tone={data.stats.pending > 0 ? "accent" : "neutral"} />
+        <StatCard label="デフォルトレベル" value={data.config?.default_level ?? "—"} sub={data.config ? `権限下限 1-10 · ${specLevelLabel(data.config.default_level)}` : "権限下限 1-10"} />
+        <StatCard label="許可(直近)" value={data.stats.allowed} sub={`全 ${data.stats.total} 件中`} />
+        <StatCard label="拒否(直近)" value={data.stats.denied} sub="直近20件の判断" />
       </div>
 
       {/* Tabs */}
@@ -141,7 +156,7 @@ export function AuthorityRoomBody({ mode }: { mode: RoomBodyMode }) {
         <div
           className="v2-auth__tabs"
           role="tablist"
-          aria-label="Authority view"
+          aria-label="権限表示"
           ref={tabsApi.tablistRef}
         >
           {TAB_KEYS.map((t) => (
@@ -168,8 +183,8 @@ export function AuthorityRoomBody({ mode }: { mode: RoomBodyMode }) {
             type="button"
             className="v2-auth__refresh"
             onClick={data.refresh}
-            aria-label="Refresh"
-            title="Refresh"
+            aria-label="更新"
+            title="更新"
           >
             <Icon icon={RefreshCw} size="sm" />
           </button>
@@ -250,9 +265,9 @@ export function AuthorityRoomBody({ mode }: { mode: RoomBodyMode }) {
 export function AuthorityRoom() {
   return (
     <RoomShell
-      title="Authority"
-      subtitle="approvals · audit · grants · learning"
-      breadcrumb={["Authority"]}
+      title="権限"
+      subtitle="承認 · 監査 · 権限付与 · 学習"
+      breadcrumb={["権限"]}
     >
       <AuthorityRoomBody mode="expanded" />
     </RoomShell>
@@ -273,7 +288,7 @@ function EmergencyBand({
       <div className="v2-auth__emergency-meta">
         <span className="v2-auth__emergency-dot" aria-hidden="true" />
         <span className="v2-auth__emergency-label">
-          Emergency · {state === "normal" ? "all systems normal" : state === "paused" ? "execution paused" : "killed"}
+          緊急 · {state === "normal" ? "全システム正常" : state === "paused" ? "実行停止中" : "強制停止済み"}
         </span>
       </div>
       <div className="v2-auth__emergency-actions">
@@ -285,7 +300,7 @@ function EmergencyBand({
               onClick={() => onTransition("pause")}
             >
               <Icon icon={Pause} size="sm" />
-              Pause
+              一時停止
             </button>
             <button
               type="button"
@@ -293,7 +308,7 @@ function EmergencyBand({
               onClick={() => onTransition("kill")}
             >
               <Icon icon={Square} size="sm" />
-              Kill
+              強制停止
             </button>
           </>
         )}
@@ -305,7 +320,7 @@ function EmergencyBand({
               onClick={() => onTransition("resume")}
             >
               <Icon icon={Play} size="sm" />
-              Resume
+              再開
             </button>
             <button
               type="button"
@@ -313,7 +328,7 @@ function EmergencyBand({
               onClick={() => onTransition("kill")}
             >
               <Icon icon={Square} size="sm" />
-              Kill
+              強制停止
             </button>
           </>
         )}
@@ -324,7 +339,7 @@ function EmergencyBand({
             onClick={() => onTransition("reset")}
           >
             <Icon icon={RotateCcw} size="sm" />
-            Reset
+            リセット
           </button>
         )}
       </div>
@@ -375,13 +390,13 @@ function ApprovalsTab({
     <div className="v2-auth__approvals">
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Pending</h3>
+          <h3 className="v2-auth__section-title">保留中</h3>
           <span className="v2-auth__section-count">{pending.length}</span>
         </div>
         {loading && pending.length === 0 ? (
-          <div className="v2-auth__empty">Loading…</div>
+          <div className="v2-auth__empty">読み込み中…</div>
         ) : pending.length === 0 ? (
-          <div className="v2-auth__empty">No pending approvals.</div>
+          <div className="v2-auth__empty">保留中の承認はありません。</div>
         ) : (
           <ul className="v2-auth__pending-list">
             {pending.map((a) => (
@@ -395,11 +410,11 @@ function ApprovalsTab({
 
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Recent decisions</h3>
+          <h3 className="v2-auth__section-title">直近の判断</h3>
           <span className="v2-auth__section-count">{recentDecisions.length}</span>
         </div>
         {recentDecisions.length === 0 ? (
-          <div className="v2-auth__empty">No recent decisions.</div>
+          <div className="v2-auth__empty">直近の判断はありません。</div>
         ) : (
           <ul className="v2-auth__history-list">
             {recentDecisions.map((a) => (
@@ -412,7 +427,7 @@ function ApprovalsTab({
                     tone={a.status === "approved" || a.status === "executed" ? "ok" : a.status === "denied" ? "accent" : "neutral"}
                     dot
                   >
-                    {a.status}
+                    {APPROVAL_STATUS_LABEL[a.status]}
                   </Chip>
                 </div>
                 {/* Phase 18-A: context/tool_arguments/execution_result were
@@ -422,13 +437,13 @@ function ApprovalsTab({
                     fetched and typed but never rendered. */}
                 {a.decided_by && (
                   <div className="v2-auth__history-decided">
-                    Decided by {a.decided_by}
-                    {a.decided_at ? ` at ${formatTime(a.decided_at)}` : ""}
+                    {a.decided_by} が判断
+                    {a.decided_at ? `(${formatTime(a.decided_at)})` : ""}
                   </div>
                 )}
                 {a.status === "executed" && a.executed_at && (
                   <div className="v2-auth__history-executed">
-                    Executed at {formatTime(a.executed_at)}
+                    {formatTime(a.executed_at)} に実行
                   </div>
                 )}
                 {a.execution_result && (
@@ -466,10 +481,10 @@ function PendingApprovalCard({
       <header className="v2-auth__pending-head">
         <div className="v2-auth__pending-meta">
           <Chip tone={tone === "accent" ? "accent" : tone === "warn" ? "warn" : "neutral"} dot>
-            {approval.impact ?? "write"}
+            {IMPACT_LABEL[approval.impact ?? "write"]}
           </Chip>
           {approval.urgency === "urgent" && (
-            <span className="v2-auth__pending-urgent">URGENT</span>
+            <span className="v2-auth__pending-urgent">緊急</span>
           )}
           <span className="v2-auth__pending-time">{formatTime(approval.created_at)}</span>
         </div>
@@ -501,7 +516,7 @@ function PendingApprovalCard({
           onClick={() => onDeny(approval.id)}
         >
           <Icon icon={X} size="sm" />
-          Deny
+          拒否
         </button>
         <button
           type="button"
@@ -509,7 +524,7 @@ function PendingApprovalCard({
           onClick={() => onApprove(approval.id)}
         >
           <Icon icon={Check} size="sm" />
-          Approve
+          承認
         </button>
       </div>
     </article>
@@ -535,10 +550,10 @@ function AuditTab({
     <div className="v2-auth__audit">
       {stats && (
         <div className="v2-auth__audit-stats">
-          <StatCard label="Total" value={stats.total} sub="all decisions" />
-          <StatCard label="Allowed" value={stats.allowed} sub="auto-approved" />
-          <StatCard label="Denied" value={stats.denied} sub="rejected" tone={stats.denied > 0 ? "warn" : "neutral"} />
-          <StatCard label="Required approval" value={stats.approvalRequired} sub="user-decided" />
+          <StatCard label="合計" value={stats.total} sub="すべての判断" />
+          <StatCard label="許可" value={stats.allowed} sub="自動承認" />
+          <StatCard label="拒否" value={stats.denied} sub="却下" tone={stats.denied > 0 ? "warn" : "neutral"} />
+          <StatCard label="承認要" value={stats.approvalRequired} sub="ユーザー判断" />
         </div>
       )}
 
@@ -556,7 +571,7 @@ function AuditTab({
         </ul>
       )}
 
-      <div className="v2-auth__filter-row" role="tablist" aria-label="Filter audit entries">
+      <div className="v2-auth__filter-row" role="tablist" aria-label="監査エントリを絞り込む">
         {(Object.keys(AUDIT_FILTER_LABEL) as AuditFilter[]).map((f) => (
           <button
             key={f}
@@ -569,12 +584,12 @@ function AuditTab({
           </button>
         ))}
         <span className="v2-auth__filter-meta">
-          {entries.length} of {totalCount}
+          {totalCount} 件中 {entries.length} 件
         </span>
       </div>
 
       {entries.length === 0 ? (
-        <div className="v2-auth__empty">No audit entries match the current filter.</div>
+        <div className="v2-auth__empty">現在の絞り込み条件に一致する監査エントリはありません。</div>
       ) : (
         <ul className="v2-auth__audit-list">
           {entries.map((e) => (
@@ -590,7 +605,7 @@ function AuditTab({
                 }
                 dot
               >
-                {e.authority_decision.replace("_", " ")}
+                {AUDIT_FILTER_LABEL[e.authority_decision]}
               </Chip>
               <span className="v2-auth__audit-agent">{e.agent_name}</span>
               <span className="v2-auth__audit-tool">{e.tool_name}</span>
@@ -603,7 +618,7 @@ function AuditTab({
                 {e.execution_time_ms != null && (
                   <span className="v2-auth__audit-ms">{e.execution_time_ms}ms</span>
                 )}
-                {e.executed === 0 && <span className="v2-auth__audit-notexec">not executed</span>}
+                {e.executed === 0 && <span className="v2-auth__audit-notexec">未実行</span>}
               </span>
             </li>
           ))}
@@ -624,14 +639,14 @@ function GrantsTab({
   onUpdate: (patch: Partial<NonNullable<ReturnType<typeof useAuthorityData>["config"]>>) => void;
   onQuickOverride: (action: ActionCategory, allow: boolean) => void;
 }) {
-  if (!config) return <div className="v2-auth__empty">Loading config…</div>;
+  if (!config) return <div className="v2-auth__empty">設定を読み込み中…</div>;
 
   return (
     <div className="v2-auth__grants">
       {/* Default authority level */}
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Default authority level</h3>
+          <h3 className="v2-auth__section-title">デフォルト権限レベル</h3>
           <span className="v2-auth__section-count">{config.default_level} / 10 ({specLevelLabel(config.default_level)})</span>
         </div>
         <input
@@ -643,23 +658,23 @@ function GrantsTab({
           onChange={(e) => onUpdate({ default_level: parseInt(e.target.value, 10) })}
           className="v2-auth__slider"
           data-zone={levelZone(config.default_level)}
-          aria-label="Default authority level"
+          aria-label="デフォルト権限レベル"
         />
         <div className="v2-auth__slider-scale">
-          <span>1 cautious</span>
-          <span>5 balanced</span>
-          <span>10 trusted</span>
+          <span>1 慎重</span>
+          <span>5 バランス</span>
+          <span>10 信頼</span>
         </div>
       </section>
 
       {/* Governed categories */}
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Governed categories</h3>
+          <h3 className="v2-auth__section-title">管理対象カテゴリ</h3>
           <span className="v2-auth__section-count">{config.governed_categories.length}</span>
         </div>
         <p className="v2-auth__section-desc">
-          These categories always require approval, regardless of authority level.
+          これらのカテゴリは権限レベルに関わらず常に承認が必要です。
         </p>
         <div className="v2-auth__chip-row">
           {ACTION_CATEGORIES.map((cat) => {
@@ -687,11 +702,11 @@ function GrantsTab({
       {/* Per-action overrides */}
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Overrides</h3>
+          <h3 className="v2-auth__section-title">上書き設定</h3>
           <span className="v2-auth__section-count">{config.overrides.length}</span>
         </div>
         <p className="v2-auth__section-desc">
-          Explicit allow/deny rules per action. Role-scoped overrides take precedence over global ones.
+          アクションごとの明示的な許可/拒否ルール。ロール指定の上書きはグローバル設定より優先されます。
         </p>
         <OverrideTable
           overrides={config.overrides}
@@ -706,11 +721,11 @@ function GrantsTab({
       {/* Context rules */}
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Context rules</h3>
+          <h3 className="v2-auth__section-title">コンテキストルール</h3>
           <span className="v2-auth__section-count">{config.context_rules.length}</span>
         </div>
         <p className="v2-auth__section-desc">
-          Conditional rules — fire when conditions match (time of day, specific tool, always).
+          条件付きルール — 条件が一致したときに発動します(時間帯、特定のツール、常時など)。
         </p>
         <ContextRuleTable
           rules={config.context_rules}
@@ -738,14 +753,14 @@ function OverrideTable({
   return (
     <div>
       {overrides.length === 0 ? (
-        <div className="v2-auth__empty-line">No overrides yet.</div>
+        <div className="v2-auth__empty-line">上書き設定はまだありません。</div>
       ) : (
         <table className="v2-auth__table">
           <thead>
             <tr>
-              <th>Action</th>
-              <th>Role</th>
-              <th>Effect</th>
+              <th>アクション</th>
+              <th>ロール</th>
+              <th>効果</th>
               <th />
             </tr>
           </thead>
@@ -753,7 +768,7 @@ function OverrideTable({
             {overrides.map((o, idx) => (
               <tr key={`${o.action}-${o.role_id ?? "global"}-${idx}`}>
                 <td>{o.action.replace(/_/g, " ")}</td>
-                <td>{o.role_id ?? <em>global</em>}</td>
+                <td>{o.role_id ?? <em>グローバル</em>}</td>
                 <td>
                   <Chip
                     tone={
@@ -765,14 +780,14 @@ function OverrideTable({
                     }
                     dot
                   >
-                    {!o.allowed ? "deny" : o.requires_approval ? "require approval" : "allow"}
+                    {!o.allowed ? "拒否" : o.requires_approval ? "承認要" : "許可"}
                   </Chip>
                 </td>
                 <td>
                   <button
                     type="button"
                     className="v2-auth__icon-btn"
-                    aria-label="Remove override"
+                    aria-label="上書き設定を削除"
                     onClick={() => onRemove(idx)}
                   >
                     <Icon icon={Trash2} size="sm" />
@@ -800,14 +815,14 @@ function OverrideTable({
           className="v2-auth__btn v2-auth__btn--secondary"
           onClick={() => onQuickOverride(pickAction, false)}
         >
-          Deny
+          拒否
         </button>
         <button
           type="button"
           className="v2-auth__btn v2-auth__btn--primary"
           onClick={() => onQuickOverride(pickAction, true)}
         >
-          Allow
+          許可
         </button>
       </div>
     </div>
@@ -822,16 +837,16 @@ function ContextRuleTable({
   onRemove: (id: string) => void;
 }) {
   if (rules.length === 0) {
-    return <div className="v2-auth__empty-line">No context rules yet.</div>;
+    return <div className="v2-auth__empty-line">コンテキストルールはまだありません。</div>;
   }
   return (
     <table className="v2-auth__table">
       <thead>
         <tr>
-          <th>Action</th>
-          <th>Condition</th>
-          <th>Effect</th>
-          <th>Description</th>
+          <th>アクション</th>
+          <th>条件</th>
+          <th>効果</th>
+          <th>説明</th>
           <th />
         </tr>
       </thead>
@@ -845,7 +860,7 @@ function ContextRuleTable({
                 tone={r.effect === "deny" ? "accent" : r.effect === "require_approval" ? "warn" : "ok"}
                 dot
               >
-                {r.effect.replace(/_/g, " ")}
+                {r.effect === "deny" ? "拒否" : r.effect === "require_approval" ? "承認要" : "許可"}
               </Chip>
             </td>
             <td>{r.description}</td>
@@ -853,7 +868,7 @@ function ContextRuleTable({
               <button
                 type="button"
                 className="v2-auth__icon-btn"
-                aria-label="Remove rule"
+                aria-label="ルールを削除"
                 onClick={() => onRemove(r.id)}
               >
                 <Icon icon={Trash2} size="sm" />
@@ -887,23 +902,23 @@ function LearningTab({
     <div className="v2-auth__learning">
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Learning</h3>
+          <h3 className="v2-auth__section-title">学習</h3>
           <button
             type="button"
             className="v2-auth__chip"
             data-active={enabled}
             onClick={() => onUpdate({ enabled: !enabled })}
           >
-            {enabled ? "Enabled" : "Disabled"}
+            {enabled ? "有効" : "無効"}
           </button>
         </div>
         <p className="v2-auth__section-desc">
-          Suggests auto-approve overrides when you've approved the same action repeatedly.
+          同じアクションを繰り返し承認していると、自動承認の上書きを提案します。
         </p>
 
         <div className="v2-auth__threshold-row">
           <label className="v2-auth__label">
-            Suggest after {threshold} consecutive approvals
+            {threshold}回連続で承認したら提案
           </label>
           <input
             type="range"
@@ -914,28 +929,28 @@ function LearningTab({
             onChange={(e) => onUpdate({ suggest_threshold: parseInt(e.target.value, 10) })}
             className="v2-auth__slider"
             disabled={!enabled}
-            aria-label="Suggestion threshold"
+            aria-label="提案しきい値"
           />
         </div>
       </section>
 
       <section className="v2-auth__section">
         <div className="v2-auth__section-head">
-          <h3 className="v2-auth__section-title">Suggestions</h3>
+          <h3 className="v2-auth__section-title">提案</h3>
           <span className="v2-auth__section-count">{suggestions.length}</span>
         </div>
         {suggestions.length === 0 ? (
-          <div className="v2-auth__empty">No suggestions yet — keep approving and we'll surface patterns.</div>
+          <div className="v2-auth__empty">まだ提案はありません — 承認を続けるとパターンが見つかります。</div>
         ) : (
           <ul className="v2-auth__suggestions">
             {suggestions.map((s) => (
               <li key={`${s.actionCategory}-${s.toolName}`} className="v2-auth__suggestion">
                 <div className="v2-auth__suggestion-meta">
-                  <Chip tone="ok" dot>{s.consecutiveApprovals}× approved</Chip>
+                  <Chip tone="ok" dot>{s.consecutiveApprovals}回承認</Chip>
                   <span className="v2-auth__suggestion-tool">{s.toolName}</span>
                 </div>
                 <div className="v2-auth__suggestion-text">
-                  Auto-allow <strong>{s.actionCategory.replace(/_/g, " ")}</strong> when called via <code>{s.toolName}</code>?
+                  <code>{s.toolName}</code> 経由で呼ばれたときの<strong>{s.actionCategory.replace(/_/g, " ")}</strong>を自動許可しますか?
                 </div>
                 <div className="v2-auth__suggestion-actions">
                   <button
@@ -943,14 +958,14 @@ function LearningTab({
                     className="v2-auth__btn v2-auth__btn--secondary"
                     onClick={() => onDismiss(s.actionCategory, s.toolName)}
                   >
-                    Dismiss
+                    却下
                   </button>
                   <button
                     type="button"
                     className="v2-auth__btn v2-auth__btn--primary"
                     onClick={() => onAccept(s.actionCategory, s.toolName)}
                   >
-                    Accept
+                    承認
                   </button>
                 </div>
               </li>

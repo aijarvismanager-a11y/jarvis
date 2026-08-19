@@ -195,7 +195,7 @@ export function Pebble() {
       {showBubble && (
         <div ref={bubbleRef} className="pebble-thread">
           <div className="thread-header">
-            <span>Thread</span>
+            <span>スレッド</span>
             <button
               type="button"
               className="thread-dismiss"
@@ -206,7 +206,7 @@ export function Pebble() {
           </div>
           <div className="thread-body">
             <span className="thread-from">jarvis</span>
-            speaking…
+            発話中…
           </div>
           <div className="thread-actions">
             <button
@@ -214,25 +214,25 @@ export function Pebble() {
               className="thread-btn thread-btn--primary"
               onClick={() => setState("speaking")}
             >
-              Speak it
+              読み上げる
             </button>
             <button
               type="button"
               className="thread-btn"
               onClick={() => setState("thinking")}
             >
-              Think
+              考える
             </button>
             <button
               type="button"
               className="thread-btn"
               onClick={() => setState("idle")}
             >
-              Dismiss
+              閉じる
             </button>
           </div>
           <div className="thread-hint">
-            <kbd>⌃</kbd>+click anywhere to summon · <kbd>esc</kbd> to dismiss
+            <kbd>⌃</kbd>+クリックで呼び出し · <kbd>esc</kbd>で閉じる
           </div>
         </div>
       )}

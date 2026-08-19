@@ -73,7 +73,7 @@ export function useLibrary(): LibraryState {
     try {
       const r = await fetch("/api/workflows/pieces/library");
       if (!r.ok) {
-        setError(`fetch failed: ${r.status}`);
+        setError(`取得に失敗しました: ${r.status}`);
         return;
       }
       const body = (await r.json()) as { entries: LibraryEntry[] };
@@ -110,10 +110,10 @@ export function useLibrary(): LibraryState {
           return {
             ok: true,
             partial: true,
-            message: `installed; piece won't show in the editor until daemon restarts (${body.catalogRefreshError ?? "metadata extract failed"})`,
+            message: `インストールしましたが、デーモンが再起動するまでエディタには表示されません (${body.catalogRefreshError ?? "メタデータの抽出に失敗しました"})`,
           };
         }
-        return { ok: true, message: "installed" };
+        return { ok: true, message: "インストールしました" };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       } finally {
@@ -135,7 +135,7 @@ export function useLibrary(): LibraryState {
           return { ok: false, message: body.error ?? `HTTP ${r.status}` };
         }
         await refresh();
-        return { ok: true, message: "uninstalled" };
+        return { ok: true, message: "アンインストールしました" };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       } finally {

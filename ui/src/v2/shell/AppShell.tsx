@@ -520,8 +520,8 @@ function AppShellLive() {
         composerDisabled={!live.isConnected}
         composerPlaceholder={
           live.isConnected
-            ? "Ask Jarvis, or press / to summon a tool…"
-            : "Waiting for daemon…"
+            ? "Jarvisに質問、または / でツールを呼び出す…"
+            : "デーモンに接続中…"
         }
         onSubmit={(text) =>
           live.send(text, { currentRoom: getCurrentRoom() })
@@ -634,31 +634,31 @@ type MockVariant<T = ThreadItem> = T extends ThreadItem ? Omit<T, "id" | "t"> : 
 const MOCK_APPEND_VARIANTS: MockVariant[] = [
   {
     kind: "jarvis-speech",
-    text: "Heads up — the overnight researcher just pushed a second draft. Want to see it?",
+    text: "お知らせ — 夜間リサーチャーが2稿目を提出しました。確認しますか?",
     status: "done",
   },
   {
     kind: "jarvis-thought",
-    text: "Rechecking calendar conflicts for the Thursday invite.",
+    text: "木曜の招待について予定の重複を再確認中。",
   },
   {
     kind: "user-text",
-    text: "Yes, show me the diff.",
+    text: "うん、差分を見せて。",
   },
   {
     kind: "result",
-    summary: "Sidecar heartbeat OK across 2 of 3 hosts.",
-    detail: "home-server is still offline — no change in last 14 minutes.",
+    summary: "サイドカーのハートビートは3台中2台で正常。",
+    detail: "home-serverはまだオフライン — 直近14分間変化なし。",
   },
 ];
 
 const MOCK_SUGGESTIONS_BY_STATE: Record<VoiceState, string[]> = {
-  idle: ["What's on my calendar today?", "Open workflows", "Summarize yesterday's logs"],
+  idle: ["今日の予定は?", "ワークフローを開く", "昨日のログを要約"],
   listening: [],
   thinking: [],
-  speaking: ["Take me back", "Edit the first one"],
+  speaking: ["前に戻る", "最初の項目を編集"],
   "awaiting-approval": [],
-  muted: ["Unmute"],
+  muted: ["ミュート解除"],
 };
 
 function AppShellMock() {
@@ -757,7 +757,7 @@ function AppShellMock() {
               ref: `room:${entry.key}`,
               title: entry.label,
               summary: entry.hint,
-              meta: "Room",
+              meta: "ルーム",
               t,
             } as ThreadItem,
           ]);
@@ -813,12 +813,12 @@ function RoomSurface({ roomKey }: { roomKey: RoomKey }) {
 
 /** Live-state microcopy on the Talk hint line — the old rail's lines, verbatim. */
 const TALK_HINT: Record<VoiceState, string> = {
-  idle: "Tap the pebble, or say “Hey Jarvis.”",
-  listening: "Listening. Pause to send.",
-  thinking: "Thinking through that…",
-  speaking: "Speaking — the reply is in the thread.",
-  "awaiting-approval": "Answer here, or say “yes.”",
-  muted: "Mic is muted. Tap mute to resume.",
+  idle: "ペブルをタップ、または「Hey Jarvis」と話しかける",
+  listening: "聞き取り中。止めると送信されます。",
+  thinking: "考え中…",
+  speaking: "応答中 — 返答はスレッドに表示されます。",
+  "awaiting-approval": "ここで回答、または「はい」と話す",
+  muted: "マイクはミュート中。タップで再開。",
 };
 
 function ShellLayout({
@@ -969,10 +969,10 @@ function ShellLayout({
         className="rs-peb"
         aria-label={
           talkOpen
-            ? "Close Talk"
+            ? "トークを閉じる"
             : backgroundAgentCount > 0
-              ? `Open Talk — ${backgroundAgentCount} background agent${backgroundAgentCount === 1 ? "" : "s"} active`
-              : "Open Talk"
+              ? `トークを開く — バックグラウンドエージェント${backgroundAgentCount}件が稼働中`
+              : "トークを開く"
         }
         aria-expanded={talkOpen}
         onClick={() => setTalkOpen((o) => !o)}
@@ -988,49 +988,49 @@ function ShellLayout({
 
       {/* Talk — everything the VoiceRail + thread + composer did, summoned. */}
       {talkOpen && (
-        <div className={`rs-talk${talkIn ? " in" : ""}`} role="dialog" aria-label="Talk to Jarvis">
+        <div className={`rs-talk${talkIn ? " in" : ""}`} role="dialog" aria-label="Jarvisと話す">
           <div className="th">
             <button
               className="rs-talk-mic"
               onClick={onTapOrb}
-              aria-label={voiceState === "idle" || voiceState === "muted" ? "Start talking" : "Stop"}
+              aria-label={voiceState === "idle" || voiceState === "muted" ? "会話を開始" : "停止"}
               aria-pressed={voiceState !== "idle" && voiceState !== "muted"}
-              title="Tap to talk"
+              title="タップで会話"
             >
               <span className="gdrop live"><span className="in" /><span className="ring" /></span>
             </button>
             <div className="rs-talk-title">
-              <span className="tt">Talk</span>
+              <span className="tt">トーク</span>
               <span className="rs-talk-sub">
-                {voiceState === "idle" ? "tap the pebble to talk" : TALK_HINT[voiceState]}
+                {voiceState === "idle" ? "ペブルをタップで会話" : TALK_HINT[voiceState]}
               </span>
             </div>
             <select
               className="rs-talk-density"
               value={chatDisplayMode}
               onChange={(e) => setChatDisplayMode(e.target.value as ChatDisplayMode)}
-              aria-label="Chat detail level"
-              title="How much task/tool detail to show inline in the chat"
+              aria-label="チャット詳細レベル"
+              title="チャット内にタスク/ツールの詳細をどこまで表示するか"
             >
-              <option value="simple">Simple</option>
-              <option value="detailed">Detailed</option>
-              <option value="developer">Developer</option>
+              <option value="simple">シンプル</option>
+              <option value="detailed">詳細</option>
+              <option value="developer">開発者向け</option>
             </select>
             {activeProjectOptions.length > 0 && (
               <select
                 className="rs-talk-density"
                 value={activeProjectId ?? ""}
                 onChange={(e) => setActiveProject(e.target.value || null)}
-                aria-label="Pinned AI Manager project"
-                title="Pin a project so chat sees its facts/memory"
+                aria-label="ピン留めされたAIマネージャープロジェクト"
+                title="プロジェクトをピン留めすると、チャットがその事実・記憶を参照します"
               >
-                <option value="">No pinned project</option>
+                <option value="">ピン留めなし</option>
                 {activeProjectOptions.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             )}
-            <button className="esc" onClick={() => setTalkOpen(false)} aria-label="Close Talk">⌘J · esc</button>
+            <button className="esc" onClick={() => setTalkOpen(false)} aria-label="トークを閉じる">⌘J · esc</button>
           </div>
 
           <div className="rs-talk-thread">

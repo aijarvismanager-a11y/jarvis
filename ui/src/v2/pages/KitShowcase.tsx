@@ -12,8 +12,8 @@ import {
  */
 
 const SHAPES: { kind: ShapeKind; label: string }[] = [
-  { kind: "circle", label: "person" }, { kind: "drop", label: "project" }, { kind: "square", label: "tool" },
-  { kind: "peak", label: "place" }, { kind: "ring", label: "concept" }, { kind: "diamond", label: "event" },
+  { kind: "circle", label: "人物" }, { kind: "drop", label: "プロジェクト" }, { kind: "square", label: "ツール" },
+  { kind: "peak", label: "場所" }, { kind: "ring", label: "概念" }, { kind: "diamond", label: "イベント" },
 ];
 
 function Section({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
@@ -39,66 +39,66 @@ export function KitShowcase(): React.ReactElement {
       <style>{KIT_CSS}</style>
       <header className="kit-head">
         <div className="kit-head__eyebrow">Brand Book III · room kit</div>
-        <h1 className="kit-head__title">One vocabulary, every room.</h1>
-        <p className="kit-head__sub">The shared composites Phase-4 rooms inherit. Chroma is the five state tones only; ink carries every primary action; the drop's sharp corner sits top-right.</p>
+        <h1 className="kit-head__title">ひとつの語彙、すべてのルームで。</h1>
+        <p className="kit-head__sub">Phase-4のルームが継承する共有コンポジット。色は5つの状態トーンのみ、インクがすべての主操作を担い、ドロップの鋭い角は右上に配置されます。</p>
       </header>
 
       <div className="kit-grid">
-        <Section label="Status chips · five tones, nothing else">
+        <Section label="ステータスチップ · 5つのトーンのみ">
           <div className="kit-row">
-            <StatusChip tone="run" dot>running</StatusChip>
-            <StatusChip tone="ok" dot>succeeded</StatusChip>
-            <StatusChip tone="hold" dot>awaiting you</StatusChip>
-            <StatusChip tone="fail" dot>failed</StatusChip>
-            <StatusChip tone="mut" dot>queued</StatusChip>
+            <StatusChip tone="run" dot>実行中</StatusChip>
+            <StatusChip tone="ok" dot>成功</StatusChip>
+            <StatusChip tone="hold" dot>対応待ち</StatusChip>
+            <StatusChip tone="fail" dot>失敗</StatusChip>
+            <StatusChip tone="mut" dot>待機中</StatusChip>
           </div>
         </Section>
 
-        <Section label="Tabs">
+        <Section label="タブ">
           <Tabs
-            tabs={[{ key: "board", label: "Board" }, { key: "list", label: "List" }, { key: "archive", label: "Archive" }]}
+            tabs={[{ key: "board", label: "ボード" }, { key: "list", label: "リスト" }, { key: "archive", label: "アーカイブ" }]}
             active={tab} onChange={setTab}
           />
         </Section>
 
-        <Section label="Stats strip · KPIs" span2>
+        <Section label="統計ストリップ · KPI" span2>
           <StatsStrip items={[
-            { k: "active", n: 4 },
-            { k: "completed today", n: 3, tone: "ok" },
-            { k: "overdue", n: 1, tone: "amber" },
-            { k: "failed", n: 0, tone: "alert" },
-            { k: "total", n: <>11<small> tasks</small></> },
+            { k: "実行中", n: 4 },
+            { k: "本日完了", n: 3, tone: "ok" },
+            { k: "期限超過", n: 1, tone: "amber" },
+            { k: "失敗", n: 0, tone: "alert" },
+            { k: "合計", n: <>11<small> タスク</small></> },
           ]} />
         </Section>
 
-        <Section label="Toolbar + filters" span2>
+        <Section label="ツールバー + フィルター" span2>
           <div className="kit-frame">
-            <Toolbar title="Tasks">
-              <Tabs tabs={[{ key: "board", label: "Board" }, { key: "list", label: "List" }]} active={tab} onChange={setTab} />
+            <Toolbar title="タスク">
+              <Tabs tabs={[{ key: "board", label: "ボード" }, { key: "list", label: "リスト" }]} active={tab} onChange={setTab} />
               <span className="rk-toolbar__spacer" />
-              <Input mono placeholder="search tasks…" style={{ width: 150 }} />
+              <Input mono placeholder="タスクを検索…" style={{ width: 150 }} />
             </Toolbar>
             <FilterBar>
-              <FLabel>status</FLabel>
-              {["all", "pending", "completed"].map((s) => <FilterChip key={s} on={status === s} onClick={() => setStatus(s)}>{s}</FilterChip>)}
+              <FLabel>ステータス</FLabel>
+              {["all", "pending", "completed"].map((s) => <FilterChip key={s} on={status === s} onClick={() => setStatus(s)}>{{ all: "すべて", pending: "保留中", completed: "完了" }[s]}</FilterChip>)}
               <span style={{ width: 10 }} />
-              <FLabel>window</FLabel>
-              <Segmented options={[{ key: "1h", label: "1h" }, { key: "24h", label: "24h" }, { key: "7d", label: "7d" }]} value={win} onChange={setWin} />
+              <FLabel>期間</FLabel>
+              <Segmented options={[{ key: "1h", label: "1時間" }, { key: "24h", label: "24時間" }, { key: "7d", label: "7日" }]} value={win} onChange={setWin} />
               <span className="rk-toolbar__spacer" />
               <LiveToggle on={live} onClick={() => setLive((v) => !v)} />
             </FilterBar>
           </div>
         </Section>
 
-        <Section label="Table grammar" span2>
+        <Section label="テーブル文法" span2>
           <div className="kit-frame">
             <Table>
-              <Row cols="26px 1fr 90px 70px" head><span /><span>event</span><span className="rk-num">tokens</span><span className="rk-num">when</span></Row>
+              <Row cols="26px 1fr 90px 70px" head><span /><span>イベント</span><span className="rk-num">トークン</span><span className="rk-num">時刻</span></Row>
               {[
-                { id: "a1", tone: "ok", t: "morning brief", s: "delivered to Telegram", n: "3.1k", w: "07:00" },
-                { id: "a2", tone: "run", t: "inbox triage", s: "14 overnight emails", n: "8.4k", w: "2m" },
-                { id: "a3", tone: "hold", t: "make_payment", s: "routed to your approval", n: "—", w: "9m" },
-                { id: "a4", tone: "fail", t: "backup sync", s: "failed · retrying 14:00", n: "—", w: "12:40" },
+                { id: "a1", tone: "ok", t: "モーニングブリーフ", s: "Telegramへ配信済み", n: "3.1k", w: "07:00" },
+                { id: "a2", tone: "run", t: "受信トレイの振り分け", s: "夜間の14件のメール", n: "8.4k", w: "2分前" },
+                { id: "a3", tone: "hold", t: "make_payment", s: "承認へルーティング", n: "—", w: "9分前" },
+                { id: "a4", tone: "fail", t: "バックアップ同期", s: "失敗 · 14:00に再試行", n: "—", w: "12:40" },
               ].map((r) => (
                 <Row key={r.id} cols="26px 1fr 90px 70px" selected={sel === r.id} onClick={() => setSel(r.id)}>
                   <StatusIcon tone={r.tone as any} />
@@ -111,28 +111,28 @@ export function KitShowcase(): React.ReactElement {
           </div>
         </Section>
 
-        <Section label="Detail drawer">
+        <Section label="詳細ドロワー">
           <div className="kit-frame" style={{ height: 240 }}>
             <Drawer
-              title="authority · approval required"
-              meta={<><StatusChip tone="hold">authority</StatusChip><span>Jun 13, 12:58</span></>}
-              actions={<DeepLink>→ open in Authority</DeepLink>}
+              title="authority · 承認が必要"
+              meta={<><StatusChip tone="hold">authority</StatusChip><span>6月13日 12:58</span></>}
+              actions={<DeepLink>→ Authorityで開く</DeepLink>}
             >
-              <DrawerLabel>detail</DrawerLabel>
-              <DrawerText>personal-assistant requested make_payment; routed to your approval.</DrawerText>
+              <DrawerLabel>詳細</DrawerLabel>
+              <DrawerText>personal-assistantがmake_paymentを要求; あなたの承認へルーティングされました。</DrawerText>
               <DrawerLabel>raw</DrawerLabel>
               <div className="rk-drawer__raw"><span className="k">decision</span>: "approval_required",{"\n"}<span className="k">amount</span>: "€128.40"</div>
             </Drawer>
           </div>
         </Section>
 
-        <Section label="Empty state · teaches, never apologises">
-          <EmptyState title="No flows yet" action={<button className="v2-btn v2-btn--primary v2-btn--sm">New flow</button>}>
-            Describe one to Jarvis: “every weekday at 8, summarise my email,” or build it by hand.
+        <Section label="空状態 · 教える、決して謝らない">
+          <EmptyState title="ワークフローはまだありません" action={<button className="v2-btn v2-btn--primary v2-btn--sm">新規ワークフロー</button>}>
+            Jarvisに説明してください: 「平日は毎日8時にメールを要約して」、または手動で作成します。
           </EmptyState>
         </Section>
 
-        <Section label="Shape grammar · entities & goals" span2>
+        <Section label="シェイプ文法 · エンティティと目標" span2>
           <div className="kit-row" style={{ gap: 20 }}>
             {SHAPES.map((s) => (
               <span key={s.kind} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink2)" }}>
@@ -142,27 +142,27 @@ export function KitShowcase(): React.ReactElement {
           </div>
         </Section>
 
-        <Section label="Loading · skeleton, never spinners">
+        <Section label="読み込み中 · スケルトン、スピナーは使わない">
           <Skeleton widths={["72%", "88%", "55%"]} />
-          <div style={{ marginTop: 16 }}><Toast tone="ok">flow saved · morning brief</Toast></div>
+          <div style={{ marginTop: 16 }}><Toast tone="ok">ワークフローを保存しました · モーニングブリーフ</Toast></div>
         </Section>
 
-        <Section label="Toasts · the five tones">
+        <Section label="トースト · 5つのトーン">
           <div className="kit-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
-            <Toast tone="run">research-analyst started</Toast>
-            <Toast tone="hold">waiting on you · Lufthansa €128.40</Toast>
-            <Toast tone="fail">backup sync failed</Toast>
+            <Toast tone="run">research-analystを開始しました</Toast>
+            <Toast tone="hold">対応待ち · Lufthansa €128.40</Toast>
+            <Toast tone="fail">バックアップ同期に失敗しました</Toast>
           </div>
         </Section>
 
-        <Section label="Form controls" span2>
+        <Section label="フォームコントロール" span2>
           <div className="kit-row" style={{ gap: 18 }}>
-            <Input placeholder="search the vault…" />
+            <Input placeholder="Vaultを検索…" />
             <Select defaultValue="marin"><option value="marin">marin</option><option value="native">native</option></Select>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink2)" }}>
-              <Switch on={sw} onClick={() => setSw((v) => !v)} label="TTS" /> voice replies
+              <Switch on={sw} onClick={() => setSw((v) => !v)} label="TTS" /> 音声応答
             </span>
-            <Check on={chk} onClick={() => setChk((v) => !v)}>errors only</Check>
+            <Check on={chk} onClick={() => setChk((v) => !v)}>エラーのみ</Check>
           </div>
         </Section>
       </div>

@@ -29,39 +29,39 @@ describe("extractNestedMessage", () => {
 describe("formatProviderErrorMessage — buckets", () => {
   test("auth: 401 status code", () => {
     const r = formatProviderErrorMessage("OpenAI API error (401): invalid_api_key");
-    expect(r.summary).toContain("API key");
+    expect(r.summary).toContain("APIキー");
   });
 
   test("auth: invalid x-api-key", () => {
     const r = formatProviderErrorMessage("authentication_error: invalid x-api-key");
-    expect(r.summary).toContain("API key");
+    expect(r.summary).toContain("APIキー");
   });
 
   test("rate limit: 429 status code — split from network bucket", () => {
     const r = formatProviderErrorMessage("OpenAI API error (429): rate_limit_exceeded");
-    expect(r.summary).toContain("rate-limit");
-    expect(r.summary).not.toContain("connection");
+    expect(r.summary).toContain("制限");
+    expect(r.summary).not.toContain("接続");
   });
 
   test("rate limit: insufficient_quota", () => {
     const r = formatProviderErrorMessage("You exceeded your current quota: insufficient_quota");
-    expect(r.summary).toContain("rate-limit");
+    expect(r.summary).toContain("制限");
   });
 
   test("network: 503", () => {
     const r = formatProviderErrorMessage("Service temporarily unavailable (503)");
-    expect(r.summary).toContain("connection");
-    expect(r.summary).not.toContain("rate-limit");
+    expect(r.summary).toContain("接続");
+    expect(r.summary).not.toContain("制限");
   });
 
   test("network: econnrefused", () => {
     const r = formatProviderErrorMessage("fetch failed: ECONNREFUSED 127.0.0.1:11434");
-    expect(r.summary).toContain("connection");
+    expect(r.summary).toContain("接続");
   });
 
   test("fallback: unknown errors still preserve detail", () => {
     const r = formatProviderErrorMessage("weird: model_not_found");
-    expect(r.summary).toContain("Couldn't reach");
+    expect(r.summary).toContain("接続できませんでした");
     expect(r.detail).toBe("weird: model_not_found");
   });
 });
@@ -94,40 +94,40 @@ describe("formatProviderErrorMessage — detail extraction", () => {
 describe("formatProviderErrorMessage — structured code branching (Phase B)", () => {
   test("auth code routes to auth summary regardless of raw text", () => {
     const r = formatProviderErrorMessage("anything at all", "auth");
-    expect(r.summary).toContain("Check your API key and model settings");
+    expect(r.summary).toContain("APIキーとモデル設定を確認してください");
   });
 
   test("rate_limit code overrides keyword heuristic (e.g. raw mentions 'timeout')", () => {
     // raw string contains "timeout" which would otherwise trip the network bucket,
     // but the structured code wins.
     const r = formatProviderErrorMessage("request timeout after 30s (but really rate-limited)", "rate_limit");
-    expect(r.summary).toContain("rate-limit");
-    expect(r.summary).not.toContain("connection");
+    expect(r.summary).toContain("制限");
+    expect(r.summary).not.toContain("接続");
   });
 
   test("not_found has its own copy", () => {
     const r = formatProviderErrorMessage("model xyz does not exist", "not_found");
-    expect(r.summary).toContain("couldn't find");
+    expect(r.summary).toContain("見つけられませんでした");
   });
 
   test("bad_request has its own copy", () => {
     const r = formatProviderErrorMessage("missing required field", "bad_request");
-    expect(r.summary).toContain("rejected the request");
+    expect(r.summary).toContain("拒否しました");
   });
 
   test("server has its own copy", () => {
     const r = formatProviderErrorMessage("500 internal server error", "server");
-    expect(r.summary).toContain("server error");
+    expect(r.summary).toContain("サーバーエラー");
   });
 
   test("unknown code falls back to keyword heuristic", () => {
     const r = formatProviderErrorMessage("OpenAI API error (401): invalid_api_key", "unknown");
-    expect(r.summary).toContain("API key");
+    expect(r.summary).toContain("APIキー");
   });
 
   test("code present but no raw still returns a summary", () => {
     const r = formatProviderErrorMessage(undefined, "rate_limit");
-    expect(r.summary).toContain("rate-limit");
+    expect(r.summary).toContain("制限");
   });
 });
 
@@ -135,16 +135,16 @@ describe("formatProviderErrorMessage — status-code brittleness fix", () => {
   test("does NOT match '401' embedded in unrelated digits", () => {
     const r = formatProviderErrorMessage("context window exceeded at token 14018");
     // falls through to the generic fallback, not the auth-specific copy
-    expect(r.summary).not.toContain("Check your API key and model settings");
+    expect(r.summary).not.toContain("APIキーとモデル設定を確認してください");
   });
 
   test("does NOT match '429' embedded in unrelated digits", () => {
     const r = formatProviderErrorMessage("prompt length was 4295 tokens");
-    expect(r.summary).not.toContain("rate-limit");
+    expect(r.summary).not.toContain("制限");
   });
 
   test("DOES match '\\b401\\b' when it is a real status code", () => {
     const r = formatProviderErrorMessage("HTTP 401 Unauthorized");
-    expect(r.summary).toContain("Check your API key and model settings");
+    expect(r.summary).toContain("APIキーとモデル設定を確認してください");
   });
 });

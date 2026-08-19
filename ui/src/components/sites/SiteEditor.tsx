@@ -77,10 +77,10 @@ export function SiteEditor({ projectId, filePath }: Props) {
       });
       originalContentRef.current = content;
       setIsDirty(false);
-      setMessage({ text: "Saved", type: "ok" });
+      setMessage({ text: "保存しました", type: "ok" });
       setTimeout(() => setMessage(null), 2000);
     } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Save failed", type: "error" });
+      setMessage({ text: err instanceof Error ? err.message : "保存に失敗しました", type: "error" });
     } finally {
       setSaving(false);
     }
@@ -188,7 +188,7 @@ export function SiteEditor({ projectId, filePath }: Props) {
   }, [projectId, filePath]);
 
   if (!projectId || !filePath) {
-    return <div style={emptyStyle}>Click a file in the tree to open it</div>;
+    return <div style={emptyStyle}>ツリーからファイルをクリックして開いてください</div>;
   }
 
   return (
@@ -210,14 +210,14 @@ export function SiteEditor({ projectId, filePath }: Props) {
             disabled={!isDirty || saving}
             style={{ ...saveBtnStyle, opacity: isDirty ? 1 : 0.4 }}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "保存中..." : "保存"}
           </button>
         </div>
       </div>
 
       {/* CodeMirror container - always rendered so ref stays mounted */}
       <div ref={containerRef} style={{ flex: 1, overflow: "hidden", display: loading ? "none" : "block" }} />
-      {loading && <div style={{ ...emptyStyle, flex: 1 }}>Loading...</div>}
+      {loading && <div style={{ ...emptyStyle, flex: 1 }}>読み込み中...</div>}
     </div>
   );
 }

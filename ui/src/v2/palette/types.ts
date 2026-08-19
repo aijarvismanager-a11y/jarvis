@@ -47,19 +47,19 @@ export type PaletteNavEntry = {
 };
 
 export const ROOM_NAV_ENTRIES: PaletteNavEntry[] = [
-  { key: "workflows", label: "Workflows", hint: "Run or edit saved agent flows" },
-  { key: "memory", label: "Memory", hint: "Recall what Jarvis knows" },
-  { key: "agents", label: "Agents", hint: "Roster, status, last run" },
-  { key: "authority", label: "Authority", hint: "Scopes, allowlists, approvals" },
-  { key: "tools", label: "Tools", hint: "Catalog + capability flags" },
-  { key: "logs", label: "Logs", hint: "Filterable event stream" },
-  { key: "calendar", label: "Calendar", hint: "This week + commitments" },
-  { key: "goals", label: "Goals", hint: "OKR hierarchy + scoring" },
-  { key: "tasks", label: "Tasks", hint: "Kanban + due dates + priority" },
-  { key: "content", label: "Content", hint: "Drafts, scheduled, published" },
-  { key: "workspaces", label: "Workspaces", hint: "Dev projects, git, dev servers" },
-  { key: "usage", label: "Usage", hint: "LLM token usage, filterable by tier/model/task/date" },
-  { key: "settings", label: "Settings", hint: "Providers, voice, shortcuts" },
+  { key: "workflows", label: "ワークフロー", hint: "保存済みのエージェントフローを実行・編集" },
+  { key: "memory", label: "メモリ", hint: "Jarvisが知っていることを呼び出す" },
+  { key: "agents", label: "エージェント", hint: "一覧、ステータス、最終実行" },
+  { key: "authority", label: "権限", hint: "スコープ、許可リスト、承認" },
+  { key: "tools", label: "ツール", hint: "カタログ + 機能フラグ" },
+  { key: "logs", label: "ログ", hint: "フィルタ可能なイベントストリーム" },
+  { key: "calendar", label: "カレンダー", hint: "今週の予定 + コミットメント" },
+  { key: "goals", label: "目標", hint: "OKR階層 + スコアリング" },
+  { key: "tasks", label: "タスク", hint: "かんばん + 期限 + 優先度" },
+  { key: "content", label: "コンテンツ", hint: "下書き、予約済み、公開済み" },
+  { key: "workspaces", label: "ワークスペース", hint: "開発プロジェクト、git、開発サーバー" },
+  { key: "usage", label: "使用状況", hint: "LLMトークン使用量、ティア/モデル/タスク/日付で絞り込み可能" },
+  { key: "settings", label: "設定", hint: "プロバイダー、音声、ショートカット" },
 ];
 
 /**

@@ -4,6 +4,7 @@ import { StatusChip } from "../../ui/roomkit";
 import { TASK_STATUS_TONE } from "../../rooms/aiManager/AIManagerRoom";
 import type { ProjectTask } from "../../rooms/aiManager/useAIManagerData";
 import { pickDefaultFocusTask } from "./taskFocus";
+import { TASK_FLOW_STEP_LABELS } from "../cinematic/taskFlow";
 import "./FocusMode.css";
 
 /**
@@ -51,9 +52,9 @@ async function resumeTask(projectId: string, taskId: string, input: string): Pro
       const text = await resp.text().catch(() => "");
       throw new Error(text || `HTTP ${resp.status}`);
     }
-    return { ok: true, message: "Task resumed." };
+    return { ok: true, message: "タスクを再開しました。" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : "Failed to resume task." };
+    return { ok: false, message: err instanceof Error ? err.message : "タスクの再開に失敗しました。" };
   }
 }
 
@@ -103,59 +104,59 @@ export function FocusMode() {
   };
 
   return (
-    <div className="foc-shell" role="region" aria-label="Focus Mode">
+    <div className="foc-shell" role="region" aria-label="フォーカスモード">
       <div className="foc-project-strip">
-        {activeProjectId == null ? "No project pinned" : projectName ?? "Pinned project"}
+        {activeProjectId == null ? "ピン留めされたプロジェクトなし" : projectName ?? "ピン留めされたプロジェクト"}
       </div>
 
       {activeProjectId == null ? (
-        <div className="foc-empty">Pin a project from Talk to focus on its tasks here.</div>
+        <div className="foc-empty">トークからプロジェクトをピン留めすると、ここでタスクにフォーカスできます。</div>
       ) : activeProjectDetailLoading && tasks.length === 0 ? (
-        <div className="foc-empty">Loading…</div>
+        <div className="foc-empty">読み込み中…</div>
       ) : !focusedTask ? (
-        <div className="foc-empty">This project has no tasks yet.</div>
+        <div className="foc-empty">このプロジェクトにはまだタスクがありません。</div>
       ) : (
         <div className="foc-card" data-status={(focusedTask.project_status ?? "pending").toLowerCase()}>
           <div className="foc-nav">
-            <button type="button" className="foc-nav-btn" onClick={() => step(-1)} disabled={tasks.length < 2} aria-label="Previous task">
+            <button type="button" className="foc-nav-btn" onClick={() => step(-1)} disabled={tasks.length < 2} aria-label="前のタスク">
               ‹
             </button>
-            <span className="foc-nav-pos">{index + 1} of {tasks.length}</span>
-            <button type="button" className="foc-nav-btn" onClick={() => step(1)} disabled={tasks.length < 2} aria-label="Next task">
+            <span className="foc-nav-pos">{tasks.length}件中{index + 1}件目</span>
+            <button type="button" className="foc-nav-btn" onClick={() => step(1)} disabled={tasks.length < 2} aria-label="次のタスク">
               ›
             </button>
           </div>
 
-          <div className="foc-title">{focusedTask.title ?? "Untitled task"}</div>
+          <div className="foc-title">{focusedTask.title ?? "無題のタスク"}</div>
           <div className="foc-meta">
             <StatusChip tone={focusedTask.project_status ? TASK_STATUS_TONE[focusedTask.project_status] : "mut"} dot>
-              {focusedTask.project_status ?? "pending"}
+              {focusedTask.project_status ? TASK_FLOW_STEP_LABELS[focusedTask.project_status] : TASK_FLOW_STEP_LABELS.PENDING}
             </StatusChip>
             <span className="foc-priority">{focusedTask.priority}</span>
           </div>
 
           <div className="foc-fields">
-            {labeled("Assigned agent", focusedTask.assigned_agent)}
+            {labeled("担当エージェント", focusedTask.assigned_agent)}
             {labeled(
-              "Assigned model",
+              "使用モデル",
               focusedTask.assigned_provider
                 ? `${focusedTask.assigned_provider}${focusedTask.assigned_model ? `/${focusedTask.assigned_model}` : ""}`
                 : null,
             )}
-            {labeled("Next agent", focusedTask.next_agent)}
-            {focusedTask.retry_count > 0 && labeled("Retries", `${focusedTask.retry_count}/${focusedTask.max_retries}`)}
-            {focusedTask.approval_required && labeled("Approval", "required")}
+            {labeled("次のエージェント", focusedTask.next_agent)}
+            {focusedTask.retry_count > 0 && labeled("再試行", `${focusedTask.retry_count}/${focusedTask.max_retries}`)}
+            {focusedTask.approval_required && labeled("承認", "必要")}
           </div>
 
           {focusedTask.dependencies.length > 0 && (
             <div className="foc-section">
-              <div className="foc-section-h">Dependencies</div>
+              <div className="foc-section-h">依存関係</div>
               {focusedTask.dependencies.map((depId) => {
                 const dep = tasks.find((t) => t.id === depId);
                 return (
                   <div key={depId} className="foc-row">
                     <span className="foc-row-name">{dep?.title ?? depId}</span>
-                    {dep?.project_status && <span className="foc-row-sub">{dep.project_status.toLowerCase()}</span>}
+                    {dep?.project_status && <span className="foc-row-sub">{TASK_FLOW_STEP_LABELS[dep.project_status]}</span>}
                   </div>
                 );
               })}
@@ -164,7 +165,7 @@ export function FocusMode() {
 
           {focusedTask.artifacts.length > 0 && (
             <div className="foc-section">
-              <div className="foc-section-h">Artifacts</div>
+              <div className="foc-section-h">成果物</div>
               {focusedTask.artifacts.map((path) => (
                 <div key={path} className="foc-row">
                   <span className="foc-row-name">{path}</span>
@@ -175,7 +176,7 @@ export function FocusMode() {
 
           {focusedTask.qa_report && (
             <div className="foc-section">
-              <div className="foc-section-h">QA — {focusedTask.qa_report.passed ? "passed" : "failed"}</div>
+              <div className="foc-section-h">QA — {focusedTask.qa_report.passed ? "合格" : "不合格"}</div>
               {focusedTask.qa_report.checks.map((c) => (
                 <div key={c.name} className={`foc-row${c.automated && !c.passed ? " foc-row--fail" : ""}`}>
                   <span className="foc-row-name">{c.automated ? (c.passed ? "✓" : "✗") : "–"} {c.name}</span>
@@ -187,13 +188,13 @@ export function FocusMode() {
 
           {focusedTask.project_status === "WAITING" && (
             <div className="foc-resume">
-              <div className="foc-resume-q">This task is waiting for your input to continue.</div>
+              <div className="foc-resume-q">このタスクは続行にあなたの入力を待っています。</div>
               <div className="foc-resume-row">
                 <input
                   className="foc-resume-input"
                   value={resumeInput}
                   onChange={(e) => setResumeInput(e.target.value)}
-                  placeholder="Type your answer…"
+                  placeholder="回答を入力…"
                   onKeyDown={(e) => e.key === "Enter" && resumeInput.trim() && !resuming && void submitResume()}
                 />
                 <button
@@ -202,7 +203,7 @@ export function FocusMode() {
                   disabled={!resumeInput.trim() || resuming}
                   onClick={() => void submitResume()}
                 >
-                  {resuming ? "…" : "Resume"}
+                  {resuming ? "…" : "再開"}
                 </button>
               </div>
               {resumeMessage && <div className="foc-resume-msg">{resumeMessage}</div>}
@@ -211,7 +212,7 @@ export function FocusMode() {
         </div>
       )}
 
-      <div className="foc-hint">Switch modes from the top bar to return to the standard dashboard.</div>
+      <div className="foc-hint">トップバーからモードを切り替えると標準ダッシュボードに戻ります。</div>
     </div>
   );
 }

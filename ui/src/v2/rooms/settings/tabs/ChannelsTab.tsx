@@ -6,19 +6,19 @@ import type {
 } from "../useSettingsData";
 
 const EDGE_VOICES = [
-  { id: "en-US-AriaNeural", label: "Aria (US Female)" },
-  { id: "en-US-GuyNeural", label: "Guy (US Male)" },
-  { id: "en-GB-SoniaNeural", label: "Sonia (UK Female)" },
-  { id: "en-AU-NatashaNeural", label: "Natasha (AU Female)" },
-  { id: "en-US-JennyNeural", label: "Jenny (US Female)" },
-  { id: "en-US-DavisNeural", label: "Davis (US Male)" },
+  { id: "en-US-AriaNeural", label: "Aria（米国・女性）" },
+  { id: "en-US-GuyNeural", label: "Guy（米国・男性）" },
+  { id: "en-GB-SoniaNeural", label: "Sonia（英国・女性）" },
+  { id: "en-AU-NatashaNeural", label: "Natasha（豪州・女性）" },
+  { id: "en-US-JennyNeural", label: "Jenny（米国・女性）" },
+  { id: "en-US-DavisNeural", label: "Davis（米国・男性）" },
 ];
 
 const EDGE_RATES = [
-  { id: "-20%", label: "Slow" },
-  { id: "+0%", label: "Normal" },
-  { id: "+15%", label: "Fast" },
-  { id: "+30%", label: "Very fast" },
+  { id: "-20%", label: "遅い" },
+  { id: "+0%", label: "普通" },
+  { id: "+15%", label: "速い" },
+  { id: "+30%", label: "非常に速い" },
 ];
 
 const SARVAM_LANGUAGES = [
@@ -117,11 +117,11 @@ export function ChannelsTab({
           <div>
             <h3 className="v2-set__section-title">Telegram</h3>
             <div className="v2-set__section-sub">
-              Bot via @BotFather. Restart-required after token changes.
+              @BotFather経由のボット。トークン変更後は再起動が必要です。
             </div>
           </div>
           <span className={"v2-set__chip " + (channelStatus?.channels.telegram ? "v2-set__chip--ok" : "")}>
-            {channelStatus?.channels.telegram ? "Connected" : "Disconnected"}
+            {channelStatus?.channels.telegram ? "接続済み" : "未接続"}
           </span>
         </div>
 
@@ -139,26 +139,26 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           />
-          <span>Enable Telegram</span>
+          <span>Telegramを有効化</span>
           {channelCfg?.telegram.has_token && (
             <span className="v2-set__chip" style={{ marginLeft: "auto" }}>
-              token configured
+              トークン設定済み
             </span>
           )}
         </label>
 
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Bot token</label>
+          <label className="v2-set__field-label">ボットトークン</label>
           <input
             className="v2-set__input"
             type="password"
-            placeholder="leave empty to keep existing"
+            placeholder="空欄のままにすると既存の値を維持します"
             value={tgToken}
             onChange={(e) => setTgToken(e.target.value)}
           />
         </div>
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Allowed user IDs (comma-separated)</label>
+          <label className="v2-set__field-label">許可するユーザーID（カンマ区切り）</label>
           <input
             className="v2-set__input"
             type="text"
@@ -185,7 +185,7 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           >
-            Save Telegram
+            Telegramを保存
           </button>
         </div>
       </section>
@@ -196,11 +196,11 @@ export function ChannelsTab({
           <div>
             <h3 className="v2-set__section-title">Discord</h3>
             <div className="v2-set__section-sub">
-              Bot via discord.com/developers. Enable Message Content Intent. Restart-required.
+              discord.com/developers経由のボット。Message Content Intentを有効化してください。再起動が必要です。
             </div>
           </div>
           <span className={"v2-set__chip " + (channelStatus?.channels.discord ? "v2-set__chip--ok" : "")}>
-            {channelStatus?.channels.discord ? "Connected" : "Disconnected"}
+            {channelStatus?.channels.discord ? "接続済み" : "未接続"}
           </span>
         </div>
 
@@ -218,26 +218,26 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           />
-          <span>Enable Discord</span>
+          <span>Discordを有効化</span>
           {channelCfg?.discord.has_token && (
             <span className="v2-set__chip" style={{ marginLeft: "auto" }}>
-              token configured
+              トークン設定済み
             </span>
           )}
         </label>
 
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Bot token</label>
+          <label className="v2-set__field-label">ボットトークン</label>
           <input
             className="v2-set__input"
             type="password"
-            placeholder="leave empty to keep existing"
+            placeholder="空欄のままにすると既存の値を維持します"
             value={dcToken}
             onChange={(e) => setDcToken(e.target.value)}
           />
         </div>
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Allowed user IDs (comma-separated)</label>
+          <label className="v2-set__field-label">許可するユーザーID（カンマ区切り）</label>
           <input
             className="v2-set__input"
             type="text"
@@ -246,7 +246,7 @@ export function ChannelsTab({
           />
         </div>
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Guild ID (optional, restrict to one server)</label>
+          <label className="v2-set__field-label">ギルドID（任意、特定のサーバーに限定する場合）</label>
           <input
             className="v2-set__input"
             type="text"
@@ -272,7 +272,7 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           >
-            Save Discord
+            Discordを保存
           </button>
         </div>
       </section>
@@ -281,15 +281,15 @@ export function ChannelsTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Voice Transcription (STT)</h3>
+            <h3 className="v2-set__section-title">音声文字起こし（STT）</h3>
             <div className="v2-set__section-sub">
-              Enables voice messages on Telegram and Discord. Restart-required.
+              TelegramとDiscordでの音声メッセージを有効化します。再起動が必要です。
             </div>
           </div>
         </div>
 
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Provider</label>
+          <label className="v2-set__field-label">プロバイダー</label>
           <select
             className="v2-set__select"
             value={sttCfg?.provider ?? "openai"}
@@ -301,7 +301,7 @@ export function ChannelsTab({
             <option value="openai">OpenAI Whisper</option>
             <option value="groq">Groq Whisper</option>
             <option value="sarvam">Sarvam AI</option>
-            <option value="local">Local Whisper (whisper.cpp)</option>
+            <option value="local">ローカルWhisper（whisper.cpp）</option>
           </select>
         </div>
 
@@ -309,12 +309,12 @@ export function ChannelsTab({
           sttCfg?.provider === "groq" ||
           sttCfg?.provider === "sarvam") && (
           <div className="v2-set__field">
-            <label className="v2-set__field-label">API key for {sttCfg?.provider}</label>
+            <label className="v2-set__field-label">{sttCfg?.provider} のAPIキー</label>
             <div style={{ display: "flex", gap: "var(--s-2)" }}>
               <input
                 className="v2-set__input"
                 type="password"
-                placeholder="leave empty to keep existing"
+                placeholder="空欄のままにすると既存の値を維持します"
                 value={sttKey}
                 onChange={(e) => setSttKey(e.target.value)}
               />
@@ -332,15 +332,15 @@ export function ChannelsTab({
                   onToast(r.message, r.ok ? "ok" : "warn");
                 }}
               >
-                Save key
+                キーを保存
               </button>
             </div>
             <p className="v2-set__hint">
               {(sttCfg?.provider === "openai" && sttCfg?.has_openai_key) ||
               (sttCfg?.provider === "groq" && sttCfg?.has_groq_key) ||
               (sttCfg?.provider === "sarvam" && sttCfg?.has_sarvam_key)
-                ? "API key configured."
-                : "No key configured."}
+                ? "APIキー設定済みです。"
+                : "キーは設定されていません。"}
             </p>
           </div>
         )}
@@ -348,7 +348,7 @@ export function ChannelsTab({
         {sttCfg?.provider === "local" && (
           <>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Whisper endpoint</label>
+              <label className="v2-set__field-label">Whisperエンドポイント</label>
               <input
                 className="v2-set__input"
                 value={sttEndpoint}
@@ -356,14 +356,14 @@ export function ChannelsTab({
               />
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Server type</label>
+              <label className="v2-set__field-label">サーバータイプ</label>
               <select
                 className="v2-set__select"
                 value={sttServerType}
                 onChange={(e) => setSttServerType(e.target.value)}
               >
                 <option value="whisper_cpp">whisper.cpp</option>
-                <option value="openai_compatible">OpenAI-compatible</option>
+                <option value="openai_compatible">OpenAI互換</option>
               </select>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -378,7 +378,7 @@ export function ChannelsTab({
                   onToast(r.message, r.ok ? "ok" : "warn");
                 }}
               >
-                Save local STT
+                ローカルSTTを保存
               </button>
             </div>
           </>
@@ -389,9 +389,9 @@ export function ChannelsTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Text-to-Speech (TTS)</h3>
+            <h3 className="v2-set__section-title">音声合成（TTS）</h3>
             <div className="v2-set__section-sub">
-              Voice responses from Jarvis via the dashboard. Hot-reloaded.
+              ダッシュボード経由でのJarvisの音声応答。ホットリロードされます。
             </div>
           </div>
         </div>
@@ -408,11 +408,11 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           />
-          <span>Enable TTS</span>
+          <span>TTSを有効化</span>
         </label>
 
         <div className="v2-set__field">
-          <label className="v2-set__field-label">Provider</label>
+          <label className="v2-set__field-label">プロバイダー</label>
           <select
             className="v2-set__select"
             value={ttsCfg?.provider ?? "edge"}
@@ -421,16 +421,16 @@ export function ChannelsTab({
               onToast(r.message, r.ok ? "ok" : "warn");
             }}
           >
-            <option value="edge">Edge TTS (free)</option>
-            <option value="elevenlabs">ElevenLabs (API key)</option>
-            <option value="sarvam">Sarvam AI (Indian languages)</option>
+            <option value="edge">Edge TTS（無料）</option>
+            <option value="elevenlabs">ElevenLabs（APIキー）</option>
+            <option value="sarvam">Sarvam AI（インド系言語）</option>
           </select>
         </div>
 
         {ttsCfg?.provider === "edge" && (
           <>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Voice</label>
+              <label className="v2-set__field-label">音声</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.voice ?? "en-US-AriaNeural"}
@@ -447,7 +447,7 @@ export function ChannelsTab({
               </select>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Speaking rate</label>
+              <label className="v2-set__field-label">話速</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.rate ?? "+0%"}
@@ -469,15 +469,15 @@ export function ChannelsTab({
         {ttsCfg?.provider === "elevenlabs" && (
           <>
             <p className="v2-set__hint">
-              Get your API key from elevenlabs.io/app/settings/api-keys.
+              APIキーは elevenlabs.io/app/settings/api-keys から取得してください。
             </p>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">ElevenLabs API key</label>
+              <label className="v2-set__field-label">ElevenLabs APIキー</label>
               <div style={{ display: "flex", gap: "var(--s-2)" }}>
                 <input
                   className="v2-set__input"
                   type="password"
-                  placeholder="leave empty to keep existing"
+                  placeholder="空欄のままにすると既存の値を維持します"
                   value={elKey}
                   onChange={(e) => setElKey(e.target.value)}
                 />
@@ -493,19 +493,19 @@ export function ChannelsTab({
                     onToast(r.message, r.ok ? "ok" : "warn");
                   }}
                 >
-                  Save key
+                  キーを保存
                 </button>
               </div>
               <p className="v2-set__hint">
                 {ttsCfg?.elevenlabs?.has_api_key
-                  ? "API key configured."
-                  : "No key configured. Save first, then voices will load."}
+                  ? "APIキー設定済みです。"
+                  : "キーが未設定です。先に保存すると音声リストが読み込まれます。"}
               </p>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Voice</label>
+              <label className="v2-set__field-label">音声</label>
               {elVoicesLoading ? (
-                <p className="v2-set__hint">Loading voices…</p>
+                <p className="v2-set__hint">音声を読み込み中…</p>
               ) : elVoices.length > 0 ? (
                 <select
                   className="v2-set__select"
@@ -517,7 +517,7 @@ export function ChannelsTab({
                     onToast(r.message, r.ok ? "ok" : "warn");
                   }}
                 >
-                  <option value="">Default (Rachel)</option>
+                  <option value="">デフォルト（Rachel）</option>
                   {elVoices.map((v) => (
                     <option key={v.voice_id} value={v.voice_id}>
                       {v.name} ({v.category})
@@ -525,11 +525,11 @@ export function ChannelsTab({
                   ))}
                 </select>
               ) : (
-                <p className="v2-set__hint">Save API key first to load voices.</p>
+                <p className="v2-set__hint">音声を読み込むには先にAPIキーを保存してください。</p>
               )}
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Model</label>
+              <label className="v2-set__field-label">モデル</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.elevenlabs?.model ?? "eleven_flash_v2_5"}
@@ -540,8 +540,8 @@ export function ChannelsTab({
                   onToast(r.message, r.ok ? "ok" : "warn");
                 }}
               >
-                <option value="eleven_flash_v2_5">Flash v2.5 (fast, low latency)</option>
-                <option value="eleven_multilingual_v2">Multilingual v2 (higher quality)</option>
+                <option value="eleven_flash_v2_5">Flash v2.5（高速・低遅延）</option>
+                <option value="eleven_multilingual_v2">Multilingual v2（高品質）</option>
               </select>
             </div>
           </>
@@ -549,14 +549,14 @@ export function ChannelsTab({
 
         {ttsCfg?.provider === "sarvam" && (
           <>
-            <p className="v2-set__hint">High-quality TTS for Indian languages.</p>
+            <p className="v2-set__hint">インド系言語向けの高品質TTSです。</p>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Sarvam subscription key</label>
+              <label className="v2-set__field-label">Sarvamサブスクリプションキー</label>
               <div style={{ display: "flex", gap: "var(--s-2)" }}>
                 <input
                   className="v2-set__input"
                   type="password"
-                  placeholder="leave empty to keep existing"
+                  placeholder="空欄のままにすると既存の値を維持します"
                   value={sarvKey}
                   onChange={(e) => setSarvKey(e.target.value)}
                 />
@@ -572,15 +572,15 @@ export function ChannelsTab({
                     onToast(r.message, r.ok ? "ok" : "warn");
                   }}
                 >
-                  Save key
+                  キーを保存
                 </button>
               </div>
               <p className="v2-set__hint">
-                {ttsCfg?.sarvam?.has_api_key ? "API key configured." : "No key configured."}
+                {ttsCfg?.sarvam?.has_api_key ? "APIキー設定済みです。" : "キーは設定されていません。"}
               </p>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Model</label>
+              <label className="v2-set__field-label">モデル</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.sarvam?.model ?? "bulbul:v3"}
@@ -596,7 +596,7 @@ export function ChannelsTab({
               </select>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Language</label>
+              <label className="v2-set__field-label">言語</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.sarvam?.language ?? "en-IN"}
@@ -615,7 +615,7 @@ export function ChannelsTab({
               </select>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Speaker</label>
+              <label className="v2-set__field-label">話者</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.sarvam?.speaker ?? "anushka"}
@@ -634,7 +634,7 @@ export function ChannelsTab({
               </select>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Sampling rate</label>
+              <label className="v2-set__field-label">サンプリングレート</label>
               <select
                 className="v2-set__select"
                 value={ttsCfg?.sarvam?.sampling_rate ?? 48000}
@@ -647,7 +647,7 @@ export function ChannelsTab({
               >
                 <option value={16000}>16 kHz</option>
                 <option value={24000}>24 kHz</option>
-                <option value={48000}>48 kHz (high fidelity)</option>
+                <option value={48000}>48 kHz（高音質）</option>
               </select>
             </div>
           </>

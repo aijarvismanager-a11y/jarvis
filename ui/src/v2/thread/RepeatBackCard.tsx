@@ -33,28 +33,28 @@ export function RepeatBackCard({
     <article
       className="v2-repeatback"
       role="alertdialog"
-      aria-label={`Heard transcript needs confirmation`}
+      aria-label={`聞き取った内容の確認が必要です`}
     >
       <div className="v2-repeatback__attribution">
         <span className="v2-repeatback__attribution-dot" aria-hidden="true" />
         Jarvis
-        <span className="v2-repeatback__attribution-tag">· didn&rsquo;t catch that</span>
-        <span className="v2-repeatback__conf">{Math.round(confidence * 100)}% match</span>
+        <span className="v2-repeatback__attribution-tag">· 聞き取れませんでした</span>
+        <span className="v2-repeatback__conf">一致度 {Math.round(confidence * 100)}%</span>
       </div>
 
       <div className="v2-repeatback__heard">
         <Icon icon={Mic} size="sm" />
         <span className="v2-repeatback__heard-text">
-          I heard: <em>&ldquo;{transcript}&rdquo;</em>
+          聞き取った内容: <em>&ldquo;{transcript}&rdquo;</em>
         </span>
       </div>
 
       <div className="v2-repeatback__actions">
         <Button variant="primary" size="md" disabled={busy} onClick={click(onConfirm)}>
-          Yes, that&rsquo;s right
+          はい、合っています
         </Button>
         <Button variant="ghost" size="md" disabled={busy} onClick={click(onCancel)}>
-          No, try again
+          いいえ、もう一度
         </Button>
       </div>
     </article>

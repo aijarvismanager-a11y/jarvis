@@ -35,7 +35,7 @@ export function UserVoiceItem({
 }) {
   return (
     <article className="v2-item v2-item--user">
-      <Meta who="You" tag="voice" time={item.t} />
+      <Meta who="あなた" tag="音声" time={item.t} />
       <div className="v2-item__body">
         <span className="v2-item__mic" aria-hidden="true">
           <Icon icon={Mic} size="sm" />
@@ -53,7 +53,7 @@ export function UserTextItem({
 }) {
   return (
     <article className="v2-item v2-item--user">
-      <Meta who="You" time={item.t} />
+      <Meta who="あなた" time={item.t} />
       <div className="v2-item__body">{item.text}</div>
     </article>
   );
@@ -70,14 +70,14 @@ export function JarvisSpeechItem({
       <Meta
         who="Jarvis"
         whoClass="v2-item__who--jarvis"
-        tag={isSpeaking ? "speaking" : undefined}
+        tag={isSpeaking ? "発話中" : undefined}
         time={item.t}
         accentDot
       />
       <div className="v2-item__body">
         <MarkdownBody text={item.text} />
         {isSpeaking && (
-          <span className="v2-item__speaking-dot" aria-label="Speaking" />
+          <span className="v2-item__speaking-dot" aria-label="発話中" />
         )}
       </div>
     </article>
@@ -90,11 +90,11 @@ export function JarvisThoughtItem({
   item: Extract<ThreadItem, { kind: "jarvis-thought" }>;
 }) {
   return (
-    <article className="v2-item v2-item--thought" aria-label="Jarvis thought">
+    <article className="v2-item v2-item--thought" aria-label="Jarvisの思考">
       <Meta
         who="Jarvis"
         whoClass="v2-item__who--jarvis"
-        tag="thinking"
+        tag="思考中"
         time={item.t}
         accentDot
       />
@@ -110,7 +110,7 @@ export function ResultItem({
 }) {
   return (
     <article className="v2-item v2-item--result">
-      <Meta who="Result" time={item.t} />
+      <Meta who="結果" time={item.t} />
       <div className="v2-item__body">
         <MarkdownBody text={item.summary} />
       </div>

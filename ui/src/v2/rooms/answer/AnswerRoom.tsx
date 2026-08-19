@@ -45,10 +45,10 @@ export function AnswerRoom({ answerId }: { answerId: string }) {
     return (
       <div className="task-result task-result--error">
         <div className="task-result__error">
-          <div className="task-result__error-eyebrow">unavailable</div>
+          <div className="task-result__error-eyebrow">利用不可</div>
           <div className="task-result__error-msg">{error}</div>
           <div className="task-result__error-hint">
-            Answer may have aged out (~25 most recent kept in memory).
+            回答が期限切れになった可能性があります(最新約25件のみ保持)。
           </div>
         </div>
       </div>
@@ -58,7 +58,7 @@ export function AnswerRoom({ answerId }: { answerId: string }) {
     return (
       <div className="task-result task-result--loading">
         <div className="task-result__loading-dot" />
-        <div className="task-result__loading-line">loading answer…</div>
+        <div className="task-result__loading-line">回答を読み込み中…</div>
       </div>
     );
   }
@@ -74,18 +74,18 @@ export function AnswerRoom({ answerId }: { answerId: string }) {
         <div className="task-result__eyebrow">
           <span className="task-result__agent">JARVIS</span>
           <span className="task-result__sep">·</span>
-          <span className="task-result__elapsed">asked at {askedAt}</span>
+          <span className="task-result__elapsed">{askedAt} に質問</span>
         </div>
         <h1 className="task-result__title">{answer.prompt}</h1>
       </header>
 
       <section className="task-result__response">
         <div className="task-result__response-head">
-          <div className="task-result__section-eyebrow">full answer</div>
+          <div className="task-result__section-eyebrow">回答全文</div>
         </div>
         <div className="task-result__response-body task-result__markdown">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {answer.response || "(no output)"}
+            {answer.response || "(出力なし)"}
           </ReactMarkdown>
         </div>
       </section>

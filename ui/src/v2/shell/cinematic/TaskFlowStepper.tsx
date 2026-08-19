@@ -16,7 +16,7 @@ function TaskFlowStepperImpl({ taskCounts, totalTasks }: { taskCounts: TaskStatu
   const { steps, exceptions } = deriveTaskFlow(taskCounts);
 
   return (
-    <div className="cin-flow" role="group" aria-label="Task flow">
+    <div className="cin-flow" role="group" aria-label="タスクフロー">
       <ol className="cin-flow__steps">
         {steps.map((step) => (
           <li key={step.status} className="cin-flow__step" data-active={step.count > 0}>

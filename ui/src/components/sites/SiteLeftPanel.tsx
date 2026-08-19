@@ -55,13 +55,13 @@ export function SiteLeftPanel({ leftTab, setLeftTab, projectId, onFileSelect, se
           onClick={() => setLeftTab("chat")}
           style={leftTab === "chat" ? activeTabBtnStyle : tabBtnStyle}
         >
-          Chat
+          チャット
         </button>
         <button
           onClick={() => setLeftTab("files")}
           style={leftTab === "files" ? activeTabBtnStyle : tabBtnStyle}
         >
-          Files
+          ファイル
         </button>
       </div>
 
@@ -72,10 +72,10 @@ export function SiteLeftPanel({ leftTab, setLeftTab, projectId, onFileSelect, se
             {/* Chat messages area */}
             <div style={{ flex: 1, padding: "8px", overflow: "auto" }}>
               {!projectId ? (
-                <div style={emptyStyle}>Open a project to start chatting</div>
+                <div style={emptyStyle}>チャットを始めるにはプロジェクトを開いてください</div>
               ) : projectMessages.length === 0 ? (
                 <div style={emptyStyle}>
-                  Chat with JARVIS about this project. Your messages will be scoped to the active project.
+                  このプロジェクトについてJARVISとチャットできます。メッセージはアクティブなプロジェクトに紐づきます。
                 </div>
               ) : (
                 projectMessages.map((msg) => (
@@ -92,7 +92,7 @@ export function SiteLeftPanel({ leftTab, setLeftTab, projectId, onFileSelect, se
                     wordBreak: "break-word",
                   }}>
                     <div style={{ fontSize: "10px", color: "var(--ink3)", marginBottom: 2, fontWeight: 600 }}>
-                      {msg.role === "user" ? "You" : "JARVIS"}
+                      {msg.role === "user" ? "あなた" : "JARVIS"}
                     </div>
                     {msg.content}
                     {msg.isStreaming && <span style={{ color: "var(--ink)" }}> ▍</span>}
@@ -110,12 +110,12 @@ export function SiteLeftPanel({ leftTab, setLeftTab, projectId, onFileSelect, se
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder={projectId ? "Ask JARVIS to build..." : "Select a project first"}
+                  placeholder={projectId ? "JARVISに作成を依頼..." : "まずプロジェクトを選択してください"}
                   disabled={!projectId || !isConnected}
                   style={inputStyle}
                 />
                 <button onClick={handleSend} disabled={!chatInput.trim() || !projectId} style={sendBtnStyle}>
-                  Send
+                  送信
                 </button>
               </div>
             </div>

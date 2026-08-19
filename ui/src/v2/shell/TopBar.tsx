@@ -20,12 +20,12 @@ const ROOM_TITLES: Record<string, string> = Object.fromEntries(
 );
 
 const STATE_LABEL: Record<VoiceState, string> = {
-  idle: "idle",
-  listening: "listening",
-  thinking: "thinking",
-  speaking: "speaking",
-  "awaiting-approval": "asking",
-  muted: "muted",
+  idle: "待機中",
+  listening: "聞き取り中",
+  thinking: "思考中",
+  speaking: "応答中",
+  "awaiting-approval": "確認中",
+  muted: "ミュート",
 };
 
 const STATE_HUE: Record<VoiceState, string> = {
@@ -38,9 +38,9 @@ const STATE_HUE: Record<VoiceState, string> = {
 };
 
 const DAEMON: Record<ConnectionState, { cls: string; hue: string; label: string }> = {
-  live: { cls: "", hue: "var(--ok)", label: "daemon · online" },
-  degraded: { cls: "hold", hue: "var(--hold)", label: "daemon · degraded · reconnecting" },
-  offline: { cls: "bad", hue: "var(--listen)", label: "offline" },
+  live: { cls: "", hue: "var(--ok)", label: "デーモン · オンライン" },
+  degraded: { cls: "hold", hue: "var(--hold)", label: "デーモン · 不安定 · 再接続中" },
+  offline: { cls: "bad", hue: "var(--listen)", label: "オフライン" },
 };
 
 // Cinematic/Focus have no dedicated surface yet (Phase 31/35) — Normal Mode
@@ -48,15 +48,15 @@ const DAEMON: Record<ConnectionState, { cls: string; hue: string; label: string 
 // so rather than pretending the mode already does something, per the spec's
 // anti-dummy-data rule (docs/CINEMATIC_UI_AUDIT.md §11, spec §78/§79-80).
 const THEME_META: Record<ThemePreference, { icon: string; label: string }> = {
-  light: { icon: "○", label: "light" },
-  dark: { icon: "●", label: "dark" },
-  system: { icon: "◐", label: "system" },
+  light: { icon: "○", label: "ライト" },
+  dark: { icon: "●", label: "ダーク" },
+  system: { icon: "◐", label: "システム" },
 };
 
 const MODE_META: Record<UIMode, { label: string; icon: string; note: string }> = {
-  normal: { label: "Normal", icon: "▢", note: "Standard dashboard" },
-  cinematic: { label: "Cinematic", icon: "◈", note: "Central Core view — live project/task/agent/provider status" },
-  focus: { label: "Focus", icon: "◎", note: "Single-task view — the pinned project's most urgent task, one at a time" },
+  normal: { label: "通常", icon: "▢", note: "標準ダッシュボード" },
+  cinematic: { label: "シネマティック", icon: "◈", note: "セントラルコアビュー — プロジェクト/タスク/エージェント/プロバイダーの状況をライブ表示" },
+  focus: { label: "フォーカス", icon: "◎", note: "シングルタスクビュー — ピン留めプロジェクトの最重要タスクを一つずつ表示" },
 };
 
 export function TopBar({
@@ -82,7 +82,7 @@ export function TopBar({
   const [resolvedTheme, themePreference, cycleTheme] = useTheme();
   const [uiMode, cycleUiMode] = useCinematicMode();
   const isNow = route.kind !== "room";
-  const title = route.kind === "room" ? ROOM_TITLES[route.key] ?? route.key : "Now";
+  const title = route.kind === "room" ? ROOM_TITLES[route.key] ?? route.key : "ナウ";
   const daemon = DAEMON[connection];
   const count = notificationCount ?? 0;
 
@@ -91,7 +91,7 @@ export function TopBar({
       <span className="rm">{title}</span>
       {isNow && (
         <button className={`rs-abtn${arranging ? " on" : ""}`} onClick={onArrange} aria-pressed={arranging}>
-          {arranging ? "Done" : "Arrange"}
+          {arranging ? "完了" : "配置"}
         </button>
       )}
 
@@ -115,7 +115,7 @@ export function TopBar({
         <button
           className={`rs-chip${uiMode !== "normal" ? " hold" : ""}`}
           onClick={() => cycleUiMode()}
-          aria-label={`UI mode: ${MODE_META[uiMode].label}. Click to switch.`}
+          aria-label={`UIモード: ${MODE_META[uiMode].label}。クリックで切り替え。`}
           title={MODE_META[uiMode].note}
         >
           {MODE_META[uiMode].icon} {MODE_META[uiMode].label}
@@ -124,19 +124,19 @@ export function TopBar({
         <button
           className="rs-chip"
           onClick={() => cycleTheme()}
-          aria-label={`Theme: ${THEME_META[themePreference].label}${themePreference === "system" ? ` (currently ${resolvedTheme})` : ""}. Click to switch.`}
-          title={`Theme: ${THEME_META[themePreference].label}${themePreference === "system" ? ` — following OS, currently ${resolvedTheme}` : ""}. Click to cycle light → dark → system.`}
+          aria-label={`テーマ: ${THEME_META[themePreference].label}${themePreference === "system" ? `（現在${resolvedTheme === "dark" ? "ダーク" : "ライト"}）` : ""}。クリックで切り替え。`}
+          title={`テーマ: ${THEME_META[themePreference].label}${themePreference === "system" ? ` — OSに追従、現在${resolvedTheme === "dark" ? "ダーク" : "ライト"}` : ""}。クリックでライト→ダーク→システムを切り替え。`}
         >
           {THEME_META[themePreference].icon} {THEME_META[themePreference].label}
         </button>
 
-        <button className="rs-chip" onClick={onOpenPalette} aria-label="Quick open">⌘K</button>
+        <button className="rs-chip" onClick={onOpenPalette} aria-label="クイックオープン">⌘K</button>
 
         {onToggleNotifications && (
           <button
             className={`rs-bell${notificationsOpen ? " on" : ""}`}
             onClick={onToggleNotifications}
-            aria-label={`Notifications${count > 0 ? `, ${count} unread` : ""}`}
+            aria-label={`通知${count > 0 ? `、未読${count}件` : ""}`}
             aria-expanded={notificationsOpen}
           >
             <span className="bb">⌥N</span>

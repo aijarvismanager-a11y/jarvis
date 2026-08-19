@@ -96,7 +96,7 @@ export function useWorkflowsData() {
     inFlightRef.current = true;
     try {
       const res = await fetch("/api/workflows");
-      if (!res.ok) throw new Error(`GET /api/workflows -> ${res.status}`);
+      if (!res.ok) throw new Error(`ワークフロー取得エラー -> ${res.status}`);
       const list = (await res.json()) as Flow[];
       setError(null);
       // Patch displayName from the cache (or queue a fetch for entries that
@@ -165,7 +165,7 @@ export function useWorkflowsData() {
   const refreshRuns = useCallback(async (flowId: string): Promise<void> => {
     try {
       const res = await fetch(`/api/workflows/${flowId}/runs?limit=50`);
-      if (!res.ok) throw new Error(`GET /api/workflows/${flowId}/runs -> ${res.status}`);
+      if (!res.ok) throw new Error(`実行履歴取得エラー -> ${res.status}`);
       const list = (await res.json()) as FlowRun[];
       setRuns((prev) => ({ ...prev, [flowId]: list }));
     } catch (e) {
@@ -182,10 +182,10 @@ export function useWorkflowsData() {
       });
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `run failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `実行に失敗しました: ${res.status}` };
       }
       void refreshRuns(flowId);
-      return { ok: true, message: "Run queued" };
+      return { ok: true, message: "実行をキューに追加しました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -200,10 +200,10 @@ export function useWorkflowsData() {
       });
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `update failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `更新に失敗しました: ${res.status}` };
       }
       void refresh();
-      return { ok: true, message: status === "ENABLED" ? "Flow enabled" : "Flow disabled" };
+      return { ok: true, message: status === "ENABLED" ? "フローを有効化しました" : "フローを無効化しました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -217,10 +217,10 @@ export function useWorkflowsData() {
       });
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `publish failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `公開に失敗しました: ${res.status}` };
       }
       void refresh();
-      return { ok: true, message: "Published" };
+      return { ok: true, message: "公開しました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -231,7 +231,7 @@ export function useWorkflowsData() {
       const res = await fetch(`/api/workflows/${flowId}`, { method: "DELETE" });
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `delete failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `削除に失敗しました: ${res.status}` };
       }
       nameCacheRef.current.delete(flowId);
       setRuns((prev) => {
@@ -241,7 +241,7 @@ export function useWorkflowsData() {
       });
       void refresh();
       if (selectedFlowId === flowId) setSelectedFlowId(null);
-      return { ok: true, message: "Deleted" };
+      return { ok: true, message: "削除しました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -256,7 +256,7 @@ export function useWorkflowsData() {
    * from inside the editor.
    */
   const createFlow = useCallback(
-    async (displayName = "Untitled workflow"): Promise<ActionResult & { flowId?: string }> => {
+    async (displayName = "無題のワークフロー"): Promise<ActionResult & { flowId?: string }> => {
       try {
         const res = await fetch("/api/workflows", {
           method: "POST",
@@ -265,11 +265,11 @@ export function useWorkflowsData() {
         });
         if (!res.ok) {
           const body = await safeJson(res);
-          return { ok: false, message: body?.error ?? `create failed: ${res.status}` };
+          return { ok: false, message: body?.error ?? `作成に失敗しました: ${res.status}` };
         }
         const body = (await res.json()) as { flow: Flow; version: { id: string } };
         void refresh();
-        return { ok: true, message: "Workflow created", flowId: body.flow.id };
+        return { ok: true, message: "ワークフローを作成しました", flowId: body.flow.id };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }
@@ -282,10 +282,10 @@ export function useWorkflowsData() {
       const res = await fetch(`/api/workflow-runs/${runId}/cancel`, { method: "POST" });
       if (!res.ok) {
         const body = await safeJson(res);
-        return { ok: false, message: body?.error ?? `cancel failed: ${res.status}` };
+        return { ok: false, message: body?.error ?? `キャンセルに失敗しました: ${res.status}` };
       }
       if (selectedFlowId) void refreshRuns(selectedFlowId);
-      return { ok: true, message: "Run canceled" };
+      return { ok: true, message: "実行をキャンセルしました" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }

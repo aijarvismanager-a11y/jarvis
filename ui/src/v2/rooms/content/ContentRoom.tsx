@@ -14,8 +14,8 @@ import "./ContentRoom.css";
 const CONTENT_STAGES: ContentStage[] = ["idea", "research", "outline", "draft", "assets", "review", "scheduled", "published"];
 const CONTENT_TYPES: ContentType[] = ["youtube", "blog", "twitter", "instagram", "tiktok", "linkedin", "podcast", "newsletter", "short_form", "other"];
 
-const STAGE_LABEL: Record<ContentStage, string> = { idea: "Idea", research: "Research", outline: "Outline", draft: "Draft", assets: "Assets", review: "Review", scheduled: "Scheduled", published: "Published" };
-const TYPE_LABEL: Record<ContentType, string> = { youtube: "YouTube", blog: "Blog", twitter: "X/Twitter", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", podcast: "Podcast", newsletter: "Newsletter", short_form: "Short", other: "Other" };
+const STAGE_LABEL: Record<ContentStage, string> = { idea: "アイデア", research: "リサーチ", outline: "アウトライン", draft: "下書き", assets: "素材", review: "レビュー", scheduled: "予定済み", published: "公開済み" };
+const TYPE_LABEL: Record<ContentType, string> = { youtube: "YouTube", blog: "ブログ", twitter: "X/Twitter", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", podcast: "ポッドキャスト", newsletter: "ニュースレター", short_form: "ショート", other: "その他" };
 const TYPE_SHORT: Record<ContentType, string> = { youtube: "YT", blog: "BL", twitter: "X", instagram: "IG", tiktok: "TT", linkedin: "LI", podcast: "POD", newsletter: "NL", short_form: "SF", other: "—" };
 
 // Stage tone remap (content §02): idea/research/outline neutral · draft+assets
@@ -66,7 +66,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
       case "select": { const it = data.findByName(typeof args.name === "string" ? args.name : ""); if (!it) return false; setSelectedId(it.id); return true; }
       case "create_content": {
         const title = typeof args.title === "string" ? args.title.trim() : ""; if (!title) return false;
-        (async () => { const r = await data.createContent({ title, content_type: (args.type as ContentType) ?? undefined }); if (r.ok) setSelectedId(r.item.id); setToast({ text: r.ok ? `Created "${title}"` : r.message, tone: r.ok ? "ok" : "warn" }); })();
+        (async () => { const r = await data.createContent({ title, content_type: (args.type as ContentType) ?? undefined }); if (r.ok) setSelectedId(r.item.id); setToast({ text: r.ok ? `「${title}」を作成しました` : r.message, tone: r.ok ? "ok" : "warn" }); })();
         return true;
       }
       case "advance": case "regress": {
@@ -77,7 +77,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
       case "schedule": {
         const it = (typeof args.name === "string" && args.name ? data.findByName(args.name) : null) ?? selected; if (!it) return false;
         const parsed = typeof args.when === "string" ? parseRelativeDate(args.when) : null;
-        if (!parsed) { setToast({ text: "Couldn't parse that date.", tone: "warn" }); return true; }
+        if (!parsed) { setToast({ text: "その日付を解析できませんでした。", tone: "warn" }); return true; }
         (async () => { const r = await data.schedule(it.id, parsed.ts); setToast({ text: r.message, tone: r.ok ? "ok" : "warn" }); })();
         return true;
       }
@@ -91,24 +91,24 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
   return (
     <div className="rk-content">
       <div className="rk-content__tool">
-        <span className="rk-content__title">Content</span>
-        {mode === "expanded" && <Tabs tabs={[{ key: "kanban", label: "Kanban" }, { key: "list", label: "List" }]} active={view} onChange={(k) => setView(k as "kanban" | "list")} />}
+        <span className="rk-content__title">コンテンツ</span>
+        {mode === "expanded" && <Tabs tabs={[{ key: "kanban", label: "かんばん" }, { key: "list", label: "リスト" }]} active={view} onChange={(k) => setView(k as "kanban" | "list")} />}
         {mode === "expanded" && (
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as ContentType | "all")}>
-            <option value="all">all types</option>
+            <option value="all">すべての形式</option>
             {CONTENT_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
           </Select>
         )}
-        <div className="rk-content__search"><Icon icon={Search} size="sm" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="search title, tag, type…" aria-label="Search content" /></div>
-        <button className="rk-content__icbtn" onClick={data.refresh} aria-label="Refresh"><Icon icon={RefreshCw} size="sm" /></button>
-        <button className="rk-content__new" onClick={() => setCreateOpen(true)}>New content</button>
+        <div className="rk-content__search"><Icon icon={Search} size="sm" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="タイトル・タグ・形式を検索…" aria-label="コンテンツを検索" /></div>
+        <button className="rk-content__icbtn" onClick={data.refresh} aria-label="更新"><Icon icon={RefreshCw} size="sm" /></button>
+        <button className="rk-content__new" onClick={() => setCreateOpen(true)}>新規コンテンツ</button>
       </div>
 
       <div className="rk-content__stats">
-        <Stat k="total" n={data.stats.total} sub="all stages" />
-        <Stat k="in flight" n={data.stats.inFlight} sub="idea → review" tone="blue" />
-        <Stat k="scheduled" n={data.stats.scheduled} sub="awaiting publish" />
-        <Stat k="published" n={data.stats.published} sub="all-time" tone="green" />
+        <Stat k="合計" n={data.stats.total} sub="全ステージ" />
+        <Stat k="進行中" n={data.stats.inFlight} sub="アイデア → レビュー" tone="blue" />
+        <Stat k="予定済み" n={data.stats.scheduled} sub="公開待ち" />
+        <Stat k="公開済み" n={data.stats.published} sub="累計" tone="green" />
       </div>
 
       <div className="rk-content__body">
@@ -133,7 +133,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
         ) : (
           <div className="rk-content__list">
             {listItems.length === 0 ? (
-              <div style={{ padding: 22 }}><EmptyState title="Nothing here yet">Describe a piece to Jarvis or press <b>New content</b> to start the pipeline.</EmptyState></div>
+              <div style={{ padding: 22 }}><EmptyState title="まだ何もありません">Jarvisにコンテンツを説明するか、<b>新規コンテンツ</b>を押してパイプラインを開始してください。</EmptyState></div>
             ) : listItems.map((it) => (
               <button key={it.id} className={`rk-content__row${selectedId === it.id ? " rk-content__row--sel" : ""}`} onClick={() => setSelectedId(selectedId === it.id ? null : it.id)}>
                 <span className="rk-content__tbadge" title={TYPE_LABEL[it.content_type]}>{TYPE_SHORT[it.content_type]}</span>
@@ -153,7 +153,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
             onSave={async (patch) => toastFrom(await data.updateContent(selected.id, patch))}
             onAdvance={async () => toastFrom(await data.advance(selected.id))}
             onRegress={async () => toastFrom(await data.regress(selected.id))}
-            onDelete={async () => { if (!await confirmDialog("Delete this content?")) return; const r = await data.deleteContent(selected.id); toastFrom(r); if (r.ok) setSelectedId(null); }}
+            onDelete={async () => { if (!await confirmDialog("このコンテンツを削除しますか?")) return; const r = await data.deleteContent(selected.id); toastFrom(r); if (r.ok) setSelectedId(null); }}
             listNotes={() => data.listNotes(selected.id)}
             addNote={(stage, note) => data.addNote(selected.id, stage, note)}
             listAttachments={() => data.listAttachments(selected.id)}
@@ -166,7 +166,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
       {createOpen && (
         <CreateDialog
           onClose={() => setCreateOpen(false)}
-          onCreate={async (input) => { const r = await data.createContent(input); if (r.ok) { setSelectedId(r.item.id); setToast({ text: `Created "${input.title}"`, tone: "ok" }); return true; } setToast({ text: r.message, tone: "warn" }); return false; }}
+          onCreate={async (input) => { const r = await data.createContent(input); if (r.ok) { setSelectedId(r.item.id); setToast({ text: `「${input.title}」を作成しました`, tone: "ok" }); return true; } setToast({ text: r.message, tone: "warn" }); return false; }}
         />
       )}
 
@@ -177,7 +177,7 @@ export function ContentRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function ContentRoom() {
   return (
-    <RoomShell title="Content" subtitle="drafts · scheduled · published" breadcrumb={["Content"]}>
+    <RoomShell title="コンテンツ" subtitle="下書き · 予定済み · 公開済み" breadcrumb={["コンテンツ"]}>
       <ContentRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -203,7 +203,7 @@ function ContentCard({ item, selected, onClick }: { item: ContentItem; selected:
       <span className="rk-content__card-foot">
         {item.tags.slice(0, 2).map((t) => <span key={t}>#{t}</span>)}
         <span style={{ marginLeft: "auto" }}>{formatRelative(item.updated_at)}</span>
-        {item.scheduled_at != null && <span className="sched">for {new Date(item.scheduled_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
+        {item.scheduled_at != null && <span className="sched">{new Date(item.scheduled_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}予定</span>}
       </span>
     </button>
   );
@@ -247,28 +247,28 @@ function DetailPanel({ item, onClose, onSave, onAdvance, onRegress, onDelete, li
         <span className="rk-content__tbadge" title={TYPE_LABEL[item.content_type]}>{TYPE_SHORT[item.content_type]}</span>
         <StatusChip tone={STAGE_TONE[item.stage]} dot>{STAGE_LABEL[item.stage]}</StatusChip>
         <span className="rk-content__spacer" />
-        <button className="rk-content__icbtn" onClick={onClose} aria-label="Close"><Icon icon={X} size="sm" /></button>
+        <button className="rk-content__icbtn" onClick={onClose} aria-label="閉じる"><Icon icon={X} size="sm" /></button>
       </header>
       <div className="rk-content__side-body">
-        <input className="rk-content__title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+        <input className="rk-content__title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="タイトル" />
         <div>
-          <div className="rk-content__field-lab">tags (comma-separated)</div>
-          <input className="rk-content__input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. q3, launch, demo" />
+          <div className="rk-content__field-lab">タグ(カンマ区切り)</div>
+          <input className="rk-content__input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="例: q3, launch, demo" />
         </div>
         <div>
-          <div className="rk-content__field-lab">body</div>
-          <textarea className="rk-content__textarea" value={body} onChange={(e) => setBody(e.target.value)} rows={7} placeholder="Draft, notes, or full body…" />
+          <div className="rk-content__field-lab">本文</div>
+          <textarea className="rk-content__textarea" value={body} onChange={(e) => setBody(e.target.value)} rows={7} placeholder="下書き、メモ、または全文…" />
         </div>
         <div className="rk-content__row-acts">
-          <button className="rk-content__sbtn" onClick={onRegress} disabled={idx <= 0}><Icon icon={ChevronLeft} size="sm" /> Back</button>
-          <button className="rk-content__sbtn rk-content__sbtn--pri" onClick={onAdvance} disabled={idx >= CONTENT_STAGES.length - 1}>Advance <Icon icon={ChevronRight} size="sm" /></button>
+          <button className="rk-content__sbtn" onClick={onRegress} disabled={idx <= 0}><Icon icon={ChevronLeft} size="sm" /> 戻る</button>
+          <button className="rk-content__sbtn rk-content__sbtn--pri" onClick={onAdvance} disabled={idx >= CONTENT_STAGES.length - 1}>進める <Icon icon={ChevronRight} size="sm" /></button>
           <span className="rk-content__spacer" />
-          <button className="rk-content__sbtn" onClick={save} disabled={!dirty}><Icon icon={Save} size="sm" /> Save</button>
+          <button className="rk-content__sbtn" onClick={save} disabled={!dirty}><Icon icon={Save} size="sm" /> 保存</button>
         </div>
 
         <div>
-          <div className="rk-content__section-lab">stage notes</div>
-          {notes.length === 0 ? <div className="rk-content__empty-line" style={{ marginTop: 6 }}>No notes yet.</div> : (
+          <div className="rk-content__section-lab">ステージノート</div>
+          {notes.length === 0 ? <div className="rk-content__empty-line" style={{ marginTop: 6 }}>まだノートはありません。</div> : (
             <ul className="rk-content__notes">
               {notes.map((n) => (
                 <li className="rk-content__note" key={n.id}>
@@ -279,30 +279,30 @@ function DetailPanel({ item, onClose, onSave, onAdvance, onRegress, onDelete, li
             </ul>
           )}
           <div className="rk-content__note-add">
-            <input className="rk-content__input" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder={`Add a note for ${STAGE_LABEL[item.stage]}…`} onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }} />
-            <button className="rk-content__sbtn" onClick={handleAddNote} disabled={!noteDraft.trim()}>Add</button>
+            <input className="rk-content__input" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder={`${STAGE_LABEL[item.stage]}にノートを追加…`} onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }} />
+            <button className="rk-content__sbtn" onClick={handleAddNote} disabled={!noteDraft.trim()}>追加</button>
           </div>
         </div>
 
         <div>
-          <div className="rk-content__section-lab">attachments</div>
-          {attachments.length === 0 ? <div className="rk-content__empty-line" style={{ marginTop: 6 }}>No attachments.</div> : (
+          <div className="rk-content__section-lab">添付ファイル</div>
+          {attachments.length === 0 ? <div className="rk-content__empty-line" style={{ marginTop: 6 }}>添付ファイルはありません。</div> : (
             <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0 }}>
               {attachments.map((a) => (
                 <li className="rk-content__att" key={a.id}>
                   <Icon icon={Paperclip} size="sm" />
                   <span className="rk-content__att-name">{a.filename}</span>
                   <span className="rk-content__att-size">{formatBytes(a.size_bytes)}</span>
-                  <button className="rk-content__icbtn" onClick={() => handleDelAtt(a.id)} aria-label="Remove"><Icon icon={Trash2} size="sm" /></button>
+                  <button className="rk-content__icbtn" onClick={() => handleDelAtt(a.id)} aria-label="削除"><Icon icon={Trash2} size="sm" /></button>
                 </li>
               ))}
             </ul>
           )}
           <input ref={fileInputRef} type="file" onChange={handleFile} style={{ display: "none" }} />
-          <button className="rk-content__sbtn" style={{ marginTop: 8 }} onClick={() => fileInputRef.current?.click()}><Icon icon={Plus} size="sm" /> Upload file</button>
+          <button className="rk-content__sbtn" style={{ marginTop: 8 }} onClick={() => fileInputRef.current?.click()}><Icon icon={Plus} size="sm" /> ファイルをアップロード</button>
         </div>
 
-        <button className="rk-content__sbtn rk-content__sbtn--danger" onClick={onDelete}><Icon icon={Trash2} size="sm" /> Delete content</button>
+        <button className="rk-content__sbtn rk-content__sbtn--danger" onClick={onDelete}><Icon icon={Trash2} size="sm" /> コンテンツを削除</button>
       </div>
     </aside>
   );
@@ -317,19 +317,19 @@ function CreateDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (i
   return (
     <div className="rk-content__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-content__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="rk-content__dialog-head"><div className="rk-content__dialog-title">New content</div></div>
+        <div className="rk-content__dialog-head"><div className="rk-content__dialog-title">新規コンテンツ</div></div>
         <div className="rk-content__dialog-body">
-          <div><div className="rk-content__field-lab">title</div><input className="rk-content__input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What's the piece?" autoFocus /></div>
-          <div><div className="rk-content__field-lab">format</div>
+          <div><div className="rk-content__field-lab">タイトル</div><input className="rk-content__input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="内容は?" autoFocus /></div>
+          <div><div className="rk-content__field-lab">形式</div>
             <Select value={type} onChange={(e) => setType(e.target.value as ContentType)}>{CONTENT_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</Select>
           </div>
-          <div><div className="rk-content__field-lab">starting stage</div>
+          <div><div className="rk-content__field-lab">開始ステージ</div>
             <div className="rk-content__chiprow">{CONTENT_STAGES.slice(0, 6).map((s) => <button key={s} className={`rk-content__sbtn${stage === s ? " rk-content__sbtn--pri" : ""}`} onClick={() => setStage(s)}>{STAGE_LABEL[s]}</button>)}</div>
           </div>
         </div>
         <div className="rk-content__dialog-acts">
-          <button className="rk-content__sbtn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="rk-content__sbtn rk-content__sbtn--pri" onClick={submit} disabled={busy || !title.trim()}>{busy ? "Creating…" : "Create"}</button>
+          <button className="rk-content__sbtn" onClick={onClose} disabled={busy}>キャンセル</button>
+          <button className="rk-content__sbtn rk-content__sbtn--pri" onClick={submit} disabled={busy || !title.trim()}>{busy ? "作成中…" : "作成"}</button>
         </div>
       </div>
     </div>
@@ -339,11 +339,11 @@ function CreateDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (i
 function formatRelative(ts: number): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
-  if (m < 1) return "now";
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return "たった今";
+  if (m < 60) return `${m}分前`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return `${h}時間前`;
+  return `${Math.floor(h / 24)}日前`;
 }
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

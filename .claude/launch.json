@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jarvis-daemon",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "src/daemon/index.ts"],
+      "port": 3142
+    }
+  ]
+}

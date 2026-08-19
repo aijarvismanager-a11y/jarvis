@@ -8,6 +8,11 @@ import {
 } from "../../../onboarding/resetClient";
 
 const HEARTBEAT_LEVELS = ["passive", "moderate", "aggressive"] as const;
+const HEARTBEAT_LEVEL_LABELS: Record<(typeof HEARTBEAT_LEVELS)[number], string> = {
+  passive: "控えめ",
+  moderate: "普通",
+  aggressive: "積極的",
+};
 
 export function GeneralTab({
   data,
@@ -20,7 +25,7 @@ export function GeneralTab({
   const [restarting, setRestarting] = useState(false);
 
   const handleRestart = async () => {
-    if (!await confirmDialog("Restart Jarvis now? Your dashboard will reconnect after a few seconds.")) return;
+    if (!await confirmDialog("今すぐJarvisを再起動しますか？数秒後にダッシュボードが再接続されます。")) return;
     setRestarting(true);
     const r = await data.restartDaemon();
     onToast(r.message, r.ok ? "ok" : "warn");
@@ -33,9 +38,9 @@ export function GeneralTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">24/7 Service</h3>
+            <h3 className="v2-set__section-title">24時間365日稼働サービス</h3>
             <div className="v2-set__section-sub">
-              Keepalive that runs Jarvis in the background after the terminal closes.
+              ターミナルを閉じた後もJarvisをバックグラウンドで実行し続けるキープアライブ機能です。
             </div>
           </div>
           {autostart && (
@@ -44,7 +49,7 @@ export function GeneralTab({
                 "v2-set__chip " + (autostart.installed ? "v2-set__chip--ok" : "")
               }
             >
-              {autostart.installed ? "Installed" : "Not installed"}
+              {autostart.installed ? "インストール済み" : "未インストール"}
             </span>
           )}
         </div>
@@ -52,21 +57,21 @@ export function GeneralTab({
         {autostart ? (
           <>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Manager</span>
+              <span className="v2-set__row-label">マネージャー</span>
               <span className="v2-set__row-value">{autostart.manager}</span>
             </div>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Platform</span>
+              <span className="v2-set__row-label">プラットフォーム</span>
               <span className="v2-set__row-value">{autostart.platform}</span>
             </div>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Restart</span>
+              <span className="v2-set__row-label">再起動</span>
               <span className="v2-set__row-value">
                 {autostart.restart_supported
-                  ? "Available"
+                  ? "利用可能"
                   : autostart.keepalive_supported
-                    ? "Install keepalive first"
-                    : "Not supported"}
+                    ? "先にキープアライブをインストールしてください"
+                    : "非対応"}
               </span>
             </div>
             <div style={{ display: "flex", gap: "var(--s-2)", flexWrap: "wrap" }}>
@@ -76,19 +81,19 @@ export function GeneralTab({
                 disabled={!autostart.restart_supported || restarting}
                 onClick={handleRestart}
               >
-                {restarting ? "Restarting…" : "Restart Jarvis"}
+                {restarting ? "再起動中…" : "Jarvisを再起動"}
               </button>
               <button
                 type="button"
                 className="v2-set__btn"
                 onClick={() => data.refresh()}
               >
-                Refresh status
+                状態を更新
               </button>
             </div>
           </>
         ) : (
-          <div className="v2-set__empty">Service controls unavailable.</div>
+          <div className="v2-set__empty">サービス制御は利用できません。</div>
         )}
       </section>
 
@@ -96,9 +101,9 @@ export function GeneralTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Heartbeat</h3>
+            <h3 className="v2-set__section-title">ハートビート</h3>
             <div className="v2-set__section-sub">
-              How often Jarvis checks in with you proactively.
+              Jarvisが能動的にあなたへ確認を行う頻度です。
             </div>
           </div>
         </div>
@@ -106,26 +111,26 @@ export function GeneralTab({
         {rootCfg?.heartbeat ? (
           <>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Interval</span>
+              <span className="v2-set__row-label">間隔</span>
               <span className="v2-set__row-value">
-                {rootCfg.heartbeat.interval_minutes} min
+                {rootCfg.heartbeat.interval_minutes} 分
               </span>
             </div>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Active hours</span>
+              <span className="v2-set__row-label">稼働時間帯</span>
               <span className="v2-set__row-value">
                 {rootCfg.heartbeat.active_hours.start}:00 –{" "}
                 {rootCfg.heartbeat.active_hours.end}:00
               </span>
             </div>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Aggressiveness</span>
-              <span className="v2-set__row-value" style={{ textTransform: "capitalize" }}>
-                {rootCfg.heartbeat.aggressiveness}
+              <span className="v2-set__row-label">積極度</span>
+              <span className="v2-set__row-value">
+                {HEARTBEAT_LEVEL_LABELS[rootCfg.heartbeat.aggressiveness as (typeof HEARTBEAT_LEVELS)[number]] ?? rootCfg.heartbeat.aggressiveness}
               </span>
             </div>
             <div className="v2-set__field">
-              <label className="v2-set__field-label">Set aggressiveness (write)</label>
+              <label className="v2-set__field-label">積極度を設定（書き込み）</label>
               <div style={{ display: "flex", gap: "var(--s-2)", flexWrap: "wrap" }}>
                 {HEARTBEAT_LEVELS.map((lv) => (
                   <button
@@ -138,14 +143,14 @@ export function GeneralTab({
                       onToast(r.message, r.ok ? "ok" : "warn");
                     }}
                   >
-                    {lv}
+                    {HEARTBEAT_LEVEL_LABELS[lv]}
                   </button>
                 ))}
               </div>
               <p className="v2-set__hint">
-                Note: heartbeat write endpoint is not yet wired in the daemon — these buttons
-                surface the capability for parity with voice actions but currently return a
-                "not implemented" message.
+                注: ハートビート書き込みエンドポイントはまだデーモンに接続されていません — これらのボタンは
+                ボイス操作との整合性のために機能を表示していますが、現在は「未実装」という
+                メッセージを返します。
               </p>
             </div>
           </>
@@ -158,9 +163,9 @@ export function GeneralTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Personality</h3>
+            <h3 className="v2-set__section-title">パーソナリティ</h3>
             <div className="v2-set__section-sub">
-              Learned from interactions over time. Read-only.
+              やり取りを通じて学習されます。読み取り専用です。
             </div>
           </div>
         </div>
@@ -168,7 +173,7 @@ export function GeneralTab({
         {personality ? (
           <>
             <div className="v2-set__field">
-              <span className="v2-set__field-label">Core traits</span>
+              <span className="v2-set__field-label">コア特性</span>
               <div className="v2-set__chip-row">
                 {personality.core_traits.map((t) => (
                   <span key={t} className="v2-set__chip">
@@ -178,34 +183,34 @@ export function GeneralTab({
               </div>
             </div>
             <div className="v2-set__field">
-              <span className="v2-set__field-label">Learned preferences</span>
-              <PrefBar label="Verbosity" value={personality.learned_preferences.verbosity} />
-              <PrefBar label="Formality" value={personality.learned_preferences.formality} />
-              <PrefBar label="Humor" value={personality.learned_preferences.humor_level} />
+              <span className="v2-set__field-label">学習された好み</span>
+              <PrefBar label="詳細度" value={personality.learned_preferences.verbosity} />
+              <PrefBar label="フォーマルさ" value={personality.learned_preferences.formality} />
+              <PrefBar label="ユーモア" value={personality.learned_preferences.humor_level} />
               <div className="v2-set__row">
-                <span className="v2-set__row-label">Emoji usage</span>
+                <span className="v2-set__row-label">絵文字の使用</span>
                 <span className="v2-set__row-value">
-                  {personality.learned_preferences.emoji_usage ? "Enabled" : "Disabled"}
+                  {personality.learned_preferences.emoji_usage ? "有効" : "無効"}
                 </span>
               </div>
               <div className="v2-set__row">
-                <span className="v2-set__row-label">Preferred format</span>
+                <span className="v2-set__row-label">好みの形式</span>
                 <span className="v2-set__row-value" style={{ textTransform: "capitalize" }}>
                   {personality.learned_preferences.preferred_format}
                 </span>
               </div>
             </div>
             <div className="v2-set__field">
-              <span className="v2-set__field-label">Relationship</span>
+              <span className="v2-set__field-label">関係性</span>
               <div className="v2-set__row">
-                <span className="v2-set__row-label">Messages exchanged</span>
+                <span className="v2-set__row-label">やり取りしたメッセージ数</span>
                 <span className="v2-set__row-value">
                   {personality.relationship.message_count}
                 </span>
               </div>
-              <PrefBar label="Trust level" value={personality.relationship.trust_level} />
+              <PrefBar label="信頼レベル" value={personality.relationship.trust_level} />
               <div className="v2-set__row">
-                <span className="v2-set__row-label">First interaction</span>
+                <span className="v2-set__row-label">最初のやり取り</span>
                 <span className="v2-set__row-value">
                   {new Date(personality.relationship.first_interaction).toLocaleDateString()}
                 </span>
@@ -213,7 +218,7 @@ export function GeneralTab({
             </div>
           </>
         ) : (
-          <div className="v2-set__empty">Personality data unavailable.</div>
+          <div className="v2-set__empty">パーソナリティデータは利用できません。</div>
         )}
       </section>
 
@@ -221,24 +226,24 @@ export function GeneralTab({
       <section className="v2-set__section">
         <div className="v2-set__section-head">
           <div>
-            <h3 className="v2-set__section-title">Active Role</h3>
+            <h3 className="v2-set__section-title">アクティブロール</h3>
             <div className="v2-set__section-sub">
-              Authority and tools available to the orchestrator.
+              オーケストレーターが利用できる権限とツールです。
             </div>
           </div>
         </div>
         {role?.role ? (
           <>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Role</span>
+              <span className="v2-set__row-label">ロール</span>
               <span className="v2-set__row-value">{role.role.name}</span>
             </div>
             <div className="v2-set__row">
-              <span className="v2-set__row-label">Authority</span>
+              <span className="v2-set__row-label">権限</span>
               <span className="v2-set__row-value">{role.role.authority_level}/10 ({specLevelLabel(role.role.authority_level)})</span>
             </div>
             <div className="v2-set__field">
-              <span className="v2-set__field-label">Tools</span>
+              <span className="v2-set__field-label">ツール</span>
               <div className="v2-set__chip-row">
                 {role.role.tools.map((t) => (
                   <span key={t} className="v2-set__chip">
@@ -250,7 +255,7 @@ export function GeneralTab({
             {(role.role.sub_roles?.length ?? 0) > 0 && (
               <div className="v2-set__field">
                 <span className="v2-set__field-label">
-                  Available specialists ({role.role.sub_roles?.length ?? 0})
+                  利用可能なスペシャリスト ({role.role.sub_roles?.length ?? 0})
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--s-2)" }}>
                   {(role.role.sub_roles ?? []).map((sr) => (
@@ -278,7 +283,7 @@ export function GeneralTab({
             )}
           </>
         ) : (
-          <div className="v2-set__empty">Role data unavailable.</div>
+          <div className="v2-set__empty">ロールデータは利用できません。</div>
         )}
       </section>
 
@@ -305,14 +310,14 @@ function RerunSetupSection({
   const handleRerun = async () => {
     if (
       !await confirmDialog(
-        "Re-run first-time setup? You'll be sent back to the LLM provider + TTS picker. Your saved profile and tutorial state are preserved. The page will reload.",
+        "初回セットアップを再実行しますか？LLMプロバイダー＋TTS選択画面に戻ります。保存済みのプロフィールとチュートリアルの進行状況は保持されます。ページが再読み込みされます。",
       )
     )
       return;
     setBusy(true);
     try {
       await resetOnboarding("setup");
-      onToast("Re-running setup — reloading…", "ok");
+      onToast("セットアップを再実行中 — 再読み込みしています…", "ok");
     } catch (err) {
       onToast(err instanceof Error ? err.message : String(err), "warn");
       setBusy(false);
@@ -323,11 +328,11 @@ function RerunSetupSection({
     <section className="v2-set__section">
       <div className="v2-set__section-head">
         <div>
-          <h3 className="v2-set__section-title">Re-run first-time setup</h3>
+          <h3 className="v2-set__section-title">初回セットアップを再実行</h3>
           <div className="v2-set__section-sub">
-            Send yourself back through the LLM provider + TTS pickers — useful
-            after switching providers or rotating an API key. Your profile and
-            tutorial progress stay intact.
+            LLMプロバイダー＋TTS選択画面をもう一度実行します — プロバイダーの切り替えや
+            APIキーのローテーション後に便利です。プロフィールとチュートリアルの進行状況は
+            そのまま保持されます。
           </div>
         </div>
         <button
@@ -336,7 +341,7 @@ function RerunSetupSection({
           onClick={handleRerun}
           disabled={busy}
         >
-          {busy ? "Restarting…" : "Re-run setup"}
+          {busy ? "再起動中…" : "セットアップを再実行"}
         </button>
       </div>
     </section>
@@ -379,20 +384,20 @@ function OnboardingDebugSection({
     if (!scope) return;
     const label =
       scope === "all"
-        ? "all onboarding phases"
+        ? "すべてのオンボーディングフェーズ"
         : scope === "setup"
-          ? "the LLM/TTS setup screens"
+          ? "LLM/TTSセットアップ画面"
           : scope === "profile"
-            ? "the profile interview (your saved profile will be cleared)"
-            : "the dashboard tutorial";
-    if (!await confirmDialog(`Replay ${label}? The page will reload.`)) return;
+            ? "プロフィールインタビュー（保存済みプロフィールはクリアされます）"
+            : "ダッシュボードチュートリアル";
+    if (!await confirmDialog(`${label}を再生しますか？ページが再読み込みされます。`)) return;
     setBusy(true);
     try {
       // resetOnboarding triggers a full page reload on success, so the
       // toast below only fires if reload is somehow skipped (e.g. test
       // harness).
       await resetOnboarding(scope);
-      onToast(`Reset queued — reloading…`, "ok");
+      onToast(`リセットを予約しました — 再読み込みしています…`, "ok");
     } catch (err) {
       onToast(err instanceof Error ? err.message : String(err), "warn");
       setBusy(false);
@@ -403,17 +408,17 @@ function OnboardingDebugSection({
     <section className="v2-set__section">
       <div className="v2-set__section-head">
         <div>
-          <h3 className="v2-set__section-title">Onboarding</h3>
+          <h3 className="v2-set__section-title">オンボーディング</h3>
           <div className="v2-set__section-sub">
-            Replay any phase of first-run onboarding. Useful after Jarvis
-            updates or for testing. Page reloads after the reset fires.
+            初回起動オンボーディングの任意のフェーズを再生します。Jarvisの
+            アップデート後やテスト時に便利です。リセット後にページが再読み込みされます。
           </div>
         </div>
       </div>
 
       <div className="v2-set__field">
         <label className="v2-set__field-label" htmlFor="onboarding-scope">
-          Replay scope
+          再生範囲
         </label>
         <div style={{ display: "flex", gap: "var(--s-2)", alignItems: "center" }}>
           <select
@@ -423,11 +428,11 @@ function OnboardingDebugSection({
             onChange={(e) => setScope(e.target.value as OnboardingResetScope | "")}
             style={{ flex: 1 }}
           >
-            <option value="">Pick a phase…</option>
-            <option value="all">All phases (full reset)</option>
-            <option value="setup">Setup only (LLM + TTS picker)</option>
-            <option value="profile">Profile interview (clears your saved profile)</option>
-            <option value="tutorial">Dashboard tutorial</option>
+            <option value="">フェーズを選択…</option>
+            <option value="all">すべてのフェーズ（完全リセット）</option>
+            <option value="setup">セットアップのみ（LLM + TTS選択）</option>
+            <option value="profile">プロフィールインタビュー（保存済みプロフィールをクリア）</option>
+            <option value="tutorial">ダッシュボードチュートリアル</option>
           </select>
           <button
             type="button"
@@ -435,13 +440,13 @@ function OnboardingDebugSection({
             onClick={handleReset}
             disabled={!scope || busy}
           >
-            {busy ? "Resetting…" : "Replay"}
+            {busy ? "リセット中…" : "再生"}
           </button>
         </div>
         <p className="v2-set__hint">
-          You can also visit{" "}
-          <code className="v2-set__code">?onboarding=reset</code> on the
-          dashboard URL, or say <strong>"replay onboarding"</strong> by voice.
+          ダッシュボードのURLで{" "}
+          <code className="v2-set__code">?onboarding=reset</code> にアクセスするか、
+          音声で <strong>「オンボーディングを再生」</strong> と言うこともできます。
         </p>
       </div>
     </section>

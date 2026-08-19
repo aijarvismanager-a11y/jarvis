@@ -31,20 +31,20 @@ export function ConnectionsPanel(): React.ReactElement {
     <div className="wf-conn">
       <header className="wf-conn__header">
         <div>
-          <h3 className="wf-conn__title">Piece connections</h3>
+          <h3 className="wf-conn__title">ピース接続</h3>
           <p className="wf-conn__subtitle">
             {conn.loading
-              ? "loading…"
-              : `${conn.connections.length} stored · ${conn.jarvisSources.length} Jarvis source${conn.jarvisSources.length === 1 ? "" : "s"} registered`}
+              ? "読み込み中…"
+              : `保存済み${conn.connections.length}件 · 登録済みJarvisソース${conn.jarvisSources.length}件`}
             {conn.error ? ` · ${conn.error}` : null}
           </p>
         </div>
         <div className="wf-conn__actions">
-          <Button variant="ghost" size="sm" onClick={() => void conn.refresh()} title="Refresh">
-            <Icon icon={RefreshCw} size={14} /> Refresh
+          <Button variant="ghost" size="sm" onClick={() => void conn.refresh()} title="更新">
+            <Icon icon={RefreshCw} size={14} /> 更新
           </Button>
           <Button variant="primary" size="sm" onClick={() => setShowForm((s) => !s)}>
-            <Icon icon={Plus} size={14} /> {showForm ? "Cancel" : "Add"}
+            <Icon icon={Plus} size={14} /> {showForm ? "キャンセル" : "追加"}
           </Button>
         </div>
       </header>
@@ -53,14 +53,14 @@ export function ConnectionsPanel(): React.ReactElement {
 
       {conn.jarvisSources.length > 0 ? (
         <div className="wf-conn__sources">
-          <span className="wf-conn__sources-label">Reusable Jarvis credentials:</span>
+          <span className="wf-conn__sources-label">再利用可能なJarvis認証情報:</span>
           {conn.jarvisSources.map((s) => (
             <Chip key={s.id} tone="ok">
               <code>jarvis:{s.id}</code>
             </Chip>
           ))}
           <span className="wf-conn__sources-help">
-            -- pieces can use these external ids in their auth field without a stored row.
+            -- ピースはこれらの外部IDを、保存済み行なしで認証フィールドに直接使用できます。
           </span>
         </div>
       ) : null}
@@ -69,7 +69,7 @@ export function ConnectionsPanel(): React.ReactElement {
         <AddConnectionForm
           onSubmit={async (input) => {
             const r = await conn.create(input);
-            flash(r.ok ? "ok" : "warn", r.ok ? `Connection "${input.displayName}" added` : `Add failed: ${r.message}`);
+            flash(r.ok ? "ok" : "warn", r.ok ? `接続「${input.displayName}」を追加しました` : `追加に失敗しました: ${r.message}`);
             if (r.ok) setShowForm(false);
           }}
         />
@@ -77,7 +77,7 @@ export function ConnectionsPanel(): React.ReactElement {
 
       {conn.connections.length === 0 && !conn.loading ? (
         <div className="wf-conn__empty">
-          No connections stored. Use Add to wire OAuth tokens / API keys for pieces.
+          接続が保存されていません。「追加」からピース用のOAuthトークン/APIキーを設定してください。
         </div>
       ) : (
         <ul className="wf-conn__list">
@@ -86,15 +86,15 @@ export function ConnectionsPanel(): React.ReactElement {
               key={c.id}
               connection={c}
               onDelete={async () => {
-                if (!await confirmDialog(`Delete connection "${c.displayName}"? Secrets are removed permanently.`)) return;
+                if (!await confirmDialog(`接続「${c.displayName}」を削除しますか? シークレットは完全に削除されます。`)) return;
                 const r = await conn.remove(c.id);
-                flash(r.ok ? "ok" : "warn", r.ok ? `Deleted "${c.displayName}"` : `Delete failed: ${r.message}`);
+                flash(r.ok ? "ok" : "warn", r.ok ? `「${c.displayName}」を削除しました` : `削除に失敗しました: ${r.message}`);
               }}
               onUpdate={async (patch) => {
                 const r = await conn.update(c.id, patch);
                 flash(
                   r.ok ? "ok" : "warn",
-                  r.ok ? `Updated "${c.displayName}"` : `Update failed: ${r.message}`,
+                  r.ok ? `「${c.displayName}」を更新しました` : `更新に失敗しました: ${r.message}`,
                 );
                 return r.ok;
               }}
@@ -130,20 +130,20 @@ function ConnectionRow({
           <code className="wf-conn__row-extid">{connection.externalId}</code>
         </div>
         <div className="wf-conn__row-meta">
-          <span>piece: <code>{connection.pieceName}</code></span>
-          <span>updated: {new Date(connection.updated).toLocaleString()}</span>
+          <span>ピース: <code>{connection.pieceName}</code></span>
+          <span>更新日時: {new Date(connection.updated).toLocaleString()}</span>
         </div>
         <div className="wf-conn__row-actions">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setEditing((e) => !e)}
-            title="Rotate secret / edit metadata"
+            title="シークレットをローテート / メタデータを編集"
           >
-            <Icon icon={KeyRound} size={12} /> {editing ? "Cancel" : "Rotate"}
+            <Icon icon={KeyRound} size={12} /> {editing ? "キャンセル" : "ローテート"}
           </Button>
-          <Button variant="danger" size="sm" onClick={onDelete} title="Delete connection">
-            <Icon icon={Trash2} size={12} /> Delete
+          <Button variant="danger" size="sm" onClick={onDelete} title="接続を削除">
+            <Icon icon={Trash2} size={12} /> 削除
           </Button>
         </div>
       </div>
@@ -203,7 +203,7 @@ function EditConnectionForm({
     }
     setParseError(null);
     if (Object.keys(patch).length === 0) {
-      setParseError("nothing to update");
+      setParseError("更新する内容がありません");
       return;
     }
     setSubmitting(true);
@@ -218,15 +218,15 @@ function EditConnectionForm({
     <div className="wf-conn__form wf-conn__form--inline">
       <div className="wf-conn__form-row">
         <label>
-          Display name
+          表示名
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="leave blank to keep current"
+            placeholder="空欄で現在の値を維持"
           />
         </label>
         <label>
-          Status
+          ステータス
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ConnectionMeta["status"])}
@@ -238,7 +238,7 @@ function EditConnectionForm({
         </label>
       </div>
       <label className="wf-conn__form-value">
-        New value (JSON; leave empty to keep existing)
+        新しい値 (JSON; 空欄で既存の値を維持)
         <textarea
           rows={5}
           value={valueText}
@@ -254,7 +254,7 @@ function EditConnectionForm({
           onClick={() => void handleSubmit()}
           disabled={submitting}
         >
-          {submitting ? "Saving..." : "Save"}
+          {submitting ? "保存中..." : "保存"}
         </Button>
       </div>
     </div>
@@ -324,7 +324,7 @@ function AddConnectionForm({
     <div className="wf-conn__form">
       <div className="wf-conn__form-row">
         <label>
-          External id
+          外部ID
           <input
             value={externalId}
             onChange={(e) => setExternalId(e.target.value)}
@@ -332,7 +332,7 @@ function AddConnectionForm({
           />
         </label>
         <label>
-          Display name
+          表示名
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -342,7 +342,7 @@ function AddConnectionForm({
       </div>
       <div className="wf-conn__form-row">
         <label>
-          Type
+          種別
           <select value={type} onChange={(e) => setType(e.target.value as AppConnectionType)}>
             {TYPES.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -350,7 +350,7 @@ function AddConnectionForm({
           </select>
         </label>
         <label>
-          Piece name
+          ピース名
           <input
             value={pieceName}
             onChange={(e) => setPieceName(e.target.value)}
@@ -358,7 +358,7 @@ function AddConnectionForm({
           />
         </label>
         <label>
-          Piece version
+          ピースバージョン
           <input
             value={pieceVersion}
             onChange={(e) => setPieceVersion(e.target.value)}
@@ -367,7 +367,7 @@ function AddConnectionForm({
         </label>
       </div>
       <label className="wf-conn__form-value">
-        Value (JSON)
+        値 (JSON)
         <textarea
           rows={5}
           value={valueText}
@@ -383,7 +383,7 @@ function AddConnectionForm({
           onClick={() => void handleSubmit()}
           disabled={submitting || !externalId.trim() || !displayName.trim() || !pieceName.trim()}
         >
-          {submitting ? "Adding…" : "Add connection"}
+          {submitting ? "追加中…" : "接続を追加"}
         </Button>
       </div>
     </div>

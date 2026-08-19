@@ -66,6 +66,20 @@ const RUN_STATUS_TONE: Record<FlowRunStatus, "ok" | "neutral" | "warn" | "accent
   SCHEDULE_FAILURE: "accent",
 };
 
+const RUN_STATUS_LABEL: Record<FlowRunStatus, string> = {
+  QUEUED: "待機中",
+  RUNNING: "実行中",
+  SUCCEEDED: "成功",
+  FAILED: "失敗",
+  PAUSED: "一時停止",
+  TIMEOUT: "タイムアウト",
+  INTERNAL_ERROR: "内部エラー",
+  QUOTA_EXCEEDED: "上限超過",
+  STOPPED: "停止",
+  MEMORY_LIMIT_EXCEEDED: "メモリ上限超過",
+  SCHEDULE_FAILURE: "スケジュール失敗",
+};
+
 const TERMINAL_STATUSES = new Set<FlowRunStatus>([
   "SUCCEEDED",
   "FAILED",
@@ -88,7 +102,7 @@ export function WorkflowsRoomBody(): React.ReactElement {
     const result = await fn();
     setActionMessage({
       tone: result.ok ? "ok" : "warn",
-      text: result.ok ? `${label}: ${result.message}` : `${label} failed: ${result.message}`,
+      text: result.ok ? `${label}: ${result.message}` : `${label}に失敗しました: ${result.message}`,
     });
     window.setTimeout(() => setActionMessage(null), 3000);
   };
@@ -103,7 +117,7 @@ export function WorkflowsRoomBody(): React.ReactElement {
     if (result.ok && result.flowId) {
       data.setEditingFlowId(result.flowId);
     } else {
-      setActionMessage({ tone: "warn", text: `Create failed: ${result.message}` });
+      setActionMessage({ tone: "warn", text: `作成に失敗しました: ${result.message}` });
       window.setTimeout(() => setActionMessage(null), 3000);
     }
   };
@@ -123,7 +137,7 @@ export function WorkflowsRoomBody(): React.ReactElement {
       if (prompt) {
         setActionMessage({
           tone: "ok",
-          text: `Empty workflow created. To have Jarvis build "${prompt}" for you, ask in chat: "Make a workflow that ${prompt}".`,
+          text: `空のワークフローを作成しました。Jarvisに「${prompt}」を組み立ててもらうには、チャットで「${prompt}ワークフローを作って」と依頼してください。`,
         });
         window.setTimeout(() => setActionMessage(null), 6000);
       }
@@ -152,35 +166,35 @@ export function WorkflowsRoomBody(): React.ReactElement {
             className={`wf-room__tab ${tab === "flows" ? "wf-room__tab--active" : ""}`}
             onClick={() => setTab("flows")}
           >
-            Workflows
+            ワークフロー
           </button>
           <button
             type="button"
             className={`wf-room__tab ${tab === "connections" ? "wf-room__tab--active" : ""}`}
             onClick={() => setTab("connections")}
           >
-            Connections
+            接続
           </button>
           <button
             type="button"
             className={`wf-room__tab ${tab === "library" ? "wf-room__tab--active" : ""}`}
             onClick={() => setTab("library")}
           >
-            Library
+            ライブラリ
           </button>
         </div>
         <div className="wf-room__actions">
           {tab === "flows" ? (
             <>
               <span className="wf-room__count">
-                {data.loading ? "…" : `${data.flows.length} workflow${data.flows.length === 1 ? "" : "s"}`}
+                {data.loading ? "…" : `${data.flows.length}件のワークフロー`}
                 {data.error ? ` · ${data.error}` : null}
               </span>
-              <Button variant="ghost" size="sm" onClick={() => void data.refresh()} title="Refresh">
-                <Icon icon={RefreshCw} size={14} /> Refresh
+              <Button variant="ghost" size="sm" onClick={() => void data.refresh()} title="更新">
+                <Icon icon={RefreshCw} size={14} /> 更新
               </Button>
-              <Button variant="primary" size="sm" onClick={() => void handleCreate()} title="New workflow">
-                <Icon icon={Plus} size={14} /> New workflow
+              <Button variant="primary" size="sm" onClick={() => void handleCreate()} title="新規ワークフロー">
+                <Icon icon={Plus} size={14} /> 新規ワークフロー
               </Button>
             </>
           ) : null}
@@ -196,7 +210,7 @@ export function WorkflowsRoomBody(): React.ReactElement {
 
       {tab === "flows" ? (
       <div className="wf-room__layout">
-        <section className="wf-room__list" aria-label="Workflow list">
+        <section className="wf-room__list" aria-label="ワークフロー一覧">
           {data.flows.length === 0 && !data.loading ? (
             <EmptyState onCreate={() => void handleCreate()} />
           ) : (
@@ -209,14 +223,14 @@ export function WorkflowsRoomBody(): React.ReactElement {
                   triggerWarning={data.triggerWarnings[flow.id]?.warning}
                   onSelect={() => data.setSelectedFlowId(flow.id)}
                   onEdit={() => data.setEditingFlowId(flow.id)}
-                  onRun={() => handleAction("Run", () => data.runFlow(flow.id))}
+                  onRun={() => handleAction("実行", () => data.runFlow(flow.id))}
                   onToggle={() =>
                     handleAction(
-                      flow.status === "ENABLED" ? "Disable" : "Enable",
+                      flow.status === "ENABLED" ? "無効化" : "有効化",
                       () => data.setStatus(flow.id, flow.status === "ENABLED" ? "DISABLED" : "ENABLED"),
                     )
                   }
-                  onPublish={() => handleAction("Publish", () => data.publishFlow(flow.id))}
+                  onPublish={() => handleAction("公開", () => data.publishFlow(flow.id))}
                   onDelete={async () => {
                     // Spell out what disappears: not just the flow row but
                     // every draft on it (including per-step sample data the
@@ -226,10 +240,10 @@ export function WorkflowsRoomBody(): React.ReactElement {
                     // realized a flow delete wipes the whole version chain.
                     const hasDraftOnly = !flow.publishedVersionId;
                     const msg = hasDraftOnly
-                      ? `Delete "${flow.displayName ?? flow.id}"?\n\nThis flow has no published version -- the draft (including any per-step sample data) will be permanently lost.`
-                      : `Delete "${flow.displayName ?? flow.id}"?\n\nThe published version and any draft (including per-step sample data) will be permanently lost.`;
+                      ? `「${flow.displayName ?? flow.id}」を削除しますか?\n\nこのフローには公開バージョンがありません -- 下書き(各ステップのサンプルデータを含む)は完全に失われます。`
+                      : `「${flow.displayName ?? flow.id}」を削除しますか?\n\n公開バージョンと下書き(各ステップのサンプルデータを含む)はすべて完全に失われます。`;
                     if (await confirmDialog(msg)) {
-                      void handleAction("Delete", () => data.deleteFlow(flow.id));
+                      void handleAction("削除", () => data.deleteFlow(flow.id));
                     }
                   }}
                 />
@@ -238,13 +252,13 @@ export function WorkflowsRoomBody(): React.ReactElement {
           )}
         </section>
 
-        <section className="wf-room__detail" aria-label="Selected flow detail">
+        <section className="wf-room__detail" aria-label="選択中のフロー詳細">
           {data.selectedFlow ? (
             <FlowDetail
               flow={data.selectedFlow}
               runs={data.selectedRuns}
               onRefreshRuns={() => void data.refreshRuns(data.selectedFlow!.id)}
-              onCancelRun={(runId) => handleAction("Cancel", () => data.cancelRun(runId))}
+              onCancelRun={(runId) => handleAction("キャンセル", () => data.cancelRun(runId))}
               onClose={() => data.setSelectedFlowId(null)}
             />
           ) : (
@@ -259,7 +273,7 @@ export function WorkflowsRoomBody(): React.ReactElement {
 
 export function WorkflowsRoom(): React.ReactElement {
   return (
-    <RoomShell title="Workflows" subtitle="Saved automations · run history · status" breadcrumb={["Workflows"]}>
+    <RoomShell title="ワークフロー" subtitle="保存済みの自動化 · 実行履歴 · ステータス" breadcrumb={["ワークフロー"]}>
       <WorkflowsRoomBody />
     </RoomShell>
   );
@@ -298,11 +312,11 @@ function FlowRow({ flow, selected, triggerWarning, onSelect, onEdit, onRun, onTo
       <div className="wf-list__main">
         <div className="wf-list__title">{flow.displayName ?? flow.id}</div>
         <div className="wf-list__meta">
-          <Chip tone={STATUS_TONE[flow.status]}>{flow.status === "ENABLED" ? "Enabled" : "Disabled"}</Chip>
+          <Chip tone={STATUS_TONE[flow.status]}>{flow.status === "ENABLED" ? "有効" : "無効"}</Chip>
           {flow.publishedVersionId ? (
-            <Chip tone="ok" dot={false}>Published</Chip>
+            <Chip tone="ok" dot={false}>公開済み</Chip>
           ) : (
-            <Chip tone="warn" dot={false}>Draft only</Chip>
+            <Chip tone="warn" dot={false}>下書きのみ</Chip>
           )}
           {triggerWarning ? (
             // Click toggles an expanded detail below the meta row. Default
@@ -311,25 +325,25 @@ function FlowRow({ flow, selected, triggerWarning, onSelect, onEdit, onRun, onTo
             // long messages wrap cleanly.
             <TriggerWarningChip text={triggerWarning} />
           ) : null}
-          <span className="wf-list__hint">updated {fmtRelative(flow.updated)}</span>
+          <span className="wf-list__hint">更新: {fmtRelative(flow.updated)}</span>
         </div>
       </div>
       <div className="wf-list__buttons" onClick={stop}>
-        <Button variant="ghost" size="sm" onClick={onEdit} title="Open visual editor">
-          <Icon icon={Pencil} size={14} /> Edit
+        <Button variant="ghost" size="sm" onClick={onEdit} title="ビジュアルエディタを開く">
+          <Icon icon={Pencil} size={14} /> 編集
         </Button>
-        <Button variant="primary" size="sm" onClick={onRun} title="Run now">
-          <Icon icon={Play} size={14} /> Run
+        <Button variant="primary" size="sm" onClick={onRun} title="今すぐ実行">
+          <Icon icon={Play} size={14} /> 実行
         </Button>
-        <Button variant="ghost" size="sm" onClick={onToggle} title={flow.status === "ENABLED" ? "Disable" : "Enable"}>
+        <Button variant="ghost" size="sm" onClick={onToggle} title={flow.status === "ENABLED" ? "無効化" : "有効化"}>
           {flow.status === "ENABLED" ? <Icon icon={Pause} size={14} /> : <Icon icon={Play} size={14} />}
         </Button>
         {!flow.publishedVersionId ? (
-          <Button variant="ghost" size="sm" onClick={onPublish} title="Publish latest draft">
+          <Button variant="ghost" size="sm" onClick={onPublish} title="最新の下書きを公開">
             <Icon icon={Upload} size={14} />
           </Button>
         ) : null}
-        <Button variant="danger" size="sm" onClick={onDelete} title="Delete">
+        <Button variant="danger" size="sm" onClick={onDelete} title="削除">
           <Icon icon={Trash2} size={14} />
         </Button>
       </div>
@@ -394,26 +408,26 @@ function FlowDetail({ flow, runs, onRefreshRuns, onCancelRun, onClose }: FlowDet
             <code>{flow.id}</code>
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close detail">
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label="詳細を閉じる">
           <Icon icon={X} size={14} />
         </Button>
       </header>
 
       <div className="wf-detail__stats">
-        <Stat label="Runs" value={String(runs.length)} />
-        <Stat label="Succeeded" value={String(succeeded)} tone="ok" />
-        <Stat label="Failed" value={String(failed)} tone={failed > 0 ? "accent" : "neutral"} />
+        <Stat label="実行" value={String(runs.length)} />
+        <Stat label="成功" value={String(succeeded)} tone="ok" />
+        <Stat label="失敗" value={String(failed)} tone={failed > 0 ? "accent" : "neutral"} />
       </div>
 
       <div className="wf-detail__runs-header">
-        <h4>Run history</h4>
+        <h4>実行履歴</h4>
         <Button variant="ghost" size="sm" onClick={onRefreshRuns}>
           <Icon icon={RefreshCw} size={12} />
         </Button>
       </div>
 
       {runs.length === 0 ? (
-        <p className="wf-detail__empty">No runs yet. Hit "Run" on the flow to trigger one.</p>
+        <p className="wf-detail__empty">まだ実行履歴がありません。フローの「実行」を押して実行してください。</p>
       ) : (
         <ul className="wf-runs">
           {runs.map((run) => (
@@ -448,7 +462,7 @@ function RunRow({ run, expanded, onToggle, onCancel }: RunRowProps): React.React
       <button type="button" className="wf-runs__head" onClick={onToggle}>
         <div className="wf-runs__head-left">
           <RunStatusIcon status={run.status} />
-          <Chip tone={RUN_STATUS_TONE[run.status]} dot={false}>{run.status}</Chip>
+          <Chip tone={RUN_STATUS_TONE[run.status]} dot={false}>{RUN_STATUS_LABEL[run.status]}</Chip>
           {run.failedStep ? <span className="wf-runs__failed-step">@ {run.failedStep.displayName}</span> : null}
         </div>
         <div className="wf-runs__head-right">
@@ -459,23 +473,23 @@ function RunRow({ run, expanded, onToggle, onCancel }: RunRowProps): React.React
       {expanded ? (
         <div className="wf-runs__body">
           <dl className="wf-runs__kv">
-            <dt>Run id</dt>
+            <dt>実行ID</dt>
             <dd><code>{run.id}</code></dd>
-            <dt>Steps</dt>
+            <dt>ステップ数</dt>
             <dd>{run.stepsCount ?? 0}</dd>
-            <dt>Triggered by</dt>
-            <dd>{run.triggeredBy ?? "manual"}</dd>
+            <dt>実行トリガー</dt>
+            <dd>{run.triggeredBy ?? "手動"}</dd>
           </dl>
           {run.status === "PAUSED" ? <PausedRunCallout runId={run.id} /> : null}
           {run.steps && Object.keys(run.steps).length > 0 ? (
             <details className="wf-runs__steps">
-              <summary>Step output JSON</summary>
+              <summary>ステップ出力JSON</summary>
               <pre>{JSON.stringify(run.steps, null, 2)}</pre>
             </details>
           ) : null}
           {!isTerminal ? (
             <Button variant="danger" size="sm" onClick={onCancel}>
-              <Icon icon={X} size={12} /> Cancel run
+              <Icon icon={X} size={12} /> 実行をキャンセル
             </Button>
           ) : null}
         </div>
@@ -510,7 +524,7 @@ function PausedRunCallout({ runId }: { runId: string }): React.ReactElement {
       try {
         const r = await fetch(`/api/workflow-runs/${runId}/waitpoints`);
         if (!r.ok) {
-          setError(`HTTP ${r.status}`);
+          setError(`HTTPエラー ${r.status}`);
           return;
         }
         const body = (await r.json()) as {
@@ -527,23 +541,23 @@ function PausedRunCallout({ runId }: { runId: string }): React.ReactElement {
   }, [runId]);
   return (
     <div className="wf-runs__paused">
-      <strong>Paused:</strong> waiting for an external signal.{" "}
+      <strong>一時停止中:</strong> 外部シグナルを待機しています。{" "}
       {error ? (
-        <span className="wf-runs__paused-err">Couldn't load waitpoints: {error}</span>
+        <span className="wf-runs__paused-err">待機ポイントを読み込めませんでした: {error}</span>
       ) : waitpoints === null ? (
-        <span>Loading waitpoints…</span>
+        <span>待機ポイントを読み込み中…</span>
       ) : waitpoints.length === 0 ? (
         <span>
-          No active waitpoints for this run -- it may be parked on a non-webhook
-          pause (TIMER, MANUAL) or transitioning.
+          この実行にはアクティブな待機ポイントがありません -- Webhook以外の一時停止
+          (TIMER、MANUAL)で止まっているか、状態遷移中の可能性があります。
         </span>
       ) : (
         <ul className="wf-runs__paused-list">
           {waitpoints.map((wp) => (
             <li key={wp.id}>
-              <span className="wf-runs__paused-step">step <code>{wp.stepName}</code></span>{" "}
-              ({wp.type}) -- POST any JSON body to{" "}
-              <code>{wp.resumeUrl}</code> to resume.
+              <span className="wf-runs__paused-step">ステップ <code>{wp.stepName}</code></span>{" "}
+              ({wp.type}) -- 再開するには任意のJSONボディを{" "}
+              <code>{wp.resumeUrl}</code> にPOSTしてください。
             </li>
           ))}
         </ul>
@@ -557,12 +571,12 @@ function PausedRunCallout({ runId }: { runId: string }): React.ReactElement {
 function EmptyState({ onCreate }: { onCreate: () => void }): React.ReactElement {
   return (
     <div className="wf-empty">
-      <p>No workflows yet.</p>
+      <p>まだワークフローがありません。</p>
       <p className="wf-empty__hint">
-        Start with a blank canvas and add steps as you go.
+        空のキャンバスから始めて、少しずつステップを追加していきましょう。
       </p>
       <Button variant="primary" size="sm" onClick={onCreate}>
-        <Icon icon={Plus} size={14} /> New workflow
+        <Icon icon={Plus} size={14} /> 新規ワークフロー
       </Button>
     </div>
   );
@@ -571,7 +585,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }): React.ReactElement 
 function DetailPlaceholder(): React.ReactElement {
   return (
     <div className="wf-detail-placeholder">
-      <p>Select a workflow to see its run history.</p>
+      <p>ワークフローを選択すると実行履歴が表示されます。</p>
     </div>
   );
 }
@@ -589,10 +603,10 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "ok
 
 function fmtRelative(ms: number): string {
   const diff = Date.now() - ms;
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 60_000) return "たった今";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分前`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}時間前`;
+  return `${Math.floor(diff / 86_400_000)}日前`;
 }
 
 function fmtClock(ms: number): string {

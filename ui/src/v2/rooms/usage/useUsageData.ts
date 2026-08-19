@@ -187,7 +187,7 @@ export function useUsageData() {
       if (reqId === inFlightRef.current) setResult(data);
     } catch (err) {
       if (reqId === inFlightRef.current) {
-        setError(err instanceof Error ? err.message : "Failed to load usage data");
+        setError(err instanceof Error ? err.message : "使用状況データの読み込みに失敗しました");
       }
     } finally {
       if (reqId === inFlightRef.current) setLoading(false);

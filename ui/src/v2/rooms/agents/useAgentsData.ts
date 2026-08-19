@@ -104,29 +104,29 @@ export interface AgentRosterEntry {
  * map so the Orbital View visually matches the prior page.
  */
 export const ROSTER: ReadonlyArray<Omit<AgentRosterEntry, "live" | "isActive">> = [
-  { roleId: "personal-assistant",    name: "Personal Assistant",   authority: 5, tools: 14, isPrimary: true,
+  { roleId: "personal-assistant",    name: "パーソナルアシスタント",   authority: 5, tools: 14, isPrimary: true,
     ring: "center", orbital: { left: "50%", top: "48%" } },
-  { roleId: "software-engineer",     name: "Software Engineer",    authority: 4, tools: 8,
+  { roleId: "software-engineer",     name: "ソフトウェアエンジニア",    authority: 4, tools: 8,
     ring: "inner",  orbital: { left: "30%", top: "25%" } },
-  { roleId: "research-analyst",      name: "Research Analyst",     authority: 3, tools: 6,
+  { roleId: "research-analyst",      name: "リサーチアナリスト",     authority: 3, tools: 6,
     ring: "inner",  orbital: { left: "70%", top: "25%" } },
-  { roleId: "content-writer",        name: "Content Writer",       authority: 3, tools: 5,
+  { roleId: "content-writer",        name: "コンテンツライター",       authority: 3, tools: 5,
     ring: "inner",  orbital: { left: "22%", top: "55%" } },
-  { roleId: "data-analyst",          name: "Data Analyst",         authority: 3, tools: 7,
+  { roleId: "data-analyst",          name: "データアナリスト",         authority: 3, tools: 7,
     ring: "inner",  orbital: { left: "78%", top: "55%" } },
-  { roleId: "system-administrator",  name: "System Administrator", authority: 4, tools: 10,
+  { roleId: "system-administrator",  name: "システム管理者", authority: 4, tools: 10,
     ring: "inner",  orbital: { left: "50%", top: "72%" } },
-  { roleId: "legal-advisor",         name: "Legal Advisor",        authority: 3, tools: 4,
+  { roleId: "legal-advisor",         name: "リーガルアドバイザー",        authority: 3, tools: 4,
     ring: "outer",  orbital: { left: "12%", top: "38%" } },
-  { roleId: "financial-analyst",     name: "Financial Analyst",    authority: 3, tools: 5,
+  { roleId: "financial-analyst",     name: "ファイナンシャルアナリスト",    authority: 3, tools: 5,
     ring: "outer",  orbital: { left: "15%", top: "18%" } },
-  { roleId: "hr-specialist",         name: "HR Specialist",        authority: 2, tools: 4,
+  { roleId: "hr-specialist",         name: "人事スペシャリスト",       authority: 2, tools: 4,
     ring: "outer",  orbital: { left: "50%", top: "8%" } },
-  { roleId: "project-coordinator",   name: "Project Coordinator",  authority: 3, tools: 6,
+  { roleId: "project-coordinator",   name: "プロジェクトコーディネーター",  authority: 3, tools: 6,
     ring: "outer",  orbital: { left: "85%", top: "18%" } },
-  { roleId: "marketing-strategist",  name: "Marketing Strategist", authority: 3, tools: 5,
+  { roleId: "marketing-strategist",  name: "マーケティングストラテジスト", authority: 3, tools: 5,
     ring: "outer",  orbital: { left: "88%", top: "38%" } },
-  { roleId: "customer-support",      name: "Customer Support",     authority: 2, tools: 4,
+  { roleId: "customer-support",      name: "カスタマーサポート", authority: 2, tools: 4,
     ring: "outer",  orbital: { left: "50%", top: "85%" } },
 ];
 
@@ -148,10 +148,10 @@ export function formatAgentActivityText(event: {
   data: unknown;
 }): string {
   if (event.eventType === "tool_call") {
-    const name = (event.data as { name?: string })?.name ?? "unknown";
-    return `called ${name}`;
+    const name = (event.data as { name?: string })?.name ?? "不明";
+    return `${name} を呼び出し`;
   }
-  if (event.eventType === "done") return "completed task";
+  if (event.eventType === "done") return "タスク完了";
   const text = (event.data as { text?: string })?.text ?? "";
   return text.length > 50 ? text.slice(0, 50) + "…" : text;
 }
@@ -203,7 +203,7 @@ export function useAgentsData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load agents");
+      setError(err instanceof Error ? err.message : "エージェントの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
     }
@@ -272,11 +272,11 @@ export function useAgentsData() {
       const data = await resp.json() as { assignment?: { message?: string } | null };
       // Refresh roster so the new agent shows up immediately.
       refresh();
-      return { ok: true, message: data.assignment?.message ?? "Agent spawned." };
+      return { ok: true, message: data.assignment?.message ?? "エージェントを起動しました。" };
     } catch (err) {
       return {
         ok: false,
-        message: err instanceof Error ? err.message : "Failed to spawn agent.",
+        message: err instanceof Error ? err.message : "エージェントの起動に失敗しました。",
       };
     }
   }, [refresh]);
@@ -291,11 +291,11 @@ export function useAgentsData() {
         throw new Error(text || `HTTP ${resp.status}`);
       }
       refresh();
-      return { ok: true, message: "Agent terminated." };
+      return { ok: true, message: "エージェントを終了しました。" };
     } catch (err) {
       return {
         ok: false,
-        message: err instanceof Error ? err.message : "Failed to terminate agent.",
+        message: err instanceof Error ? err.message : "エージェントの終了に失敗しました。",
       };
     }
   }, [refresh]);
@@ -336,7 +336,7 @@ export function useAgentActivityHistory(agentId: string | null, limit = 50) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load activity");
+        setError(err instanceof Error ? err.message : "アクティビティの読み込みに失敗しました");
         setEvents([]);
       });
     return () => {

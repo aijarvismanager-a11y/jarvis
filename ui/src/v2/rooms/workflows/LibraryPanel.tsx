@@ -64,17 +64,17 @@ export function LibraryPanel(): React.ReactElement {
     <div className="wf-lib">
       <header className="wf-lib__header">
         <div>
-          <h3 className="wf-lib__title">Pieces library</h3>
+          <h3 className="wf-lib__title">ピースライブラリ</h3>
           <p className="wf-lib__subtitle">
             {lib.loading
-              ? "loading..."
-              : `${installedCount} installed of ${lib.entries.length} available`}
+              ? "読み込み中..."
+              : `${lib.entries.length}件中${installedCount}件インストール済み`}
             {lib.error ? ` - ${lib.error}` : null}
           </p>
         </div>
         <div className="wf-lib__actions">
-          <Button variant="ghost" size="sm" onClick={() => void lib.refresh()} title="Refresh">
-            <Icon icon={RefreshCw} size={14} /> Refresh
+          <Button variant="ghost" size="sm" onClick={() => void lib.refresh()} title="更新">
+            <Icon icon={RefreshCw} size={14} /> 更新
           </Button>
         </div>
       </header>
@@ -82,30 +82,30 @@ export function LibraryPanel(): React.ReactElement {
       <input
         className="wf-lib__search"
         type="search"
-        placeholder="Search pieces by name, package, or description"
+        placeholder="名前・パッケージ・説明でピースを検索"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search pieces"
+        aria-label="ピースを検索"
       />
 
       {toast ? <div className={`wf-toast wf-toast--${toast.tone}`}>{toast.text}</div> : null}
 
       {lib.entries.length === 0 && !lib.loading ? (
-        <div className="wf-lib__empty">The catalog is empty.</div>
+        <div className="wf-lib__empty">カタログは空です。</div>
       ) : (
         <>
           {/* Verified section -- always visible, no warning preamble. */}
           <section className="wf-lib__section">
             <h4 className="wf-lib__section-title">
-              <Icon icon={ShieldCheck} size={14} /> Verified
+              <Icon icon={ShieldCheck} size={14} /> 検証済み
               <span className="wf-lib__section-count">{verified.length}</span>
             </h4>
             <p className="wf-lib__section-hint">
-              Hand-reviewed by Jarvis maintainers and smoke-tested against the engine.
+              Jarvisメンテナーによって手動レビューされ、エンジンでの動作確認済みです。
             </p>
             {verified.length === 0 ? (
               <div className="wf-lib__empty-section">
-                {query ? "No verified pieces match the search." : "No verified pieces."}
+                {query ? "検索条件に一致する検証済みピースはありません。" : "検証済みピースはありません。"}
               </div>
             ) : (
               <ul className="wf-lib__list">
@@ -138,19 +138,19 @@ export function LibraryPanel(): React.ReactElement {
                   transition: "transform var(--dur-fast) var(--ease-out)",
                 }}
               />
-              Community
+              コミュニティ
               <span className="wf-lib__section-count">{community.length}</span>
             </button>
             {showCommunity ? (
               <>
                 <p className="wf-lib__section-hint wf-lib__section-hint--warn">
-                  Community pieces are installed from npm and run inside the engine
-                  sandbox. They haven't been individually reviewed by Jarvis -- check
-                  each piece's source link before opting in.
+                  コミュニティピースはnpmからインストールされ、エンジンのサンドボックス内で
+                  動作します。Jarvisによる個別レビューは行われていません -- 有効にする前に
+                  各ピースのソースリンクを確認してください。
                 </p>
                 {community.length === 0 ? (
                   <div className="wf-lib__empty-section">
-                    {query ? "No community pieces match the search." : "No community pieces."}
+                    {query ? "検索条件に一致するコミュニティピースはありません。" : "コミュニティピースはありません。"}
                   </div>
                 ) : (
                   <ul className="wf-lib__list">
@@ -197,7 +197,7 @@ function LibraryRowWired({
         if (entry.estimatedSizeMb !== null && entry.estimatedSizeMb >= 100) {
           if (
             !await confirmDialog(
-              `Installing ${entry.displayName} will use about ${entry.estimatedSizeMb}MB of disk. Continue?`,
+              `${entry.displayName}をインストールすると、約${entry.estimatedSizeMb}MBのディスク容量を使用します。続行しますか?`,
             )
           ) {
             return;
@@ -206,20 +206,20 @@ function LibraryRowWired({
         const r = await lib.install(entry.id);
         flash(
           r.ok ? (r.partial ? "warn" : "ok") : "warn",
-          r.ok ? `${entry.displayName}: ${r.message}` : `Install failed: ${r.message}`,
+          r.ok ? `${entry.displayName}: ${r.message}` : `インストールに失敗しました: ${r.message}`,
         );
       }}
       onUninstall={async () => {
         if (
           !await confirmDialog(
-            `Uninstall ${entry.displayName}? Existing workflows that use it will stop working until reinstalled.`,
+            `${entry.displayName}をアンインストールしますか? これを使用している既存のワークフローは再インストールするまで動作しなくなります。`,
           )
         )
           return;
         const r = await lib.uninstall(entry.id);
         flash(
           r.ok ? "ok" : "warn",
-          r.ok ? `${entry.displayName} uninstalled` : `Uninstall failed: ${r.message}`,
+          r.ok ? `${entry.displayName}をアンインストールしました` : `アンインストールに失敗しました: ${r.message}`,
         );
       }}
     />
@@ -259,30 +259,30 @@ function LibraryRow({
         <div className="wf-lib__row-title">
           <span className="wf-lib__row-name">{entry.displayName}</span>
           {isShared ? (
-            <Chip tone="ok" title="Included with this Jarvis install — ready to use, nothing to manage">
-              Included {entry.installed!.resolvedVersion}
+            <Chip tone="ok" title="このJarvisインストールに同梱 — すぐに使用でき、管理は不要です">
+              同梱 {entry.installed!.resolvedVersion}
             </Chip>
           ) : isInstalled ? (
-            <Chip tone="ok">Installed {entry.installed!.resolvedVersion}</Chip>
+            <Chip tone="ok">インストール済み {entry.installed!.resolvedVersion}</Chip>
           ) : (
             <Chip tone="neutral">{entry.versionRange}</Chip>
           )}
           {updateAvailable ? (
             <Chip
               tone="warn"
-              title={`Installed ${entry.installed!.resolvedVersion} -- catalog vetted ${entry.vettedVersion}. Click Install again to upgrade.`}
+              title={`インストール済み ${entry.installed!.resolvedVersion} -- カタログ検証済み ${entry.vettedVersion}。「インストール」を再度クリックしてアップグレードしてください。`}
             >
-              {`Update -> ${entry.vettedVersion}`}
+              {`更新 -> ${entry.vettedVersion}`}
             </Chip>
           ) : null}
           {newerThanVetted ? (
-            <Chip tone="warn" title={`Tested with ${entry.vettedVersion}; you have a newer version`}>
-              ahead of vetted {entry.vettedVersion}
+            <Chip tone="warn" title={`検証済みバージョンは${entry.vettedVersion}です; より新しいバージョンがインストールされています`}>
+              検証済み{entry.vettedVersion}より新しい
             </Chip>
           ) : null}
           {entry.licenseSpdx ? <Chip tone="neutral">{entry.licenseSpdx}</Chip> : null}
           {entry.estimatedSizeMb !== null ? (
-            <Chip tone="neutral" title="Approximate disk footprint after install">
+            <Chip tone="neutral" title="インストール後のおおよそのディスク使用量">
               ~{entry.estimatedSizeMb}MB
             </Chip>
           ) : null}
@@ -298,9 +298,9 @@ function LibraryRow({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Icon icon={ExternalLink} size={11} /> source
+            <Icon icon={ExternalLink} size={11} /> ソース
           </a>
-          {entry.vettedAt ? <span>vetted {entry.vettedAt}</span> : null}
+          {entry.vettedAt ? <span>検証日 {entry.vettedAt}</span> : null}
         </div>
       </div>
       <div className="wf-lib__row-actions">
@@ -309,18 +309,18 @@ function LibraryRow({
             {updateAvailable ? (
               <Button variant="primary" size="sm" onClick={onInstall} disabled={busy}>
                 <Icon icon={Download} size={12} />{" "}
-                {actionState === "installing" ? "Updating..." : "Update"}
+                {actionState === "installing" ? "更新中..." : "更新"}
               </Button>
             ) : null}
             <Button variant="danger" size="sm" onClick={onUninstall} disabled={busy}>
               <Icon icon={Trash2} size={12} />{" "}
-              {actionState === "uninstalling" ? "Uninstalling..." : "Uninstall"}
+              {actionState === "uninstalling" ? "アンインストール中..." : "アンインストール"}
             </Button>
           </>
         ) : (
           <Button variant="primary" size="sm" onClick={onInstall} disabled={busy}>
             <Icon icon={Download} size={12} />{" "}
-            {actionState === "installing" ? "Installing..." : "Install"}
+            {actionState === "installing" ? "インストール中..." : "インストール"}
           </Button>
         )}
       </div>

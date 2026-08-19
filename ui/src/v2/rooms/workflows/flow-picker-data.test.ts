@@ -16,13 +16,13 @@ describe("normalizeFlowsResponse", () => {
 
   test("missing displayName falls back to (unnamed) so the row stays readable", () => {
     expect(normalizeFlowsResponse([{ id: "flow_1" }])).toEqual([
-      { id: "flow_1", displayName: "(unnamed)" },
+      { id: "flow_1", displayName: "(名前なし)" },
     ]);
   });
 
   test("empty-string displayName falls back to (unnamed)", () => {
     expect(normalizeFlowsResponse([{ id: "flow_1", displayName: "" }])).toEqual([
-      { id: "flow_1", displayName: "(unnamed)" },
+      { id: "flow_1", displayName: "(名前なし)" },
     ]);
   });
 
@@ -53,7 +53,7 @@ describe("normalizeFlowsResponse", () => {
 
   test("non-string displayName falls back to (unnamed)", () => {
     expect(normalizeFlowsResponse([{ id: "flow_1", displayName: 42 }])).toEqual([
-      { id: "flow_1", displayName: "(unnamed)" },
+      { id: "flow_1", displayName: "(名前なし)" },
     ]);
   });
 });

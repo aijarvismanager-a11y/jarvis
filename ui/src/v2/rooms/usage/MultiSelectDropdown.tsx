@@ -91,7 +91,7 @@ export function MultiSelectDropdown({
         <Icon icon={Filter} size="sm" />
         <span className="v2-usage__msdd-label">{label}</span>
         {clearable && (
-          <span className="v2-usage__msdd-count" aria-label={`${count} selected`}>
+          <span className="v2-usage__msdd-count" aria-label={`${count} 件選択中`}>
             {count}
           </span>
         )}
@@ -101,7 +101,7 @@ export function MultiSelectDropdown({
         <button
           type="button"
           className="v2-usage__msdd-clear"
-          aria-label={`Clear ${label} filter`}
+          aria-label={`${label}フィルタを解除`}
           onClick={onClear}
         >
           <Icon icon={X} size="sm" />
@@ -116,14 +116,14 @@ export function MultiSelectDropdown({
                 ref={searchRef}
                 type="text"
                 value={query}
-                placeholder={`Filter ${label.toLowerCase()}...`}
+                placeholder={`${label}を絞り込み...`}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
           )}
           <ul className="v2-usage__msdd-list">
             {filtered.length === 0 && (
-              <li className="v2-usage__msdd-empty">No matches.</li>
+              <li className="v2-usage__msdd-empty">一致するものがありません。</li>
             )}
             {filtered.map((v) => {
               const active = selected.includes(v);

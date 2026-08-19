@@ -67,7 +67,7 @@ export function Segmented({ options, value, onChange }: { options: { key: string
     </div>
   );
 }
-export function LiveToggle({ on, onClick, children = "live tail" }: { on?: boolean; onClick?: () => void; children?: React.ReactNode }) {
+export function LiveToggle({ on, onClick, children = "ライブ追跡" }: { on?: boolean; onClick?: () => void; children?: React.ReactNode }) {
   return <button className={`rk-live${on ? " rk-live--on" : ""}`} onClick={onClick}><span className="rk-live__dot" />{children}</button>;
 }
 

@@ -21,15 +21,15 @@ export function AwarenessChip() {
       onClick={toggle}
       disabled={busy}
       aria-pressed={enabled}
-      aria-label={`Awareness ${enabled ? "active" : "off"} — click to ${enabled ? "disable" : "enable"}`}
+      aria-label={`認識機能 ${enabled ? "有効" : "無効"} — クリックで${enabled ? "無効化" : "有効化"}`}
       title={
         enabled
-          ? "Awareness active — desktop context observation is on. Click to disable."
-          : "Awareness off. Click to enable desktop context observation."
+          ? "認識機能 有効 — デスクトップの状況把握がオンです。クリックで無効化。"
+          : "認識機能 無効。クリックでデスクトップの状況把握を有効化。"
       }
     >
       <span className="rs-dot" style={{ background: enabled ? "var(--ok)" : "var(--faint)" }} />
-      awareness
+      認識
     </button>
   );
 }

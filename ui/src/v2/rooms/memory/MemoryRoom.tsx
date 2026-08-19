@@ -29,18 +29,18 @@ import "./MemoryRoom.css";
 type TabId = "constellation" | "explorer" | "browser";
 
 const TAB_LABEL: Record<TabId, string> = {
-  constellation: "Constellation",
-  explorer: "Explorer",
-  browser: "Browser",
+  constellation: "コンステレーション",
+  explorer: "エクスプローラー",
+  browser: "ブラウザー",
 };
 
 const TYPE_LABEL: Record<EntityType, string> = {
-  person: "People",
-  project: "Projects",
-  tool: "Tools",
-  place: "Places",
-  concept: "Concepts",
-  event: "Events",
+  person: "人物",
+  project: "プロジェクト",
+  tool: "ツール",
+  place: "場所",
+  concept: "コンセプト",
+  event: "イベント",
 };
 
 const TYPE_ICON: Record<EntityType, LucideIcon> = {
@@ -191,10 +191,10 @@ export function MemoryRoomBody({ mode }: { mode: RoomBodyMode }) {
     <div className={`v2-mem v2-mem--${mode}`}>
       {/* Stats */}
       <div className="v2-mem__stats">
-        <StatCard label="Entities" value={data.stats.entities} sub={`${typeCounts.person} people · ${typeCounts.project} projects`} />
-        <StatCard label="Facts" value={data.stats.facts} sub="across all entities" />
-        <StatCard label="Relationships" value={data.stats.relationships} sub="links between entities" />
-        <StatCard label="Selected" value={selectedEntity ? selectedEntity.name : "—"} sub={selectedEntity ? selectedEntity.type : "no selection"} />
+        <StatCard label="エンティティ" value={data.stats.entities} sub={`${typeCounts.person} 人物 · ${typeCounts.project} プロジェクト`} />
+        <StatCard label="事実" value={data.stats.facts} sub="全エンティティ合計" />
+        <StatCard label="関係" value={data.stats.relationships} sub="エンティティ間のリンク" />
+        <StatCard label="選択中" value={selectedEntity ? selectedEntity.name : "—"} sub={selectedEntity ? selectedEntity.type : "未選択"} />
       </div>
 
       {/* Tabs */}
@@ -202,7 +202,7 @@ export function MemoryRoomBody({ mode }: { mode: RoomBodyMode }) {
         <div
           className="v2-mem__tabs"
           role="tablist"
-          aria-label="Memory view"
+          aria-label="メモリの表示"
           ref={tabsApi.tablistRef}
         >
           {TAB_KEYS.map((t) => (
@@ -229,20 +229,20 @@ export function MemoryRoomBody({ mode }: { mode: RoomBodyMode }) {
           <input
             className="v2-mem__search-input"
             type="text"
-            placeholder="Search entities, facts, predicates…"
+            placeholder="エンティティ、事実、述語を検索…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search memory"
+            aria-label="メモリを検索"
           />
         </div>
-        <div className="v2-mem__filter-row" role="tablist" aria-label="Filter by entity type">
+        <div className="v2-mem__filter-row" role="tablist" aria-label="エンティティタイプで絞り込み">
           <button
             type="button"
             className="v2-mem__filter-btn"
             data-active={typeFilter === "all"}
             onClick={() => setTypeFilter("all")}
           >
-            All <span className="v2-mem__filter-count">{typeCounts.all}</span>
+            すべて <span className="v2-mem__filter-count">{typeCounts.all}</span>
           </button>
           {(Object.keys(TYPE_LABEL) as EntityType[]).map((t) => (
             <button
@@ -262,8 +262,8 @@ export function MemoryRoomBody({ mode }: { mode: RoomBodyMode }) {
           type="button"
           className="v2-mem__refresh"
           onClick={data.refresh}
-          aria-label="Refresh"
-          title="Refresh"
+          aria-label="更新"
+          title="更新"
         >
           <Icon icon={RefreshCw} size="sm" />
         </button>
@@ -317,9 +317,9 @@ export function MemoryRoomBody({ mode }: { mode: RoomBodyMode }) {
 export function MemoryRoom() {
   return (
     <RoomShell
-      title="Memory"
-      subtitle="entities · facts · relationships"
-      breadcrumb={["Memory"]}
+      title="メモリ"
+      subtitle="エンティティ · 事実 · 関係"
+      breadcrumb={["メモリ"]}
     >
       <MemoryRoomBody mode="expanded" />
     </RoomShell>
@@ -601,10 +601,10 @@ function Constellation({
             type="button"
             className="v2-mem__reset-btn"
             onClick={resetView}
-            title="Reset view (or double-click empty space)"
+            title="表示をリセット (空白部分をダブルクリックでも可)"
           >
             <Icon icon={Locate} size="sm" />
-            Reset
+            リセット
           </button>
         </div>
       </div>
@@ -639,10 +639,10 @@ function Explorer({
   loading: boolean;
 }) {
   if (loading && entities.length === 0) {
-    return <div className="v2-mem__empty">Loading memory…</div>;
+    return <div className="v2-mem__empty">メモリを読み込み中…</div>;
   }
   if (entities.length === 0) {
-    return <div className="v2-mem__empty">No entities match the current filters.</div>;
+    return <div className="v2-mem__empty">現在の絞り込み条件に一致するエンティティがありません。</div>;
   }
   return (
     <div className="v2-mem__explorer">
@@ -723,7 +723,7 @@ function EntityCard({
         </div>
       )}
       <div className="v2-mem__card-foot">
-        {facts.length} facts · {rels.length} links
+        {facts.length} 件の事実 · {rels.length} 件のリンク
         {entity.source && <> · {entity.source}</>}
       </div>
     </article>
@@ -755,7 +755,7 @@ function Browser({
     <div className="v2-mem__browser">
       {/* Column 1: entities */}
       <div className="v2-mem__col">
-        <div className="v2-mem__col-head">Entities · {entities.length}</div>
+        <div className="v2-mem__col-head">エンティティ · {entities.length}</div>
         <ul className="v2-mem__col-list">
           {entities.map((e) => (
             <li key={e.id}>
@@ -776,12 +776,12 @@ function Browser({
       {/* Column 2: facts */}
       <div className="v2-mem__col">
         <div className="v2-mem__col-head">
-          Facts {selected && <>· {facts.length}</>}
+          事実 {selected && <>· {facts.length}</>}
         </div>
         {!selected ? (
-          <div className="v2-mem__col-empty">Pick an entity to see its facts.</div>
+          <div className="v2-mem__col-empty">エンティティを選択すると事実が表示されます。</div>
         ) : facts.length === 0 ? (
-          <div className="v2-mem__col-empty">No facts yet.</div>
+          <div className="v2-mem__col-empty">まだ事実がありません。</div>
         ) : (
           <ul className="v2-mem__col-list">
             {facts.map((f) => (
@@ -789,7 +789,7 @@ function Browser({
                 <div className="v2-mem__fact-pred">{f.predicate}</div>
                 <div className="v2-mem__fact-obj">{f.object}</div>
                 <div className="v2-mem__fact-meta">
-                  {(f.confidence * 100).toFixed(0)}% confidence
+                  信頼度 {(f.confidence * 100).toFixed(0)}%
                   {f.source && <> · {f.source}</>}
                 </div>
               </li>
@@ -800,12 +800,12 @@ function Browser({
       {/* Column 3: relationships */}
       <div className="v2-mem__col">
         <div className="v2-mem__col-head">
-          Relationships {selected && <>· {rels.length}</>}
+          関係 {selected && <>· {rels.length}</>}
         </div>
         {!selected ? (
-          <div className="v2-mem__col-empty">Pick an entity to see its links.</div>
+          <div className="v2-mem__col-empty">エンティティを選択するとリンクが表示されます。</div>
         ) : rels.length === 0 ? (
-          <div className="v2-mem__col-empty">No links yet.</div>
+          <div className="v2-mem__col-empty">まだリンクがありません。</div>
         ) : (
           <ul className="v2-mem__col-list">
             {rels.map((r) => {
@@ -854,7 +854,7 @@ function DetailPanel({
     return (
       <aside className="v2-mem__detail v2-mem__detail--empty">
         <Icon icon={Sparkles} size="md" />
-        <p>Select an entity to inspect its facts and links.</p>
+        <p>エンティティを選択すると事実とリンクを確認できます。</p>
       </aside>
     );
   }
@@ -883,7 +883,7 @@ function DetailPanel({
           onClick={() => setTab("profile")}
           role="tab"
         >
-          Profile · {facts.length}
+          プロフィール · {facts.length}
         </button>
         <button
           type="button"
@@ -892,14 +892,14 @@ function DetailPanel({
           onClick={() => setTab("connections")}
           role="tab"
         >
-          Connections · {rels.length}
+          接続 · {rels.length}
         </button>
       </div>
 
       <div className="v2-mem__detail-body">
         {tab === "profile" &&
           (facts.length === 0 ? (
-            <div className="v2-mem__detail-empty">No facts yet.</div>
+            <div className="v2-mem__detail-empty">まだ事実がありません。</div>
           ) : (
             <ul className="v2-mem__detail-facts">
               {facts.map((f) => (
@@ -916,7 +916,7 @@ function DetailPanel({
           ))}
         {tab === "connections" &&
           (rels.length === 0 ? (
-            <div className="v2-mem__detail-empty">No connections yet.</div>
+            <div className="v2-mem__detail-empty">まだ接続がありません。</div>
           ) : (
             <ul className="v2-mem__detail-rels">
               {rels.map((r) => {

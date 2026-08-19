@@ -49,7 +49,7 @@ export function useWorkspacesData() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects");
+      setError(err instanceof Error ? err.message : "プロジェクトの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -143,7 +143,7 @@ export function useWorkspacesData() {
         refresh();
         return { ok: true, project };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -161,11 +161,11 @@ export function useWorkspacesData() {
         return {
           ok: true,
           message: updated.devPort
-            ? `Dev server running on port ${updated.devPort}.`
-            : "Dev server starting.",
+            ? `開発サーバーがポート ${updated.devPort} で稼働中です。`
+            : "開発サーバーを起動しています。",
         };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -179,9 +179,9 @@ export function useWorkspacesData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Dev server stopped." };
+        return { ok: true, message: "開発サーバーを停止しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],
@@ -195,9 +195,9 @@ export function useWorkspacesData() {
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         refresh();
-        return { ok: true, message: "Project deleted." };
+        return { ok: true, message: "プロジェクトを削除しました。" };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed" };
+        return { ok: false, message: err instanceof Error ? err.message : "失敗しました" };
       }
     },
     [refresh],

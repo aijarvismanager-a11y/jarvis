@@ -5,10 +5,10 @@ import type { Impact } from "./types";
 import "./ApprovalCard.css";
 
 const IMPACT_LABEL: Record<Impact, string> = {
-  read: "read",
-  write: "write",
-  destructive: "destructive",
-  external: "external",
+  read: "読み取り",
+  write: "書き込み",
+  destructive: "破壊的",
+  external: "外部",
 };
 
 export interface ApprovalCardProps {
@@ -38,7 +38,7 @@ export function ApprovalCard({
   category,
   impact,
   highlights,
-  voiceHint = `or say "yes"`,
+  voiceHint = `または「はい」と言ってください`,
   onApprove,
   onCancel,
 }: ApprovalCardProps) {
@@ -46,12 +46,12 @@ export function ApprovalCard({
     <article
       className="v2-approval"
       role="alertdialog"
-      aria-label={`Approval required: ${intent}`}
+      aria-label={`承認が必要: ${intent}`}
     >
       <div className="v2-approval__attribution">
         <span className="v2-approval__attribution-dot" aria-hidden="true" />
         Jarvis
-        <span className="v2-approval__attribution-tag">· needs your OK</span>
+        <span className="v2-approval__attribution-tag">· 承認が必要</span>
         <span className={`v2-approval__impact v2-approval__impact--${impact}`}>
           {IMPACT_LABEL[impact]}
         </span>
@@ -65,10 +65,10 @@ export function ApprovalCard({
 
       <div className="v2-approval__actions">
         <Button variant="primary" size="md" onClick={onApprove}>
-          Yes · approve
+          はい · 承認
         </Button>
         <Button variant="ghost" size="md" onClick={onCancel}>
-          Cancel
+          キャンセル
         </Button>
 
         <span className="v2-approval__voice-hint" aria-hidden="true">
