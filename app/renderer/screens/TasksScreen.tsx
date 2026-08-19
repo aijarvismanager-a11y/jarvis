@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppState } from '../state';
+import { Button } from '../design/ui/Button';
 import { Chip } from '../design/ui/Chip';
 import { useClickOutside } from '../lib/useClickOutside';
 import { suggestTopAI } from '../lib/aiRecommendation';
+import type { RoomId } from '../shell/Shell';
 import type { AIService, Task, TaskStatus } from '../types';
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
@@ -46,7 +48,7 @@ function TaskCard({
       <div style={{ fontWeight: 600 }}>{task.title}</div>
       {task.assignedAI && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink2)' }}>
-          {aiIcon(task.assignedAI, services)}　{task.assignedAI}
+          推奨AI: {aiIcon(task.assignedAI, services)}　{task.assignedAI}
         </span>
       )}
       {task.priority !== 'normal' && (
@@ -89,7 +91,7 @@ function TaskCard({
   );
 }
 
-function AddTaskRow({ onAdd }: { onAdd: (title: string) => void }) {
+function AddTaskRow({ services, onAdd }: { services: AIService[]; onAdd: (title: string) => void }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
 
@@ -106,20 +108,29 @@ function AddTaskRow({ onAdd }: { onAdd: (title: string) => void }) {
     );
   }
 
+  const suggestion = value.trim() ? suggestTopAI(value, services) : null;
+
   return (
-    <input
-      className="board-col__add-input"
-      autoFocus
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && submit()}
-      onBlur={submit}
-      placeholder="タスク名を入力してEnter"
-    />
+    <div>
+      <input
+        className="board-col__add-input"
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && submit()}
+        onBlur={submit}
+        placeholder="タスク名を入力してEnter"
+      />
+      {suggestion && (
+        <div style={{ fontSize: 11, color: 'var(--ink3)', padding: '4px 2px 0' }}>
+          おすすめ: {suggestion.icon}　{suggestion.name}
+        </div>
+      )}
+    </div>
   );
 }
 
-export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: 'handoff') => void }) {
+export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void }) {
   const { activeProjectId, projects, services, setHandoffDraftTask } = useAppState();
   const [tasks, setTasks] = useState<Task[]>([]);
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -178,6 +189,7 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: 'handoff') => v
           <h1 className="screen__title">タスクボード</h1>
           <p className="screen__subtitle">{activeProject.name}</p>
         </div>
+        <Button size="sm" onClick={() => onOpenRoom('router')}>🧭 AI Routerで確認</Button>
       </div>
 
       <div className="board">
@@ -201,7 +213,7 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: 'handoff') => v
                   onRemove={() => remove(t)}
                 />
               ))}
-              <AddTaskRow onAdd={(title) => addTask(col.id, title)} />
+              <AddTaskRow services={services} onAdd={(title) => addTask(col.id, title)} />
             </div>
           );
         })}
