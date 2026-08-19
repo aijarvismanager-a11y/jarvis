@@ -3,6 +3,7 @@ import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
 import { Chip } from '../design/ui/Chip';
 import { useClickOutside } from '../lib/useClickOutside';
+import { matchCategories, rankServices } from '../lib/aiRecommendation';
 import type { Project } from '../types';
 
 type SortOrder = 'newest' | 'oldest' | 'name';
@@ -68,7 +69,7 @@ function ProjectCardMenu({ project, onEdit }: { project: Project; onEdit: () => 
 }
 
 export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => void }) {
-  const { projects, activeProjectId, setActiveProjectId, refreshProjects } = useAppState();
+  const { projects, categories, services, activeProjectId, setActiveProjectId, refreshProjects } = useAppState();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -106,6 +107,16 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
       setError(`プロジェクトの作成に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
+
+  const matchedCategories = useMemo(
+    () => matchCategories(`${name} ${description} ${purpose}`),
+    [name, description, purpose],
+  );
+  const suggestedAIs = useMemo(
+    () => rankServices(services, matchedCategories),
+    [services, matchedCategories],
+  );
+  const categoryLabel = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
 
   const visibleProjects = useMemo(() => {
     const filtered = search.trim()
@@ -150,6 +161,33 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
             <label>用途</label>
             <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="例：ブログ記事の作成" />
           </div>
+
+          {(description.trim() || purpose.trim()) && (
+            <div className="field">
+              <label>おすすめAI（説明・用途から自動判定）</label>
+              {suggestedAIs.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--ink3)', margin: 0 }}>
+                  一致するAIが見つかりませんでした。作成後、タスクごとに担当AIを選べます。
+                </p>
+              ) : (
+                <div className="list">
+                  <div className="row row--wrap">
+                    {matchedCategories.map((c) => <Chip key={c} tone="accent">{categoryLabel(c)}</Chip>)}
+                  </div>
+                  {suggestedAIs.map(({ service, score }, i) => (
+                    <div key={service.id} className="row" style={{ justifyContent: 'space-between' }}>
+                      <span>
+                        {['🥇', '🥈', '🥉'][i] ?? '　'} {service.icon} {service.name}
+                        <span style={{ color: 'var(--ink3)', fontSize: 12 }}> （一致度 {score}）</span>
+                      </span>
+                      <Button size="sm" onClick={() => window.api.ai.open(service.url, service.name)}>{service.name}を開く</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <Button variant="primary" onClick={submit}>作成</Button>
         </div>
       )}

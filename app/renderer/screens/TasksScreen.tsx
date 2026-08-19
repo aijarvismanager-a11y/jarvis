@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
 import { Chip } from '../design/ui/Chip';
 import { useClickOutside } from '../lib/useClickOutside';
-import { suggestTopAI } from '../lib/aiRecommendation';
+import { matchCategories, rankServices, suggestTopAI } from '../lib/aiRecommendation';
 import type { RoomId } from '../shell/Shell';
 import type { AIService, Task, TaskStatus } from '../types';
 
@@ -28,6 +28,7 @@ function TaskCard({
   onMove,
   onCreateHandoff,
   onRemove,
+  onReassignAI,
 }: {
   task: Task;
   services: AIService[];
@@ -35,21 +36,45 @@ function TaskCard({
   onMove: (status: TaskStatus) => void;
   onCreateHandoff: () => void;
   onRemove: () => void;
+  onReassignAI: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [editingAI, setEditingAI] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false));
 
   const currentIndex = COLUMNS.findIndex((c) => c.id === task.status);
   const jumpTargets = COLUMNS.filter((c, i) => c.id !== task.status && i !== currentIndex + 1);
+  const enabledServices = services.filter((s) => s.enabled);
 
   return (
     <div className="task-card" ref={ref}>
       <div style={{ fontWeight: 600 }}>{task.title}</div>
-      {task.assignedAI && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink2)' }}>
-          推奨AI: {aiIcon(task.assignedAI, services)}　{task.assignedAI}
-        </span>
+      {editingAI ? (
+        <select
+          autoFocus
+          value={task.assignedAI}
+          onChange={(e) => { onReassignAI(e.target.value); setEditingAI(false); }}
+          onBlur={() => setEditingAI(false)}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">担当AIなし</option>
+          {enabledServices.map((s) => (
+            <option key={s.id} value={s.name}>{s.icon} {s.name}</option>
+          ))}
+        </select>
+      ) : (
+        <button
+          onClick={() => setEditingAI(true)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink2)',
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left',
+          }}
+        >
+          {task.assignedAI
+            ? <>担当AI: {aiIcon(task.assignedAI, services)}　{task.assignedAI}</>
+            : <span style={{ color: 'var(--faint)' }}>担当AIを選択…</span>}
+        </button>
       )}
       {task.priority !== 'normal' && (
         <div className="row row--wrap">
@@ -91,14 +116,32 @@ function TaskCard({
   );
 }
 
-function AddTaskRow({ services, onAdd }: { services: AIService[]; onAdd: (title: string) => void }) {
+function AddTaskRow({ services, onAdd }: { services: AIService[]; onAdd: (title: string, assignedAI: string) => void }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
+  const [assignedAI, setAssignedAI] = useState('');
+  const [aiTouched, setAiTouched] = useState(false);
+  const enabledServices = services.filter((s) => s.enabled);
+
+  // Auto-fill the picker from the keyword match as the user types, but stop
+  // once they've manually picked one themselves — typing more shouldn't
+  // silently overwrite a choice they already made.
+  useEffect(() => {
+    if (aiTouched) return;
+    const suggestion = value.trim() ? suggestTopAI(value, services) : null;
+    setAssignedAI(suggestion?.name ?? '');
+  }, [value, services, aiTouched]);
 
   const submit = () => {
-    if (!value.trim()) return setOpen(false);
-    onAdd(value.trim());
+    if (!value.trim()) return close();
+    onAdd(value.trim(), assignedAI);
+    close();
+  };
+
+  const close = () => {
     setValue('');
+    setAssignedAI('');
+    setAiTouched(false);
     setOpen(false);
   };
 
@@ -108,24 +151,30 @@ function AddTaskRow({ services, onAdd }: { services: AIService[]; onAdd: (title:
     );
   }
 
-  const suggestion = value.trim() ? suggestTopAI(value, services) : null;
-
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <input
         className="board-col__add-input"
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
-        onBlur={submit}
-        placeholder="タスク名を入力してEnter"
+        placeholder="タスク名を入力"
       />
-      {suggestion && (
-        <div style={{ fontSize: 11, color: 'var(--ink3)', padding: '4px 2px 0' }}>
-          おすすめ: {suggestion.icon}　{suggestion.name}
-        </div>
-      )}
+      <select
+        value={assignedAI}
+        onChange={(e) => { setAssignedAI(e.target.value); setAiTouched(true); }}
+        style={{ fontSize: 12 }}
+      >
+        <option value="">担当AIなし</option>
+        {enabledServices.map((s) => (
+          <option key={s.id} value={s.name}>{s.icon} {s.name}</option>
+        ))}
+      </select>
+      <div className="row">
+        <Button size="sm" variant="primary" onClick={submit}>追加</Button>
+        <Button size="sm" onClick={close}>キャンセル</Button>
+      </div>
     </div>
   );
 }
@@ -134,6 +183,16 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
   const { activeProjectId, projects, services, setHandoffDraftTask } = useAppState();
   const [tasks, setTasks] = useState<Task[]>([]);
   const activeProject = projects.find((p) => p.id === activeProjectId);
+
+  // The recommendation shown while creating the project (from its
+  // description/用途) would otherwise vanish the moment that form closes —
+  // keep it visible here too, since that's when task-by-task AI choices
+  // actually get made.
+  const projectSuggestedAIs = useMemo(() => {
+    if (!activeProject) return [];
+    const text = `${activeProject.description} ${activeProject.purpose}`;
+    return rankServices(services, matchCategories(text));
+  }, [activeProject, services]);
 
   const refresh = async () => {
     if (!activeProjectId) return setTasks([]);
@@ -154,10 +213,10 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
     );
   }
 
-  const addTask = async (status: TaskStatus, title: string) => {
+  const addTask = async (status: TaskStatus, title: string, assignedAI: string) => {
     await window.api.tasks.create(activeProjectId, {
       title,
-      assignedAI: suggestTopAI(title, services)?.name ?? '',
+      assignedAI,
       priority: 'normal',
       status,
       relatedFiles: '',
@@ -169,6 +228,11 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
 
   const move = async (task: Task, status: TaskStatus) => {
     await window.api.tasks.update(activeProjectId, task.id, { status });
+    await refresh();
+  };
+
+  const reassignAI = async (task: Task, assignedAI: string) => {
+    await window.api.tasks.update(activeProjectId, task.id, { assignedAI });
     await refresh();
   };
 
@@ -192,6 +256,21 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
         <Button size="sm" onClick={() => onOpenRoom('router')}>🧭 AI Routerで確認</Button>
       </div>
 
+      {projectSuggestedAIs.length > 0 && (
+        <div className="card">
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 6 }}>
+            このプロジェクトのおすすめAI（説明・用途から判定）
+          </div>
+          <div className="row row--wrap">
+            {projectSuggestedAIs.map(({ service }, i) => (
+              <Chip key={service.id} tone={i === 0 ? 'accent' : 'neutral'}>
+                {['🥇', '🥈', '🥉'][i] ?? ''} {service.icon} {service.name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="board">
         {COLUMNS.map((col, colIndex) => {
           const colTasks = tasks.filter((t) => t.status === col.id);
@@ -211,9 +290,10 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
                   onMove={(status) => move(t, status)}
                   onCreateHandoff={() => createHandoffFrom(t)}
                   onRemove={() => remove(t)}
+                  onReassignAI={(name) => reassignAI(t, name)}
                 />
               ))}
-              <AddTaskRow services={services} onAdd={(title) => addTask(col.id, title)} />
+              <AddTaskRow services={services} onAdd={(title, assignedAI) => addTask(col.id, title, assignedAI)} />
             </div>
           );
         })}

@@ -63,8 +63,10 @@ describe('suggestTopAI', () => {
     expect(suggestTopAI('バグを修正して', [claude, gemini])?.id).toBe('claude');
   });
 
-  it('falls back to the first enabled service when nothing matches', () => {
-    expect(suggestTopAI('こんにちは', [claude, gemini])?.id).toBe('claude');
+  it('returns null instead of an arbitrary default when nothing matches', () => {
+    // A silent fallback here would make the "recommendation" a fixed pick
+    // that ignores the text — honest null lets the caller ask the user instead.
+    expect(suggestTopAI('こんにちは', [claude, gemini])).toBeNull();
   });
 
   it('returns null when there are no enabled services at all', () => {
