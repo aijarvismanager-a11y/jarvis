@@ -107,7 +107,7 @@ export interface Api {
   };
   tasks: {
     list: (projectId: string) => Promise<Task[]>;
-    create: (projectId: string, input: Omit<Task, 'id' | 'createdAt' | 'status'>) => Promise<Task | null>;
+    create: (projectId: string, input: Omit<Task, 'id' | 'createdAt'>) => Promise<Task | null>;
     update: (projectId: string, taskId: string, patch: Partial<Task>) => Promise<Task | null>;
     delete: (projectId: string, taskId: string) => Promise<boolean>;
   };

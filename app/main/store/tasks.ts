@@ -27,13 +27,12 @@ export function listTasks(projectId: string): Task[] {
   return readJson<Task[]>(tasksPath(project.dir), []);
 }
 
-export function createTask(projectId: string, input: Omit<Task, 'id' | 'createdAt' | 'status'>): Task | null {
+export function createTask(projectId: string, input: Omit<Task, 'id' | 'createdAt'>): Task | null {
   const project = getProject(projectId);
   if (!project) return null;
   const tasks = listTasks(projectId);
   const task: Task = {
     id: crypto.randomUUID(),
-    status: 'todo',
     createdAt: new Date().toISOString(),
     ...input,
   };

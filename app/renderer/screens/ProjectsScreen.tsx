@@ -1,9 +1,71 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
 import { Chip } from '../design/ui/Chip';
+import { useClickOutside } from '../lib/useClickOutside';
+import type { Project } from '../types';
 
 type SortOrder = 'newest' | 'oldest' | 'name';
+
+const AVATAR_COLORS = ['var(--speak)', 'var(--ok)', 'var(--hold)', 'var(--listen)'];
+
+function avatarColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function ProjectCardMenu({ project, onEdit }: { project: Project; onEdit: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useClickOutside(ref, () => setOpen(false));
+  const { activeProjectId, setActiveProjectId, refreshProjects } = useAppState();
+
+  const openFolder = async () => {
+    setOpen(false);
+    const result = await window.api.projects.openFolder(project.id);
+    if (!result.ok && result.error) window.alert(`フォルダを開けませんでした: ${result.error}`);
+  };
+
+  const exportProject = async () => {
+    setOpen(false);
+    const result = await window.api.projects.export(project.id);
+    if (!result.ok && result.error) window.alert(`エクスポートに失敗しました: ${result.error}`);
+  };
+
+  const remove = async () => {
+    setOpen(false);
+    if (!window.confirm(`プロジェクト「${project.name}」を一覧から削除します。フォルダ内のファイルは残ります。よろしいですか？`)) return;
+    await window.api.projects.delete(project.id, false);
+    if (activeProjectId === project.id) setActiveProjectId(null);
+    await refreshProjects();
+  };
+
+  return (
+    <div className="overflow-menu" ref={ref}>
+      <button className="overflow-menu__trigger" onClick={() => setOpen((v) => !v)} aria-label="メニュー">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="5" r="1.2" />
+          <circle cx="12" cy="12" r="1.2" />
+          <circle cx="12" cy="19" r="1.2" />
+        </svg>
+      </button>
+      {open && (
+        <div className="overflow-menu__list">
+          <button className="overflow-menu__item" onClick={openFolder}>📂　フォルダを開く</button>
+          <button className="overflow-menu__item" onClick={exportProject}>⇩　エクスポート</button>
+          <button className="overflow-menu__item" onClick={() => { setOpen(false); onEdit(); }}>✎　編集</button>
+          <div className="overflow-menu__divider" />
+          <button className="overflow-menu__item overflow-menu__item--danger" onClick={remove}>🗑　削除</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => void }) {
   const { projects, activeProjectId, setActiveProjectId, refreshProjects } = useAppState();
@@ -11,10 +73,24 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [purpose, setPurpose] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortOrder>('newest');
   const [error, setError] = useState('');
+  const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        projects.map(async (p) => [p.id, (await window.api.tasks.list(p.id)).length] as const),
+      );
+      if (!cancelled) setTaskCounts(Object.fromEntries(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
 
   const submit = async () => {
     if (!name.trim()) return;
@@ -28,32 +104,6 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
       await refreshProjects();
     } catch (e) {
       setError(`プロジェクトの作成に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const remove = async (id: string, projectName: string) => {
-    if (!window.confirm(`プロジェクト「${projectName}」を一覧から削除します。フォルダ内のファイルは残ります。よろしいですか？`)) return;
-    try {
-      await window.api.projects.delete(id, false);
-      if (activeProjectId === id) setActiveProjectId(null);
-      setError('');
-      await refreshProjects();
-    } catch (e) {
-      setError(`プロジェクトの削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  const openFolder = async (id: string) => {
-    const result = await window.api.projects.openFolder(id);
-    if (!result.ok && result.error) {
-      setError(`フォルダを開けませんでした: ${result.error}`);
-    }
-  };
-
-  const exportProject = async (id: string) => {
-    const result = await window.api.projects.export(id);
-    if (!result.ok && result.error) {
-      setError(`エクスポートに失敗しました: ${result.error}`);
     }
   };
 
@@ -120,52 +170,55 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
         </div>
       )}
 
-      <div className="list">
+      <div className="card-grid">
         {projects.length === 0 && !creating && (
-          <div className="empty-state">プロジェクトがありません。「+ 新規プロジェクト」から作成してください。</div>
+          <div className="empty-state" style={{ gridColumn: '1 / -1' }}>プロジェクトがありません。「+ 新規プロジェクト」から作成してください。</div>
         )}
         {projects.length > 0 && visibleProjects.length === 0 && (
-          <div className="empty-state">「{search}」に一致するプロジェクトがありません。</div>
+          <div className="empty-state" style={{ gridColumn: '1 / -1' }}>「{search}」に一致するプロジェクトがありません。</div>
         )}
         {visibleProjects.map((p) => (
-          <div key={p.id} className="card">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <div>
-                <div className="row">
-                  <strong>{p.name}</strong>
+          <div key={p.id} className="card p-card">
+            <div className="p-card__top">
+              <div className="row">
+                <div className="avatar" style={{ background: avatarColor(p.id) }}>{p.name.slice(0, 1)}</div>
+                <div>
+                  <div className="row">
+                    <strong>{p.name}</strong>
+                  </div>
                   {activeProjectId === p.id && <Chip tone="ok">選択中</Chip>}
                 </div>
-                {editingId === p.id ? (
-                  <textarea
-                    defaultValue={p.description}
-                    onBlur={async (e) => {
-                      await window.api.projects.update(p.id, { description: e.target.value });
-                      setEditingId(null);
-                      await refreshProjects();
-                    }}
-                  />
-                ) : (
-                  <p style={{ color: 'var(--ink2)', fontSize: 13, margin: '4px 0 0' }}>{p.description || p.purpose}</p>
-                )}
-                <p style={{ color: 'var(--faint)', fontSize: 12, margin: '4px 0 0' }}>{p.dir}</p>
               </div>
-              <div className="row row--wrap">
-                <Button
-                  variant={activeProjectId === p.id ? 'primary' : 'ghost'}
-                  size="sm"
-                  onClick={() => {
-                    setActiveProjectId(p.id);
-                    onOpenRoom('tasks');
-                  }}
-                >
-                  開く
-                </Button>
-                <Button size="sm" onClick={() => openFolder(p.id)}>フォルダ</Button>
-                <Button size="sm" onClick={() => exportProject(p.id)}>エクスポート</Button>
-                <Button size="sm" onClick={() => setEditingId(p.id)}>編集</Button>
-                <Button size="sm" variant="danger" onClick={() => remove(p.id, p.name)}>削除</Button>
-              </div>
+              <ProjectCardMenu project={p} onEdit={() => setEditingId(p.id)} />
             </div>
+            {editingId === p.id ? (
+              <textarea
+                className="p-card__desc"
+                style={{ minHeight: 60, resize: 'vertical' }}
+                defaultValue={p.description}
+                autoFocus
+                onBlur={async (e) => {
+                  await window.api.projects.update(p.id, { description: e.target.value });
+                  setEditingId(null);
+                  await refreshProjects();
+                }}
+              />
+            ) : (
+              <p className="p-card__desc">{p.description || p.purpose || '説明はありません。'}</p>
+            )}
+            <div className="row row--wrap">
+              <Chip>📋 {taskCounts[p.id] ?? 0} タスク</Chip>
+              <Chip>🕐 作成: {formatDate(p.createdAt)}</Chip>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setActiveProjectId(p.id);
+                onOpenRoom('tasks');
+              }}
+            >
+              開く
+            </Button>
           </div>
         ))}
       </div>
