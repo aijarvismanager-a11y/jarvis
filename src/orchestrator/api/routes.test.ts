@@ -217,4 +217,69 @@ describe('createOrchestratorRoutes', () => {
     expect(body.handoffs).toHaveLength(1);
     expect(body.handoffs[0].task_id).toBe('a');
   });
+
+  it('GET /api/orchestrator/cost returns a cost summary with no usage recorded', async () => {
+    // llm_usage lives behind a module-level DB resolver shared with other
+    // test files (src/llm/usage.ts) - point it at a fresh empty DB so this
+    // assertion doesn't depend on whatever ran earlier in the same process.
+    const { initDatabase, closeDb } = await import('../../vault/schema.ts');
+    const { setUsageDatabase } = await import('../../llm/usage.ts');
+    closeDb();
+    setUsageDatabase(() => initDatabase(':memory:'));
+
+    const { routes } = setup();
+    const resp = await routes['/api/orchestrator/cost']!.GET!(new Request('http://x/api/orchestrator/cost'));
+    const body = await resp.json();
+    expect(body.daily_cost).toBe(0);
+    expect(body.status).toBe('ok');
+    expect(body.budget).toEqual({ daily_budget: 300, warning_threshold: 200, hard_limit: 300, currency: 'JPY' });
+  });
+
+  it('GET /api/orchestrator/budget returns defaults, PUT persists and validates', async () => {
+    const { routes } = setup();
+
+    const getResp = await routes['/api/orchestrator/budget']!.GET!(new Request('http://x'));
+    expect((await getResp.json()).budget.daily_budget).toBe(300);
+
+    const badResp = await routes['/api/orchestrator/budget']!.PUT!(
+      new Request('http://x', { method: 'PUT', body: JSON.stringify({ daily_budget: -1, warning_threshold: 1, hard_limit: 1, currency: 'JPY' }) }),
+    );
+    expect(badResp.status).toBe(400);
+
+    const putResp = await routes['/api/orchestrator/budget']!.PUT!(
+      new Request('http://x', { method: 'PUT', body: JSON.stringify({ daily_budget: 500, warning_threshold: 400, hard_limit: 500, currency: 'USD' }) }),
+    );
+    expect(putResp.status).toBe(200);
+
+    const { loadBudget } = await import('../budget.ts');
+    expect(loadBudget(dir!)).toEqual({ daily_budget: 500, warning_threshold: 400, hard_limit: 500, currency: 'USD' });
+  });
+
+  it('GET /api/orchestrator/pricing returns defaults, PUT persists and validates', async () => {
+    const { routes } = setup();
+
+    const getResp = await routes['/api/orchestrator/pricing']!.GET!(new Request('http://x'));
+    const body = await getResp.json();
+    expect(body.pricing.currency).toBe('JPY');
+    expect(body.pricing.models['anthropic:claude-sonnet-5']).toBeDefined();
+
+    const badResp = await routes['/api/orchestrator/pricing']!.PUT!(
+      new Request('http://x', { method: 'PUT', body: JSON.stringify({ currency: 'JPY' }) }),
+    );
+    expect(badResp.status).toBe(400);
+
+    const putResp = await routes['/api/orchestrator/pricing']!.PUT!(
+      new Request('http://x', {
+        method: 'PUT',
+        body: JSON.stringify({
+          currency: 'JPY',
+          fx_rate_usd: 150,
+          models: { 'custom:model': { input_per_1k: 1, output_per_1k: 2 } },
+          default: { input_per_1k: 0.5, output_per_1k: 1 },
+        }),
+      }),
+    );
+    expect(putResp.status).toBe(200);
+    expect((await putResp.json()).pricing.models['custom:model']).toEqual({ input_per_1k: 1, output_per_1k: 2 });
+  });
 });

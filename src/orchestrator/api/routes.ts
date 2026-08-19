@@ -18,6 +18,9 @@ import { addMcpWorker, removeMcpWorker } from '../../workers/mcp-registry.ts';
 import { MCPWorker } from '../../workers/mcp.ts';
 import type { WorkerCapability } from '../../workers/types.ts';
 import { getCorsHeaders } from '../../daemon/api-routes.ts';
+import { getCostSummary } from '../cost-tracker.ts';
+import { loadBudget, saveBudget, type BudgetConfig } from '../budget.ts';
+import { loadPricing, savePricing, type PricingTable } from '../pricing.ts';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: getCorsHeaders() });
@@ -203,6 +206,52 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         } catch (err) {
           return error(err instanceof Error ? err.message : String(err), 502);
         }
+      },
+    },
+
+    '/api/orchestrator/cost': {
+      GET: (_req: Request) => {
+        return json(getCostSummary(ctx.getDataDir()));
+      },
+    },
+
+    '/api/orchestrator/budget': {
+      GET: (_req: Request) => {
+        return json({ budget: loadBudget(ctx.getDataDir()) });
+      },
+      PUT: async (req: Request) => {
+        const body = (await req.json().catch(() => null)) as Partial<BudgetConfig> | null;
+        if (!body || typeof body !== 'object') return error('body must be a budget object', 400);
+        const { daily_budget, warning_threshold, hard_limit, currency } = body;
+        if (typeof daily_budget !== 'number' || daily_budget < 0) return error('daily_budget must be a non-negative number', 400);
+        if (typeof warning_threshold !== 'number' || warning_threshold < 0) return error('warning_threshold must be a non-negative number', 400);
+        if (typeof hard_limit !== 'number' || hard_limit < 0) return error('hard_limit must be a non-negative number', 400);
+        if (currency !== 'JPY' && currency !== 'USD') return error('currency must be "JPY" or "USD"', 400);
+
+        const budget: BudgetConfig = { daily_budget, warning_threshold, hard_limit, currency };
+        saveBudget(ctx.getDataDir(), budget);
+        return json({ budget });
+      },
+    },
+
+    '/api/orchestrator/pricing': {
+      GET: (_req: Request) => {
+        return json({ pricing: loadPricing(ctx.getDataDir()) });
+      },
+      PUT: async (req: Request) => {
+        const body = (await req.json().catch(() => null)) as Partial<PricingTable> | null;
+        if (!body || typeof body !== 'object') return error('body must be a pricing object', 400);
+        const { currency, fx_rate_usd, models, default: defaultPricing } = body;
+        if (currency !== 'JPY' && currency !== 'USD') return error('currency must be "JPY" or "USD"', 400);
+        if (typeof fx_rate_usd !== 'number' || fx_rate_usd <= 0) return error('fx_rate_usd must be a positive number', 400);
+        if (!models || typeof models !== 'object') return error('models must be an object', 400);
+        if (!defaultPricing || typeof defaultPricing.input_per_1k !== 'number' || typeof defaultPricing.output_per_1k !== 'number') {
+          return error('default must be { input_per_1k, output_per_1k }', 400);
+        }
+
+        const pricing: PricingTable = { currency, fx_rate_usd, models: models as PricingTable['models'], default: defaultPricing };
+        savePricing(ctx.getDataDir(), pricing);
+        return json({ pricing });
       },
     },
   };

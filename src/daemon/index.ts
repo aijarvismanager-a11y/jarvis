@@ -39,6 +39,7 @@ import { loadMcpWorkers } from "../workers/mcp-registry.ts";
 import { MCPWorker } from "../workers/mcp.ts";
 import { TaskWorkerRunner } from "../orchestrator/task-runner.ts";
 import { loadAIProfiles } from "../orchestrator/ai-profiles.ts";
+import { budgetGuard } from "../orchestrator/cost-tracker.ts";
 import { createOrchestratorRoutes } from "../orchestrator/api/routes.ts";
 import { sendHandoff } from "../agents/handoff.ts";
 import { GoogleAuth } from "../integrations/google-auth.ts";
@@ -4235,6 +4236,12 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       },
       loadAIProfiles(dataDir)
     );
+
+    // Cost management (spec section 19-20): stop direct paid-API calls once
+    // today's estimated spend hits the configured hard limit. A pure local
+    // check against already-recorded llm_usage rows - no network call, so
+    // it never itself contributes to the cost it's guarding against.
+    agentService.getLLMManager().setBudgetGuard(() => budgetGuard(dataDir));
 
     // Mount the daemon's existing routes plus the workflow runtime's routes.
     // The legacy in-house workflow routes that lived at /api/workflows/* were

@@ -12,6 +12,7 @@ import {
   type TaskTemplate,
   type ManualHandoffOutcome,
 } from "./useWorkersData";
+import { useCostData, type BudgetConfig, type BudgetStatus, type CostSummary } from "./useCostData";
 import "./WorkersRoom.css";
 
 export type RoomBodyMode = "inline" | "expanded";
@@ -37,9 +38,17 @@ const HANDOFF_TONE: Record<FileHandoff["status"], Tone> = {
 
 const TEMPLATES: readonly TaskTemplate[] = ["code", "research", "plan", "write", "general"];
 
+const BUDGET_STATUS_TONE: Record<BudgetStatus, Tone> = {
+  ok: "ok",
+  warning: "hold",
+  exceeded: "fail",
+};
+
 export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useWorkersData();
+  const cost = useCostData();
   const [runOpen, setRunOpen] = useState(false);
+  const [costOpen, setCostOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
@@ -80,11 +89,32 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
         <button className="rk-workers__icbtn" onClick={data.refresh} aria-label="更新">
           <Icon icon={RefreshCw} size="sm" />
         </button>
+        {cost.summary && (
+          <StatusChip tone={BUDGET_STATUS_TONE[cost.summary.status]} dot>
+            {cost.summary.daily_cost}{cost.summary.currency} / {cost.summary.budget.daily_budget}{cost.summary.currency}
+          </StatusChip>
+        )}
         <button className="rk-workers__new" onClick={() => setAddOpen(true)}>ワーカーを追加</button>
+        <button className="rk-workers__new" onClick={() => setCostOpen((v) => !v)}>
+          {costOpen ? "閉じる" : "コスト管理"}
+        </button>
         <button className="rk-workers__new" onClick={() => setRunOpen((v) => !v)}>
           {runOpen ? "閉じる" : "タスクを実行"}
         </button>
       </div>
+
+      {costOpen && (
+        <CostPanel
+          summary={cost.summary}
+          loading={cost.loading}
+          error={cost.error}
+          onSave={async (budget) => {
+            const r = await cost.updateBudget(budget);
+            setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+            return r.ok;
+          }}
+        />
+      )}
 
       {runOpen && (
         <RunPanel
@@ -373,6 +403,123 @@ function ManualHandoffPanel({
         </button>
         <button className="rk-workers__sbtn" onClick={onClose}>閉じる</button>
       </div>
+    </div>
+  );
+}
+
+/** Cost management (spec §19-20): estimated daily/monthly spend against a budget, with an editable budget form. Zero API cost by itself — a read of already-recorded llm_usage rows plus local pricing math. */
+function CostPanel({
+  summary,
+  loading,
+  error,
+  onSave,
+}: {
+  summary: CostSummary | null;
+  loading: boolean;
+  error: string | null;
+  onSave: (budget: BudgetConfig) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [dailyBudget, setDailyBudget] = useState("");
+  const [warningThreshold, setWarningThreshold] = useState("");
+  const [hardLimit, setHardLimit] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = () => {
+    if (!summary) return;
+    setDailyBudget(String(summary.budget.daily_budget));
+    setWarningThreshold(String(summary.budget.warning_threshold));
+    setHardLimit(String(summary.budget.hard_limit));
+    setEditing(true);
+  };
+
+  const submit = async () => {
+    if (!summary || busy) return;
+    const daily_budget = Number(dailyBudget);
+    const warning_threshold = Number(warningThreshold);
+    const hard_limit = Number(hardLimit);
+    if (!Number.isFinite(daily_budget) || !Number.isFinite(warning_threshold) || !Number.isFinite(hard_limit)) return;
+    setBusy(true);
+    const ok = await onSave({ daily_budget, warning_threshold, hard_limit, currency: summary.currency });
+    setBusy(false);
+    if (ok) setEditing(false);
+  };
+
+  if (loading && !summary) {
+    return <div className="rk-workers__runpanel"><Skeleton lines={3} /></div>;
+  }
+  if (error || !summary) {
+    return <div className="rk-workers__runpanel"><div className="rk-workers__msg">{error ?? "コスト情報がありません"}</div></div>;
+  }
+
+  const pct = summary.budget.hard_limit > 0 ? Math.min(1, summary.daily_cost / summary.budget.hard_limit) : 0;
+
+  return (
+    <div className="rk-workers__runpanel">
+      <div className="rk-workers__runrow">
+        <div>
+          <div className="rk-workers__flab">本日の推定コスト</div>
+          <div className="rk-workers__cost-fig">{summary.daily_cost}{summary.currency}</div>
+        </div>
+        <div>
+          <div className="rk-workers__flab">今月の推定コスト</div>
+          <div className="rk-workers__cost-fig">
+            {summary.monthly_cost}{summary.currency}
+            {summary.monthly_partial && <span className="rk-workers__sub"> (一部のみ集計)</span>}
+          </div>
+        </div>
+        <div>
+          <div className="rk-workers__flab">状態</div>
+          <StatusChip tone={BUDGET_STATUS_TONE[summary.status]} dot>{summary.status}</StatusChip>
+        </div>
+      </div>
+
+      <div className="rk-workers__cost-bar">
+        <div
+          className={`rk-workers__cost-bar-fill rk-workers__cost-bar-fill--${summary.status}`}
+          style={{ width: `${pct * 100}%` }}
+        />
+      </div>
+      <div className="rk-workers__sub">
+        日次予算 {summary.budget.daily_budget}{summary.currency} · 警告 {summary.budget.warning_threshold}{summary.currency} · 上限 {summary.budget.hard_limit}{summary.currency}
+      </div>
+
+      {summary.by_provider.length > 0 && (
+        <div className="rk-workers__card-caps">
+          {summary.by_provider.map((p) => (
+            <span key={p.provider} className="rk-workers__cap">{p.provider}: {p.cost}{summary.currency} ({p.calls}回)</span>
+          ))}
+        </div>
+      )}
+
+      {editing ? (
+        <>
+          <div className="rk-workers__runrow">
+            <div>
+              <div className="rk-workers__flab">日次予算 ({summary.currency})</div>
+              <Input value={dailyBudget} onChange={(e) => setDailyBudget(e.target.value)} mono />
+            </div>
+            <div>
+              <div className="rk-workers__flab">警告しきい値</div>
+              <Input value={warningThreshold} onChange={(e) => setWarningThreshold(e.target.value)} mono />
+            </div>
+            <div>
+              <div className="rk-workers__flab">上限</div>
+              <Input value={hardLimit} onChange={(e) => setHardLimit(e.target.value)} mono />
+            </div>
+          </div>
+          <div className="rk-workers__runacts">
+            <button className="rk-workers__sbtn" onClick={() => setEditing(false)} disabled={busy}>キャンセル</button>
+            <button className="rk-workers__sbtn rk-workers__sbtn--pri" onClick={submit} disabled={busy}>
+              {busy ? "保存中…" : "保存"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="rk-workers__runacts">
+          <button className="rk-workers__sbtn" onClick={startEdit}>予算を編集</button>
+        </div>
+      )}
     </div>
   );
 }

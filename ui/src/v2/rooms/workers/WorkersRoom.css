@@ -59,6 +59,13 @@
 .rk-workers__cap--on { background: var(--ink); color: var(--bg); border-color: var(--ink); cursor: pointer; }
 button.rk-workers__cap { cursor: pointer; background: none; }
 
+.rk-workers__cost-fig { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+.rk-workers__cost-bar { height: 6px; border-radius: 999px; background: var(--raise); border: 1px solid var(--rule); overflow: hidden; }
+.rk-workers__cost-bar-fill { height: 100%; background: var(--ink3); }
+.rk-workers__cost-bar-fill--ok { background: var(--ok); }
+.rk-workers__cost-bar-fill--warning { background: var(--hold); }
+.rk-workers__cost-bar-fill--exceeded { background: var(--listen); }
+
 .rk-workers__overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); display: flex; align-items: center; justify-content: center; z-index: 40; }
 .rk-workers__dialog { width: 420px; max-width: calc(100vw - 32px); max-height: calc(100vh - 64px); overflow-y: auto; background: var(--panel2); border: 1px solid var(--rule); border-radius: var(--corner-sm); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .rk-workers__dialog-title { font-family: var(--font-display); font-size: 14px; }

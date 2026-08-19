@@ -41,8 +41,23 @@ export class LLMManager {
   // instead of backing off.
   private static readonly RETRY_BASE_DELAY_MS = 1000;
   private static readonly isDebugging = process.env.JARVIS_LOG_LEVEL === 'debug' || process.env.DEBUG_LLM === 'true';
+  // Optional cost-management hook (JARVIS orchestrator spec section 20:
+  // "予算超過 -> API実行を止める"). Unset by default so LLMManager stays
+  // budget-agnostic for tests/embedders that never wire one in.
+  private budgetGuard?: () => { allowed: boolean; reason?: string };
 
   constructor() {}
+
+  setBudgetGuard(guard: (() => { allowed: boolean; reason?: string }) | undefined): void {
+    this.budgetGuard = guard;
+  }
+
+  private assertBudgetAllows(): void {
+    const check = this.budgetGuard?.();
+    if (check && !check.allowed) {
+      throw new Error(check.reason ?? 'Budget exceeded: API calls are paused.');
+    }
+  }
 
   registerProvider(provider: LLMProvider): void {
     this.providers.set(provider.name, provider);
@@ -291,6 +306,7 @@ export class LLMManager {
     messages: LLMMessage[],
     options?: LLMOptions,
   ): Promise<LLMResponse> {
+    this.assertBudgetAllows();
     const { resolution, chain } = this.resolveProviderChainOrThrow(tier);
     const chainErrors: string[] = [];
 
@@ -356,6 +372,7 @@ export class LLMManager {
     messages: LLMMessage[],
     options?: LLMOptions,
   ): AsyncIterable<LLMStreamEvent> {
+    this.assertBudgetAllows();
     const { resolution, chain } = this.resolveProviderChainOrThrow(tier);
     const chainErrors: string[] = [];
 
