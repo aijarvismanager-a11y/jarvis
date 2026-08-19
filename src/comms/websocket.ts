@@ -2,7 +2,7 @@ import type { Server, ServerWebSocket } from 'bun';
 import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { isWithin } from '../util/path.ts';
-import type { SidecarManager } from '../sidecar/manager.ts';
+import { type SidecarManager, ACCESS_TOKEN_TTL_SECONDS } from '../sidecar/manager.ts';
 
 /** Constant-time string comparison to prevent timing attacks */
 export type WSMessage = {
@@ -258,11 +258,14 @@ export class WebSocketServer {
     // one variant, so the pair is cast to the port variant; at runtime Bun
     // receives exactly one of the two keys.
     const listenOpts = (this.unixPath ? { unix: this.unixPath } : { port: this.port }) as { port: number };
-    this.server = Bun.serve<{ sidecar_id?: string; channel?: string; proxy_target?: string; _proxyUpstream?: WebSocket }>({
-      ...listenOpts,
-      idleTimeout: 30, // seconds — prevent timeout during heavy processing (OCR, PowerShell)
 
-      async fetch(req, server) {
+    type FetchServer = Parameters<NonNullable<Parameters<typeof Bun.serve>[0]['fetch']>>[1];
+
+    async function dispatch(
+      req: Request,
+      server: FetchServer,
+      renewal: { cookie: string | null },
+    ): Promise<Response | undefined> {
         const url = new URL(req.url);
         const pathname = url.pathname;
 
@@ -320,13 +323,15 @@ export class WebSocketServer {
         // There is NO shared dashboard token: enroll a device or (setup only)
         // set auth.insecure_open_access.
         if (!self.insecureOpenAccess && !isPublicRoute(pathname, req.method)) {
-          const accepts = async (tok: string | null): Promise<boolean> => {
-            if (!tok) return false;
-            if (self.sidecarManager && (await self.sidecarManager.verifyAccessToken(tok))) return true;
-            return false;
+          // Returns the verified { sid, exp }, or null. Callers that only
+          // need a boolean can just check truthiness.
+          const accepts = async (tok: string | null): Promise<{ sid: string; exp: number } | null> => {
+            if (!tok || !self.sidecarManager) return null;
+            return self.sidecarManager.verifyAccessToken(tok);
           };
           const cookieToken = getCookie(req, 'token');
-          if (!(await accepts(cookieToken))) {
+          const cookieAuth = await accepts(cookieToken);
+          if (!cookieAuth) {
             // Check ?token= query param — set cookie via Set-Cookie and redirect
             const queryToken = url.searchParams.get('token');
             if (await accepts(queryToken)) {
@@ -358,6 +363,34 @@ export class WebSocketServer {
               headers: { 'Content-Type': 'text/html' },
             });
           }
+          // Sliding renewal: an already-valid cookie session gets a fresh
+          // access token once it's past the halfway point of its TTL, so a
+          // browser tab that's actively in use never hits the dead-end 401
+          // page just because ACCESS_TOKEN_TTL_SECONDS elapsed since the
+          // cookie was set. Re-mint (not reuse) so the new cookie's expiry
+          // moves too; issueAccessToken() re-checks isEnrolled() at mint
+          // time, so a revoked device still stops renewing immediately. A
+          // truly idle tab (no requests for the full TTL) still expires and
+          // hits the 401 page — only active use is kept alive. Gating on
+          // remaining TTL (rather than re-minting on every request) avoids
+          // paying a JWT sign + isEnrolled() DB lookup on every single
+          // authenticated request from an active tab.
+          const remainingSeconds = cookieAuth.exp - Math.floor(Date.now() / 1000);
+          if (remainingSeconds < ACCESS_TOKEN_TTL_SECONDS / 2) {
+            try {
+              const renewed = await self.sidecarManager?.issueAccessToken(cookieAuth.sid);
+              if (renewed) {
+                const xfProto = (req.headers.get('x-forwarded-proto') ?? '').split(',')[0]?.trim();
+                const isHttps = url.protocol === 'https:' || xfProto === 'https';
+                renewal.cookie = `token=${renewed.token}; Path=/; SameSite=Lax; HttpOnly` +
+                  (isHttps ? '; Secure' : '');
+              }
+            } catch {
+              // Renewal is best-effort - a mint failure here must not fail the
+              // request it's piggybacking on. Worst case the cookie just isn't
+              // extended this time and the next request tries again.
+            }
+          }
         }
 
         // 2. WebSocket upgrade — validate Origin to block cross-origin connections
@@ -380,7 +413,16 @@ export class WebSocketServer {
               return new Response('Forbidden: origin mismatch', { status: 403 });
             }
           }
-          const success = server.upgrade(req, { data: {} });
+          // A successful upgrade's 101 response bypasses the fetch wrapper's
+          // normal Set-Cookie handling entirely (dispatch() returns undefined
+          // for Bun to signal the upgrade, so there's no Response object left
+          // to attach the header to) - the renewed cookie has to ride on the
+          // upgrade response's own headers instead, or a long-lived WS tab's
+          // sliding renewal never lands and it eventually expires anyway.
+          const success = server.upgrade(req, {
+            data: {},
+            ...(renewal.cookie ? { headers: { 'Set-Cookie': renewal.cookie } } : {}),
+          });
           if (success) return undefined;
           return new Response('WebSocket upgrade failed', { status: 500 });
         }
@@ -540,6 +582,25 @@ export class WebSocketServer {
         }
 
         return new Response('Not Found', { status: 404 });
+    }
+
+    this.server = Bun.serve<{ sidecar_id?: string; channel?: string; proxy_target?: string; _proxyUpstream?: WebSocket }>({
+      ...listenOpts,
+      idleTimeout: 30, // seconds — prevent timeout during heavy processing (OCR, PowerShell)
+
+      async fetch(req, server) {
+        const renewal: { cookie: string | null } = { cookie: null };
+        const response = await dispatch(req, server, renewal);
+        if (response && renewal.cookie) {
+          const headers = new Headers(response.headers);
+          headers.append('Set-Cookie', renewal.cookie);
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+          });
+        }
+        return response;
       },
 
       websocket: {

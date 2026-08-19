@@ -5,9 +5,9 @@
  * what never requires a code change.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import type { WorkerCapability } from '../workers/types.ts';
+import { loadJsonConfig, saveJsonConfig } from '../util/json-config.ts';
 
 export type AIProfile = {
   enabled: boolean;
@@ -63,18 +63,9 @@ function profilesPath(dataDir: string): string {
 
 /** Falls back to the defaults, merged under any user overrides, if the file is missing or unreadable. */
 export function loadAIProfiles(dataDir: string): AIProfiles {
-  const path = profilesPath(dataDir);
-  if (!existsSync(path)) return DEFAULT_AI_PROFILES;
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as AIProfiles;
-    return { ...DEFAULT_AI_PROFILES, ...parsed };
-  } catch {
-    return DEFAULT_AI_PROFILES;
-  }
+  return loadJsonConfig(profilesPath(dataDir), DEFAULT_AI_PROFILES);
 }
 
 export function saveAIProfiles(dataDir: string, profiles: AIProfiles): void {
-  const path = profilesPath(dataDir);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(profiles, null, 2), 'utf8');
+  saveJsonConfig(profilesPath(dataDir), profiles);
 }

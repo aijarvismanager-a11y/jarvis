@@ -11,8 +11,8 @@ import {
   type FileHandoff,
   type TaskTemplate,
   type ManualHandoffOutcome,
-  type TaskOutcome,
   type SplitSubtaskInput,
+  type SplitSubtaskResult,
 } from "./useWorkersData";
 import { useCostData, type BudgetConfig, type BudgetStatus, type CostSummary } from "./useCostData";
 import { useAIProfilesData, type AIProfile, type AIProfiles } from "./useAIProfilesData";
@@ -51,18 +51,19 @@ const BUDGET_STATUS_TONE: Record<BudgetStatus, Tone> = {
 export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useWorkersData();
   const cost = useCostData();
-  const aiProfiles = useAIProfilesData();
-  const taskHistory = useTaskHistoryData();
   const [runOpen, setRunOpen] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  // Only poll while the panel showing this data is actually open.
+  const aiProfiles = useAIProfilesData(profilesOpen);
+  const taskHistory = useTaskHistoryData(historyOpen);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
   const [manualHandoff, setManualHandoff] = useState<{ taskId: string; outcome: ManualHandoffOutcome } | null>(null);
-  const [splitResults, setSplitResults] = useState<TaskOutcome[] | null>(null);
+  const [splitResults, setSplitResults] = useState<SplitSubtaskResult[] | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -161,7 +162,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
             if (r.ok) {
               setSplitResults(r.result.results);
               const failed = r.result.results.filter(
-                (o) => o.mode === "worker_run" && o.result.status !== "completed",
+                (s) => !s.ok || (s.outcome.mode === "worker_run" && s.outcome.result.status !== "completed"),
               ).length;
               setToast({ text: `${r.result.results.length}件のサブタスクを実行しました`, tone: failed > 0 ? "warn" : "ok" });
             } else {
@@ -175,8 +176,20 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
       {splitResults && (
         <div className="rk-workers__runpanel">
           <div className="rk-workers__flab">分割実行の結果</div>
-          {splitResults.map((outcome, i) =>
-            outcome.mode === "worker_run" ? (
+          {splitResults.map((subtask, i) => {
+            if (!subtask.ok) {
+              return (
+                <div key={i} className="rk-workers__row" style={{ cursor: "default" }}>
+                  <div className="rk-workers__row-body">
+                    <span className="rk-workers__row-route">サブタスク {i + 1}</span>
+                    <span className="rk-workers__row-summary">{subtask.error}</span>
+                  </div>
+                  <StatusChip tone="fail">error</StatusChip>
+                </div>
+              );
+            }
+            const outcome = subtask.outcome;
+            return outcome.mode === "worker_run" ? (
               <div key={i} className="rk-workers__row" style={{ cursor: "default" }}>
                 <div className="rk-workers__row-body">
                   <span className="rk-workers__row-route">{outcome.worker}</span>
@@ -194,8 +207,8 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
                 </div>
                 <StatusChip tone="hold">manual_handoff</StatusChip>
               </div>
-            ),
-          )}
+            );
+          })}
           <div className="rk-workers__runacts">
             <button className="rk-workers__sbtn" onClick={() => setSplitResults(null)}>閉じる</button>
           </div>

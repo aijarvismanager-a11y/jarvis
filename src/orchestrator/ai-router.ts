@@ -72,10 +72,16 @@ export class WorkerRouter {
     }
 
     const candidates = this.registry.findByCapability(capability);
-    const ready = candidates.find((w) => w.definition.status === 'ready') ?? candidates[0];
-    if (!ready) return { ok: false, reason: 'no_worker_available', capability };
+    // Prefer a worker that's exactly 'ready'; otherwise fall back to any
+    // candidate that isn't currently mid-run. A 'working' worker must never
+    // be selected here - concurrent callers (e.g. task splitting) call
+    // route() synchronously before awaiting the run, so this is what stops
+    // two subtasks from being dispatched onto the same busy worker.
+    const picked = candidates.find((w) => w.definition.status === 'ready')
+      ?? candidates.find((w) => w.definition.status !== 'working');
+    if (!picked) return { ok: false, reason: 'no_worker_available', capability };
 
-    return { ok: true, worker: ready.definition.name, capability };
+    return { ok: true, worker: picked.definition.name, capability };
   }
 
   /**

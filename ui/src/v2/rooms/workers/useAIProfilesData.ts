@@ -16,8 +16,13 @@ export type AIProfiles = Record<string, AIProfile>;
  * AI Profile Manager (spec Phase 3's "AI Profile Manager" - previously
  * file-only editing of ai-profiles.json). Same shape as useCostData's
  * budget editor: poll the current table, PUT the whole thing back on save.
+ *
+ * `enabled` (default true) gates both the initial fetch and the polling
+ * interval - pass `false` while the panel showing this data isn't open, so
+ * the room doesn't keep polling in the background for data nobody is
+ * looking at.
  */
-export function useAIProfilesData() {
+export function useAIProfilesData(enabled = true) {
   const [profiles, setProfiles] = useState<AIProfiles>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +46,14 @@ export function useAIProfilesData() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     refresh();
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refresh();
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const saveProfiles = useCallback(
     async (next: AIProfiles): Promise<{ ok: boolean; message: string }> => {

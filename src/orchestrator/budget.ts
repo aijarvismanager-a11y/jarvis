@@ -4,8 +4,8 @@
  * pricing.ts. This is data only; enforcement lives in cost-tracker.ts.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { loadJsonConfig, saveJsonConfig } from '../util/json-config.ts';
 
 export type BudgetConfig = {
   daily_budget: number;
@@ -29,18 +29,9 @@ function budgetPath(dataDir: string): string {
 }
 
 export function loadBudget(dataDir: string): BudgetConfig {
-  const path = budgetPath(dataDir);
-  if (!existsSync(path)) return DEFAULT_BUDGET;
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<BudgetConfig>;
-    return { ...DEFAULT_BUDGET, ...parsed };
-  } catch {
-    return DEFAULT_BUDGET;
-  }
+  return loadJsonConfig(budgetPath(dataDir), DEFAULT_BUDGET);
 }
 
 export function saveBudget(dataDir: string, budget: BudgetConfig): void {
-  const path = budgetPath(dataDir);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(budget, null, 2), 'utf8');
+  saveJsonConfig(budgetPath(dataDir), budget);
 }

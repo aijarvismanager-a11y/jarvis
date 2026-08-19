@@ -102,7 +102,6 @@ export class TaskWorkerRunner {
         reason: decision.reason,
         prompt: buildHandoffPrompt({
           task: request.prompt,
-          objective: request.prompt,
           targetAI: decision.primary ?? '未定',
         }),
       };

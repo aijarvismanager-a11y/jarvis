@@ -10,7 +10,7 @@
  * `tools/call`, a small enough surface to hand-roll.
  */
 
-import { spawn } from 'node:child_process';
+import spawn from 'cross-spawn';
 import { StringDecoder } from 'node:string_decoder';
 import type { Worker, WorkerCapability, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';

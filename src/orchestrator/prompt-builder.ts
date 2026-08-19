@@ -13,7 +13,8 @@
 
 export type PromptBuilderOptions = {
   task: string;
-  objective: string;
+  /** A distinct "why" framing, when the caller actually has one. Omit rather than repeating `task` - a template with no real objective just skips that section instead of showing the same text twice. */
+  objective?: string;
   context?: string;
   expectedOutput?: string[];
   targetAI: string;
@@ -22,7 +23,8 @@ export type PromptBuilderOptions = {
 type TemplateFn = (opts: PromptBuilderOptions) => string;
 
 function genericTemplate(opts: PromptBuilderOptions): string {
-  const lines = ['TASK', opts.task, '', 'OBJECTIVE', opts.objective];
+  const lines = ['TASK', opts.task];
+  if (opts.objective) lines.push('', 'OBJECTIVE', opts.objective);
   if (opts.context) lines.push('', 'CONTEXT', opts.context);
   if (opts.expectedOutput?.length) {
     lines.push('', 'EXPECTED OUTPUT', ...opts.expectedOutput.map((item, i) => `${i + 1}. ${item}`));
@@ -33,7 +35,8 @@ function genericTemplate(opts: PromptBuilderOptions): string {
 
 /** Claude Code reads markdown structure well and is typically driven from a repo - lean into that. */
 function claudeCodeTemplate(opts: PromptBuilderOptions): string {
-  const lines = ['## Task', opts.task, '', '## Objective', opts.objective];
+  const lines = ['## Task', opts.task];
+  if (opts.objective) lines.push('', '## Objective', opts.objective);
   if (opts.context) lines.push('', '## Context', opts.context);
   if (opts.expectedOutput?.length) {
     lines.push('', '## Expected output', ...opts.expectedOutput.map((item, i) => `${i + 1}. ${item}`));
@@ -43,7 +46,7 @@ function claudeCodeTemplate(opts: PromptBuilderOptions): string {
 
 /** Gemini's routed strength is research/summarization - lead with the question, not a form. */
 function geminiTemplate(opts: PromptBuilderOptions): string {
-  const lines = [opts.objective, '', `依頼内容: ${opts.task}`];
+  const lines = opts.objective ? [opts.objective, '', `依頼内容: ${opts.task}`] : [`依頼内容: ${opts.task}`];
   if (opts.context) lines.push('', `背景情報: ${opts.context}`);
   if (opts.expectedOutput?.length) {
     lines.push('', '期待する出力:', ...opts.expectedOutput.map((item, i) => `${i + 1}. ${item}`));
@@ -53,7 +56,8 @@ function geminiTemplate(opts: PromptBuilderOptions): string {
 
 /** Pasted into a chat window - a natural instruction, not a ticket. */
 function chatgptTemplate(opts: PromptBuilderOptions): string {
-  const lines = [`次のタスクをお願いします: ${opts.task}`, '', `目的: ${opts.objective}`];
+  const lines = [`次のタスクをお願いします: ${opts.task}`];
+  if (opts.objective) lines.push('', `目的: ${opts.objective}`);
   if (opts.context) lines.push('', `参考情報: ${opts.context}`);
   if (opts.expectedOutput?.length) {
     lines.push('', 'アウトプットに含めてほしいもの:', ...opts.expectedOutput.map((item) => `- ${item}`));

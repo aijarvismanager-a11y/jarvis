@@ -5,7 +5,7 @@
  * inherits whatever auth the user already has (spec section 1.1, 11).
  */
 
-import { spawn } from 'node:child_process';
+import spawn from 'cross-spawn';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import { checkBinaryAvailable, execCli, withWorkerRetries } from './exec-cli.ts';
 

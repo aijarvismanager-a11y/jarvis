@@ -46,7 +46,7 @@ const PUBLIC_KEY_FILE = 'public.pem';
 // the same ES256 key, scoped by audience, and verified statelessly (signature +
 // exp + aud, no DB hit) so a leak is bounded to the TTL rather than forever.
 const ACCESS_TOKEN_AUDIENCE = 'brain-api';
-const ACCESS_TOKEN_TTL_SECONDS = 600; // 10 minutes
+export const ACCESS_TOKEN_TTL_SECONDS = 600; // 10 minutes
 
 /**
  * Accept only strings shaped like IANA zone names ("Area/City", up to three
@@ -538,7 +538,7 @@ export class SidecarManager implements Service {
    * DB / isEnrolled lookup): the short TTL is the revocation mechanism, which
    * also keeps this cheap on every authenticated request.
    */
-  async verifyAccessToken(token: string): Promise<{ sid: string } | null> {
+  async verifyAccessToken(token: string): Promise<{ sid: string; exp: number } | null> {
     if (!this.publicKey) return null;
     try {
       const { payload } = await jwtVerify(token, this.publicKey, {
@@ -546,8 +546,8 @@ export class SidecarManager implements Service {
         audience: ACCESS_TOKEN_AUDIENCE,
       });
       const sid = typeof payload.sid === 'string' ? payload.sid : '';
-      if (!sid) return null;
-      return { sid };
+      if (!sid || typeof payload.exp !== 'number') return null;
+      return { sid, exp: payload.exp };
     } catch {
       return null;
     }

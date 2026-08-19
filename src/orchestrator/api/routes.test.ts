@@ -400,8 +400,8 @@ describe('createOrchestratorRoutes', () => {
     const body = await resp.json();
     expect(body.task_id).toBe('parent1');
     expect(body.results).toHaveLength(2);
-    expect(body.results[0]).toMatchObject({ mode: 'worker_run', worker: 'claude_code' });
-    expect(body.results[1]).toMatchObject({ mode: 'worker_run', worker: 'gemini' });
+    expect(body.results[0]).toMatchObject({ ok: true, outcome: { mode: 'worker_run', worker: 'claude_code' } });
+    expect(body.results[1]).toMatchObject({ ok: true, outcome: { mode: 'worker_run', worker: 'gemini' } });
   });
 
   it('POST /api/orchestrator/tasks/split validates task_id, subtasks shape, the 10-item cap, and each subtask', async () => {

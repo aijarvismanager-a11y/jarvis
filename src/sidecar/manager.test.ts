@@ -192,7 +192,8 @@ describe('SidecarManager access tokens', () => {
 
       // The access token authenticates the data plane and decodes back to sid.
       const verified = await manager.verifyAccessToken(minted!.token);
-      expect(verified).toEqual({ sid: sidecar.id });
+      expect(verified?.sid).toBe(sidecar.id);
+      expect(verified?.exp).toBeGreaterThan(Date.now() / 1000);
 
       // Carries a real expiry (unlike the long-lived enrollment JWT).
       const decoded = decodeJwt(minted!.token);
@@ -240,7 +241,7 @@ describe('SidecarManager access tokens', () => {
       expect(await manager.validateToken(access!.token)).toBeNull();
 
       // Sanity: each is still valid on its own side.
-      expect(await manager.verifyAccessToken(access!.token)).toEqual({ sid: sidecar.id });
+      expect((await manager.verifyAccessToken(access!.token))?.sid).toBe(sidecar.id);
       expect((await manager.validateToken(enrollmentJwt))?.sid).toBe(sidecar.id);
 
       await manager.stop();

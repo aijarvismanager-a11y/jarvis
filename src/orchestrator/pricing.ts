@@ -6,8 +6,8 @@
  * token counts src/llm/usage.ts already recorded.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { loadJsonConfig, saveJsonConfig } from '../util/json-config.ts';
 
 export type ModelPricing = {
   /** Cost per 1,000 input tokens, in `PricingTable.currency`. */
@@ -77,25 +77,15 @@ function pricingPath(dataDir: string): string {
 
 /** Falls back to the defaults, merged under any user overrides, if the file is missing or unreadable. */
 export function loadPricing(dataDir: string): PricingTable {
-  const path = pricingPath(dataDir);
-  if (!existsSync(path)) return DEFAULT_PRICING;
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<PricingTable>;
-    return {
-      currency: parsed.currency ?? DEFAULT_PRICING.currency,
-      fx_rate_usd: parsed.fx_rate_usd ?? DEFAULT_PRICING.fx_rate_usd,
-      models: { ...DEFAULT_PRICING.models, ...(parsed.models ?? {}) },
-      default: parsed.default ?? DEFAULT_PRICING.default,
-    };
-  } catch {
-    return DEFAULT_PRICING;
-  }
+  return loadJsonConfig(pricingPath(dataDir), DEFAULT_PRICING, (defaults, parsed) => ({
+    ...defaults,
+    ...parsed,
+    models: { ...defaults.models, ...(parsed.models ?? {}) },
+  }));
 }
 
 export function savePricing(dataDir: string, pricing: PricingTable): void {
-  const path = pricingPath(dataDir);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(pricing, null, 2), 'utf8');
+  saveJsonConfig(pricingPath(dataDir), pricing);
 }
 
 /** Estimated cost, in `pricing.currency`, for one call's token counts. Unknown provider:model pairs use `pricing.default` rather than reporting 0. */

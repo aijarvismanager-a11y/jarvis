@@ -40,28 +40,41 @@ function historyPath(dataDir: string): string {
   return join(dataDir, 'task-history.json');
 }
 
+// computeSuccessRates() runs on every Manual Handoff routing decision, which
+// would otherwise mean a synchronous readFileSync+JSON.parse of the whole
+// file (up to MAX_ENTRIES entries) on the request path every time. This
+// module is the only writer of task-history.json, so an in-memory cache
+// invalidated only on our own writes (see writeAll) is safe.
+const cache = new Map<string, TaskHistoryEntry[]>();
+
 function readAll(dataDir: string): TaskHistoryEntry[] {
+  const cached = cache.get(dataDir);
+  if (cached) return cached;
   const path = historyPath(dataDir);
-  if (!existsSync(path)) return [];
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8'));
-    return Array.isArray(parsed) ? (parsed as TaskHistoryEntry[]) : [];
-  } catch {
-    return [];
+  let entries: TaskHistoryEntry[] = [];
+  if (existsSync(path)) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      entries = Array.isArray(parsed) ? (parsed as TaskHistoryEntry[]) : [];
+    } catch {
+      entries = [];
+    }
   }
+  cache.set(dataDir, entries);
+  return entries;
 }
 
 function writeAll(dataDir: string, entries: TaskHistoryEntry[]): void {
   const path = historyPath(dataDir);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(entries, null, 2), 'utf8');
+  cache.set(dataDir, entries);
 }
 
 /** Appends one outcome, oldest-first on disk, capped to MAX_ENTRIES (drops the oldest). Best-effort: a write failure here must never fail the task it's logging. */
 export function appendTaskHistory(dataDir: string, entry: TaskHistoryEntry): void {
   try {
-    const entries = readAll(dataDir);
-    entries.push(entry);
+    const entries = [...readAll(dataDir), entry];
     if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES);
     writeAll(dataDir, entries);
   } catch (err) {

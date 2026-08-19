@@ -66,9 +66,12 @@ export interface SplitSubtaskInput {
   worker?: string;
 }
 
+/** One subtask's outcome from a split run - each subtask can fail independently of the others (a Worker throwing, an invalid task_id, ...), so this is ok/error per entry rather than one all-or-nothing result. */
+export type SplitSubtaskResult = { ok: true; outcome: TaskOutcome } | { ok: false; error: string };
+
 export interface SplitTaskResult {
   task_id: string;
-  results: TaskOutcome[];
+  results: SplitSubtaskResult[];
 }
 
 /**

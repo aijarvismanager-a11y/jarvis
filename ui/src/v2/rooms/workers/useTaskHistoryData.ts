@@ -17,8 +17,15 @@ export interface SuccessRateEntry {
   successRate: number;
 }
 
-/** Task History + Success Rate (spec §38 optional checklist "使用履歴"/"成功率"). */
-export function useTaskHistoryData() {
+/**
+ * Task History + Success Rate (spec §38 optional checklist "使用履歴"/"成功率").
+ *
+ * `enabled` (default true) gates both the initial fetch and the polling
+ * interval - pass `false` while the panel showing this data isn't open, so
+ * the room doesn't keep polling in the background for data nobody is
+ * looking at.
+ */
+export function useTaskHistoryData(enabled = true) {
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
   const [rates, setRates] = useState<SuccessRateEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,13 +60,14 @@ export function useTaskHistoryData() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     refresh();
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refresh();
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   return { history, rates, loading, error, refresh };
 }

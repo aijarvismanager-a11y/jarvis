@@ -4,7 +4,7 @@
  * (spec section 12): research, summarizing, idea organization.
  */
 
-import { spawn } from 'node:child_process';
+import spawn from 'cross-spawn';
 import type { Worker, WorkerDefinition, WorkerRunRequest, WorkerRunResult } from './types.ts';
 import type { SpawnFn } from './claude-code.ts';
 import { checkBinaryAvailable, execCli, withWorkerRetries } from './exec-cli.ts';

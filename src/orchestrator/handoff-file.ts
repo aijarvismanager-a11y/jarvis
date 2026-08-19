@@ -22,8 +22,11 @@ export type FileHandoff = {
   next_action: string;
 };
 
+/** task_id becomes a filename (`${taskId}.json`) - this is the full set of characters that's safe there on every OS. Exported so callers (routes.ts) can reject a bad task_id up front, before a Worker runs, instead of only failing once handoffFilePath() throws after the fact. */
+export const TASK_ID_RE = /^[A-Za-z0-9_-]+$/;
+
 export function handoffFilePath(handoffDir: string, taskId: string): string {
-  if (!/^[A-Za-z0-9_-]+$/.test(taskId)) {
+  if (!TASK_ID_RE.test(taskId)) {
     throw new Error(`invalid task_id: ${taskId}`);
   }
   return join(handoffDir, `${taskId}.json`);

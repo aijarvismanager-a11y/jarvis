@@ -9,7 +9,7 @@ import type { WorkerRegistry } from '../../workers/registry.ts';
 import type { WorkerDefinition } from '../../workers/types.ts';
 import type { TaskWorkerRunner } from '../task-runner.ts';
 import type { TaskTemplate } from '../../agents/conv/task-envelope.ts';
-import { listHandoffFiles } from '../handoff-file.ts';
+import { listHandoffFiles, TASK_ID_RE } from '../handoff-file.ts';
 import type { WorkspacePaths } from '../workspace.ts';
 import { setWorkerEnabledPersisted } from '../../workers/settings.ts';
 import { addCustomWorker, removeCustomWorker } from '../../workers/custom-registry.ts';
@@ -227,6 +227,9 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         if (!body || typeof body.task_id !== 'string' || !body.task_id) {
           return error('task_id is required', 400);
         }
+        if (!TASK_ID_RE.test(body.task_id)) {
+          return error('task_id must match /^[A-Za-z0-9_-]+$/', 400);
+        }
         const parsed = parseSubtask(body);
         if (!parsed.ok) return error(parsed.error, 400);
 
@@ -253,6 +256,9 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         if (!body || typeof body.task_id !== 'string' || !body.task_id) {
           return error('task_id is required', 400);
         }
+        if (!TASK_ID_RE.test(body.task_id)) {
+          return error('task_id must match /^[A-Za-z0-9_-]+$/', 400);
+        }
         if (!Array.isArray(body.subtasks) || body.subtasks.length === 0) {
           return error('subtasks must be a non-empty array', 400);
         }
@@ -267,14 +273,19 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
           parsedSubtasks.push(parsed.value);
         }
 
-        try {
-          const results = await Promise.all(
-            parsedSubtasks.map((sub, i) => ctx.getRunner().run({ task_id: `${body.task_id}_${i + 1}`, ...sub })),
-          );
-          return json({ task_id: body.task_id, results });
-        } catch (err) {
-          return error(err instanceof Error ? err.message : String(err), 502);
-        }
+        // allSettled, not all: subtasks are independent and each already
+        // runs a real Worker with real side effects (cost, handoff files,
+        // task history) before it can fail, so one subtask throwing must
+        // not discard the outcomes of the others.
+        const settled = await Promise.allSettled(
+          parsedSubtasks.map((sub, i) => ctx.getRunner().run({ task_id: `${body.task_id}_${i + 1}`, ...sub })),
+        );
+        const results = settled.map((s) =>
+          s.status === 'fulfilled'
+            ? { ok: true as const, outcome: s.value }
+            : { ok: false as const, error: s.reason instanceof Error ? s.reason.message : String(s.reason) },
+        );
+        return json({ task_id: body.task_id, results });
       },
     },
 
