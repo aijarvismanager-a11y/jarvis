@@ -4234,7 +4234,8 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
           console.error('[Daemon] Failed to record internal handoff for external worker task:', err);
         }
       },
-      loadAIProfiles(dataDir)
+      loadAIProfiles(dataDir),
+      dataDir
     );
 
     // Cost management (spec section 19-20): stop direct paid-API calls once

@@ -11,9 +11,12 @@ import {
   type FileHandoff,
   type TaskTemplate,
   type ManualHandoffOutcome,
+  type TaskOutcome,
+  type SplitSubtaskInput,
 } from "./useWorkersData";
 import { useCostData, type BudgetConfig, type BudgetStatus, type CostSummary } from "./useCostData";
 import { useAIProfilesData, type AIProfile, type AIProfiles } from "./useAIProfilesData";
+import { useTaskHistoryData, type TaskHistoryEntry, type SuccessRateEntry } from "./useTaskHistoryData";
 import "./WorkersRoom.css";
 
 export type RoomBodyMode = "inline" | "expanded";
@@ -49,13 +52,17 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useWorkersData();
   const cost = useCostData();
   const aiProfiles = useAIProfilesData();
+  const taskHistory = useTaskHistoryData();
   const [runOpen, setRunOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
   const [manualHandoff, setManualHandoff] = useState<{ taskId: string; outcome: ManualHandoffOutcome } | null>(null);
+  const [splitResults, setSplitResults] = useState<TaskOutcome[] | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -104,6 +111,12 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
         <button className="rk-workers__new" onClick={() => setCostOpen((v) => !v)}>
           {costOpen ? "閉じる" : "コスト管理"}
         </button>
+        <button className="rk-workers__new" onClick={() => setHistoryOpen((v) => !v)}>
+          {historyOpen ? "閉じる" : "履歴"}
+        </button>
+        <button className="rk-workers__new" onClick={() => setSplitOpen((v) => !v)}>
+          {splitOpen ? "閉じる" : "タスク分割"}
+        </button>
         <button className="rk-workers__new" onClick={() => setRunOpen((v) => !v)}>
           {runOpen ? "閉じる" : "タスクを実行"}
         </button>
@@ -133,6 +146,60 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
             return r.ok;
           }}
         />
+      )}
+
+      {historyOpen && (
+        <HistoryPanel history={taskHistory.history} rates={taskHistory.rates} loading={taskHistory.loading} error={taskHistory.error} />
+      )}
+
+      {splitOpen && (
+        <SplitPanel
+          workers={data.workers}
+          busy={data.running}
+          onRun={async (subtasks) => {
+            const r = await data.runSplitTask(subtasks);
+            if (r.ok) {
+              setSplitResults(r.result.results);
+              const failed = r.result.results.filter(
+                (o) => o.mode === "worker_run" && o.result.status !== "completed",
+              ).length;
+              setToast({ text: `${r.result.results.length}件のサブタスクを実行しました`, tone: failed > 0 ? "warn" : "ok" });
+            } else {
+              setToast({ text: r.message, tone: "warn" });
+            }
+            return r.ok;
+          }}
+        />
+      )}
+
+      {splitResults && (
+        <div className="rk-workers__runpanel">
+          <div className="rk-workers__flab">分割実行の結果</div>
+          {splitResults.map((outcome, i) =>
+            outcome.mode === "worker_run" ? (
+              <div key={i} className="rk-workers__row" style={{ cursor: "default" }}>
+                <div className="rk-workers__row-body">
+                  <span className="rk-workers__row-route">{outcome.worker}</span>
+                  <span className="rk-workers__row-summary">{outcome.result.summary}</span>
+                </div>
+                <StatusChip tone={outcome.result.status === "completed" ? "ok" : outcome.result.status === "needs_input" ? "hold" : "fail"}>
+                  {outcome.result.status}
+                </StatusChip>
+              </div>
+            ) : (
+              <div key={i} className="rk-workers__row" style={{ cursor: "default" }}>
+                <div className="rk-workers__row-body">
+                  <span className="rk-workers__row-route">{outcome.primary ?? "(なし)"}</span>
+                  <span className="rk-workers__row-summary">{outcome.reason}</span>
+                </div>
+                <StatusChip tone="hold">manual_handoff</StatusChip>
+              </div>
+            ),
+          )}
+          <div className="rk-workers__runacts">
+            <button className="rk-workers__sbtn" onClick={() => setSplitResults(null)}>閉じる</button>
+          </div>
+        </div>
       )}
 
       {runOpen && (
@@ -295,6 +362,146 @@ function HandoffDetail({ handoff }: { handoff: FileHandoff }) {
         <div className="rk-workers__card-meta">ファイル: {handoff.files.join(", ")}</div>
       )}
       <div className="rk-workers__card-meta">次: {handoff.next_action}</div>
+    </div>
+  );
+}
+
+/** Task History + Success Rate (spec §38 optional checklist). */
+function HistoryPanel({
+  history,
+  rates,
+  loading,
+  error,
+}: {
+  history: TaskHistoryEntry[];
+  rates: SuccessRateEntry[];
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading && history.length === 0) {
+    return <div className="rk-workers__runpanel"><Skeleton lines={3} /></div>;
+  }
+  if (error) {
+    return <div className="rk-workers__runpanel"><div className="rk-workers__msg">{error}</div></div>;
+  }
+
+  return (
+    <div className="rk-workers__runpanel">
+      {rates.length > 0 && (
+        <>
+          <div className="rk-workers__flab">成功率</div>
+          <div className="rk-workers__card-caps" style={{ marginBottom: 4 }}>
+            {rates.map((r) => (
+              <span key={r.worker} className="rk-workers__cap">
+                {r.worker}: {Math.round(r.successRate * 100)}%({r.completed}/{r.total})
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="rk-workers__flab">タスク履歴</div>
+      {history.length === 0 ? (
+        <div className="rk-workers__sub">まだ履歴がありません。</div>
+      ) : (
+        history.map((h) => (
+          <div key={`${h.task_id}-${h.timestamp}`} className="rk-workers__row" style={{ cursor: "default" }}>
+            <div className="rk-workers__row-body">
+              <span className="rk-workers__row-route">
+                {h.mode === "worker_run" ? h.worker : `${h.primary ?? "(なし)"} (manual)`}
+              </span>
+              <span className="rk-workers__row-summary">
+                {h.template} · {new Date(h.timestamp).toLocaleString()}
+              </span>
+            </div>
+            <StatusChip
+              tone={
+                h.mode === "manual_handoff"
+                  ? "hold"
+                  : h.status === "completed"
+                    ? "ok"
+                    : h.status === "needs_input"
+                      ? "hold"
+                      : "fail"
+              }
+            >
+              {h.mode === "worker_run" ? h.status : "manual_handoff"}
+            </StatusChip>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** Multi-AI task splitting (spec §38 optional checklist "複数AIへのタスク分割"): the caller (here, the user) supplies each subtask's template/prompt/worker; JARVIS fans them out through the normal Router/Manual-Handoff path per subtask rather than auto-decomposing the task itself. */
+function SplitPanel({
+  workers,
+  busy,
+  onRun,
+}: {
+  workers: WorkerSummary[];
+  busy: boolean;
+  onRun: (subtasks: SplitSubtaskInput[]) => Promise<boolean>;
+}) {
+  const [rows, setRows] = useState<SplitSubtaskInput[]>([
+    { template: "general", prompt: "" },
+    { template: "general", prompt: "" },
+  ]);
+  const submittingRef = useRef(false);
+
+  const updateRow = (i: number, patch: Partial<SplitSubtaskInput>) => {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  };
+  const addRow = () => setRows((prev) => (prev.length >= 10 ? prev : [...prev, { template: "general", prompt: "" }]));
+  const removeRow = (i: number) => setRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+
+  const canSubmit = rows.every((r) => r.prompt.trim()) && rows.length > 0;
+
+  const submit = async () => {
+    if (!canSubmit || busy || submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      const ok = await onRun(rows.map((r) => ({ ...r, prompt: r.prompt.trim(), ...(r.worker ? { worker: r.worker } : {}) })));
+      if (ok) setRows([{ template: "general", prompt: "" }, { template: "general", prompt: "" }]);
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
+  return (
+    <div className="rk-workers__runpanel">
+      <div className="rk-workers__dialog-sub">
+        1つの親タスクを複数のサブタスクに分け、それぞれ独立してルーティング(自動実行 or Manual Handoff)します。最大10件。
+      </div>
+      {rows.map((row, i) => (
+        <div key={i} className="rk-workers__runrow" style={{ alignItems: "flex-end" }}>
+          <div>
+            <div className="rk-workers__flab">テンプレート</div>
+            <Select value={row.template} onChange={(e) => updateRow(i, { template: e.target.value as TaskTemplate })}>
+              {TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </div>
+          <div>
+            <div className="rk-workers__flab">ワーカー (任意)</div>
+            <Select value={row.worker ?? ""} onChange={(e) => updateRow(i, { worker: e.target.value || undefined })}>
+              <option value="">自動</option>
+              {workers.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
+            </Select>
+          </div>
+          <div style={{ flex: 2 }}>
+            <div className="rk-workers__flab">プロンプト</div>
+            <Input value={row.prompt} onChange={(e) => updateRow(i, { prompt: e.target.value })} placeholder="サブタスクの内容" />
+          </div>
+          <button className="rk-workers__sbtn" onClick={() => removeRow(i)} disabled={rows.length <= 1}>削除</button>
+        </div>
+      ))}
+      <div className="rk-workers__runacts" style={{ justifyContent: "space-between" }}>
+        <button className="rk-workers__sbtn" onClick={addRow} disabled={rows.length >= 10}>+ サブタスクを追加</button>
+        <button className="rk-workers__sbtn rk-workers__sbtn--pri" disabled={busy || !canSubmit} onClick={submit}>
+          {busy ? "実行中…" : "分割実行"}
+        </button>
+      </div>
     </div>
   );
 }

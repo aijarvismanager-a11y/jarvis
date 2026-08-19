@@ -60,6 +60,17 @@ export interface ManualHandoffOutcome {
 
 export type TaskOutcome = WorkerRunOutcome | ManualHandoffOutcome;
 
+export interface SplitSubtaskInput {
+  template: TaskTemplate;
+  prompt: string;
+  worker?: string;
+}
+
+export interface SplitTaskResult {
+  task_id: string;
+  results: TaskOutcome[];
+}
+
 /**
  * Workers Room hook - the dashboard surface for the external AI Worker
  * layer (spec section 3/10/17/23: AI Status / Task / Handoff). Polls
@@ -199,5 +210,30 @@ export function useWorkersData() {
     [refresh],
   );
 
-  return { workers, handoffs, loading, running, error, refresh, setEnabled, runTask, addWorker, removeWorker };
+  const runSplitTask = useCallback(
+    async (subtasks: SplitSubtaskInput[]): Promise<{ ok: true; result: SplitTaskResult } | { ok: false; message: string }> => {
+      setRunning(true);
+      try {
+        const resp = await fetch("/api/orchestrator/tasks/split", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task_id: `split_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            subtasks,
+          }),
+        });
+        if (!resp.ok) throw new Error(await parseErrorMessage(resp));
+        const result = (await resp.json()) as SplitTaskResult;
+        await refresh();
+        return { ok: true, result };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "タスク分割の実行に失敗しました" };
+      } finally {
+        setRunning(false);
+      }
+    },
+    [refresh],
+  );
+
+  return { workers, handoffs, loading, running, error, refresh, setEnabled, runTask, runSplitTask, addWorker, removeWorker };
 }

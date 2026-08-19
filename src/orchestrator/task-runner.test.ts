@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { WorkerRegistry } from '../workers/registry.ts';
 import { ensureWorkspace } from './workspace.ts';
 import { TaskWorkerRunner } from './task-runner.ts';
+import { loadTaskHistory } from './task-history.ts';
 import type { Worker, WorkerRunRequest, WorkerRunResult } from '../workers/types.ts';
 
 function fakeWorker(name: string, result: WorkerRunResult): Worker {
@@ -96,5 +97,44 @@ describe('TaskWorkerRunner.run', () => {
 
     expect(outcome.result.status).toBe('failed');
     expect(registry.get('claude_code')?.definition.status).toBe('error');
+  });
+
+  it('does not touch task-history.json when no dataDir is given', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'jarvis-runner-'));
+    const workspace = ensureWorkspace(dir);
+    const registry = new WorkerRegistry();
+    registry.register(fakeWorker('claude_code', { status: 'completed', summary: 'ok', output: '', files: [] }));
+
+    const runner = new TaskWorkerRunner(registry, workspace);
+    await runner.run({ task_id: 'task_h1', template: 'code', prompt: 'x' });
+
+    expect(loadTaskHistory(dir)).toEqual([]);
+  });
+
+  it('appends a worker_run entry to task-history.json when dataDir is given', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'jarvis-runner-'));
+    const workspace = ensureWorkspace(dir);
+    const registry = new WorkerRegistry();
+    registry.register(fakeWorker('claude_code', { status: 'completed', summary: 'ok', output: '', files: [] }));
+
+    const runner = new TaskWorkerRunner(registry, workspace, undefined, undefined, dir);
+    await runner.run({ task_id: 'task_h2', template: 'code', prompt: 'x' });
+
+    const history = loadTaskHistory(dir);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ task_id: 'task_h2', mode: 'worker_run', worker: 'claude_code', status: 'completed' });
+  });
+
+  it('appends a manual_handoff entry to task-history.json when dataDir is given', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'jarvis-runner-'));
+    const workspace = ensureWorkspace(dir);
+    const registry = new WorkerRegistry();
+
+    const runner = new TaskWorkerRunner(registry, workspace, undefined, undefined, dir);
+    await runner.run({ task_id: 'task_h3', template: 'code', prompt: 'x' });
+
+    const history = loadTaskHistory(dir);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ task_id: 'task_h3', mode: 'manual_handoff' });
   });
 });

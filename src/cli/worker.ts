@@ -114,7 +114,13 @@ export async function runWorkerCommand(args: string[]): Promise<void> {
       }
     }
 
-    const runner = new TaskWorkerRunner(registry, workspace, undefined, loadAIProfiles(jarvisConfig.daemon.data_dir));
+    const runner = new TaskWorkerRunner(
+      registry,
+      workspace,
+      undefined,
+      loadAIProfiles(jarvisConfig.daemon.data_dir),
+      jarvisConfig.daemon.data_dir,
+    );
     const taskId = flags.id ?? `task_${Date.now()}`;
 
     console.log(c.dim(`Routing "${flags.template}" task ${taskId}...`));

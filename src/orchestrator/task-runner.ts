@@ -23,6 +23,7 @@ import { DEFAULT_AI_PROFILES, type AIProfiles } from './ai-profiles.ts';
 import { buildHandoffPrompt } from './prompt-builder.ts';
 import { writeHandoffFile, type FileHandoff } from './handoff-file.ts';
 import type { WorkspacePaths } from './workspace.ts';
+import { appendTaskHistory } from './task-history.ts';
 
 export type TaskWorkerRequest = {
   task_id: string;
@@ -68,15 +69,28 @@ export class TaskWorkerRunner {
     private readonly registry: WorkerRegistry,
     private readonly workspace: WorkspacePaths,
     private readonly recordInternalHandoff?: InternalHandoffRecorder,
-    profiles: AIProfiles = DEFAULT_AI_PROFILES
+    profiles: AIProfiles = DEFAULT_AI_PROFILES,
+    /** When set: task-history.json gets an entry per run() call, and recommend()'s scoring is nudged by each AI's recorded success rate (spec §38 "使用履歴"/"成功率"/"自動学習"). Omitted in most tests - history/learning are opt-in extras, not required for routing to work. */
+    private readonly dataDir?: string,
   ) {
-    this.router = new WorkerRouter(registry, profiles);
+    this.router = new WorkerRouter(registry, profiles, dataDir);
   }
 
   async run(request: TaskWorkerRequest): Promise<TaskWorkerOutcome | ManualHandoffOutcome> {
     const routing = this.router.route({ template: request.template, explicitWorker: request.explicitWorker });
     if (!routing.ok) {
       const decision = this.router.recommend({ template: request.template, explicitWorker: request.explicitWorker });
+      if (this.dataDir) {
+        appendTaskHistory(this.dataDir, {
+          task_id: request.task_id,
+          template: request.template,
+          timestamp: Date.now(),
+          mode: 'manual_handoff',
+          primary: decision.primary,
+          fallback: decision.fallback,
+          reason: decision.reason,
+        });
+      }
       return {
         mode: 'manual_handoff',
         task_type: decision.task_type,
@@ -131,6 +145,17 @@ export class TaskWorkerRunner {
       summary: result.summary,
       files: result.files,
     });
+
+    if (this.dataDir) {
+      appendTaskHistory(this.dataDir, {
+        task_id: request.task_id,
+        template: request.template,
+        timestamp: Date.now(),
+        mode: 'worker_run',
+        worker: worker.definition.name,
+        status: result.status,
+      });
+    }
 
     return { mode: 'worker_run', worker: worker.definition.name, result, handoffFilePath };
   }

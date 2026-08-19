@@ -10,6 +10,7 @@ import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
 import type { WorkerCapability } from '../workers/types.ts';
 import type { WorkerRegistry } from '../workers/registry.ts';
 import { DEFAULT_AI_PROFILES, type AIProfiles } from './ai-profiles.ts';
+import { computeSuccessRates } from './task-history.ts';
 
 /** Task template -> capability a Worker must declare to take it. */
 const TEMPLATE_TO_CAPABILITY: Record<TaskTemplate, WorkerCapability> = {
@@ -42,10 +43,17 @@ export type RoutingDecision = {
 
 const MAX_STRENGTH = 5;
 
+/** A worker needs at least this many recorded worker_run outcomes for that capability before its success rate nudges scoring - one lucky/unlucky run shouldn't swing a recommendation. */
+const MIN_SAMPLES_FOR_LEARNING = 3;
+/** Bounds the nudge to roughly the same scale as one strength point, so real recorded outcomes can outweigh a stale hand-set strength score but never override a strong lead from it entirely. */
+const LEARNING_ADJUSTMENT_SCALE = 2;
+
 export class WorkerRouter {
   constructor(
     private readonly registry: WorkerRegistry,
-    private readonly profiles: AIProfiles = DEFAULT_AI_PROFILES
+    private readonly profiles: AIProfiles = DEFAULT_AI_PROFILES,
+    /** When set, recommend() nudges scores by each AI's recorded success rate for the task's capability (spec §38 "自動学習") - real outcome data, computed fresh from task-history.json each call, not a persisted/opaque model. Omitted in most tests and by route() callers that don't need recommend(). */
+    private readonly dataDir?: string,
   ) {}
 
   /**
@@ -92,17 +100,35 @@ export class WorkerRouter {
       };
     }
 
+    const rates = this.dataDir ? computeSuccessRates(this.dataDir, capability) : [];
+    const rateByWorker = new Map(rates.map((r) => [r.worker, r]));
+
     const ranked = Object.entries(this.profiles)
       .filter(([, profile]) => profile.enabled)
-      .map(([name, profile]) => ({
-        name,
-        score: (profile.strengths[capability] ?? 0) - profile.priority * 0.1,
-        available: this.isAvailable(name, capability),
-      }))
+      .map(([name, profile]) => {
+        const rate = rateByWorker.get(name);
+        const learned = !!rate && rate.total >= MIN_SAMPLES_FOR_LEARNING;
+        const adjustment = learned ? (rate!.successRate - 0.5) * LEARNING_ADJUSTMENT_SCALE : 0;
+        return {
+          name,
+          score: (profile.strengths[capability] ?? 0) - profile.priority * 0.1 + adjustment,
+          available: this.isAvailable(name, capability),
+          learned,
+          rate,
+        };
+      })
       .sort((a, b) => b.score - a.score || Number(b.available) - Number(a.available));
 
     const primary = ranked[0];
     const fallback = ranked[1];
+
+    const baseReason = primary
+      ? `"${capability}" タスクとして分類され、${primary.name} の適性スコアが最も高いため`
+      : `"${capability}" に対応するAIプロファイルが見つかりません`;
+    const reason =
+      primary?.learned && primary.rate
+        ? `${baseReason}(過去の成功率 ${Math.round(primary.rate.successRate * 100)}%・${primary.rate.total}件を考慮)`
+        : baseReason;
 
     return {
       task_type: capability,
@@ -111,9 +137,7 @@ export class WorkerRouter {
       fallback: fallback?.name ?? null,
       fallbackAvailable: fallback?.available ?? false,
       confidence: primary ? Math.min(1, Math.max(0, primary.score / MAX_STRENGTH)) : 0,
-      reason: primary
-        ? `"${capability}" タスクとして分類され、${primary.name} の適性スコアが最も高いため`
-        : `"${capability}" に対応するAIプロファイルが見つかりません`,
+      reason,
     };
   }
 

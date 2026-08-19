@@ -22,6 +22,7 @@ import { getCostSummary } from '../cost-tracker.ts';
 import { loadBudget, saveBudget, type BudgetConfig } from '../budget.ts';
 import { loadPricing, savePricing, type PricingTable } from '../pricing.ts';
 import { loadAIProfiles, saveAIProfiles, type AIProfiles } from '../ai-profiles.ts';
+import { loadTaskHistory, computeSuccessRates } from '../task-history.ts';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: getCorsHeaders() });
@@ -44,6 +45,30 @@ export type OrchestratorApiContext = {
   getWorkspace: () => WorkspacePaths;
   getDataDir: () => string;
 };
+
+type SubtaskParseResult =
+  | { ok: true; value: { template: TaskTemplate; prompt: string; explicitWorker?: string } }
+  | { ok: false; error: string };
+
+/** Shared body validation for a single {template, prompt, worker?} task - used by /tasks and each entry of /tasks/split. */
+function parseSubtask(raw: unknown): SubtaskParseResult {
+  const body = raw as { template?: unknown; prompt?: unknown; worker?: unknown } | null;
+  if (!body || typeof body !== 'object') return { ok: false, error: 'must be an object' };
+  if (typeof body.template !== 'string' || !VALID_TEMPLATES.includes(body.template as TaskTemplate)) {
+    return { ok: false, error: `template must be one of: ${VALID_TEMPLATES.join(', ')}` };
+  }
+  if (typeof body.prompt !== 'string' || !body.prompt) {
+    return { ok: false, error: 'prompt is required' };
+  }
+  return {
+    ok: true,
+    value: {
+      template: body.template as TaskTemplate,
+      prompt: body.prompt,
+      ...(typeof body.worker === 'string' ? { explicitWorker: body.worker } : {}),
+    },
+  };
+}
 
 function serializeWorker(def: WorkerDefinition) {
   // Workspace is a local filesystem path - not useful (and mildly sensitive)
@@ -202,24 +227,69 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         if (!body || typeof body.task_id !== 'string' || !body.task_id) {
           return error('task_id is required', 400);
         }
-        if (typeof body.template !== 'string' || !VALID_TEMPLATES.includes(body.template as TaskTemplate)) {
-          return error(`template must be one of: ${VALID_TEMPLATES.join(', ')}`, 400);
-        }
-        if (typeof body.prompt !== 'string' || !body.prompt) {
-          return error('prompt is required', 400);
-        }
+        const parsed = parseSubtask(body);
+        if (!parsed.ok) return error(parsed.error, 400);
 
         try {
-          const outcome = await ctx.getRunner().run({
-            task_id: body.task_id,
-            template: body.template as TaskTemplate,
-            prompt: body.prompt,
-            ...(typeof body.worker === 'string' ? { explicitWorker: body.worker } : {}),
-          });
+          const outcome = await ctx.getRunner().run({ task_id: body.task_id, ...parsed.value });
           return json(outcome);
         } catch (err) {
           return error(err instanceof Error ? err.message : String(err), 502);
         }
+      },
+    },
+
+    // Multi-AI task splitting (spec §38 optional checklist "複数AIへのタスク分割"):
+    // JARVIS doesn't auto-decompose a task (that would need an LLM call just to
+    // plan the split - Rule 2's "don't call a paid API just for the Router" cuts
+    // against that). The caller supplies the subtasks; this just fans each one
+    // out through the same route()/recommend() path POST /tasks uses, so a
+    // single parent task can land on several different AIs at once.
+    '/api/orchestrator/tasks/split': {
+      POST: async (req: Request) => {
+        const body = (await req.json().catch(() => null)) as
+          | { task_id?: unknown; subtasks?: unknown }
+          | null;
+        if (!body || typeof body.task_id !== 'string' || !body.task_id) {
+          return error('task_id is required', 400);
+        }
+        if (!Array.isArray(body.subtasks) || body.subtasks.length === 0) {
+          return error('subtasks must be a non-empty array', 400);
+        }
+        if (body.subtasks.length > 10) {
+          return error('subtasks is capped at 10 per split', 400);
+        }
+
+        const parsedSubtasks: { template: TaskTemplate; prompt: string; explicitWorker?: string }[] = [];
+        for (let i = 0; i < body.subtasks.length; i++) {
+          const parsed = parseSubtask(body.subtasks[i]);
+          if (!parsed.ok) return error(`subtasks[${i}]: ${parsed.error}`, 400);
+          parsedSubtasks.push(parsed.value);
+        }
+
+        try {
+          const results = await Promise.all(
+            parsedSubtasks.map((sub, i) => ctx.getRunner().run({ task_id: `${body.task_id}_${i + 1}`, ...sub })),
+          );
+          return json({ task_id: body.task_id, results });
+        } catch (err) {
+          return error(err instanceof Error ? err.message : String(err), 502);
+        }
+      },
+    },
+
+    '/api/orchestrator/task-history': {
+      GET: (req: Request) => {
+        const limitParam = new URL(req.url).searchParams.get('limit');
+        const parsedLimit = limitParam === null ? 50 : parseInt(limitParam, 10);
+        const limit = Math.min(Math.max(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 0), 500);
+        return json({ history: loadTaskHistory(ctx.getDataDir(), limit) });
+      },
+    },
+
+    '/api/orchestrator/success-rate': {
+      GET: (_req: Request) => {
+        return json({ rates: computeSuccessRates(ctx.getDataDir()) });
       },
     },
 

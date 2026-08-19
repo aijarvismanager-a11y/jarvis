@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { WorkerRegistry } from '../workers/registry.ts';
 import { WorkerRouter } from './ai-router.ts';
+import { appendTaskHistory } from './task-history.ts';
 import type { Worker, WorkerRunRequest, WorkerRunResult } from '../workers/types.ts';
+
+function withTmpDir(fn: (dir: string) => void) {
+  const dir = mkdtempSync(join(tmpdir(), 'jarvis-ai-router-'));
+  try {
+    fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 function fakeWorker(
   name: string,
@@ -102,5 +115,57 @@ describe('WorkerRouter.recommend', () => {
     expect(decision.primary).toBe('gemini');
     expect(decision.fallback).toBeNull();
     expect(decision.confidence).toBe(1);
+  });
+
+  it('ignores task-history when no dataDir is given (default, unlearned behavior unchanged)', () => {
+    const registry = new WorkerRegistry();
+    const decision = new WorkerRouter(registry).recommend({ template: 'code' });
+    expect(decision.primary).toBe('claude_code');
+    expect(decision.reason).not.toContain('成功率');
+  });
+
+  it('nudges the winner toward a worker with a strong recorded success rate for that capability', () => {
+    withTmpDir((dir) => {
+      const registry = new WorkerRegistry();
+      // Default profiles score claude_code (5) above gemini (4) for "code" -
+      // claude_code wins by default. Feed enough history to flip it.
+      for (let i = 0; i < 3; i++) {
+        appendTaskHistory(dir, { task_id: `f${i}`, template: 'code', timestamp: i, mode: 'worker_run', worker: 'claude_code', status: 'failed' });
+        appendTaskHistory(dir, { task_id: `c${i}`, template: 'code', timestamp: i, mode: 'worker_run', worker: 'gemini', status: 'completed' });
+      }
+
+      const decision = new WorkerRouter(registry, undefined, dir).recommend({ template: 'code' });
+      expect(decision.primary).toBe('gemini');
+      expect(decision.reason).toContain('成功率');
+    });
+  });
+
+  it('does not apply a learning nudge below the minimum sample threshold', () => {
+    withTmpDir((dir) => {
+      const registry = new WorkerRegistry();
+      // Only 2 samples each - below MIN_SAMPLES_FOR_LEARNING (3), so the
+      // default strength ranking (claude_code > gemini) should hold.
+      for (let i = 0; i < 2; i++) {
+        appendTaskHistory(dir, { task_id: `f${i}`, template: 'code', timestamp: i, mode: 'worker_run', worker: 'claude_code', status: 'failed' });
+        appendTaskHistory(dir, { task_id: `c${i}`, template: 'code', timestamp: i, mode: 'worker_run', worker: 'gemini', status: 'completed' });
+      }
+
+      const decision = new WorkerRouter(registry, undefined, dir).recommend({ template: 'code' });
+      expect(decision.primary).toBe('claude_code');
+      expect(decision.reason).not.toContain('成功率');
+    });
+  });
+
+  it('scopes the learning nudge to the requested capability, ignoring history from other templates', () => {
+    withTmpDir((dir) => {
+      const registry = new WorkerRegistry();
+      // gemini has a great "research" record, not "code" - shouldn't affect the code recommendation.
+      for (let i = 0; i < 5; i++) {
+        appendTaskHistory(dir, { task_id: `r${i}`, template: 'research', timestamp: i, mode: 'worker_run', worker: 'gemini', status: 'completed' });
+      }
+
+      const decision = new WorkerRouter(registry, undefined, dir).recommend({ template: 'code' });
+      expect(decision.primary).toBe('claude_code');
+    });
   });
 });

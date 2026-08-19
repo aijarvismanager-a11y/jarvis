@@ -363,4 +363,97 @@ describe('createOrchestratorRoutes', () => {
     const { loadAIProfiles } = await import('../ai-profiles.ts');
     expect(loadAIProfiles(dir!).my_worker).toEqual(next.my_worker);
   });
+
+  it('POST /api/orchestrator/tasks/split fans multiple subtasks out through the same runner', async () => {
+    const { routes, registry } = setup();
+    registry.register({
+      definition: {
+        name: 'gemini',
+        type: 'custom',
+        status: 'ready',
+        capabilities: ['research'],
+        input_method: 'cli',
+        output_method: 'stdout',
+        workspace: '/tmp/ws',
+        timeout_ms: 1000,
+        retry: 0,
+        enabled: true,
+      },
+      async run() {
+        return { status: 'completed', summary: 'researched', output: '', files: [] };
+      },
+    });
+
+    const resp = await routes['/api/orchestrator/tasks/split']!.POST!(
+      new Request('http://x', {
+        method: 'POST',
+        body: JSON.stringify({
+          task_id: 'parent1',
+          subtasks: [
+            { template: 'code', prompt: 'fix it', worker: 'claude_code' },
+            { template: 'research', prompt: 'look it up', worker: 'gemini' },
+          ],
+        }),
+      }),
+    );
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.task_id).toBe('parent1');
+    expect(body.results).toHaveLength(2);
+    expect(body.results[0]).toMatchObject({ mode: 'worker_run', worker: 'claude_code' });
+    expect(body.results[1]).toMatchObject({ mode: 'worker_run', worker: 'gemini' });
+  });
+
+  it('POST /api/orchestrator/tasks/split validates task_id, subtasks shape, the 10-item cap, and each subtask', async () => {
+    const { routes } = setup();
+
+    const noTaskId = await routes['/api/orchestrator/tasks/split']!.POST!(
+      new Request('http://x', { method: 'POST', body: JSON.stringify({ subtasks: [] }) }),
+    );
+    expect(noTaskId.status).toBe(400);
+
+    const emptySubtasks = await routes['/api/orchestrator/tasks/split']!.POST!(
+      new Request('http://x', { method: 'POST', body: JSON.stringify({ task_id: 'p', subtasks: [] }) }),
+    );
+    expect(emptySubtasks.status).toBe(400);
+
+    const tooMany = await routes['/api/orchestrator/tasks/split']!.POST!(
+      new Request('http://x', {
+        method: 'POST',
+        body: JSON.stringify({ task_id: 'p', subtasks: Array(11).fill({ template: 'code', prompt: 'x' }) }),
+      }),
+    );
+    expect(tooMany.status).toBe(400);
+
+    const badSubtask = await routes['/api/orchestrator/tasks/split']!.POST!(
+      new Request('http://x', {
+        method: 'POST',
+        body: JSON.stringify({ task_id: 'p', subtasks: [{ template: 'not-a-template', prompt: 'x' }] }),
+      }),
+    );
+    expect(badSubtask.status).toBe(400);
+  });
+
+  it('GET /api/orchestrator/task-history returns entries newest-first with a limit', async () => {
+    const { routes } = setup();
+    const { appendTaskHistory } = await import('../task-history.ts');
+    appendTaskHistory(dir!, { task_id: 'a', template: 'code', timestamp: 1, mode: 'worker_run', worker: 'claude_code', status: 'completed' });
+    appendTaskHistory(dir!, { task_id: 'b', template: 'code', timestamp: 2, mode: 'manual_handoff', primary: 'gemini', fallback: null, reason: 'x' });
+
+    const resp = await routes['/api/orchestrator/task-history']!.GET!(new Request('http://x/api/orchestrator/task-history?limit=1'));
+    const body = await resp.json();
+    expect(body.history).toHaveLength(1);
+    expect(body.history[0].task_id).toBe('b');
+  });
+
+  it('GET /api/orchestrator/success-rate aggregates worker_run outcomes by worker', async () => {
+    const { routes } = setup();
+    const { appendTaskHistory } = await import('../task-history.ts');
+    appendTaskHistory(dir!, { task_id: 'a', template: 'code', timestamp: 1, mode: 'worker_run', worker: 'claude_code', status: 'completed' });
+    appendTaskHistory(dir!, { task_id: 'b', template: 'code', timestamp: 2, mode: 'worker_run', worker: 'claude_code', status: 'failed' });
+
+    const resp = await routes['/api/orchestrator/success-rate']!.GET!(new Request('http://x'));
+    const body = await resp.json();
+    expect(body.rates).toEqual([{ worker: 'claude_code', completed: 1, failed: 1, needs_input: 0, total: 2, successRate: 0.5 }]);
+  });
 });
