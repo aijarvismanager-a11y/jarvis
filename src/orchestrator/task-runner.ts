@@ -6,12 +6,21 @@
  * and, when available, an internal DB Handoff (spec section 3's
  * "Handoff Manager", reusing src/agents/handoff.ts rather than
  * duplicating JARVIS's own bookkeeping).
+ *
+ * When the Router can't hand the task to a running Worker (none
+ * registered/enabled/ready), it does not fail the task - it degrades to
+ * Manual Handoff (spec section 17/21): a recommended AI, a reason, and a
+ * copyable prompt package the user pastes in themselves. This is what
+ * lets JARVIS work with zero Workers connected.
  */
 
 import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
+import type { WorkerCapability } from '../workers/types.ts';
 import type { WorkerRegistry } from '../workers/registry.ts';
 import type { WorkerRunResult } from '../workers/types.ts';
 import { WorkerRouter } from './ai-router.ts';
+import { DEFAULT_AI_PROFILES, type AIProfiles } from './ai-profiles.ts';
+import { buildHandoffPrompt } from './prompt-builder.ts';
 import { writeHandoffFile, type FileHandoff } from './handoff-file.ts';
 import type { WorkspacePaths } from './workspace.ts';
 
@@ -24,9 +33,22 @@ export type TaskWorkerRequest = {
 };
 
 export type TaskWorkerOutcome = {
+  mode: 'worker_run';
   worker: string;
   result: WorkerRunResult;
   handoffFilePath: string;
+};
+
+export type ManualHandoffOutcome = {
+  mode: 'manual_handoff';
+  task_type: WorkerCapability;
+  primary: string | null;
+  primaryAvailable: boolean;
+  fallback: string | null;
+  fallbackAvailable: boolean;
+  confidence: number;
+  reason: string;
+  prompt: string;
 };
 
 /** Injected so callers can record internal (DB-backed) handoffs without this module depending on the vault. */
@@ -45,15 +67,31 @@ export class TaskWorkerRunner {
   constructor(
     private readonly registry: WorkerRegistry,
     private readonly workspace: WorkspacePaths,
-    private readonly recordInternalHandoff?: InternalHandoffRecorder
+    private readonly recordInternalHandoff?: InternalHandoffRecorder,
+    profiles: AIProfiles = DEFAULT_AI_PROFILES
   ) {
-    this.router = new WorkerRouter(registry);
+    this.router = new WorkerRouter(registry, profiles);
   }
 
-  async run(request: TaskWorkerRequest): Promise<TaskWorkerOutcome> {
+  async run(request: TaskWorkerRequest): Promise<TaskWorkerOutcome | ManualHandoffOutcome> {
     const routing = this.router.route({ template: request.template, explicitWorker: request.explicitWorker });
     if (!routing.ok) {
-      throw new Error(`no Worker available for capability "${routing.capability}"`);
+      const decision = this.router.recommend({ template: request.template, explicitWorker: request.explicitWorker });
+      return {
+        mode: 'manual_handoff',
+        task_type: decision.task_type,
+        primary: decision.primary,
+        primaryAvailable: decision.primaryAvailable,
+        fallback: decision.fallback,
+        fallbackAvailable: decision.fallbackAvailable,
+        confidence: decision.confidence,
+        reason: decision.reason,
+        prompt: buildHandoffPrompt({
+          task: request.prompt,
+          objective: request.prompt,
+          targetAI: decision.primary ?? '未定',
+        }),
+      };
     }
 
     const worker = this.registry.get(routing.worker);
@@ -94,6 +132,6 @@ export class TaskWorkerRunner {
       files: result.files,
     });
 
-    return { worker: worker.definition.name, result, handoffFilePath };
+    return { mode: 'worker_run', worker: worker.definition.name, result, handoffFilePath };
   }
 }

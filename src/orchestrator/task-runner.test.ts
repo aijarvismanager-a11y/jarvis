@@ -45,6 +45,7 @@ describe('TaskWorkerRunner.run', () => {
     const runner = new TaskWorkerRunner(registry, workspace, (args) => recorded.push(args));
 
     const outcome = await runner.run({ task_id: 'task_0001', template: 'code', prompt: 'fix the bug' });
+    if (outcome.mode !== 'worker_run') throw new Error('expected worker_run');
 
     expect(outcome.worker).toBe('claude_code');
     expect(outcome.result.status).toBe('completed');
@@ -65,15 +66,20 @@ describe('TaskWorkerRunner.run', () => {
     ]);
   });
 
-  it('throws when no worker declares the required capability', async () => {
+  it('falls back to Manual Handoff when no worker declares the required capability', async () => {
     dir = mkdtempSync(join(tmpdir(), 'jarvis-runner-'));
     const workspace = ensureWorkspace(dir);
     const registry = new WorkerRegistry();
 
     const runner = new TaskWorkerRunner(registry, workspace);
-    expect(runner.run({ task_id: 'task_0002', template: 'code', prompt: 'x' })).rejects.toThrow(
-      'no Worker available for capability "code"'
-    );
+    const outcome = await runner.run({ task_id: 'task_0002', template: 'code', prompt: 'x' });
+    if (outcome.mode !== 'manual_handoff') throw new Error('expected manual_handoff');
+
+    expect(outcome.task_type).toBe('code');
+    expect(outcome.primary).not.toBeNull();
+    expect(outcome.primaryAvailable).toBe(false);
+    expect(outcome.prompt).toContain('TASK');
+    expect(outcome.prompt).toContain('TARGET AI');
   });
 
   it('marks the worker error on failure but still writes a handoff file', async () => {
@@ -84,6 +90,7 @@ describe('TaskWorkerRunner.run', () => {
 
     const runner = new TaskWorkerRunner(registry, workspace);
     const outcome = await runner.run({ task_id: 'task_0003', template: 'code', prompt: 'x' });
+    if (outcome.mode !== 'worker_run') throw new Error('expected worker_run');
 
     expect(outcome.result.status).toBe('failed');
     expect(registry.get('claude_code')?.definition.status).toBe('error');

@@ -10,6 +10,7 @@ import {
   type WorkerCapability,
   type FileHandoff,
   type TaskTemplate,
+  type ManualHandoffOutcome,
 } from "./useWorkersData";
 import "./WorkersRoom.css";
 
@@ -42,6 +43,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
+  const [manualHandoff, setManualHandoff] = useState<{ taskId: string; outcome: ManualHandoffOutcome } | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -73,14 +75,14 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   return (
     <div className={`rk-workers rk-workers--${mode}`} style={{ position: "relative" }}>
       <div className="rk-workers__tool">
-        <span className="rk-workers__title">Workers</span>
-        <span className="rk-workers__sub">AI status · task · handoff</span>
-        <button className="rk-workers__icbtn" onClick={data.refresh} aria-label="Refresh">
+        <span className="rk-workers__title">ワーカー</span>
+        <span className="rk-workers__sub">AIステータス · タスク · ハンドオフ</span>
+        <button className="rk-workers__icbtn" onClick={data.refresh} aria-label="更新">
           <Icon icon={RefreshCw} size="sm" />
         </button>
-        <button className="rk-workers__new" onClick={() => setAddOpen(true)}>Add worker</button>
+        <button className="rk-workers__new" onClick={() => setAddOpen(true)}>ワーカーを追加</button>
         <button className="rk-workers__new" onClick={() => setRunOpen((v) => !v)}>
-          {runOpen ? "Close" : "Run task"}
+          {runOpen ? "閉じる" : "タスクを実行"}
         </button>
       </div>
 
@@ -91,10 +93,16 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
           onRun={async (input) => {
             const r = await data.runTask(input);
             if (r.ok) {
-              setToast({
-                text: `${r.outcome.worker}: ${r.outcome.result.status}`,
-                tone: r.outcome.result.status === "completed" ? "ok" : "warn",
-              });
+              if (r.outcome.mode === "manual_handoff") {
+                setManualHandoff({ taskId: input.task_id, outcome: r.outcome });
+                setToast({ text: `推奨AI: ${r.outcome.primary ?? "なし"}（Manual Handoff）`, tone: "warn" });
+              } else {
+                setManualHandoff(null);
+                setToast({
+                  text: `${r.outcome.worker}: ${r.outcome.result.status}`,
+                  tone: r.outcome.result.status === "completed" ? "ok" : "warn",
+                });
+              }
               setSelectedTaskId(input.task_id);
               setRunOpen(false);
             } else {
@@ -105,13 +113,21 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
         />
       )}
 
+      {manualHandoff && (
+        <ManualHandoffPanel
+          outcome={manualHandoff.outcome}
+          onClose={() => setManualHandoff(null)}
+          onCopy={(text) => setToast({ text: "コピーしました", tone: "ok" })}
+        />
+      )}
+
       <div className="rk-workers__body">
         <div className="rk-workers__cards">
           {data.loading && data.workers.length === 0 ? (
             <Skeleton lines={4} />
           ) : data.workers.length === 0 ? (
-            <EmptyState title="No Workers registered">
-              JARVIS didn't find any external AI Workers on this daemon.
+            <EmptyState title="登録されたワーカーがありません">
+              JARVISはこのデーモンで外部AIワーカーを見つけられませんでした。
             </EmptyState>
           ) : (
             data.workers.map((w) => (
@@ -127,8 +143,8 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
             <div className="rk-workers__empty"><Skeleton lines={4} /></div>
           ) : data.handoffs.length === 0 ? (
             <div className="rk-workers__empty">
-              <EmptyState title="No handoffs yet">
-                Run a task and its Handoff will show up here — the same file an external AI Worker reads to hand work back.
+              <EmptyState title="まだハンドオフがありません">
+                タスクを実行するとここにハンドオフが表示されます — 外部AIワーカーが作業を戻すために読み込む、同じファイルです。
               </EmptyState>
             </div>
           ) : (
@@ -165,7 +181,7 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
 
 export function WorkersRoom() {
   return (
-    <RoomShell title="Workers" subtitle="AI status · task · handoff" breadcrumb={["Workers"]}>
+    <RoomShell title="ワーカー" subtitle="AIステータス · タスク · ハンドオフ" breadcrumb={["ワーカー"]}>
       <WorkersRoomBody mode="expanded" />
     </RoomShell>
   );
@@ -192,15 +208,15 @@ const WorkerCard = memo(function WorkerCard({
         {worker.capabilities.map((c) => <span key={c} className="rk-workers__cap">{c}</span>)}
       </div>
       <div className="rk-workers__card-meta">
-        <span>timeout {Math.round(worker.timeout_ms / 1000)}s</span>
-        <span>retry {worker.retry}</span>
+        <span>タイムアウト {Math.round(worker.timeout_ms / 1000)}秒</span>
+        <span>リトライ {worker.retry}</span>
       </div>
       <div className="rk-workers__card-toggle">
-        <span className="rk-workers__flab" style={{ marginBottom: 0 }}>enabled</span>
+        <span className="rk-workers__flab" style={{ marginBottom: 0 }}>有効</span>
         <Switch on={worker.enabled} onClick={() => onToggle(worker, !worker.enabled)} />
       </div>
       {worker.type === "custom" && (
-        <button className="rk-workers__sbtn" onClick={() => onRemove(worker)}>Remove</button>
+        <button className="rk-workers__sbtn" onClick={() => onRemove(worker)}>削除</button>
       )}
     </div>
   );
@@ -227,9 +243,9 @@ function HandoffDetail({ handoff }: { handoff: FileHandoff }) {
       </div>
       <div className="rk-workers__row-summary" style={{ whiteSpace: "pre-wrap" }}>{handoff.summary}</div>
       {handoff.files.length > 0 && (
-        <div className="rk-workers__card-meta">files: {handoff.files.join(", ")}</div>
+        <div className="rk-workers__card-meta">ファイル: {handoff.files.join(", ")}</div>
       )}
-      <div className="rk-workers__card-meta">next: {handoff.next_action}</div>
+      <div className="rk-workers__card-meta">次: {handoff.next_action}</div>
     </div>
   );
 }
@@ -269,33 +285,93 @@ function RunPanel({
     <div className="rk-workers__runpanel">
       <div className="rk-workers__runrow">
         <div>
-          <div className="rk-workers__flab">template</div>
+          <div className="rk-workers__flab">テンプレート</div>
           <Select value={template} onChange={(e) => setTemplate(e.target.value as TaskTemplate)}>
             {TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}
           </Select>
         </div>
         <div>
-          <div className="rk-workers__flab">worker (optional)</div>
+          <div className="rk-workers__flab">ワーカー (任意)</div>
           <Select value={worker} onChange={(e) => setWorker(e.target.value)}>
-            <option value="">auto (Router picks)</option>
+            <option value="">自動 (ルーターが選択)</option>
             {workers.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
           </Select>
         </div>
       </div>
       <div>
-        <div className="rk-workers__flab">prompt</div>
+        <div className="rk-workers__flab">プロンプト</div>
         <textarea
           className="rk-workers__textarea"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="What should this Worker do?"
+          placeholder="このワーカーに何をさせますか?"
           autoFocus
         />
       </div>
       <div className="rk-workers__runacts">
         <button className="rk-workers__sbtn rk-workers__sbtn--pri" disabled={busy || !prompt.trim()} onClick={submit}>
-          {busy ? "Running…" : "Run"}
+          {busy ? "実行中…" : "実行"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Manual Handoff (spec 17-18/21/28): shown when the Router has no connected Worker for the task, so the user copies the prompt into whichever AI is recommended themselves. */
+function ManualHandoffPanel({
+  outcome,
+  onClose,
+  onCopy,
+}: {
+  outcome: ManualHandoffOutcome;
+  onClose: () => void;
+  onCopy: (text: string) => void;
+}) {
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // clipboard API unavailable - the text is still visible below to copy by hand
+    }
+    onCopy(text);
+  };
+
+  return (
+    <div className="rk-workers__runpanel">
+      <div className="rk-workers__runrow">
+        <div>
+          <div className="rk-workers__flab">推奨AI</div>
+          <div>
+            ★ {outcome.primary ?? "(なし)"}
+            {!outcome.primaryAvailable && <span className="rk-workers__sub"> — 未接続</span>}
+          </div>
+        </div>
+        {outcome.fallback && (
+          <div>
+            <div className="rk-workers__flab">フォールバック</div>
+            <div>
+              ○ {outcome.fallback}
+              {!outcome.fallbackAvailable && <span className="rk-workers__sub"> — 未接続</span>}
+            </div>
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="rk-workers__flab">理由</div>
+        <div>{outcome.reason}</div>
+      </div>
+      <div>
+        <div className="rk-workers__flab">渡すプロンプト</div>
+        <textarea className="rk-workers__textarea" value={outcome.prompt} readOnly />
+      </div>
+      <div className="rk-workers__runacts">
+        <button className="rk-workers__sbtn rk-workers__sbtn--pri" onClick={() => copy(outcome.prompt)}>
+          Promptをコピー
+        </button>
+        <button className="rk-workers__sbtn" onClick={() => copy(`task_type: ${outcome.task_type}\nprimary: ${outcome.primary ?? ""}\nfallback: ${outcome.fallback ?? ""}\nreason: ${outcome.reason}`)}>
+          タスク情報をコピー
+        </button>
+        <button className="rk-workers__sbtn" onClick={onClose}>閉じる</button>
       </div>
     </div>
   );
@@ -373,37 +449,37 @@ function AddWorkerDialog({
   return (
     <div className="rk-workers__overlay" onClick={() => !busy && onClose()}>
       <div className="rk-workers__dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="rk-workers__dialog-title">Add worker</div>
+        <div className="rk-workers__dialog-title">ワーカーを追加</div>
         <div className="rk-workers__dialog-sub">
           {kind === "cli"
-            ? <>Wires in any CLI already on this machine as a Worker. Use <code>{"{prompt}"}</code> in args where the task prompt should go — omit it and the prompt is appended as the last argument.</>
-            : <>Wires in any MCP server (stdio) as a Worker. JARVIS launches it, does the MCP handshake, and calls the given tool with the task prompt.</>}
+            ? <>このマシン上の任意のCLIをワーカーとして接続します。タスクプロンプトを挿入したい位置には引数内で <code>{"{prompt}"}</code> を使用します — 省略した場合、プロンプトは最後の引数として追加されます。</>
+            : <>任意のMCPサーバー (stdio) をワーカーとして接続します。JARVISが起動してMCPハンドシェイクを行い、指定したツールをタスクプロンプトとともに呼び出します。</>}
         </div>
-        <div className="rk-workers__flab">type</div>
+        <div className="rk-workers__flab">タイプ</div>
         <Select value={kind} onChange={(e) => setKind(e.target.value as "cli" | "mcp")}>
           <option value="cli">CLI</option>
-          <option value="mcp">MCP server</option>
+          <option value="mcp">MCPサーバー</option>
         </Select>
-        <div className="rk-workers__flab">name</div>
+        <div className="rk-workers__flab">名前</div>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my_tool" autoFocus />
-        <div className="rk-workers__flab">{kind === "cli" ? "binary" : "command"}</div>
+        <div className="rk-workers__flab">{kind === "cli" ? "実行ファイル" : "コマンド"}</div>
         <Input value={binary} onChange={(e) => setBinary(e.target.value)} placeholder={kind === "cli" ? "my-tool" : "my-mcp-server"} />
         {kind === "cli" ? (
           <>
-            <div className="rk-workers__flab">args (space-separated)</div>
+            <div className="rk-workers__flab">引数 (スペース区切り)</div>
             <Input value={argsText} onChange={(e) => setArgsText(e.target.value)} placeholder="-p {prompt} --quiet" mono />
           </>
         ) : (
           <>
-            <div className="rk-workers__flab">server args (space-separated, optional)</div>
+            <div className="rk-workers__flab">サーバー引数 (スペース区切り、任意)</div>
             <Input value={mcpArgsText} onChange={(e) => setMcpArgsText(e.target.value)} placeholder="--stdio" mono />
-            <div className="rk-workers__flab">tool</div>
+            <div className="rk-workers__flab">ツール</div>
             <Input value={tool} onChange={(e) => setTool(e.target.value)} placeholder="search" />
-            <div className="rk-workers__flab">prompt argument name (optional, default "prompt")</div>
+            <div className="rk-workers__flab">プロンプト引数名 (任意、デフォルト "prompt")</div>
             <Input value={promptParam} onChange={(e) => setPromptParam(e.target.value)} placeholder="prompt" />
           </>
         )}
-        <div className="rk-workers__flab">capabilities</div>
+        <div className="rk-workers__flab">能力</div>
         <div className="rk-workers__card-caps">
           {ALL_CAPABILITIES.map((c) => (
             <button
@@ -417,9 +493,9 @@ function AddWorkerDialog({
           ))}
         </div>
         <div className="rk-workers__runacts">
-          <button className="rk-workers__sbtn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="rk-workers__sbtn" onClick={onClose} disabled={busy}>キャンセル</button>
           <button className="rk-workers__sbtn rk-workers__sbtn--pri" disabled={!canSubmit || busy} onClick={submit}>
-            {busy ? "Adding…" : "Add"}
+            {busy ? "追加中…" : "追加"}
           </button>
         </div>
       </div>

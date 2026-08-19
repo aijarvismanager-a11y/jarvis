@@ -32,7 +32,8 @@ export interface FileHandoff {
   next_action: string;
 }
 
-export interface TaskOutcome {
+export interface WorkerRunOutcome {
+  mode: "worker_run";
   worker: string;
   result: {
     status: "completed" | "failed" | "needs_input";
@@ -43,6 +44,21 @@ export interface TaskOutcome {
   };
   handoffFilePath: string;
 }
+
+/** Router recommendation + copyable prompt when no Worker can run the task itself (spec 17/21: Manual Handoff). */
+export interface ManualHandoffOutcome {
+  mode: "manual_handoff";
+  task_type: WorkerCapability;
+  primary: string | null;
+  primaryAvailable: boolean;
+  fallback: string | null;
+  fallbackAvailable: boolean;
+  confidence: number;
+  reason: string;
+  prompt: string;
+}
+
+export type TaskOutcome = WorkerRunOutcome | ManualHandoffOutcome;
 
 /**
  * Workers Room hook - the dashboard surface for the external AI Worker
@@ -80,7 +96,7 @@ export function useWorkersData() {
       else if (!handoffsResp.ok) setError(await parseErrorMessage(handoffsResp));
       else setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load Workers");
+      setError(err instanceof Error ? err.message : "ワーカーの読み込みに失敗しました");
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -106,9 +122,9 @@ export function useWorkersData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refresh();
-        return { ok: true, message: `${name} ${enabled ? "enabled" : "disabled"}.` };
+        return { ok: true, message: `${name} を${enabled ? "有効化" : "無効化"}しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed to update Worker" };
+        return { ok: false, message: err instanceof Error ? err.message : "ワーカーの更新に失敗しました" };
       }
     },
     [refresh],
@@ -130,9 +146,9 @@ export function useWorkersData() {
         });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refresh();
-        return { ok: true, message: `${input.name} added.` };
+        return { ok: true, message: `${input.name} を追加しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed to add Worker" };
+        return { ok: false, message: err instanceof Error ? err.message : "ワーカーの追加に失敗しました" };
       }
     },
     [refresh],
@@ -148,9 +164,9 @@ export function useWorkersData() {
         const resp = await fetch(endpoint, { method: "DELETE" });
         if (!resp.ok) throw new Error(await parseErrorMessage(resp));
         await refresh();
-        return { ok: true, message: `${worker.name} removed.` };
+        return { ok: true, message: `${worker.name} を削除しました。` };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Failed to remove Worker" };
+        return { ok: false, message: err instanceof Error ? err.message : "ワーカーの削除に失敗しました" };
       }
     },
     [refresh],
@@ -175,7 +191,7 @@ export function useWorkersData() {
         await refresh();
         return { ok: true, outcome };
       } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : "Task failed to run" };
+        return { ok: false, message: err instanceof Error ? err.message : "タスクの実行に失敗しました" };
       } finally {
         setRunning(false);
       }

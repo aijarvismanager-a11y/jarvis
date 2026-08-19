@@ -38,6 +38,7 @@ import { CommandWorker } from "../workers/command-worker.ts";
 import { loadMcpWorkers } from "../workers/mcp-registry.ts";
 import { MCPWorker } from "../workers/mcp.ts";
 import { TaskWorkerRunner } from "../orchestrator/task-runner.ts";
+import { loadAIProfiles } from "../orchestrator/ai-profiles.ts";
 import { createOrchestratorRoutes } from "../orchestrator/api/routes.ts";
 import { sendHandoff } from "../agents/handoff.ts";
 import { GoogleAuth } from "../integrations/google-auth.ts";
@@ -4210,25 +4211,30 @@ export async function startDaemon(userConfig?: Partial<DaemonConfig>): Promise<v
       workerRegistry.register(new MCPWorker({ ...mcp, workspace: orchestratorWorkspace.root }));
     }
     applyWorkerSettings(workerRegistry, loadWorkerSettings(dataDir));
-    const taskWorkerRunner = new TaskWorkerRunner(workerRegistry, orchestratorWorkspace, (args) => {
-      try {
-        sendHandoff({
-          task_id: args.task_id,
-          from_agent: args.from_agent,
-          to_agent: args.to_agent,
-          status: args.status,
-          summary: args.summary,
-          instructions: [],
-          artifacts: args.files,
-          decisions: [],
-          warnings: [],
-          open_questions: [],
-          next_action: args.status === 'completed' ? 'review' : 'retry_or_escalate',
-        });
-      } catch (err) {
-        console.error('[Daemon] Failed to record internal handoff for external worker task:', err);
-      }
-    });
+    const taskWorkerRunner = new TaskWorkerRunner(
+      workerRegistry,
+      orchestratorWorkspace,
+      (args) => {
+        try {
+          sendHandoff({
+            task_id: args.task_id,
+            from_agent: args.from_agent,
+            to_agent: args.to_agent,
+            status: args.status,
+            summary: args.summary,
+            instructions: [],
+            artifacts: args.files,
+            decisions: [],
+            warnings: [],
+            open_questions: [],
+            next_action: args.status === 'completed' ? 'review' : 'retry_or_escalate',
+          });
+        } catch (err) {
+          console.error('[Daemon] Failed to record internal handoff for external worker task:', err);
+        }
+      },
+      loadAIProfiles(dataDir)
+    );
 
     // Mount the daemon's existing routes plus the workflow runtime's routes.
     // The legacy in-house workflow routes that lived at /api/workflows/* were

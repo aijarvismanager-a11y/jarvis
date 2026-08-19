@@ -73,3 +73,34 @@ describe('WorkerRouter.route', () => {
     expect(result).toEqual({ ok: false, reason: 'no_worker_available', capability: 'code' });
   });
 });
+
+describe('WorkerRouter.recommend', () => {
+  it('recommends the highest-strength profile for a capability even with zero Workers registered', () => {
+    const registry = new WorkerRegistry();
+    const decision = new WorkerRouter(registry).recommend({ template: 'code' });
+
+    expect(decision.task_type).toBe('code');
+    expect(decision.primary).toBe('claude_code');
+    expect(decision.primaryAvailable).toBe(false);
+    expect(decision.fallback).not.toBeNull();
+    expect(decision.reason).toContain('code');
+  });
+
+  it('marks the recommendation as available when a matching Worker is registered and enabled', () => {
+    const registry = new WorkerRegistry();
+    registry.register(fakeWorker('claude_code', ['code']));
+
+    const decision = new WorkerRouter(registry).recommend({ template: 'code' });
+    expect(decision.primary).toBe('claude_code');
+    expect(decision.primaryAvailable).toBe(true);
+  });
+
+  it('honors an explicit worker override with full confidence', () => {
+    const registry = new WorkerRegistry();
+    const decision = new WorkerRouter(registry).recommend({ template: 'code', explicitWorker: 'gemini' });
+
+    expect(decision.primary).toBe('gemini');
+    expect(decision.fallback).toBeNull();
+    expect(decision.confidence).toBe(1);
+  });
+});

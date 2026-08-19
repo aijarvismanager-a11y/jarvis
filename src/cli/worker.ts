@@ -13,6 +13,7 @@ import { loadConfig } from '../config/loader.ts';
 import { ensureWorkspace } from '../orchestrator/workspace.ts';
 import { createDefaultWorkerRegistry } from '../workers/index.ts';
 import { TaskWorkerRunner } from '../orchestrator/task-runner.ts';
+import { loadAIProfiles } from '../orchestrator/ai-profiles.ts';
 import type { TaskTemplate } from '../agents/conv/task-envelope.ts';
 import { c } from './helpers.ts';
 
@@ -113,7 +114,7 @@ export async function runWorkerCommand(args: string[]): Promise<void> {
       }
     }
 
-    const runner = new TaskWorkerRunner(registry, workspace);
+    const runner = new TaskWorkerRunner(registry, workspace, undefined, loadAIProfiles(jarvisConfig.daemon.data_dir));
     const taskId = flags.id ?? `task_${Date.now()}`;
 
     console.log(c.dim(`Routing "${flags.template}" task ${taskId}...`));
@@ -124,6 +125,14 @@ export async function runWorkerCommand(args: string[]): Promise<void> {
         prompt: flags.prompt,
         ...(flags.worker ? { explicitWorker: flags.worker } : {}),
       });
+
+      if (outcome.mode === 'manual_handoff') {
+        console.log(`\n${c.bold('No Worker available - Manual Handoff:')}`);
+        console.log(`${c.bold('Recommended AI:')} ${outcome.primary ?? '(none)'}${outcome.fallback ? ` (fallback: ${outcome.fallback})` : ''}`);
+        console.log(`${c.bold('Reason:')} ${outcome.reason}`);
+        console.log(`\n${outcome.prompt}\n`);
+        return;
+      }
 
       console.log(`\n${c.bold('Worker:')} ${outcome.worker}`);
       console.log(`${c.bold('Status:')} ${outcome.result.status === 'completed' ? c.green(outcome.result.status) : c.red(outcome.result.status)}`);
