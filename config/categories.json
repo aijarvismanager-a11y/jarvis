@@ -1,0 +1,8 @@
+[
+  { "id": "coding", "label": "コーディング" },
+  { "id": "research", "label": "調査" },
+  { "id": "writing", "label": "文章作成" },
+  { "id": "image", "label": "画像生成" },
+  { "id": "analysis", "label": "分析" },
+  { "id": "general", "label": "一般" }
+]

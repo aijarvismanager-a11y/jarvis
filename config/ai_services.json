@@ -1,0 +1,41 @@
+[
+  {
+    "id": "claude",
+    "name": "Claude",
+    "url": "https://claude.ai/",
+    "icon": "🧠",
+    "category": ["coding", "writing", "analysis"],
+    "image_generation": false,
+    "free": true,
+    "free_note": "無料プランあり※利用上限はサービス側の仕様に依存",
+    "japanese": true,
+    "description": "コーディング・長文処理・仕様書作成・論理的な分析に強い",
+    "enabled": true
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini",
+    "url": "https://gemini.google.com/",
+    "icon": "🔎",
+    "category": ["research", "writing", "analysis", "image"],
+    "image_generation": true,
+    "free": true,
+    "free_note": "無料プランあり※利用上限はサービス側の仕様に依存",
+    "japanese": true,
+    "description": "情報整理・調査・アイデア出し・Google系サービス連携・画像生成",
+    "enabled": true
+  },
+  {
+    "id": "chatgpt",
+    "name": "ChatGPT",
+    "url": "https://chatgpt.com/",
+    "icon": "💬",
+    "category": ["general", "writing", "research", "analysis", "image"],
+    "image_generation": true,
+    "free": true,
+    "free_note": "無料プランあり※利用上限はサービス側の仕様に依存",
+    "japanese": true,
+    "description": "一般的な相談・アイデア出し・文章作成・調査・分析・画像生成",
+    "enabled": true
+  }
+]
