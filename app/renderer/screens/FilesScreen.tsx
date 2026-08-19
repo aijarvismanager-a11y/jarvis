@@ -17,7 +17,14 @@ const EVENT_LABEL: Record<string, string> = {
 export function FilesScreen() {
   const { activeProjectId, projects } = useAppState();
   const [changes, setChanges] = useState<Change[]>([]);
+  const [error, setError] = useState('');
   const activeProject = projects.find((p) => p.id === activeProjectId);
+
+  const openFolder = async () => {
+    if (!activeProject) return;
+    const result = await window.api.projects.openFolder(activeProject.id);
+    setError(!result.ok && result.error ? `フォルダを開けませんでした: ${result.error}` : '');
+  };
 
   useEffect(() => {
     const unsubscribe = window.api.onFilesChanged((payload) => {
@@ -42,8 +49,9 @@ export function FilesScreen() {
           <h1 className="screen__title">ファイル監視</h1>
           <p className="screen__subtitle">{activeProject.name} フォルダの変更を軽量に監視します。</p>
         </div>
-        <Button onClick={() => window.api.projects.openFolder(activeProject.id)}>フォルダを開く</Button>
+        <Button onClick={openFolder}>フォルダを開く</Button>
       </div>
+      {error && <div className="card" style={{ borderColor: 'var(--listen)', color: 'var(--listen-tx)' }}>{error}</div>}
       <div className="list">
         {changes.length === 0 && <div className="empty-state">まだ変更はありません。</div>}
         {changes.map((c, i) => (

@@ -12,6 +12,10 @@ interface AppState {
   refreshServices: () => Promise<void>;
   refreshProjects: () => Promise<void>;
   loading: boolean;
+  // Set by TasksScreen's "Handoffを作成" button, consumed once by HandoffScreen
+  // to prefill a new Handoff's Task field — avoids retyping the task title.
+  handoffDraftTask: string | null;
+  setHandoffDraftTask: (task: string | null) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -23,6 +27,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [handoffDraftTask, setHandoffDraftTask] = useState<string | null>(null);
 
   const refreshSettings = useCallback(async () => {
     setSettings(await window.api.settings.load());
@@ -73,6 +78,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refreshServices,
         refreshProjects,
         loading,
+        handoffDraftTask,
+        setHandoffDraftTask,
       }}
     >
       {children}

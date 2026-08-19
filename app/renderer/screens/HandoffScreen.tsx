@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
-import type { HandoffFile, HandoffInput } from '../types';
+import type { HandoffFile, HandoffInput, Prompt } from '../types';
 
 const EMPTY: HandoffInput = {
   from: '',
@@ -15,11 +15,14 @@ const EMPTY: HandoffInput = {
 };
 
 export function HandoffScreen() {
-  const { activeProjectId, projects, services } = useAppState();
+  const { activeProjectId, projects, services, handoffDraftTask, setHandoffDraftTask } = useAppState();
   const [handoffs, setHandoffs] = useState<HandoffFile[]>([]);
   const [form, setForm] = useState<HandoffInput>(EMPTY);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<HandoffFile | null>(null);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [selectedPromptId, setSelectedPromptId] = useState('');
+  const [error, setError] = useState('');
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
   const refresh = async () => {
@@ -29,8 +32,20 @@ export function HandoffScreen() {
 
   useEffect(() => {
     refresh();
+    window.api.prompts.list().then(setPrompts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId]);
+
+  // Consume a task title handed off from TasksScreen's "Handoff作成" button,
+  // once, so switching away and back doesn't keep re-prefilling the form.
+  useEffect(() => {
+    if (handoffDraftTask) {
+      setForm((prev) => ({ ...prev, task: handoffDraftTask }));
+      setCreating(true);
+      setHandoffDraftTask(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffDraftTask]);
 
   if (!activeProjectId) {
     return (
@@ -43,10 +58,24 @@ export function HandoffScreen() {
 
   const submit = async () => {
     if (!form.from.trim() || !form.to.trim()) return;
-    await window.api.handoffs.create(activeProjectId, form);
-    setForm(EMPTY);
-    setCreating(false);
-    await refresh();
+    try {
+      await window.api.handoffs.create(activeProjectId, form);
+      setForm(EMPTY);
+      setCreating(false);
+      setError('');
+      await refresh();
+    } catch (e) {
+      setError(`Handoffの作成に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const insertPrompt = () => {
+    const prompt = prompts.find((p) => p.id === selectedPromptId);
+    if (!prompt) return;
+    setForm((prev) => ({
+      ...prev,
+      instructions: prev.instructions ? `${prev.instructions}\n\n${prompt.body}` : prompt.body,
+    }));
   };
 
   const copy = (h: HandoffFile) => navigator.clipboard.writeText(h.content);
@@ -62,6 +91,8 @@ export function HandoffScreen() {
           {creating ? 'キャンセル' : '+ 次のAIへ渡す'}
         </Button>
       </div>
+
+      {error && <div className="card" style={{ borderColor: 'var(--listen)', color: 'var(--listen-tx)' }}>{error}</div>}
 
       {creating && (
         <div className="card form-grid">
@@ -86,7 +117,19 @@ export function HandoffScreen() {
           <div className="field"><label>Important Findings（重要な発見事項）</label><textarea value={form.findings} onChange={(e) => setForm({ ...form, findings: e.target.value })} /></div>
           <div className="field"><label>Remaining Tasks（残タスク）</label><textarea value={form.remaining} onChange={(e) => setForm({ ...form, remaining: e.target.value })} /></div>
           <div className="field"><label>Files（関連ファイル）</label><input value={form.files} onChange={(e) => setForm({ ...form, files: e.target.value })} /></div>
-          <div className="field"><label>Instructions for Next AI</label><textarea value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} /></div>
+          <div className="field">
+            <label>Instructions for Next AI</label>
+            <textarea value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} />
+            {prompts.length > 0 && (
+              <div className="row" style={{ marginTop: 4 }}>
+                <select style={{ flex: 1 }} value={selectedPromptId} onChange={(e) => setSelectedPromptId(e.target.value)}>
+                  <option value="">保存済みプロンプトから挿入…</option>
+                  {prompts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                <Button size="sm" onClick={insertPrompt} disabled={!selectedPromptId}>挿入</Button>
+              </div>
+            )}
+          </div>
           <Button variant="primary" onClick={submit}>Handoffを作成</Button>
         </div>
       )}

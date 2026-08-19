@@ -86,7 +86,7 @@ export function Shell() {
           {room === 'projects' && <ProjectsScreen onOpenRoom={setRoom} />}
           {room === 'ai' && <AIListScreen />}
           {room === 'router' && <RouterScreen />}
-          {room === 'tasks' && <TasksScreen />}
+          {room === 'tasks' && <TasksScreen onOpenRoom={setRoom} />}
           {room === 'handoff' && <HandoffScreen />}
           {room === 'prompts' && <PromptsScreen />}
           {room === 'files' && <FilesScreen />}

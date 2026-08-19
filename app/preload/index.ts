@@ -23,6 +23,7 @@ const api = {
     delete: (id: string, removeFiles: boolean) => ipcRenderer.invoke('projects:delete', id, removeFiles),
     openFolder: (id: string) => ipcRenderer.invoke('projects:openFolder', id),
     watch: (id: string | null) => ipcRenderer.invoke('projects:watch', id),
+    export: (id: string) => ipcRenderer.invoke('projects:export', id),
   },
   tasks: {
     list: (projectId: string) => ipcRenderer.invoke('tasks:list', projectId),

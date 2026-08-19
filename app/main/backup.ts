@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import AdmZip from 'adm-zip';
 import { dialog, BrowserWindow } from 'electron';
 import { dataDir } from './paths';
+import { getProject } from './store/projects';
 
 // Only the app's own data — dataDir doubles as Electron's userData profile in a
 // packaged build, which also holds Chromium's Cache/Cookies/Local Storage/etc.
@@ -54,5 +55,23 @@ export async function restoreBackup(win: BrowserWindow): Promise<{ ok: boolean }
     fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true });
   }
   zip.extractAllTo(dataDir, true);
+  return { ok: true };
+}
+
+export async function exportProject(win: BrowserWindow, projectId: string): Promise<{ ok: boolean; error?: string }> {
+  const project = getProject(projectId);
+  if (!project) return { ok: false, error: 'プロジェクトが見つかりません' };
+  if (!fs.existsSync(project.dir)) return { ok: false, error: 'プロジェクトフォルダが見つかりません（移動または削除された可能性があります）' };
+
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'プロジェクトをエクスポート',
+    defaultPath: `${project.name}.zip`,
+    filters: [{ name: 'ZIP', extensions: ['zip'] }],
+  });
+  if (canceled || !filePath) return { ok: false };
+
+  const zip = new AdmZip();
+  zip.addLocalFolder(project.dir);
+  zip.writeZip(filePath);
   return { ok: true };
 }

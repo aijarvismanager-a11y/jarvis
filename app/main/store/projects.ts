@@ -105,11 +105,14 @@ export function deleteProject(id: string, removeFiles: boolean): boolean {
   return true;
 }
 
-export function openProjectFolder(id: string): boolean {
+export async function openProjectFolder(id: string): Promise<{ ok: boolean; error?: string }> {
   const project = loadIndex().find((p) => p.id === id);
-  if (!project) return false;
-  shell.openPath(project.dir);
-  return true;
+  if (!project) return { ok: false, error: 'プロジェクトが見つかりません' };
+  // shell.openPath resolves to an empty string on success, or an error
+  // description on failure (e.g. the folder was moved/deleted outside the app)
+  // — it never rejects, so this must be checked explicitly.
+  const error = await shell.openPath(project.dir);
+  return error ? { ok: false, error } : { ok: true };
 }
 
 export function getProject(id: string): Project | null {

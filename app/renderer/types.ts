@@ -101,8 +101,9 @@ export interface Api {
     create: (input: { name: string; description: string; purpose: string }) => Promise<Project>;
     update: (id: string, patch: Partial<Project>) => Promise<Project | null>;
     delete: (id: string, removeFiles: boolean) => Promise<boolean>;
-    openFolder: (id: string) => Promise<boolean>;
+    openFolder: (id: string) => Promise<{ ok: boolean; error?: string }>;
     watch: (id: string | null) => Promise<boolean>;
+    export: (id: string) => Promise<{ ok: boolean; error?: string }>;
   };
   tasks: {
     list: (projectId: string) => Promise<Task[]>;

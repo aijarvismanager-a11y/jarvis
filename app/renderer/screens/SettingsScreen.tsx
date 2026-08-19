@@ -59,7 +59,13 @@ export function SettingsScreen() {
       return;
     }
     setUrlError('');
-    const id = draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const baseId = draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'ai';
+    let id = baseId;
+    let n = 2;
+    while (services.some((s) => s.id === id)) {
+      id = `${baseId}-${n}`;
+      n += 1;
+    }
     await window.api.services.save([...services, { ...draft, id, url: normalizedUrl }]);
     setDraft(EMPTY_SERVICE);
     setAddingService(false);

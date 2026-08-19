@@ -6,7 +6,7 @@ import * as tasksStore from './store/tasks';
 import * as handoffsStore from './store/handoffs';
 import * as promptsStore from './store/prompts';
 import * as logsStore from './store/logs';
-import { createBackup, restoreBackup } from './backup';
+import { createBackup, restoreBackup, exportProject } from './backup';
 import { watchProject } from './watcher';
 
 let registered = false;
@@ -40,6 +40,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   ipcMain.handle('projects:update', (_e, id, patch) => projectsStore.updateProject(id, patch));
   ipcMain.handle('projects:delete', (_e, id, removeFiles) => projectsStore.deleteProject(id, removeFiles));
   ipcMain.handle('projects:openFolder', (_e, id) => projectsStore.openProjectFolder(id));
+  ipcMain.handle('projects:export', (_e, id) => exportProject(win, id));
   ipcMain.handle('projects:watch', (_e, id) => {
     const project = id ? projectsStore.getProject(id) : null;
     watchProject(win, project?.dir ?? null);

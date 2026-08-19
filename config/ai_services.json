@@ -37,5 +37,31 @@
     "japanese": true,
     "description": "一般的な相談・アイデア出し・文章作成・調査・分析・画像生成",
     "enabled": true
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "url": "https://www.perplexity.ai/",
+    "icon": "🔍",
+    "category": ["research", "analysis"],
+    "image_generation": false,
+    "free": true,
+    "free_note": "無料枠あり※利用上限はサービス側の仕様に依存",
+    "japanese": true,
+    "description": "出典付きの調査・検索に特化。最新情報のリサーチに強い",
+    "enabled": false
+  },
+  {
+    "id": "copilot",
+    "name": "Microsoft Copilot",
+    "url": "https://copilot.microsoft.com/",
+    "icon": "🪟",
+    "category": ["general", "writing", "research", "image"],
+    "image_generation": true,
+    "free": true,
+    "free_note": "無料枠あり※利用上限はサービス側の仕様に依存",
+    "japanese": true,
+    "description": "Windows・Microsoft 365との連携に強い、一般的な相談・文章作成・画像生成",
+    "enabled": false
   }
 ]

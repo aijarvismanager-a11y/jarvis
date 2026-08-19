@@ -247,6 +247,8 @@ body {
 .wizard-card {
   width: 640px;
   max-width: 92vw;
+  max-height: calc(100vh - var(--s-8) * 2);
+  overflow-y: auto;
   background: var(--raise);
   border: 1px solid var(--rule);
   border-radius: var(--corner);

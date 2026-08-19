@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
+import { Chip } from '../design/ui/Chip';
 import { suggestTopAI } from '../lib/aiRecommendation';
 import type { Task, TaskStatus } from '../types';
 
@@ -11,8 +12,11 @@ const COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: 'done', label: 'DONE' },
 ];
 
-export function TasksScreen() {
-  const { activeProjectId, projects, services } = useAppState();
+const PRIORITY_LABEL: Record<Task['priority'], string> = { high: '優先度: 高', normal: '優先度: 中', low: '優先度: 低' };
+const PRIORITY_TONE: Record<Task['priority'], 'accent' | 'neutral' | 'ok'> = { high: 'accent', normal: 'neutral', low: 'ok' };
+
+export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: 'handoff') => void }) {
+  const { activeProjectId, projects, services, setHandoffDraftTask } = useAppState();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState('');
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -60,6 +64,11 @@ export function TasksScreen() {
     await refresh();
   };
 
+  const createHandoffFrom = (task: Task) => {
+    setHandoffDraftTask(task.title);
+    onOpenRoom('handoff');
+  };
+
   return (
     <div className="screen">
       <div className="screen__header">
@@ -89,9 +98,13 @@ export function TasksScreen() {
                 <div style={{ fontWeight: 600 }}>{t.title}</div>
                 {t.assignedAI && <div style={{ color: 'var(--ink2)' }}>担当: {t.assignedAI}</div>}
                 <div className="row row--wrap">
+                  <Chip tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</Chip>
+                </div>
+                <div className="row row--wrap">
                   {COLUMNS.filter((c) => c.id !== t.status).map((c) => (
                     <Button key={c.id} size="sm" onClick={() => move(t, c.id)}>{c.label}へ</Button>
                   ))}
+                  <Button size="sm" onClick={() => createHandoffFrom(t)}>Handoff作成</Button>
                   <Button size="sm" variant="danger" onClick={() => remove(t)}>削除</Button>
                 </div>
               </div>
