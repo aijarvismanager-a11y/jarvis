@@ -4,6 +4,11 @@ import AdmZip from 'adm-zip';
 import { dialog, BrowserWindow } from 'electron';
 import { dataDir } from './paths';
 
+// Only the app's own data — dataDir doubles as Electron's userData profile in a
+// packaged build, which also holds Chromium's Cache/Cookies/Local Storage/etc.
+// Backing up the whole folder would bundle browser internals into the zip.
+const BACKUP_ENTRIES = ['projects.json', 'prompts.json', 'logs.jsonl', 'config'];
+
 export async function createBackup(win: BrowserWindow): Promise<{ ok: boolean; path?: string }> {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'バックアップを作成',
@@ -13,7 +18,15 @@ export async function createBackup(win: BrowserWindow): Promise<{ ok: boolean; p
   if (canceled || !filePath) return { ok: false };
 
   const zip = new AdmZip();
-  zip.addLocalFolder(dataDir);
+  for (const entry of BACKUP_ENTRIES) {
+    const entryPath = path.join(dataDir, entry);
+    if (!fs.existsSync(entryPath)) continue;
+    if (fs.statSync(entryPath).isDirectory()) {
+      zip.addLocalFolder(entryPath, entry);
+    } else {
+      zip.addLocalFile(entryPath);
+    }
+  }
   zip.writeZip(filePath);
   return { ok: true, path: filePath };
 }
@@ -37,8 +50,9 @@ export async function restoreBackup(win: BrowserWindow): Promise<{ ok: boolean }
   if (response !== 1) return { ok: false };
 
   const zip = new AdmZip(filePaths[0]);
-  fs.rmSync(dataDir, { recursive: true, force: true });
-  fs.mkdirSync(dataDir, { recursive: true });
+  for (const entry of BACKUP_ENTRIES) {
+    fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true });
+  }
   zip.extractAllTo(dataDir, true);
   return { ok: true };
 }

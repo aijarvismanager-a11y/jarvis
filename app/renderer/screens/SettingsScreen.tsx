@@ -21,6 +21,7 @@ export function SettingsScreen() {
   const { settings, refreshSettings, services, refreshServices, categories } = useAppState();
   const [addingService, setAddingService] = useState(false);
   const [draft, setDraft] = useState<AIService>(EMPTY_SERVICE);
+  const [urlError, setUrlError] = useState('');
   const [backupMsg, setBackupMsg] = useState('');
 
   if (!settings) return null;
@@ -44,8 +45,22 @@ export function SettingsScreen() {
 
   const addService = async () => {
     if (!draft.name.trim() || !draft.url.trim()) return;
+    const rawUrl = draft.url.trim();
+    const normalizedUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+    let parsed: URL;
+    try {
+      parsed = new URL(normalizedUrl);
+    } catch {
+      setUrlError('URLの形式が正しくありません（例: https://example.com/）');
+      return;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      setUrlError('http:// または https:// のURLを指定してください');
+      return;
+    }
+    setUrlError('');
     const id = draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    await window.api.services.save([...services, { ...draft, id }]);
+    await window.api.services.save([...services, { ...draft, id, url: normalizedUrl }]);
     setDraft(EMPTY_SERVICE);
     setAddingService(false);
     await refreshServices();
@@ -90,7 +105,7 @@ export function SettingsScreen() {
       <div className="card form-grid">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h3 style={{ margin: 0 }}>AI Services</h3>
-          <Button onClick={() => setAddingService((v) => !v)}>{addingService ? 'キャンセル' : '+ AIを追加'}</Button>
+          <Button onClick={() => { setAddingService((v) => !v); setUrlError(''); }}>{addingService ? 'キャンセル' : '+ AIを追加'}</Button>
         </div>
         {services.map((s) => (
           <div key={s.id} className="row" style={{ justifyContent: 'space-between', borderTop: '1px solid var(--rule)', paddingTop: 8, alignItems: 'flex-start' }}>
@@ -107,7 +122,11 @@ export function SettingsScreen() {
         {addingService && (
           <div className="form-grid" style={{ borderTop: '1px solid var(--rule)', paddingTop: 8 }}>
             <div className="field"><label>AI名</label><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
-            <div className="field"><label>URL</label><input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://..." /></div>
+            <div className="field">
+              <label>URL</label>
+              <input value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://..." />
+              {urlError && <span style={{ color: 'var(--listen-tx)', fontSize: 12 }}>{urlError}</span>}
+            </div>
             <div className="field"><label>説明</label><input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></div>
             <div className="field">
               <label>カテゴリー（カンマ区切り: {categories.map((c) => c.id).join(', ')}）</label>

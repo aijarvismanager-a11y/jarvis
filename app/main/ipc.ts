@@ -9,7 +9,14 @@ import * as logsStore from './store/logs';
 import { createBackup, restoreBackup } from './backup';
 import { watchProject } from './watcher';
 
+let registered = false;
+
 export function registerIpcHandlers(win: BrowserWindow): void {
+  // ipcMain.handle throws on a duplicate channel; guard against createWindow()
+  // running again (e.g. app.on('activate') on macOS) re-registering everything.
+  if (registered) return;
+  registered = true;
+
   ipcMain.handle('ai:open', (_e, url: string, aiName: string) => {
     shell.openExternal(url);
     logsStore.appendLog({ ai: aiName, message: `${aiName} を開きました` });

@@ -62,8 +62,12 @@ export function createHandoff(projectId: string, input: HandoffInput): HandoffFi
   if (!project) return null;
   const dir = handoffDir(project.dir);
   fs.mkdirSync(dir, { recursive: true });
-  const existing = fs.readdirSync(dir).filter((f) => /^handoff_\d+\.md$/.test(f));
-  const nextN = existing.length + 1;
+  const existingNumbers = fs
+    .readdirSync(dir)
+    .map((f) => f.match(/^handoff_(\d+)\.md$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => parseInt(m[1], 10));
+  const nextN = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
   const filename = `handoff_${String(nextN).padStart(3, '0')}.md`;
 
   const content = `# AI Handoff

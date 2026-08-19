@@ -11,6 +11,7 @@ import { PromptsScreen } from '../screens/PromptsScreen';
 import { FilesScreen } from '../screens/FilesScreen';
 import { CompareScreen } from '../screens/CompareScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { LogsScreen } from '../screens/LogsScreen';
 
 type RoomId =
   | 'projects'
@@ -21,6 +22,7 @@ type RoomId =
   | 'prompts'
   | 'files'
   | 'compare'
+  | 'logs'
   | 'settings';
 
 const NAV: { id: RoomId; label: string; icon: string }[] = [
@@ -32,6 +34,7 @@ const NAV: { id: RoomId; label: string; icon: string }[] = [
   { id: 'prompts', label: 'プロンプト', icon: '💡' },
   { id: 'files', label: 'ファイル', icon: '🗂' },
   { id: 'compare', label: 'AI比較', icon: '⚖️' },
+  { id: 'logs', label: 'ログ', icon: '📜' },
   { id: 'settings', label: '設定', icon: '⚙️' },
 ];
 
@@ -44,6 +47,7 @@ const ROOM_TITLE: Record<RoomId, string> = {
   prompts: 'プロンプト管理',
   files: 'ファイル監視',
   compare: 'AI比較',
+  logs: 'ログ',
   settings: '設定',
 };
 
@@ -87,6 +91,7 @@ export function Shell() {
           {room === 'prompts' && <PromptsScreen />}
           {room === 'files' && <FilesScreen />}
           {room === 'compare' && <CompareScreen />}
+          {room === 'logs' && <LogsScreen />}
           {room === 'settings' && <SettingsScreen />}
         </div>
       </div>

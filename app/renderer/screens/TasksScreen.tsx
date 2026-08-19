@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
+import { suggestTopAI } from '../lib/aiRecommendation';
 import type { Task, TaskStatus } from '../types';
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
@@ -9,20 +10,6 @@ const COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: 'review', label: 'REVIEW' },
   { id: 'done', label: 'DONE' },
 ];
-
-function suggestAI(title: string, services: { id: string; name: string; category: string[] }[]): string {
-  const lower = title.toLowerCase();
-  if (/コード|実装|バグ|サイト/.test(title) || /code|bug/.test(lower)) {
-    return services.find((s) => s.category.includes('coding'))?.name ?? '';
-  }
-  if (/画像|イラスト/.test(title)) {
-    return services.find((s) => s.category.includes('image'))?.name ?? '';
-  }
-  if (/調査|リサーチ/.test(title)) {
-    return services.find((s) => s.category.includes('research'))?.name ?? '';
-  }
-  return services[0]?.name ?? '';
-}
 
 export function TasksScreen() {
   const { activeProjectId, projects, services } = useAppState();
@@ -53,7 +40,7 @@ export function TasksScreen() {
     if (!title.trim()) return;
     await window.api.tasks.create(activeProjectId, {
       title: title.trim(),
-      assignedAI: suggestAI(title, services),
+      assignedAI: suggestTopAI(title, services)?.name ?? '',
       priority: 'normal',
       relatedFiles: '',
       handoffId: null,
