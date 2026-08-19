@@ -1,5 +1,0 @@
-{
-  "name": "@jarvispieces/piece-jarvis-decision",
-  "version": "0.0.1",
-  "main": "./dist/src/index.js"
-}
