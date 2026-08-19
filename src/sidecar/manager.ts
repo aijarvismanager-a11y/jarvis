@@ -46,7 +46,16 @@ const PUBLIC_KEY_FILE = 'public.pem';
 // the same ES256 key, scoped by audience, and verified statelessly (signature +
 // exp + aud, no DB hit) so a leak is bounded to the TTL rather than forever.
 const ACCESS_TOKEN_AUDIENCE = 'brain-api';
-export const ACCESS_TOKEN_TTL_SECONDS = 600; // 10 minutes
+// 30 days. Short-lived by JWT standards, but this is the credential a
+// browser tab's cookie carries - combined with sliding renewal (websocket.ts
+// re-mints once a token is past half its TTL), a tab used at least once a
+// month never hits the 401 page. A short TTL only bought fast revocation via
+// natural expiry; isEnrolled() is re-checked on every mint (see
+// issueAccessToken) and revocation is swept into live connections within
+// ~30s (see SidecarManager.start's revocationSweepTimer) either way, so the
+// short TTL wasn't load-bearing for revocation - it was just an inconvenience
+// for a personal, localhost-only dashboard with no separate re-auth flow.
+export const ACCESS_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /**
  * Accept only strings shaped like IANA zone names ("Area/City", up to three
