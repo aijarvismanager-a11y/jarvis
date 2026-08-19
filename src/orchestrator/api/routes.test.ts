@@ -318,4 +318,49 @@ describe('createOrchestratorRoutes', () => {
     expect(putResp.status).toBe(200);
     expect((await putResp.json()).pricing.models['custom:model']).toEqual({ input_per_1k: 1, output_per_1k: 2 });
   });
+
+  it('GET /api/orchestrator/ai-profiles returns the default table', async () => {
+    const { routes } = setup();
+    const resp = await routes['/api/orchestrator/ai-profiles']!.GET!(new Request('http://x'));
+    const body = await resp.json();
+    expect(body.profiles.claude_code).toBeDefined();
+    expect(body.profiles.ollama).toBeDefined();
+  });
+
+  it('PUT /api/orchestrator/ai-profiles validates shape and rejects an unroutable capability', async () => {
+    const { routes } = setup();
+
+    const missingField = await routes['/api/orchestrator/ai-profiles']!.PUT!(
+      new Request('http://x', { method: 'PUT', body: JSON.stringify({ foo: { enabled: true } }) }),
+    );
+    expect(missingField.status).toBe(400);
+
+    const badCapability = await routes['/api/orchestrator/ai-profiles']!.PUT!(
+      new Request('http://x', {
+        method: 'PUT',
+        body: JSON.stringify({ foo: { enabled: true, priority: 1, strengths: { image: 4 } } }),
+      }),
+    );
+    expect(badCapability.status).toBe(400);
+
+    const outOfRange = await routes['/api/orchestrator/ai-profiles']!.PUT!(
+      new Request('http://x', {
+        method: 'PUT',
+        body: JSON.stringify({ foo: { enabled: true, priority: 1, strengths: { code: 9 } } }),
+      }),
+    );
+    expect(outOfRange.status).toBe(400);
+  });
+
+  it('PUT /api/orchestrator/ai-profiles persists a valid table, round-tripped by GET', async () => {
+    const { routes } = setup();
+    const next = { my_worker: { enabled: true, priority: 2, strengths: { code: 3, research: 1 } } };
+    const putResp = await routes['/api/orchestrator/ai-profiles']!.PUT!(
+      new Request('http://x', { method: 'PUT', body: JSON.stringify(next) }),
+    );
+    expect(putResp.status).toBe(200);
+
+    const { loadAIProfiles } = await import('../ai-profiles.ts');
+    expect(loadAIProfiles(dir!).my_worker).toEqual(next.my_worker);
+  });
 });

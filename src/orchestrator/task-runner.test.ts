@@ -78,8 +78,10 @@ describe('TaskWorkerRunner.run', () => {
     expect(outcome.task_type).toBe('code');
     expect(outcome.primary).not.toBeNull();
     expect(outcome.primaryAvailable).toBe(false);
-    expect(outcome.prompt).toContain('TASK');
-    expect(outcome.prompt).toContain('TARGET AI');
+    // Prompt wording is AI-specific (prompt-builder.ts's per-target templates) - just
+    // check it carries the task text and names the recommended target.
+    expect(outcome.prompt).toContain('x');
+    expect(outcome.prompt).toContain(outcome.primary!);
   });
 
   it('marks the worker error on failure but still writes a handoff file', async () => {

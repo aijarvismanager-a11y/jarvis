@@ -21,6 +21,7 @@ import { getCorsHeaders } from '../../daemon/api-routes.ts';
 import { getCostSummary } from '../cost-tracker.ts';
 import { loadBudget, saveBudget, type BudgetConfig } from '../budget.ts';
 import { loadPricing, savePricing, type PricingTable } from '../pricing.ts';
+import { loadAIProfiles, saveAIProfiles, type AIProfiles } from '../ai-profiles.ts';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: getCorsHeaders() });
@@ -32,6 +33,10 @@ function error(message: string, status = 400): Response {
 
 const VALID_TEMPLATES: TaskTemplate[] = ['research', 'code', 'plan', 'write', 'general'];
 const VALID_CAPABILITIES: WorkerCapability[] = ['code', 'research', 'write', 'plan', 'image', 'general'];
+// AI Profile strengths are scored per capability a TaskTemplate can actually
+// route to - deliberately excludes 'image' (see ai-profiles.ts's comment:
+// no TaskTemplate maps to it, so a score there is dead configuration).
+const ROUTABLE_CAPABILITIES: WorkerCapability[] = ['code', 'research', 'write', 'plan', 'general'];
 
 export type OrchestratorApiContext = {
   getRegistry: () => WorkerRegistry;
@@ -261,6 +266,42 @@ export function createOrchestratorRoutes(ctx: OrchestratorApiContext): Record<st
         const pricing: PricingTable = { currency, fx_rate_usd, models: models as PricingTable['models'], default: defaultPricing };
         savePricing(ctx.getDataDir(), pricing);
         return json({ pricing });
+      },
+    },
+
+    '/api/orchestrator/ai-profiles': {
+      GET: (_req: Request) => {
+        return json({ profiles: loadAIProfiles(ctx.getDataDir()) });
+      },
+      PUT: async (req: Request) => {
+        const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return error('body must be an object of profile name -> profile', 400);
+
+        const profiles: AIProfiles = {};
+        for (const [name, raw] of Object.entries(body)) {
+          if (!name.trim()) return error('profile names must be non-empty', 400);
+          if (!raw || typeof raw !== 'object') return error(`profile "${name}" must be an object`, 400);
+          const p = raw as Record<string, unknown>;
+          if (typeof p.enabled !== 'boolean') return error(`profile "${name}".enabled must be a boolean`, 400);
+          if (typeof p.priority !== 'number') return error(`profile "${name}".priority must be a number`, 400);
+          if (!p.strengths || typeof p.strengths !== 'object' || Array.isArray(p.strengths)) {
+            return error(`profile "${name}".strengths must be an object`, 400);
+          }
+          const strengths: Partial<Record<WorkerCapability, number>> = {};
+          for (const [cap, score] of Object.entries(p.strengths as Record<string, unknown>)) {
+            if (!ROUTABLE_CAPABILITIES.includes(cap as WorkerCapability)) {
+              return error(`profile "${name}".strengths has an unroutable capability "${cap}" - must be one of: ${ROUTABLE_CAPABILITIES.join(', ')}`, 400);
+            }
+            if (typeof score !== 'number' || score < 0 || score > 5) {
+              return error(`profile "${name}".strengths.${cap} must be a number between 0 and 5`, 400);
+            }
+            strengths[cap as WorkerCapability] = score;
+          }
+          profiles[name] = { enabled: p.enabled, priority: p.priority, strengths };
+        }
+
+        saveAIProfiles(ctx.getDataDir(), profiles);
+        return json({ profiles });
       },
     },
   };

@@ -13,6 +13,7 @@ import {
   type ManualHandoffOutcome,
 } from "./useWorkersData";
 import { useCostData, type BudgetConfig, type BudgetStatus, type CostSummary } from "./useCostData";
+import { useAIProfilesData, type AIProfile, type AIProfiles } from "./useAIProfilesData";
 import "./WorkersRoom.css";
 
 export type RoomBodyMode = "inline" | "expanded";
@@ -47,8 +48,10 @@ const BUDGET_STATUS_TONE: Record<BudgetStatus, Tone> = {
 export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
   const data = useWorkersData();
   const cost = useCostData();
+  const aiProfiles = useAIProfilesData();
   const [runOpen, setRunOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
@@ -95,6 +98,9 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
           </StatusChip>
         )}
         <button className="rk-workers__new" onClick={() => setAddOpen(true)}>ワーカーを追加</button>
+        <button className="rk-workers__new" onClick={() => setProfilesOpen((v) => !v)}>
+          {profilesOpen ? "閉じる" : "AIプロファイル"}
+        </button>
         <button className="rk-workers__new" onClick={() => setCostOpen((v) => !v)}>
           {costOpen ? "閉じる" : "コスト管理"}
         </button>
@@ -102,6 +108,19 @@ export function WorkersRoomBody({ mode }: { mode: RoomBodyMode }) {
           {runOpen ? "閉じる" : "タスクを実行"}
         </button>
       </div>
+
+      {profilesOpen && (
+        <AIProfilesPanel
+          profiles={aiProfiles.profiles}
+          loading={aiProfiles.loading}
+          error={aiProfiles.error}
+          onSave={async (next) => {
+            const r = await aiProfiles.saveProfiles(next);
+            setToast({ text: r.message, tone: r.ok ? "ok" : "warn" });
+            return r.ok;
+          }}
+        />
+      )}
 
       {costOpen && (
         <CostPanel
@@ -518,6 +537,148 @@ function CostPanel({
       ) : (
         <div className="rk-workers__runacts">
           <button className="rk-workers__sbtn" onClick={startEdit}>予算を編集</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Capabilities a TaskTemplate can actually route to - excludes "image" (see ai-profiles.ts: no template maps to it, so a strength score there would be dead configuration). */
+const ROUTABLE_CAPABILITIES: readonly WorkerCapability[] = ["code", "research", "write", "plan", "general"];
+
+const EMPTY_PROFILE: AIProfile = { enabled: true, priority: 1, strengths: {} };
+
+/** AI Profile Manager (spec Phase 3): edits ai-profiles.json's strengths/priority/enabled per AI, previously file-only. */
+function AIProfilesPanel({
+  profiles,
+  loading,
+  error,
+  onSave,
+}: {
+  profiles: AIProfiles;
+  loading: boolean;
+  error: string | null;
+  onSave: (next: AIProfiles) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<AIProfiles>({});
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = () => {
+    setDraft(JSON.parse(JSON.stringify(profiles)));
+    setEditing(true);
+  };
+
+  const updateProfile = (name: string, patch: Partial<AIProfile>) => {
+    setDraft((prev) => ({ ...prev, [name]: { ...prev[name]!, ...patch } }));
+  };
+
+  const updateStrength = (name: string, cap: WorkerCapability, value: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      [name]: { ...prev[name]!, strengths: { ...prev[name]!.strengths, [cap]: value } },
+    }));
+  };
+
+  const addProfile = () => {
+    const name = newName.trim();
+    if (!name || draft[name]) return;
+    setDraft((prev) => ({ ...prev, [name]: { ...EMPTY_PROFILE, strengths: {} } }));
+    setNewName("");
+  };
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    const ok = await onSave(draft);
+    setBusy(false);
+    if (ok) setEditing(false);
+  };
+
+  if (loading && Object.keys(profiles).length === 0) {
+    return <div className="rk-workers__runpanel"><Skeleton lines={3} /></div>;
+  }
+  if (error) {
+    return <div className="rk-workers__runpanel"><div className="rk-workers__msg">{error}</div></div>;
+  }
+
+  const shown = editing ? draft : profiles;
+  const names = Object.keys(shown).sort();
+
+  return (
+    <div className="rk-workers__runpanel">
+      {names.map((name) => {
+        const p = shown[name]!;
+        return (
+          <div key={name} className="rk-workers__card" style={{ marginBottom: 4 }}>
+            <div className="rk-workers__card-head">
+              <span className="rk-workers__card-name">{name}</span>
+              {editing ? (
+                <Switch on={p.enabled} onClick={() => updateProfile(name, { enabled: !p.enabled })} />
+              ) : (
+                <StatusChip tone={p.enabled ? "ok" : "mut"} dot>{p.enabled ? "有効" : "無効"}</StatusChip>
+              )}
+            </div>
+            <div className="rk-workers__runrow">
+              {ROUTABLE_CAPABILITIES.map((cap) => (
+                <div key={cap}>
+                  <div className="rk-workers__flab">{cap}</div>
+                  {editing ? (
+                    <Input
+                      value={String(p.strengths[cap] ?? 0)}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (Number.isFinite(n)) updateStrength(name, cap, Math.max(0, Math.min(5, n)));
+                      }}
+                      mono
+                    />
+                  ) : (
+                    <div>{p.strengths[cap] ?? 0}</div>
+                  )}
+                </div>
+              ))}
+              <div>
+                <div className="rk-workers__flab">優先度</div>
+                {editing ? (
+                  <Input
+                    value={String(p.priority)}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n)) updateProfile(name, { priority: n });
+                    }}
+                    mono
+                  />
+                ) : (
+                  <div>{p.priority}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {editing ? (
+        <>
+          <div className="rk-workers__runrow">
+            <div>
+              <div className="rk-workers__flab">新しいAIプロファイルを追加</div>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="my_worker" />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button className="rk-workers__sbtn" onClick={addProfile} disabled={!newName.trim()}>追加</button>
+            </div>
+          </div>
+          <div className="rk-workers__runacts">
+            <button className="rk-workers__sbtn" onClick={() => setEditing(false)} disabled={busy}>キャンセル</button>
+            <button className="rk-workers__sbtn rk-workers__sbtn--pri" onClick={submit} disabled={busy}>
+              {busy ? "保存中…" : "保存"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="rk-workers__runacts">
+          <button className="rk-workers__sbtn" onClick={startEdit}>編集</button>
         </div>
       )}
     </div>
