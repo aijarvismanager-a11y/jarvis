@@ -2,9 +2,11 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'sha256-Xn5DMcO1loXYjm6nkCoC7N11yMhuJpUokNeBdx7+AKA='" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Orchestrator</title>
+    <!-- CSP allows this exact script via its sha256 hash (no 'unsafe-inline') -- editing this
+         script's contents requires recomputing the hash above or it silently stops running. -->
     <script>
       (function () {
         try {

@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { isDev } from './paths';
+import { isDev, assetsDir } from './paths';
 import { registerIpcHandlers } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -14,6 +14,7 @@ function createWindow(): void {
     title: 'AI Orchestrator',
     backgroundColor: '#111214',
     autoHideMenuBar: true,
+    icon: path.join(assetsDir, 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '..', '..', 'preload', 'dist', 'index.js'),
       contextIsolation: true,

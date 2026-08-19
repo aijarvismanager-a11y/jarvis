@@ -22,6 +22,10 @@ export const bundledConfigDir = packaged
   ? path.join(process.resourcesPath, 'config')
   : path.join(process.cwd(), 'config');
 
+export const assetsDir = packaged
+  ? path.join(process.resourcesPath, 'assets')
+  : path.join(process.cwd(), 'assets');
+
 // User-writable copy of config (ai_services.json etc.) — the bundled copy under
 // resources/ is read-only once packaged, so edits from the Settings screen go here.
 export const userConfigDir = path.join(dataDir, 'config');
