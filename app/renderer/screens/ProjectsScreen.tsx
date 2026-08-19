@@ -164,7 +164,15 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
 
           {(description.trim() || purpose.trim()) && (
             <div className="field">
-              <label>おすすめAI（説明・用途から自動判定）</label>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <label style={{ margin: 0 }}>おすすめAI — この説明・用途の作業内容に対する判定です</label>
+                <Button
+                  size="sm"
+                  onClick={() => navigator.clipboard.writeText(`${description}\n${purpose}`.trim())}
+                >
+                  📋 作業内容をコピー
+                </Button>
+              </div>
               {suggestedAIs.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--ink3)', margin: 0 }}>
                   一致するAIが見つかりませんでした。作成後、タスクごとに担当AIを選べます。
@@ -172,13 +180,16 @@ export function ProjectsScreen({ onOpenRoom }: { onOpenRoom: (room: 'tasks') => 
               ) : (
                 <div className="list">
                   <div className="row row--wrap">
+                    判定カテゴリー:
                     {matchedCategories.map((c) => <Chip key={c} tone="accent">{categoryLabel(c)}</Chip>)}
                   </div>
                   {suggestedAIs.map(({ service, score }, i) => (
                     <div key={service.id} className="row" style={{ justifyContent: 'space-between' }}>
-                      <span>
+                      <span style={{ fontSize: 13 }}>
                         {['🥇', '🥈', '🥉'][i] ?? '　'} {service.icon} {service.name}
-                        <span style={{ color: 'var(--ink3)', fontSize: 12 }}> （一致度 {score}）</span>
+                        <span style={{ color: 'var(--ink3)', fontSize: 12 }}>
+                          {' '}— 理由: {service.category.filter((c) => matchedCategories.includes(c)).map(categoryLabel).join('・')}に向いています（一致度 {score}）
+                        </span>
                       </span>
                       <Button size="sm" onClick={() => window.api.ai.open(service.url, service.name)}>{service.name}を開く</Button>
                     </div>

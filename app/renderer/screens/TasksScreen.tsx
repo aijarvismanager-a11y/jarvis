@@ -180,7 +180,7 @@ function AddTaskRow({ services, onAdd }: { services: AIService[]; onAdd: (title:
 }
 
 export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void }) {
-  const { activeProjectId, projects, services, setHandoffDraftTask } = useAppState();
+  const { activeProjectId, projects, services, categories, setHandoffDraftTask } = useAppState();
   const [tasks, setTasks] = useState<Task[]>([]);
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -188,11 +188,15 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
   // description/用途) would otherwise vanish the moment that form closes —
   // keep it visible here too, since that's when task-by-task AI choices
   // actually get made.
-  const projectSuggestedAIs = useMemo(() => {
+  const projectMatchedCategories = useMemo(() => {
     if (!activeProject) return [];
-    const text = `${activeProject.description} ${activeProject.purpose}`;
-    return rankServices(services, matchCategories(text));
-  }, [activeProject, services]);
+    return matchCategories(`${activeProject.description} ${activeProject.purpose}`);
+  }, [activeProject]);
+  const projectSuggestedAIs = useMemo(
+    () => rankServices(services, projectMatchedCategories),
+    [services, projectMatchedCategories],
+  );
+  const categoryLabel = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
 
   const refresh = async () => {
     if (!activeProjectId) return setTasks([]);
@@ -258,14 +262,32 @@ export function TasksScreen({ onOpenRoom }: { onOpenRoom: (room: RoomId) => void
 
       {projectSuggestedAIs.length > 0 && (
         <div className="card">
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 6 }}>
-            このプロジェクトのおすすめAI（説明・用途から判定）
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>
+              このプロジェクトのおすすめAI — この説明・用途の作業内容に対する判定です
+            </span>
+            <Button
+              size="sm"
+              onClick={() => navigator.clipboard.writeText(`${activeProject.description}\n${activeProject.purpose}`.trim())}
+            >
+              📋 作業内容をコピー
+            </Button>
           </div>
-          <div className="row row--wrap">
-            {projectSuggestedAIs.map(({ service }, i) => (
-              <Chip key={service.id} tone={i === 0 ? 'accent' : 'neutral'}>
-                {['🥇', '🥈', '🥉'][i] ?? ''} {service.icon} {service.name}
-              </Chip>
+          <div className="row row--wrap" style={{ marginBottom: 8 }}>
+            判定カテゴリー:
+            {projectMatchedCategories.map((c) => <Chip key={c} tone="accent">{categoryLabel(c)}</Chip>)}
+          </div>
+          <div className="list">
+            {projectSuggestedAIs.map(({ service, score }, i) => (
+              <div key={service.id} className="row" style={{ justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13 }}>
+                  {['🥇', '🥈', '🥉'][i] ?? '　'} {service.icon} {service.name}
+                  <span style={{ color: 'var(--ink3)', fontSize: 12 }}>
+                    {' '}— 理由: {service.category.filter((c) => projectMatchedCategories.includes(c)).map(categoryLabel).join('・')}に向いています（一致度 {score}）
+                  </span>
+                </span>
+                <Button size="sm" onClick={() => window.api.ai.open(service.url, service.name)}>{service.name}を開く</Button>
+              </div>
             ))}
           </div>
         </div>
