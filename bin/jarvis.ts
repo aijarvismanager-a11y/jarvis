@@ -49,6 +49,7 @@ ${c.bold('Commands:')}
   ${c.cyan('uninstall')} Remove JARVIS (dispatches based on install method)
   ${c.cyan('doctor')}    Check environment and connectivity
   ${c.cyan('enroll')}    Enroll a sidecar device: mint + store its JWT (no daemon needed)
+  ${c.cyan('login')}     Print a one-click dashboard login URL (fixes an expired-cookie 401)
   ${c.cyan('sidecars')}  List enrolled devices (sidecars list [--json])
   ${c.cyan('revoke')}    Revoke an enrolled device by sid
   ${c.cyan('export')}    Export user data as a tar archive (export [--out <path>|-] [--full])
@@ -78,6 +79,7 @@ ${c.bold('Examples:')}
   jarvis uninstall              Remove JARVIS from this machine
   jarvis enroll "desktop-NA23"  Mint an enrollment token for a device
   jarvis enroll <name> --rotate Re-enroll invalidating all previous tokens
+  jarvis login                  Get a fresh dashboard login link (401? run this)
   jarvis sidecars list --json   List devices (machine-readable)
   jarvis revoke <sid>           Revoke a device's access
   jarvis doctor                 Check if everything is working
@@ -457,6 +459,10 @@ switch (command) {
   case 'enroll': {
     const { cmdEnroll } = await import('../src/cli/devices.ts');
     process.exit(await cmdEnroll(commandArgs));
+  }
+  case 'login': {
+    const { cmdLogin } = await import('../src/cli/devices.ts');
+    process.exit(await cmdLogin(commandArgs));
   }
   case 'sidecars': {
     const { cmdSidecars } = await import('../src/cli/devices.ts');

@@ -4,6 +4,7 @@
  *   jarvis enroll <name> [--json]    mint + store an enrollment JWT (upsert by name)
  *   jarvis sidecars list [--json]    list enrolled devices
  *   jarvis revoke <sid> [--json]     revoke a device
+ *   jarvis login [name] [--json]     print a one-click dashboard login URL
  *
  * These run WITHOUT the daemon: they open the vault DB directly and share the
  * enrollment module with the daemon's SidecarManager. That is what lets a
@@ -18,6 +19,7 @@
 import { loadConfig } from '../config/loader.ts';
 import { initDatabase, getDb } from '../vault/schema.ts';
 import { enrollDevice } from '../sidecar/enrollment.ts';
+import { SidecarManager } from '../sidecar/manager.ts';
 import type { SidecarRecord } from '../sidecar/types.ts';
 
 interface CliIo {
@@ -30,7 +32,7 @@ const defaultIo: CliIo = {
   err: (line) => console.error(line),
 };
 
-async function openVault(io: CliIo): Promise<{ dataDir: string; brainUrl: string }> {
+async function openVault(io: CliIo): Promise<{ dataDir: string; brainUrl: string; port: number }> {
   const config = await loadConfig();
   initDatabase(config.daemon.db_path, { quiet: true });
   const brainUrl = config.daemon.brain_domain ?? `localhost:${config.daemon.port}`;
@@ -40,7 +42,7 @@ async function openVault(io: CliIo): Promise<{ dataDir: string; brainUrl: string
         `localhost:${config.daemon.port} and only work for sidecars on this machine.`,
     );
   }
-  return { dataDir: config.daemon.data_dir, brainUrl };
+  return { dataDir: config.daemon.data_dir, brainUrl, port: config.daemon.port };
 }
 
 export async function cmdEnroll(args: string[], io: CliIo = defaultIo): Promise<number> {
@@ -137,6 +139,55 @@ export async function cmdRevoke(args: string[], io: CliIo = defaultIo): Promise<
     const revoked = result.changes > 0;
     if (json) io.out(JSON.stringify({ sid, revoked }));
     else io.out(revoked ? `revoked ${sid}` : `nothing to revoke for ${sid}`);
+    return 0;
+  } catch (err) {
+    io.err(`error: ${err instanceof Error ? err.message : String(err)}`);
+    return 1;
+  }
+}
+
+/**
+ * Mints a fresh access token for an already-enrolled device and prints a
+ * ready-to-open dashboard URL (`?token=` sets the cookie and redirects on
+ * first visit - see websocket.ts's dispatch()). This is the self-service
+ * fix for "the dashboard's cookie expired and I have no non-browser way to
+ * get a new one": no running daemon needed (mints straight from the vault,
+ * same as `enroll`), and no device name to remember by default - it just
+ * picks the enrolled device that was last seen.
+ */
+export async function cmdLogin(args: string[], io: CliIo = defaultIo): Promise<number> {
+  const json = args.includes('--json');
+  const name = args.filter((a) => !a.startsWith('--'))[0];
+
+  try {
+    const { dataDir, port } = await openVault(io);
+
+    const device = name
+      ? (getDb().query('SELECT * FROM sidecars WHERE name = ? AND status = ?').get(name, 'enrolled') as SidecarRecord | null)
+      : (getDb()
+          .query("SELECT * FROM sidecars WHERE status = 'enrolled' ORDER BY last_seen_at IS NULL, last_seen_at DESC, enrolled_at DESC LIMIT 1")
+          .get() as SidecarRecord | null);
+
+    if (!device) {
+      io.err(name ? `no enrolled device named "${name}"` : 'no enrolled devices - run `jarvis enroll <name>` first');
+      return 1;
+    }
+
+    const manager = new SidecarManager(dataDir);
+    await manager.start();
+    const minted = await manager.issueAccessToken(device.id);
+    if (!minted) {
+      io.err(`could not mint a token for "${device.name}" (${device.id})`);
+      return 1;
+    }
+
+    const url = `http://localhost:${port}/?token=${minted.token}`;
+    if (json) {
+      io.out(JSON.stringify({ url, sid: device.id, name: device.name, expires_in: minted.expiresIn }));
+    } else {
+      io.err(`open this to log back into the dashboard as "${device.name}":`);
+      io.out(url);
+    }
     return 0;
   } catch (err) {
     io.err(`error: ${err instanceof Error ? err.message : String(err)}`);
