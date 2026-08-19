@@ -245,7 +245,7 @@ body {
 }
 
 .wizard-card {
-  width: 520px;
+  width: 640px;
   max-width: 92vw;
   background: var(--raise);
   border: 1px solid var(--rule);

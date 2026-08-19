@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAppState } from '../state';
 import { Button } from '../design/ui/Button';
+import { Chip } from '../design/ui/Chip';
 
 export function FirstRunWizard() {
-  const { settings, services, refreshSettings, refreshServices } = useAppState();
+  const { settings, services, categories, refreshSettings, refreshServices } = useAppState();
   const [step, setStep] = useState(0);
   const [projectsDir, setProjectsDir] = useState(settings?.projectsDir ?? '');
   const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set(services.map((s) => s.id)));
@@ -48,11 +49,35 @@ export function FirstRunWizard() {
         {step === 1 && (
           <>
             <h3>STEP 2 — 利用するAI</h3>
+            <p style={{ color: 'var(--ink2)', fontSize: 13, marginTop: -8 }}>
+              各AIの得意分野です。あとから「設定」画面でいつでも変更できます。
+            </p>
             <div className="list">
               {services.map((s) => (
-                <label key={s.id} className="row">
-                  <input type="checkbox" checked={enabledIds.has(s.id)} onChange={() => toggle(s.id)} />
-                  {s.icon} {s.name}
+                <label
+                  key={s.id}
+                  className="card"
+                  style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabledIds.has(s.id)}
+                    onChange={() => toggle(s.id)}
+                    style={{ marginTop: 4 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div className="row">
+                      <span style={{ fontSize: 18 }}>{s.icon}</span>
+                      <strong>{s.name}</strong>
+                      {s.image_generation && <Chip tone="accent">画像生成</Chip>}
+                    </div>
+                    <p style={{ color: 'var(--ink2)', fontSize: 13, margin: '4px 0 6px' }}>{s.description}</p>
+                    <div className="row row--wrap">
+                      {s.category.map((c) => (
+                        <Chip key={c}>{categories.find((cat) => cat.id === c)?.label ?? c}</Chip>
+                      ))}
+                    </div>
+                  </div>
                 </label>
               ))}
             </div>

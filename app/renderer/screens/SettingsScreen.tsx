@@ -93,8 +93,11 @@ export function SettingsScreen() {
           <Button onClick={() => setAddingService((v) => !v)}>{addingService ? 'キャンセル' : '+ AIを追加'}</Button>
         </div>
         {services.map((s) => (
-          <div key={s.id} className="row" style={{ justifyContent: 'space-between', borderTop: '1px solid var(--rule)', paddingTop: 8 }}>
-            <div>{s.icon} {s.name} <span style={{ color: 'var(--faint)', fontSize: 12 }}>{s.url}</span></div>
+          <div key={s.id} className="row" style={{ justifyContent: 'space-between', borderTop: '1px solid var(--rule)', paddingTop: 8, alignItems: 'flex-start' }}>
+            <div>
+              <div>{s.icon} {s.name} <span style={{ color: 'var(--faint)', fontSize: 12 }}>{s.url}</span></div>
+              {s.description && <div style={{ color: 'var(--ink2)', fontSize: 12, marginTop: 2 }}>{s.description}</div>}
+            </div>
             <div className="row">
               <label className="row"><input type="checkbox" checked={s.enabled} onChange={() => toggleEnabled(s.id)} /> 有効</label>
               <Button size="sm" variant="danger" onClick={() => removeService(s.id)}>削除</Button>
