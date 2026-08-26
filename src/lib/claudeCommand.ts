@@ -11,6 +11,14 @@ function outputTarget(outputFiles: string[]): string {
   return first.endsWith("/*") ? first.slice(0, -1) : first;
 }
 
+// -p/--print makes claude run non-interactively and exit (required for the
+// "ローカルで実行" button — without it claude starts an interactive session
+// that waits on stdin and just hangs until our timeout kills it).
+// --permission-mode acceptEdits auto-approves file edit/write tool calls;
+// without it, the first edit would prompt for confirmation and hang the
+// same way, since a non-interactive run has no terminal to answer on.
+const NON_INTERACTIVE_FLAGS = "-p --permission-mode acceptEdits";
+
 /**
  * A user-authored command_template always wins (explicit customization).
  * Otherwise, for Claude Code steps we compose a command from the step's
@@ -25,8 +33,8 @@ export function buildClaudeCommand(step: WorkflowStep): string | null {
   const target = outputTarget(step.output_files);
 
   if (inputs.length === 0) {
-    return `claude "${target} を実装して"`;
+    return `claude ${NON_INTERACTIVE_FLAGS} "${target} を実装して"`;
   }
   const inputList = inputs.join(" と ");
-  return `claude "${inputList} を読んで ${target} に実装して"`;
+  return `claude ${NON_INTERACTIVE_FLAGS} "${inputList} を読んで ${target} に実装して"`;
 }

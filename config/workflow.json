@@ -61,7 +61,7 @@
         "workspace/logs/test-result.log"
       ],
       "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
-      "command_template": "claude \"src/ のコードをテストし、失敗があれば修正して\""
+      "command_template": "claude -p --permission-mode acceptEdits \"src/ のコードをテストし、失敗があれば修正して\""
     }
   ]
 }

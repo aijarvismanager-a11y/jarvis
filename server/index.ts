@@ -65,8 +65,13 @@ app.post("/api/execute", (req, res) => {
     res.status(400).json({ error: "command は必須です" });
     return;
   }
+  // On Windows, cmd.exe defaults to the system codepage (e.g. Shift-JIS),
+  // which mojibakes any non-ASCII output since we read it back as UTF-8.
+  // Switching to codepage 65001 (UTF-8) first fixes that for commands that
+  // print UTF-8, without changing the command the user sees and approved.
+  const shellCommand = process.platform === "win32" ? `chcp 65001>nul && ${command}` : command;
   exec(
-    command,
+    shellCommand,
     { cwd: WORKSPACE_DIR, timeout: 120_000, maxBuffer: 5 * 1024 * 1024 },
     (err, stdout, stderr) => {
       const timedOut = !!err?.killed && err.signal === "SIGTERM";

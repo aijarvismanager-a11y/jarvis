@@ -204,3 +204,32 @@ npm run dev      # Vite開発サーバー (port 5173, /api・/wsは4173へプロ
 
 ### 次にやること
 特になし。指示があれば追加要望に対応。
+
+---
+
+## 2026-08-27（6回目）: 実機耐性の指摘に対応（起動の一本化・テスト追加・実際のclaude CLIでの検証）
+
+ユーザーから「実機に耐えうる仕上がりか」との確認があり、その場で指摘した5項目に対応。
+
+### 完了（済）
+- **起動を1コマンド化**: `concurrently`を導入し、`npm run start`でサーバー+フロントを同時起動できるように（README.mdにも記載）。個別起動用の`npm run server`/`npm run dev`は従来通り残している。
+- **自動テストを追加**: `vitest`導入。`src/lib/claudeCommand.test.ts`（コマンド自動生成ロジック）と`src/types/workflow.test.ts`（Zodスキーマのバリデーション）で計8件。`vitest.config.ts`で`legacy-ai-manager/`を除外（デフォルトだと旧アプリのテストまで拾ってしまっていたため）。
+- **Windows文字化けの緩和**: `server/index.ts`で、Windows環境では実行コマンドの前に`chcp 65001>nul &&`を挿入し、UTF-8出力を正しく読めるようにした。
+- **実際の`claude` CLIで実行確認 → 重要な発見あり**（詳細は下記「不具合」参照）: 自動生成コマンドに`-p --permission-mode acceptEdits`が必須と判明したため追加。これがないと`claude`が対話セッションを開始し、標準入力を待ったまま120秒でタイムアウトしてしまう（`src/lib/claudeCommand.ts`のコメントに理由を明記）。サンプル`workflow.json`のQAステップの明示コマンドにも同様に追記。`EditTemplateModal`にもこの注意書きを追加。
+- `npm run build` / `npm run test` / `oxlint` すべてエラーなし。
+
+### 不具合・要確認（優先順位順）
+
+- **[優先度: 高・ユーザー対応が必要] 実機の`claude` CLIが未ログイン状態だった**
+  実際に`claude -p --permission-mode acceptEdits "..."`をこのマシンで実行して検証したところ、`Not logged in · Please run /login`というエラーで失敗した。
+  **原因**: 現在このタスクを進めているClaude Codeセッション自体は、ホスト側が管理する認証の仕組み（`CLAUDE_CODE_HOST_SESSION_ID`等の環境変数で連携）で動いており、そこから新しく`claude`コマンドを1つ起動しても、その認証情報は引き継がれない。単体の`claude` CLIとしてはこのマシンでまだ一度もログインしていない状態だった。
+  **対応が必要な作業**（アプリの不具合ではなく、環境のセットアップ事項）: 通常のターミナルで
+  ```bash
+  claude login
+  ```
+  を一度実行し、ブラウザでの認証を完了させる。これをやらないと「ローカルで実行」ボタンは常に`Not logged in`で失敗する。
+  ログイン後、再度「ローカルで実行」を押して、実際にファイルが生成される（`workspace/src/`配下等）ところまで確認することを推奨。
+
+### 次にやること
+- ユーザーに`claude login`を実行してもらい、実機での本番相当の動作（実際のコード生成）を確認してもらう
+- それ以外の項目は現時点で対応完了

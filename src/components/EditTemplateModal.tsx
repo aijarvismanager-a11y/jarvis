@@ -28,7 +28,9 @@ export function EditTemplateModal({ step, onCancel, onSave }: Props) {
       </div>
       <div className="flex flex-col gap-1.5">
         <span className={labelClass}>
-          Claude Code コマンド（空欄の場合、担当AIが「Claude Code」を含むステップは入力・出力ファイルから自動生成されます）
+          Claude Code コマンド（空欄の場合、担当AIが「Claude Code」を含むステップは入力・出力ファイルから自動生成されます。「ローカルで実行」で使う場合は
+          <code className="mx-1 px-1 rounded bg-bg">-p --permission-mode acceptEdits</code>
+          を付けないと対話モードで待機してタイムアウトします）
         </span>
         <input className={inputClass} value={commandTemplate} onChange={(e) => setCommandTemplate(e.target.value)} />
       </div>
