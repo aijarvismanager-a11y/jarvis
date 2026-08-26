@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Workflow, WorkflowStep } from "./types/workflow";
-import { connectFsWatch, fetchArtifactContent, fetchArtifactList, fetchWorkflow, saveWorkflow, type ArtifactFile } from "./lib/api";
+import type { AiServiceList } from "./types/aiService";
+import {
+  connectFsWatch,
+  fetchAiServices,
+  fetchArtifactContent,
+  fetchArtifactList,
+  fetchWorkflow,
+  saveAiServices,
+  saveWorkflow,
+  type ArtifactFile,
+} from "./lib/api";
 import { WorkflowPane } from "./components/WorkflowPane";
 import { PromptPane } from "./components/PromptPane";
 import { ArtifactsPane } from "./components/ArtifactsPane";
 import { AddStepModal } from "./components/AddStepModal";
 import { EditTemplateModal } from "./components/EditTemplateModal";
+import { SettingsModal } from "./components/SettingsModal";
+import { buildClaudeCommand } from "./lib/claudeCommand";
 
 function stripWorkspacePrefix(p: string) {
   return p.replace(/^workspace\//, "");
@@ -25,6 +37,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showAddStep, setShowAddStep] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [aiServices, setAiServices] = useState<AiServiceList>([]);
 
   const loadWorkflow = useCallback(async () => {
     try {
@@ -46,20 +60,32 @@ export default function App() {
     }
   }, []);
 
+  const loadAiServices = useCallback(async () => {
+    try {
+      setAiServices(await fetchAiServices());
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
   useEffect(() => {
     loadWorkflow();
     loadArtifacts();
+    loadAiServices();
     const disconnect = connectFsWatch(() => {
       loadWorkflow();
       loadArtifacts();
+      loadAiServices();
     });
     return disconnect;
-  }, [loadWorkflow, loadArtifacts]);
+  }, [loadWorkflow, loadArtifacts, loadAiServices]);
 
   const selectedStep = useMemo(
     () => workflow?.steps.find((s) => s.id === selectedStepId) ?? null,
     [workflow, selectedStepId],
   );
+
+  const command = useMemo(() => (selectedStep ? buildClaudeCommand(selectedStep) : null), [selectedStep]);
 
   // build the prompt for the currently selected step: for steps with a
   // command_template (Claude Code) the CLI reads files itself, so we only
@@ -67,7 +93,7 @@ export default function App() {
   // file contents so the user can paste one block into the browser.
   useEffect(() => {
     if (!selectedStep) return;
-    if (selectedStep.command_template || selectedStep.input_files.length === 0) {
+    if (command || selectedStep.input_files.length === 0) {
       setPrompt(selectedStep.prompt_template);
       return;
     }
@@ -91,7 +117,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedStep]);
+  }, [selectedStep, command]);
 
   useEffect(() => {
     if (!selectedArtifact) return;
@@ -165,6 +191,17 @@ export default function App() {
     setEditingTemplate(false);
   }
 
+  function handleSaveServices(services: AiServiceList) {
+    setAiServices(services);
+    saveAiServices(services).catch((e) => setError(String(e)));
+    setShowSettings(false);
+  }
+
+  const serviceUrl = useMemo(() => {
+    if (!selectedStep) return null;
+    return aiServices.find((s) => s.name === selectedStep.ai_name)?.url ?? null;
+  }, [aiServices, selectedStep]);
+
   return (
     <div className="flex flex-col w-screen h-screen bg-bg overflow-hidden">
       <div className="flex items-center justify-between h-14 shrink-0 px-5 border-b border-border bg-panel">
@@ -179,11 +216,21 @@ export default function App() {
           <span>プロジェクト:</span>
           <span className="text-ink font-semibold">{workflow?.current_project ?? "..."}</span>
         </div>
-        <div />
+        <button onClick={() => setShowSettings(true)} className="p-1.5 opacity-70 hover:opacity-100" title="設定">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A8578" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+          </svg>
+        </button>
       </div>
 
       {error && (
-        <div className="px-5 py-2 bg-red-50 text-red-700 text-[12.5px] border-b border-red-200">{error}</div>
+        <div className="flex items-center justify-between gap-3 px-5 py-2 bg-red-50 text-red-700 text-[12.5px] border-b border-red-200">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="shrink-0 font-semibold">
+            閉じる
+          </button>
+        </div>
       )}
 
       <div className="flex flex-1 min-h-0">
@@ -202,6 +249,8 @@ export default function App() {
                 step={selectedStep}
                 prompt={prompt}
                 loadingPrompt={loadingPrompt}
+                command={command}
+                serviceUrl={serviceUrl}
                 onAdvance={handleAdvance}
                 onEditTemplate={() => setEditingTemplate(true)}
               />
@@ -229,6 +278,10 @@ export default function App() {
 
       {editingTemplate && selectedStep && (
         <EditTemplateModal step={selectedStep} onCancel={() => setEditingTemplate(false)} onSave={handleSaveTemplate} />
+      )}
+
+      {showSettings && (
+        <SettingsModal services={aiServices} onCancel={() => setShowSettings(false)} onSave={handleSaveServices} />
       )}
     </div>
   );

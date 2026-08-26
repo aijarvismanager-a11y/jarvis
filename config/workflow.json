@@ -46,7 +46,7 @@
         "workspace/src/*"
       ],
       "prompt_template": "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
-      "command_template": "claude \"docs/requirements.md と docs/architecture.md を読んで src/ に実装して\""
+      "command_template": null
     },
     {
       "id": "step_4_qa",

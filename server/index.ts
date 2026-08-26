@@ -7,6 +7,7 @@ import http from "node:http";
 
 const ROOT = path.resolve(process.cwd());
 const WORKFLOW_PATH = path.join(ROOT, "config", "workflow.json");
+const AI_SERVICES_PATH = path.join(ROOT, "config", "ai_services.json");
 const WORKSPACE_DIR = path.join(ROOT, "workspace");
 const PORT = Number(process.env.PORT ?? 4173);
 
@@ -28,6 +29,24 @@ app.put("/api/workflow", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "workflow.json の書き込みに失敗しました", detail: String(err) });
+  }
+});
+
+app.get("/api/ai-services", async (_req, res) => {
+  try {
+    const raw = await readFile(AI_SERVICES_PATH, "utf-8");
+    res.type("application/json").send(raw);
+  } catch {
+    res.json([]);
+  }
+});
+
+app.put("/api/ai-services", async (req, res) => {
+  try {
+    await writeFile(AI_SERVICES_PATH, JSON.stringify(req.body, null, 2), "utf-8");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "ai_services.json の書き込みに失敗しました", detail: String(err) });
   }
 });
 
@@ -86,7 +105,7 @@ function broadcast(message: unknown) {
   });
 }
 
-const watcher = chokidar.watch([WORKSPACE_DIR, WORKFLOW_PATH], {
+const watcher = chokidar.watch([WORKSPACE_DIR, WORKFLOW_PATH, AI_SERVICES_PATH], {
   ignoreInitial: true,
 });
 

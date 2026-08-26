@@ -1,0 +1,6 @@
+[
+  { "id": "chatgpt", "name": "ChatGPT (Web)", "url": "https://chatgpt.com" },
+  { "id": "gemini", "name": "Gemini (Web)", "url": "https://gemini.google.com" },
+  { "id": "claude-web", "name": "Claude (Web)", "url": "https://claude.ai" },
+  { "id": "claude-code", "name": "Claude Code (CLI)", "url": null }
+]

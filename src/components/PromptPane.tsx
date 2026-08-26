@@ -11,23 +11,32 @@ type Props = {
   step: WorkflowStep;
   prompt: string;
   loadingPrompt: boolean;
+  command: string | null;
+  serviceUrl: string | null;
   onAdvance: () => void;
   onEditTemplate: () => void;
 };
 
-export function PromptPane({ step, prompt, loadingPrompt, onAdvance, onEditTemplate }: Props) {
+export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
   const [copied, setCopied] = useState(false);
+  const [commandCopied, setCommandCopied] = useState(false);
   const meta = STATUS_META[step.status];
 
-  async function handleCopy() {
+  async function copyText(text: string, onDone: () => void) {
     try {
-      await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(text);
+      onDone();
+      setTimeout(() => {
+        setCopied(false);
+        setCommandCopied(false);
+      }, 1500);
     } catch {
       // clipboard permission denied — silently ignore, button just won't confirm
     }
   }
+
+  const handleCopy = () => copyText(prompt, () => setCopied(true));
+  const handleCopyCommand = () => command && copyText(command, () => setCommandCopied(true));
 
   return (
     <div className="flex flex-col flex-1 min-w-0 bg-panel">
@@ -41,7 +50,19 @@ export function PromptPane({ step, prompt, loadingPrompt, onAdvance, onEditTempl
             {meta.label}
           </span>
         </div>
-        <div className="mt-1 text-[13px] text-muted">担当AI: {step.ai_name}</div>
+        <div className="mt-1 flex items-center gap-2 text-[13px] text-muted">
+          <span>担当AI: {step.ai_name}</span>
+          {serviceUrl && (
+            <a
+              href={serviceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent text-[12px] font-semibold hover:underline"
+            >
+              開く ↗
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-5 flex flex-col gap-4.5">
@@ -84,26 +105,34 @@ export function PromptPane({ step, prompt, loadingPrompt, onAdvance, onEditTempl
           </div>
         </div>
 
-        {step.command_template && (
+        {command && (
           <div className="flex flex-col gap-2">
             <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
               Claude Code 実行コマンド
             </span>
-            <div className="flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-3 bg-ink text-[#F4EFE4] font-mono text-[12.5px]">
-              <span>{step.command_template}</span>
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#F4EFE4"
-                strokeWidth="2"
-                className="shrink-0"
-              >
-                <rect x="9" y="9" width="12" height="12" rx="2" />
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-              </svg>
-            </div>
+            <button
+              onClick={handleCopyCommand}
+              className="flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-3 bg-ink text-[#F4EFE4] font-mono text-[12.5px] text-left"
+              title="クリックしてコピー"
+            >
+              <span>{command}</span>
+              {commandCopied ? (
+                <span className="text-[11px] shrink-0">コピーしました</span>
+              ) : (
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#F4EFE4"
+                  strokeWidth="2"
+                  className="shrink-0"
+                >
+                  <rect x="9" y="9" width="12" height="12" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
+            </button>
           </div>
         )}
       </div>
