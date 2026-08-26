@@ -67,6 +67,18 @@ export async function fetchArtifactContent(relPath: string): Promise<string> {
   return res.text();
 }
 
+export type ExecuteResult = { exitCode: number; timedOut: boolean; stdout: string; stderr: string };
+
+export async function executeCommand(command: string): Promise<ExecuteResult> {
+  const res = await fetch("/api/execute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ command }),
+  });
+  if (!res.ok) throw new Error("コマンドの実行に失敗しました");
+  return res.json();
+}
+
 export function connectFsWatch(onChange: () => void): () => void {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws`);

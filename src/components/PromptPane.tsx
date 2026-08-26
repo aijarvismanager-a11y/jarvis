@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WorkflowStep } from "../types/workflow";
+import { executeCommand, type ExecuteResult } from "../lib/api";
+import { ConfirmModal } from "./ConfirmModal";
 
 const STATUS_META: Record<WorkflowStep["status"], { label: string; color: string; bg: string }> = {
   done: { label: "完了", color: "#3F6B52", bg: "color-mix(in oklch, #3F6B52 14%, white)" },
@@ -21,7 +23,16 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
   const [copied, setCopied] = useState(false);
   const [commandCopied, setCommandCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [showExecuteConfirm, setShowExecuteConfirm] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [execResult, setExecResult] = useState<ExecuteResult | null>(null);
+  const [execError, setExecError] = useState<string | null>(null);
   const meta = STATUS_META[step.status];
+
+  useEffect(() => {
+    setExecResult(null);
+    setExecError(null);
+  }, [step.id, command]);
 
   function fallbackCopy(text: string): boolean {
     const el = document.createElement("textarea");
@@ -68,6 +79,21 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
 
   const handleCopy = () => copyText(prompt, () => setCopied(true));
   const handleCopyCommand = () => command && copyText(command, () => setCommandCopied(true));
+
+  async function handleConfirmExecute() {
+    if (!command) return;
+    setShowExecuteConfirm(false);
+    setExecuting(true);
+    setExecError(null);
+    setExecResult(null);
+    try {
+      setExecResult(await executeCommand(command));
+    } catch (e) {
+      setExecError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExecuting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col flex-1 min-w-0 bg-panel">
@@ -165,6 +191,45 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
                 </svg>
               )}
             </button>
+            <div>
+              <button
+                onClick={() => setShowExecuteConfirm(true)}
+                disabled={executing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[9px] border border-border bg-white text-[13px] font-semibold disabled:opacity-50"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2.2">
+                  <path d="M6 4l14 8-14 8V4z" />
+                </svg>
+                {executing ? "実行中..." : "ローカルで実行"}
+              </button>
+            </div>
+
+            {execError && <span className="text-[12px] text-[#8A3A2A]">{execError}</span>}
+
+            {execResult && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2 text-[12px] font-semibold">
+                  <span
+                    className="px-2 py-0.5 rounded-full"
+                    style={
+                      execResult.timedOut
+                        ? { background: "#F1EFEA", color: "#8A8578" }
+                        : execResult.exitCode === 0
+                          ? { background: "color-mix(in oklch, #3F6B52 14%, white)", color: "#3F6B52" }
+                          : { background: "color-mix(in oklch, #8A3A2A 14%, white)", color: "#8A3A2A" }
+                    }
+                  >
+                    {execResult.timedOut ? "タイムアウト（2分）" : `終了コード: ${execResult.exitCode}`}
+                  </span>
+                </div>
+                {(execResult.stdout || execResult.stderr) && (
+                  <pre className="font-mono text-[11.5px] leading-relaxed bg-ink text-[#E9E4D9] rounded-[10px] p-3 max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words">
+                    {execResult.stdout}
+                    {execResult.stderr}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -178,6 +243,25 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
           成果物の回収を完了し、次のステップへ
         </button>
       </div>
+
+      {showExecuteConfirm && command && (
+        <ConfirmModal
+          title="コマンドをローカルで実行"
+          message={
+            <>
+              <p className="mb-2">以下のコマンドをこのマシン上で実際に実行します（workspace/ フォルダ内）。</p>
+              <p className="font-mono text-[12.5px] bg-bg border border-border rounded-lg px-3 py-2 break-words">
+                {command}
+              </p>
+              <p className="mt-2 text-muted text-[12.5px]">実行内容に問題がないか確認してください。</p>
+            </>
+          }
+          confirmLabel="実行する"
+          danger
+          onCancel={() => setShowExecuteConfirm(false)}
+          onConfirm={handleConfirmExecute}
+        />
+      )}
     </div>
   );
 }

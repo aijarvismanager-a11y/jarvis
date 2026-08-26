@@ -2,6 +2,7 @@ import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import chokidar from "chokidar";
 import { readFile, writeFile, readdir, stat } from "node:fs/promises";
+import { exec } from "node:child_process";
 import path from "node:path";
 import http from "node:http";
 
@@ -48,6 +49,31 @@ app.put("/api/ai-services", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "ai_services.json の書き込みに失敗しました", detail: String(err) });
   }
+});
+
+// Runs a command the user chose to execute from the app (e.g. the
+// generated "claude ..." command for a step). This deliberately allows
+// arbitrary shell commands — the app is a single-user local tool and the
+// command text is something the user typed or accepted in the UI, same
+// trust level as them running it in their own terminal. It is opt-in per
+// click, never automatic. cwd is workspace/ so the relative file paths in
+// generated commands (docs/..., src/...) resolve the same way they would
+// if the user ran the command by hand from that folder.
+app.post("/api/execute", (req, res) => {
+  const command = req.body?.command;
+  if (typeof command !== "string" || !command.trim()) {
+    res.status(400).json({ error: "command は必須です" });
+    return;
+  }
+  exec(
+    command,
+    { cwd: WORKSPACE_DIR, timeout: 120_000, maxBuffer: 5 * 1024 * 1024 },
+    (err, stdout, stderr) => {
+      const timedOut = !!err?.killed && err.signal === "SIGTERM";
+      const exitCode = err ? (typeof err.code === "number" ? err.code : 1) : 0;
+      res.json({ exitCode, timedOut, stdout, stderr });
+    },
+  );
 });
 
 function isPathInsideWorkspace(targetPath: string) {

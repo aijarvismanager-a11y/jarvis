@@ -17,7 +17,7 @@ import { ArtifactsPane } from "./components/ArtifactsPane";
 import { AddStepModal } from "./components/AddStepModal";
 import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { ConfirmDeleteModal } from "./components/ConfirmDeleteModal";
+import { ConfirmModal } from "./components/ConfirmModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 
 function stripWorkspacePrefix(p: string) {
@@ -288,8 +288,15 @@ export default function App() {
       )}
 
       {pendingDeleteId && workflow && (
-        <ConfirmDeleteModal
-          stepRole={workflow.steps.find((s) => s.id === pendingDeleteId)?.role ?? ""}
+        <ConfirmModal
+          title="ステップを削除"
+          message={
+            <>
+              「{workflow.steps.find((s) => s.id === pendingDeleteId)?.role ?? ""}」を削除します。この操作は元に戻せません。よろしいですか？
+            </>
+          }
+          confirmLabel="削除する"
+          danger
           onCancel={() => setPendingDeleteId(null)}
           onConfirm={handleConfirmDeleteStep}
         />
