@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "jarvis-daemon",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "src/daemon/index.ts"],
-      "port": 3142
+      "name": "ai-orchestrator",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "ai-orchestrator-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "server"],
+      "port": 4173
     }
   ]
 }

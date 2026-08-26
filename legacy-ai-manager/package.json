@@ -1,0 +1,60 @@
+{
+  "name": "ai-orchestrator",
+  "version": "0.1.0",
+  "description": "AI Orchestrator — 複数の無料AIサービスを1つのUIから整理・起動・管理する、軽量なWindows用司令塔アプリ",
+  "private": true,
+  "main": "app/main/dist/index.js",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c blue,green \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "npm run build:main && wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
+    "build:main": "tsc -p app/main/tsconfig.json && tsc -p app/preload/tsconfig.json",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "package:win": "npm run build && electron-builder --win",
+    "test": "vitest run",
+    "typecheck": "tsc -p app/renderer/tsconfig.json --noEmit && tsc -p app/main/tsconfig.json --noEmit && tsc -p app/preload/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "chokidar": "^4.0.3",
+    "lucide-react": "^0.462.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vitest": "^2.1.8",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.specialladder.ai-orchestrator",
+    "productName": "AI Orchestrator",
+    "files": [
+      "app/main/dist/**",
+      "app/preload/dist/**",
+      "app/renderer/dist/**"
+    ],
+    "extraResources": [
+      { "from": "config", "to": "config" },
+      { "from": "assets", "to": "assets" }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}

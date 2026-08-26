@@ -1,11 +1,23 @@
-node_modules/
-app/main/dist/
-app/preload/dist/
-app/renderer/dist/
-release/
-data/
-projects/
-*.log
+# Logs (note: workspace/logs is intentionally tracked — it's the AI relay's output area)
+/server.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-Thumbs.db
-design-work/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

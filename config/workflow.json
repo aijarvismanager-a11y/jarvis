@@ -1,0 +1,67 @@
+{
+  "current_project": "my-awesome-app",
+  "steps": [
+    {
+      "id": "step_1_design",
+      "index": 1,
+      "ai_name": "ChatGPT / Gemini (Web)",
+      "role": "Architect（設計）",
+      "status": "done",
+      "input_files": [],
+      "output_files": [
+        "workspace/docs/requirements.md",
+        "workspace/docs/architecture.md"
+      ],
+      "prompt_template": "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
+      "command_template": null
+    },
+    {
+      "id": "step_2_review",
+      "index": 2,
+      "ai_name": "Claude (Web)",
+      "role": "Reviewer（設計レビュー）",
+      "status": "active",
+      "input_files": [
+        "workspace/docs/requirements.md",
+        "workspace/docs/architecture.md"
+      ],
+      "output_files": [
+        "workspace/docs/design_review.md"
+      ],
+      "prompt_template": "設計書をレビューし、懸念点・不足要件・改善案を箇条書きで出力してください。実装難易度の高い箇所には理由も添えてください。",
+      "command_template": null
+    },
+    {
+      "id": "step_3_coding",
+      "index": 3,
+      "ai_name": "Claude Code (CLI)",
+      "role": "Lead Developer（実装）",
+      "status": "pending",
+      "input_files": [
+        "workspace/docs/requirements.md",
+        "workspace/docs/architecture.md",
+        "workspace/docs/design_review.md"
+      ],
+      "output_files": [
+        "workspace/src/*"
+      ],
+      "prompt_template": "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
+      "command_template": "claude \"docs/requirements.md と docs/architecture.md を読んで src/ に実装して\""
+    },
+    {
+      "id": "step_4_qa",
+      "index": 4,
+      "ai_name": "Claude Code (CLI)",
+      "role": "QA（テスト・修正）",
+      "status": "pending",
+      "input_files": [
+        "workspace/src/*"
+      ],
+      "output_files": [
+        "workspace/logs/test-result.log"
+      ],
+      "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
+      "command_template": "claude \"src/ のコードをテストし、失敗があれば修正して\""
+    }
+  ]
+}

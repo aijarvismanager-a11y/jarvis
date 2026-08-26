@@ -1,81 +1,32 @@
-# AI Orchestrator
+# React + TypeScript + Vite
 
-複数の無料AIサービス（Claude / Gemini / ChatGPT など）を1つのUIから整理・起動・管理し、ファイルとHandoffを使ってユーザー自身がAI間の仕事をバトン渡しできる、軽量なWindows用デスクトップアプリです。
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
-## このアプリについて
+Currently, two official plugins are available:
 
-AI Orchestratorは「AIを支配する巨大システム」ではなく、「AIを使い分けるための司令塔」です。
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-- API課金なし・APIキー不要で動作します。
-- 各AIはブラウザで開くだけです（このアプリがAIサービスへ自動入力・自動送信することはありません）。
-- プロジェクト・タスク・Handoff（AI間の作業引き継ぎ）・プロンプトはすべてローカルに保存されます。
+## React Compiler
 
-## 目的
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-「どのAIを使うか」「AIごとの役割」「作業結果の受け渡し」を整理し、複数AIを使う面倒くささを減らすことを目的としています。
+## Expanding the Oxlint configuration
 
-## 必要環境
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
 
-- Windows 11
-- Node.js v20以上（開発時。パッケージ済み配布物には同梱の予定）
-
-## インストール（開発）
-
-```bash
-npm install
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
 ```
 
-## 起動方法（開発）
-
-```bash
-npm run dev
-```
-
-Vite開発サーバーとElectronが同時に起動します。
-
-## Windows用パッケージのビルド
-
-```bash
-npm run package:win
-```
-
-`release/` フォルダにインストーラーが生成されます。
-
-## AI登録方法
-
-「設定」画面 → 「AI Services」→「+ AIを追加」から、AI名・URL・カテゴリーなどを入力して登録できます。コードの変更は不要です。設定は `config/ai_services.json`（初期テンプレート）を元に、実行時データフォルダ内の編集可能なコピーへ保存されます。
-
-## プロジェクト作成方法
-
-「プロジェクト」画面 → 「+ 新規プロジェクト」からプロジェクト名・説明・用途を入力すると、以下のフォルダ構成が自動生成されます。
-
-```text
-project/
-├─ research/
-├─ analysis/
-├─ writing/
-├─ code/
-├─ images/
-├─ output/
-├─ handoff/
-└─ logs/
-```
-
-## Handoffの使い方
-
-「Handoff」画面から、From（渡す元のAI）・To（渡す先のAI）・完了事項・重要な発見・残タスク・関連ファイル・次のAIへの指示を入力すると、`handoff_NNN.md` として保存されます。「コピー」ボタンで内容をコピーし、次に使うAIのチャットへ貼り付けてください。
-
-## 画像AIの使い方
-
-「AI一覧」または「Router」画面から、画像生成に対応したAI（Gemini・ChatGPTなど）を開き、プロンプトを直接入力してください。このアプリ自体は画像を生成しません（プロンプト作成・保存・コピーの補助のみ）。
-
-## トラブルシューティング
-
-- **AIサイトが開かない**: インターネット接続と既定ブラウザの設定を確認してください。「設定」画面でURLが正しいか確認してください。
-- **設定が保存されない**: アプリを一度再起動してください。データは Windows のユーザーデータフォルダに保存されています。
-- **プロジェクトフォルダが見つからない**: 「設定」→「Projects」で保存先を確認・変更できます。
-
-## 今後拡張可能な部分
-
-- 追加AIサービス（Perplexity、Microsoft Copilot など）は `config/ai_services.json` への追記のみで対応可能です。
-- タスクの複数AIへの分割、成功率に基づく担当AI提案などは、現時点では実装していません（ローカルルールベースの提案のみ）。
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.

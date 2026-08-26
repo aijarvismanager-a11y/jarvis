@@ -1,0 +1,11 @@
+node_modules/
+app/main/dist/
+app/preload/dist/
+app/renderer/dist/
+release/
+data/
+projects/
+*.log
+.DS_Store
+Thumbs.db
+design-work/
