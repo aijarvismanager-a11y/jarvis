@@ -17,6 +17,7 @@ import { ArtifactsPane } from "./components/ArtifactsPane";
 import { AddStepModal } from "./components/AddStepModal";
 import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { ConfirmDeleteModal } from "./components/ConfirmDeleteModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 
 function stripWorkspacePrefix(p: string) {
@@ -39,6 +40,7 @@ export default function App() {
   const [editingTemplate, setEditingTemplate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const loadWorkflow = useCallback(async () => {
     try {
@@ -170,14 +172,15 @@ export default function App() {
     setSelectedStepId(step.id);
   }
 
-  function handleDeleteStep(id: string) {
-    if (!workflow) return;
-    if (!window.confirm("このステップを削除しますか？")) return;
+  function handleConfirmDeleteStep() {
+    if (!workflow || !pendingDeleteId) return;
+    const id = pendingDeleteId;
     const steps = workflow.steps.filter((s) => s.id !== id).map((s, i) => ({ ...s, index: i + 1 }));
     const next = { ...workflow, steps };
     setWorkflow(next);
     saveWorkflow(next).catch((e) => setError(String(e)));
     if (selectedStepId === id) setSelectedStepId(steps[0]?.id ?? null);
+    setPendingDeleteId(null);
   }
 
   function handleSaveTemplate(promptTemplate: string, commandTemplate: string | null) {
@@ -242,7 +245,7 @@ export default function App() {
               onSelect={setSelectedStepId}
               onMove={handleMoveStep}
               onAdd={() => setShowAddStep(true)}
-              onDelete={handleDeleteStep}
+              onDelete={setPendingDeleteId}
             />
             {selectedStep && (
               <PromptPane
@@ -282,6 +285,14 @@ export default function App() {
 
       {showSettings && (
         <SettingsModal services={aiServices} onCancel={() => setShowSettings(false)} onSave={handleSaveServices} />
+      )}
+
+      {pendingDeleteId && workflow && (
+        <ConfirmDeleteModal
+          stepRole={workflow.steps.find((s) => s.id === pendingDeleteId)?.role ?? ""}
+          onCancel={() => setPendingDeleteId(null)}
+          onConfirm={handleConfirmDeleteStep}
+        />
       )}
     </div>
   );

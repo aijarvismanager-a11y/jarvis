@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ArtifactFile } from "../lib/api";
+import { highlightCode, langForPath } from "../lib/highlight";
 
 type Props = {
   files: ArtifactFile[];
@@ -11,6 +13,30 @@ type Props = {
 
 function isMarkdown(p: string) {
   return p.endsWith(".md");
+}
+
+function CodePreview({ path, content }: { path: string; content: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHtml(null);
+    highlightCode(content, path).then((result) => {
+      if (!cancelled) setHtml(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [path, content]);
+
+  if (html) {
+    return <div className="artifact-code text-[12px] leading-relaxed rounded-[10px] overflow-hidden [&_pre]:p-3.5 [&_pre]:m-0 [&_pre]:overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return (
+    <pre className="font-mono text-[12px] leading-relaxed bg-ink text-[#E9E4D9] rounded-[10px] p-3.5 whitespace-pre-wrap break-words">
+      {content}
+    </pre>
+  );
 }
 
 export function ArtifactsPane({ files, selectedPath, content, loading, onSelect }: Props) {
@@ -46,9 +72,11 @@ export function ArtifactsPane({ files, selectedPath, content, loading, onSelect 
         {!loading && !selectedPath && <span className="text-[12.5px] text-muted">プレビューするファイルを選択してください</span>}
         {!loading && selectedPath && content !== null && (
           isMarkdown(selectedPath) ? (
-            <div className="prose-artifact text-[12.5px] leading-relaxed text-[#4A473F]">
+            <div className="prose-artifact">
               <ReactMarkdown>{content}</ReactMarkdown>
             </div>
+          ) : langForPath(selectedPath) ? (
+            <CodePreview path={selectedPath} content={content} />
           ) : (
             <pre className="font-mono text-[12px] leading-relaxed bg-ink text-[#E9E4D9] rounded-[10px] p-3.5 whitespace-pre-wrap break-words">
               {content}

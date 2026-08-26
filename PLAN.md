@@ -39,10 +39,10 @@
 - [x] クリップボードコピー機能
 - [x] 「次のステップへ進む」→ status更新 → `workflow.json` 書き込み
 
-### フェーズ2: Artifactsプレビュー（右ペイン） — 一部済
+### フェーズ2: Artifactsプレビュー（右ペイン） — 済
 - [x] `workspace/` 内最新ファイル検知・一覧表示
-- [x] Markdownレンダリング（react-markdown）
-- [ ] シンタックスハイライト（shiki等、現状はプレーン`<pre>`表示 — 低優先度、PROGRESS.md参照）
+- [x] Markdownレンダリング（react-markdown、`.prose-artifact`スタイル適用済み）
+- [x] シンタックスハイライト（shiki導入済み）
 
 ### フェーズ3: ワークフロー編集 — 済（D&D以外）
 - [x] ステップの追加・削除（左ペインの「＋追加」・各ステップの削除アイコン）
@@ -68,9 +68,10 @@
 
 ## 進捗・不具合の詳細は [PROGRESS.md](PROGRESS.md) を参照
 
-現在フェーズ0〜5まで一通り着手完了。残タスクは低〜中優先度のみ（シンタックスハイライト、コマンドのワンクリック実行、Tauri/Electron化はいずれも保留・要ユーザー判断）。詳細はPROGRESS.md参照。
+現在フェーズ0〜5まで完了。低優先度だった不具合（シンタックスハイライト・Markdownスタイル・コピー失敗通知・削除確認モーダル）はすべて解決済み。
+残るのは要ユーザー判断の2項目のみ：
+- コマンドのワンクリック実行（ローカルで任意コマンドを実行する権限を持たせる設計判断）
+- Tauri/Electron化（配布パッケージングの要否）
 
 ## リポジトリ・Push状況
-2026-08-27時点、`git push origin main` が403エラー（Permission denied）で失敗。
-`specialladder-ux` に `aijarvismanager-a11y/jarvis` へのpush権限がない状態。
-GitHub側のアクセス権限・認証情報の確認が必要（ユーザー対応事項）。
+2026-08-27、push権限エラーを解決済み。`git remote set-url`でリモートURLに正しいGitHubアカウント（`aijarvismanager-a11y`）を指定し、以後正常にpushできる状態。

@@ -20,18 +20,49 @@ type Props = {
 export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
   const [copied, setCopied] = useState(false);
   const [commandCopied, setCommandCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const meta = STATUS_META[step.status];
 
-  async function copyText(text: string, onDone: () => void) {
+  function fallbackCopy(text: string): boolean {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(text);
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    document.body.removeChild(el);
+    return ok;
+  }
+
+  async function copyText(text: string, onDone: () => void) {
+    setCopyError(null);
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      } else if (!fallbackCopy(text)) {
+        throw new Error("fallback copy failed");
+      }
       onDone();
       setTimeout(() => {
         setCopied(false);
         setCommandCopied(false);
       }, 1500);
     } catch {
-      // clipboard permission denied — silently ignore, button just won't confirm
+      if (fallbackCopy(text)) {
+        onDone();
+        setTimeout(() => {
+          setCopied(false);
+          setCommandCopied(false);
+        }, 1500);
+        return;
+      }
+      setCopyError("クリップボードへのコピーに失敗しました。手動で選択してコピーしてください。");
     }
   }
 
@@ -103,6 +134,7 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
               テンプレートを編集
             </button>
           </div>
+          {copyError && <span className="text-[12px] text-[#8A3A2A]">{copyError}</span>}
         </div>
 
         {command && (

@@ -19,3 +19,64 @@ body {
   background: #e4dfd5;
   border-radius: 4px;
 }
+
+.prose-artifact {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #4a473f;
+}
+.prose-artifact h1,
+.prose-artifact h2,
+.prose-artifact h3 {
+  font-family: "Source Serif 4", serif;
+  font-weight: 600;
+  color: #2b2a26;
+  margin: 0 0 0.5em;
+}
+.prose-artifact h1 {
+  font-size: 17px;
+}
+.prose-artifact h2 {
+  font-size: 15px;
+}
+.prose-artifact h3 {
+  font-size: 13.5px;
+}
+.prose-artifact p {
+  margin: 0 0 0.9em;
+}
+.prose-artifact ul,
+.prose-artifact ol {
+  margin: 0 0 0.9em;
+  padding-left: 1.3em;
+}
+.prose-artifact li {
+  margin: 0.25em 0;
+}
+.prose-artifact code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px;
+  background: #f1efea;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.prose-artifact pre {
+  background: #2b2a26;
+  color: #e9e4d9;
+  border-radius: 10px;
+  padding: 14px;
+  overflow-x: auto;
+}
+.prose-artifact pre code {
+  background: none;
+  padding: 0;
+}
+.prose-artifact a {
+  color: #b5563a;
+}
+.prose-artifact blockquote {
+  margin: 0 0 0.9em;
+  padding-left: 0.9em;
+  border-left: 2px solid #e9e4d9;
+  color: #8a8578;
+}
