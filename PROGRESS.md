@@ -308,3 +308,26 @@ npm run dev      # Vite開発サーバー (port 5173, /api・/wsは4173へプロ
 
 ### 次にやること
 特になし。今回の3点のフィードバックには対応済み。
+
+---
+
+## 2026-08-28: デフォルトのAIサービスを追加（無料枠が使えるもの）
+
+ユーザーの「デフォルトで入ってる無料枠が使えるAIサービスの数を増やして」との依頼で対応。
+
+### 完了（済）
+`config/ai_services.json`に以下を追加（既存4件 → 計13件）:
+- Perplexity (Web)
+- Microsoft Copilot (Web)
+- Meta AI (Web)
+- DeepSeek (Web)
+- Mistral Le Chat (Web)
+- Qwen Chat (Web)
+- Grok (Web)
+- HuggingChat (Web)
+- Poe (Web)
+
+いずれもログイン不要または無料枠で使えるブラウザ版チャットサービス。サーバーがファイル監視しているため再起動不要で反映され、設定画面（歯車アイコン）で全13件表示されることを確認済み。
+
+### 次にやること
+特になし。

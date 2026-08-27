@@ -2,5 +2,14 @@
   { "id": "chatgpt", "name": "ChatGPT (Web)", "url": "https://chatgpt.com" },
   { "id": "gemini", "name": "Gemini (Web)", "url": "https://gemini.google.com" },
   { "id": "claude-web", "name": "Claude (Web)", "url": "https://claude.ai" },
-  { "id": "claude-code", "name": "Claude Code (CLI)", "url": null }
+  { "id": "claude-code", "name": "Claude Code (CLI)", "url": null },
+  { "id": "perplexity", "name": "Perplexity (Web)", "url": "https://www.perplexity.ai" },
+  { "id": "copilot", "name": "Microsoft Copilot (Web)", "url": "https://copilot.microsoft.com" },
+  { "id": "meta-ai", "name": "Meta AI (Web)", "url": "https://www.meta.ai" },
+  { "id": "deepseek", "name": "DeepSeek (Web)", "url": "https://chat.deepseek.com" },
+  { "id": "mistral", "name": "Mistral Le Chat (Web)", "url": "https://chat.mistral.ai" },
+  { "id": "qwen", "name": "Qwen Chat (Web)", "url": "https://chat.qwen.ai" },
+  { "id": "grok", "name": "Grok (Web)", "url": "https://grok.com" },
+  { "id": "huggingchat", "name": "HuggingChat (Web)", "url": "https://huggingface.co/chat" },
+  { "id": "poe", "name": "Poe (Web)", "url": "https://poe.com" }
 ]
