@@ -1,0 +1,605 @@
+<title>AI Orchestrator 取扱説明書</title>
+<style>
+  :root {
+    --bg: #fbf9f5;
+    --panel: #ffffff;
+    --sidebar: #f6f2ea;
+    --border: #e9e4d9;
+    --border-soft: #efeae0;
+    --ink: #2b2a26;
+    --muted: #8a8578;
+    --accent: #b5563a;
+    --accent-hover: #8c4029;
+    --accent-tint: #f3e6e0;
+    --success: #3f6b52;
+    --success-tint: #e7efe9;
+    --danger: #8a3a2a;
+    --danger-tint: #f3e4e0;
+    --code-bg: #2b2a26;
+    --code-fg: #e9e4d9;
+    --shadow: rgba(43, 42, 38, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #211f1b;
+      --panel: #2a2823;
+      --sidebar: #26241f;
+      --border: #3c382f;
+      --border-soft: #34302a;
+      --ink: #f2ede2;
+      --muted: #a89f8e;
+      --accent: #e0906d;
+      --accent-hover: #eaa688;
+      --accent-tint: #3a2a22;
+      --success: #7fb397;
+      --success-tint: #223028;
+      --danger: #e0917f;
+      --danger-tint: #3a2622;
+      --code-bg: #17140f;
+      --code-fg: #ecdfc9;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #211f1b;
+    --panel: #2a2823;
+    --sidebar: #26241f;
+    --border: #3c382f;
+    --border-soft: #34302a;
+    --ink: #f2ede2;
+    --muted: #a89f8e;
+    --accent: #e0906d;
+    --accent-hover: #eaa688;
+    --accent-tint: #3a2a22;
+    --success: #7fb397;
+    --success-tint: #223028;
+    --danger: #e0917f;
+    --danger-tint: #3a2622;
+    --code-bg: #17140f;
+    --code-fg: #ecdfc9;
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Public Sans", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-hover); }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+
+  .shell {
+    display: flex;
+    max-width: 1180px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar / TOC ---------- */
+  .toc {
+    width: 232px;
+    flex-shrink: 0;
+    padding: 40px 20px 40px 0;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .toc-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    padding: 0 12px;
+  }
+
+  .toc-brand svg { flex-shrink: 0; }
+
+  .toc-brand span {
+    font-family: "Source Serif 4", serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+  }
+
+  .toc a {
+    display: block;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .toc a:hover { background: var(--sidebar); color: var(--ink); }
+  .toc a.active { background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+
+  .toc .toc-note {
+    margin-top: 20px;
+    padding: 12px;
+    font-size: 11.5px;
+    color: var(--muted);
+    border-top: 1px solid var(--border-soft);
+    padding-top: 16px;
+  }
+
+  /* ---------- Main content ---------- */
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: 56px 48px 100px 44px;
+    border-left: 1px solid var(--border-soft);
+  }
+
+  .doc-title {
+    font-family: "Source Serif 4", serif;
+    font-weight: 700;
+    font-size: 34px;
+    text-wrap: balance;
+    margin: 0 0 6px;
+  }
+
+  .doc-sub {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0 0 44px;
+    max-width: 62ch;
+  }
+
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+
+  h2 {
+    font-family: "Source Serif 4", serif;
+    font-weight: 600;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 6px;
+  }
+
+  h2 .num {
+    font-family: "Public Sans", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-tint);
+    border-radius: 999px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  h3 {
+    font-family: "Public Sans", sans-serif;
+    font-weight: 700;
+    font-size: 14.5px;
+    margin: 28px 0 10px;
+  }
+
+  .section-lede {
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 66ch;
+    margin: 0 0 20px;
+  }
+
+  p { max-width: 66ch; font-size: 14.5px; }
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    counter-reset: step;
+  }
+
+  .steps > li {
+    counter-increment: step;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .steps > li::before {
+    content: counter(step);
+    font-family: "Source Serif 4", serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--panel);
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .steps .step-body { padding-top: 2px; max-width: 62ch; font-size: 14.5px; }
+  .steps .step-body strong { font-weight: 700; }
+
+  code, .kbd {
+    font-family: "SFMono-Regular", Consolas, "Menlo", monospace;
+    font-size: 12.5px;
+    background: var(--sidebar);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1.5px 6px;
+  }
+
+  pre {
+    font-family: "SFMono-Regular", Consolas, "Menlo", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    border-radius: 12px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+    max-width: 68ch;
+  }
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    max-width: 66ch;
+    font-size: 13.5px;
+  }
+  .callout svg { flex-shrink: 0; margin-top: 2px; }
+  .callout p { margin: 0; max-width: none; font-size: 13.5px; }
+  .callout.tip { background: var(--success-tint); color: var(--success); }
+  .callout.warn { background: var(--danger-tint); color: var(--danger); }
+  .callout.note { background: var(--accent-tint); color: var(--accent-hover); }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 68ch;
+    font-size: 13.5px;
+    margin: 12px 0 20px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .badge.done { background: var(--success-tint); color: var(--success); }
+  .badge.active { background: var(--accent-tint); color: var(--accent); }
+  .badge.pending { background: var(--sidebar); color: var(--muted); }
+
+  /* ---------- mock diagram of the 3-pane app ---------- */
+  .app-diagram {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 68ch;
+    margin: 8px 0 22px;
+    box-shadow: 0 8px 24px var(--shadow);
+    font-size: 11px;
+  }
+  .app-diagram .pane {
+    padding: 12px 10px;
+    position: relative;
+    background: var(--panel);
+  }
+  .app-diagram .pane-label {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-family: "Source Serif 4", serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--border);
+  }
+  .app-diagram .p1 { width: 30%; background: var(--sidebar); border-right: 1px solid var(--border); }
+  .app-diagram .p2 { width: 42%; border-right: 1px solid var(--border-soft); }
+  .app-diagram .p3 { width: 28%; background: var(--sidebar); }
+  .app-diagram .fake-row {
+    height: 8px;
+    border-radius: 3px;
+    background: var(--border-soft);
+    margin-bottom: 6px;
+  }
+  .app-diagram .fake-row.w60 { width: 60%; }
+  .app-diagram .fake-row.w80 { width: 80%; }
+  .app-diagram .fake-row.accent { background: var(--accent); opacity: 0.55; }
+  .app-diagram .fake-block {
+    height: 30px;
+    border-radius: 6px;
+    background: var(--border-soft);
+    margin: 10px 0;
+  }
+  .diagram-caption {
+    display: flex;
+    gap: 20px;
+    max-width: 68ch;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .diagram-caption b { color: var(--ink); }
+
+  .btn-sample {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 4px 6px 4px 0;
+  }
+  .btn-sample.primary { background: var(--accent); color: #fff; }
+  .btn-sample.ghost { border: 1px solid var(--border); color: var(--ink); background: var(--panel); }
+
+  hr.div {
+    border: none;
+    border-top: 1px solid var(--border-soft);
+    margin: 48px 0;
+  }
+
+  footer {
+    max-width: 66ch;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 860px) {
+    .toc { display: none; }
+    main { padding: 40px 20px 80px; border-left: none; }
+    .app-diagram { font-size: 9px; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="toc-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8">
+        <circle cx="12" cy="12" r="3.2"></circle>
+        <path d="M12 2.5v3.2M12 18.3v3.2M21.5 12h-3.2M5.7 12H2.5M18.3 5.7l-2.3 2.3M8 13.7l-2.3 2.3M18.3 18.3l-2.3-2.3M8 10.3L5.7 8"></path>
+      </svg>
+      <span>AI Orchestrator</span>
+    </div>
+    <a href="#start">1. 起動する</a>
+    <a href="#screen">2. 画面の見方</a>
+    <a href="#basic">3. 基本の使い方</a>
+    <a href="#steps">4. ステップの管理</a>
+    <a href="#exec">5. コマンドの実行</a>
+    <a href="#services">6. AIサービス設定</a>
+    <a href="#artifacts">7. 成果物の確認</a>
+    <a href="#trouble">8. うまくいかない時</a>
+    <a href="#quit">9. 終了する</a>
+    <div class="toc-note">このアプリはあなたのPC上だけで動きます。データが外部に送られることはありません。</div>
+  </nav>
+
+  <main>
+    <h1 class="doc-title">AI Orchestrator 取扱説明書</h1>
+    <p class="doc-sub">
+      複数のAI（ChatGPT・Gemini・Claudeなどのブラウザ版、Claude CodeのCLI）を「バトンリレー」のように順番に連携させて、
+      アプリ開発を進めるための道具です。API課金は発生しません — 普段お使いのブラウザとCLIをそのまま使います。
+    </p>
+
+    <section id="start">
+      <h2><span class="num">1</span>起動する</h2>
+      <p class="section-lede">デスクトップに置いた「AI Orchestrator」アイコンから起動します。コマンド入力は不要です。</p>
+
+      <ol class="steps">
+        <li>
+          <div class="step-body">デスクトップの <strong>「AI Orchestrator」</strong> アイコンをダブルクリックする。</div>
+        </li>
+        <li>
+          <div class="step-body">黒いウィンドウ（コマンドプロンプト）が開き、サーバーが起動する。<strong>このウィンドウは閉じないでください</strong> — 閉じるとアプリ全体が止まります。</div>
+        </li>
+        <li>
+          <div class="step-body">数秒後、既定のブラウザで <code>http://localhost:5173</code> が自動的に開く。</div>
+        </li>
+      </ol>
+
+      <div class="callout note">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+        <p>ブラウザが自動で開かない場合は、手動で <code>http://localhost:5173</code> をアドレスバーに入力してください。</p>
+      </div>
+    </section>
+
+    <section id="screen">
+      <h2><span class="num">2</span>画面の見方</h2>
+      <p class="section-lede">画面は3つのエリアに分かれています。それぞれ役割が決まっています。</p>
+
+      <div class="app-diagram">
+        <div class="pane p1">
+          <div class="pane-label">①</div>
+          <div class="fake-row w60"></div>
+          <div class="fake-block" style="background: var(--accent-tint);"></div>
+          <div class="fake-block"></div>
+          <div class="fake-block"></div>
+        </div>
+        <div class="pane p2">
+          <div class="pane-label">②</div>
+          <div class="fake-row w80"></div>
+          <div class="fake-row"></div>
+          <div class="fake-block" style="height: 60px;"></div>
+          <div class="fake-row accent w60"></div>
+        </div>
+        <div class="pane p3">
+          <div class="pane-label">③</div>
+          <div class="fake-row w60"></div>
+          <div class="fake-block" style="height: 90px;"></div>
+        </div>
+      </div>
+      <div class="diagram-caption">
+        <span><b>① 左：ワークフロー</b> — 工程の一覧と進み具合</span>
+        <span><b>② 中央：プロンプト生成</b> — 今の工程で使う指示文</span>
+        <span><b>③ 右：Artifacts</b> — 生成されたファイルの中身</span>
+      </div>
+
+      <h3>① 左ペイン — ワークフロー</h3>
+      <p>「要件定義」「設計レビュー」「実装」「QA」のように、工程（ステップ）が順番に並びます。各ステップには担当AIと状態が表示されます。</p>
+      <table>
+        <tr><th>状態</th><th>意味</th></tr>
+        <tr><td><span class="badge pending">未着手</span></td><td>まだ手をつけていない工程</td></tr>
+        <tr><td><span class="badge active">進行中</span></td><td>今まさに取り組んでいる工程</td></tr>
+        <tr><td><span class="badge done">完了</span></td><td>成果物の回収まで終わった工程</td></tr>
+      </table>
+
+      <h3>② 中央ペイン — プロンプト生成</h3>
+      <p>選んだステップに応じて、そのまま貼り付けて使えるプロンプトを自動で組み立てます。担当AIがブラウザ版か<code>Claude Code</code>かで、下に出てくるものが変わります。</p>
+
+      <h3>③ 右ペイン — Artifacts</h3>
+      <p>AIが生成したファイル（<code>workspace/</code>フォルダの中身）を一覧表示し、選ぶとその場でプレビューできます。Markdownは整形して、コードは色付きで表示されます。</p>
+    </section>
+
+    <section id="basic">
+      <h2><span class="num">3</span>基本の使い方</h2>
+      <p class="section-lede">1つの工程を1サイクル回す、基本の流れです。</p>
+
+      <ol class="steps">
+        <li><div class="step-body">左ペインで、進めたい<strong>ステップをクリック</strong>して選ぶ。</div></li>
+        <li><div class="step-body">中央ペインに、そのステップ用の<strong>プロンプトが自動生成</strong>される（入力ファイルの中身も必要に応じて埋め込まれる）。</div></li>
+        <li><div class="step-body"><span class="btn-sample primary">プロンプトをコピー</span> を押して、担当AI（ChatGPT・Gemini・Claudeのブラウザ版など）に貼り付けて実行する。</div></li>
+        <li><div class="step-body">AI側での作業が終わり、成果物のファイルを <code>workspace/</code> フォルダに保存したら、<span class="btn-sample ghost">成果物の回収を完了し、次のステップへ</span> を押す。</div></li>
+        <li><div class="step-body">次のステップが自動的に「進行中」になり、①〜④を繰り返す。</div></li>
+      </ol>
+
+      <div class="callout tip">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"></path></svg>
+        <p>担当AIの名前の横に <b>「開く ↗」</b> リンクがあれば、クリックでそのAIのサイトを新しいタブで開けます（自動入力はしません — 貼り付けはご自身で）。</p>
+      </div>
+    </section>
+
+    <section id="steps">
+      <h2><span class="num">4</span>ステップの管理</h2>
+      <p class="section-lede">工程そのものを増やしたり、順番を入れ替えたり、内容を書き換えたりできます。</p>
+
+      <h3>ステップを追加する</h3>
+      <p>左ペイン上部の <span class="btn-sample ghost">＋ 追加</span> から、役割・担当AI・入出力ファイル・プロンプトを入力して追加します。</p>
+
+      <h3>並び替え・削除</h3>
+      <p>各ステップの右側にある上下の矢印で実行順を入れ替え、ゴミ箱アイコンで削除できます（削除前に確認画面が出ます）。</p>
+
+      <h3>プロンプト／コマンドを編集する</h3>
+      <p>中央ペインの <span class="btn-sample ghost">テンプレートを編集</span> から、そのステップのプロンプト文とClaude Codeコマンドを直接書き換えられます。</p>
+    </section>
+
+    <section id="exec">
+      <h2><span class="num">5</span>コマンドの実行（Claude Code）</h2>
+      <p class="section-lede">担当AIが「Claude Code (CLI)」のステップでは、実行コマンドが自動的に組み立てられ、ボタン一つでこのPC上で実行できます。</p>
+
+      <ol class="steps">
+        <li><div class="step-body">中央ペインに表示された<strong>実行コマンド</strong>を確認する（クリックでコピーも可能）。</div></li>
+        <li><div class="step-body"><span class="btn-sample ghost">ローカルで実行</span> を押す。</div></li>
+        <li><div class="step-body">確認画面で<strong>実行内容をもう一度確認</strong>してから「実行する」を押す。</div></li>
+        <li><div class="step-body">完了すると終了コードと出力結果が表示される。実装系のタスクは<strong>数分（最大10分）</strong>かかることがある。</div></li>
+      </ol>
+
+      <div class="callout warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+        <p>このボタンは実際にPC上でコマンドを実行します。表示された内容をよく確認してから実行してください。</p>
+      </div>
+
+      <h3>初めて使う前に</h3>
+      <p><code>claude</code> コマンドを一度も使ったことがない場合は、事前に一度だけログインが必要です。通常のコマンドプロンプトで以下を実行してください。</p>
+      <pre>claude auth login</pre>
+      <p>ブラウザが開くのでご自身のアカウントでログインします。「準備が整いました」という画面が出れば完了です。</p>
+    </section>
+
+    <section id="services">
+      <h2><span class="num">6</span>AIサービス設定</h2>
+      <p class="section-lede">右上の歯車アイコンから、使っているAIサービスの名前とURLを管理できます。</p>
+      <p>ここに登録した名前とステップの担当AI名が一致すると、中央ペインに「開く ↗」リンクが表示されるようになります。</p>
+    </section>
+
+    <section id="artifacts">
+      <h2><span class="num">7</span>成果物の確認</h2>
+      <p class="section-lede"><code>workspace/</code> フォルダの中身は常に監視されていて、外部のエディタで直接ファイルを保存しても、アプリの画面に即座に反映されます。</p>
+      <p>右ペインのタブでファイルを切り替えて中身を確認できます。<code>.md</code>ファイルは整形して表示、コードファイルは色分け表示されます。</p>
+    </section>
+
+    <section id="trouble">
+      <h2><span class="num">8</span>うまくいかない時</h2>
+
+      <h3>画面が真っ白・何も表示されない</h3>
+      <p>デスクトップアイコンから起動した黒いウィンドウが閉じていないか確認してください。閉じてしまった場合は、アイコンをもう一度ダブルクリックしてください。</p>
+
+      <h3>「ローカルで実行」がすぐ失敗する</h3>
+      <p>エラー内容に <code>Not logged in</code> と出ている場合は、上記「5. コマンドの実行」内の <code>claude auth login</code> をまだ行っていない状態です。一度実行してください。</p>
+
+      <h3>ポートが使われていて起動できない</h3>
+      <p>他のアプリが <code>5173</code> または <code>4173</code> 番ポートを使っている可能性があります。他のアプリを終了してから、もう一度アイコンをダブルクリックしてください。</p>
+
+      <h3>それでも解決しない</h3>
+      <p>プロジェクトフォルダ内の <code>PROGRESS.md</code> に、これまで見つかった不具合とその対応がすべて記録されています。</p>
+    </section>
+
+    <section id="quit">
+      <h2><span class="num">9</span>終了する</h2>
+      <p>起動時に開いた黒いウィンドウ（コマンドプロンプト）を閉じるだけで、アプリは終了します。ブラウザのタブはそのまま閉じて構いません。</p>
+    </section>
+
+    <hr class="div">
+    <footer>
+      AI Orchestrator は API課金なし・ローカル完結で動作します。データが外部サーバーに送信されることはありません。
+    </footer>
+  </main>
+</div>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Public+Sans:wght@400;500;600;700&display=swap">
+
+<script>
+  const links = document.querySelectorAll('.toc a[href^="#"]');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+  function onScroll() {
+    let current = sections[0];
+    for (const s of sections) {
+      if (s && s.getBoundingClientRect().top < 120) current = s;
+    }
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  }
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>

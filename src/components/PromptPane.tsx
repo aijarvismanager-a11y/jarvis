@@ -20,6 +20,7 @@ type Props = {
 };
 
 export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
+  const [showGuide, setShowGuide] = useState(true);
   const [copied, setCopied] = useState(false);
   const [commandCopied, setCommandCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
   useEffect(() => {
     setExecResult(null);
     setExecError(null);
+    setShowGuide(true);
   }, [step.id, command]);
 
   function fallbackCopy(text: string): boolean {
@@ -123,6 +125,31 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-5 flex flex-col gap-4.5">
+        {showGuide && (
+          <div className="flex items-start gap-3 rounded-xl px-4 py-3 bg-accent-tint" style={{ background: "color-mix(in oklch, #B5563A 8%, white)" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B5563A" strokeWidth="2" className="shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v5M12 16h.01" />
+            </svg>
+            <div className="flex-1 text-[12.5px] leading-relaxed text-ink">
+              <span className="font-semibold">このステップの進め方：</span>{" "}
+              {command ? (
+                <>下の実行コマンドを確認 → <b>「ローカルで実行」</b>を押す → 完了を待つ → 問題なければ<b>「次のステップへ」</b>を押す。</>
+              ) : (
+                <>
+                  下のプロンプトを<b>「プロンプトをコピー」</b> → {serviceUrl ? <b>「開く↗」</b> : "担当AIのサイト"}を開いて貼り付け・実行 →
+                  出てきた内容を <code className="px-1 rounded bg-white/60 font-mono text-[11.5px]">{step.output_files[0] ?? "workspace/配下"}</code> に保存 → <b>「次のステップへ」</b>を押す。
+                </>
+              )}
+            </div>
+            <button onClick={() => setShowGuide(false)} className="shrink-0 opacity-50 hover:opacity-100 mt-0.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-6">
           <div className="flex-1 flex flex-col gap-1">
             <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">入力ファイル</span>

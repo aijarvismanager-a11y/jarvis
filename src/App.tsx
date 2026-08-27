@@ -18,6 +18,7 @@ import { AddStepModal } from "./components/AddStepModal";
 import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ConfirmModal } from "./components/ConfirmModal";
+import { WelcomeBanner } from "./components/WelcomeBanner";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 
 function stripWorkspacePrefix(p: string) {
@@ -235,6 +236,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <WelcomeBanner />
 
       <div className="flex flex-1 min-h-0">
         {workflow ? (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import type { WorkflowStep } from "../types/workflow";
+import { TASK_CATEGORIES } from "../lib/taskCategories";
 
 type Props = {
   nextIndex: number;
@@ -20,6 +21,7 @@ const inputClass =
 const labelClass = "text-[11px] font-semibold text-muted uppercase tracking-wide";
 
 export function AddStepModal({ nextIndex, onCancel, onCreate }: Props) {
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [role, setRole] = useState("");
   const [aiName, setAiName] = useState("");
   const [inputFiles, setInputFiles] = useState("");
@@ -27,7 +29,20 @@ export function AddStepModal({ nextIndex, onCancel, onCreate }: Props) {
   const [promptTemplate, setPromptTemplate] = useState("");
   const [commandTemplate, setCommandTemplate] = useState("");
 
+  const selectedCategory = TASK_CATEGORIES.find((c) => c.id === categoryId) ?? null;
+
   const canSubmit = role.trim() && aiName.trim() && promptTemplate.trim();
+
+  function applyCategory(id: string) {
+    setCategoryId(id);
+    const cat = TASK_CATEGORIES.find((c) => c.id === id);
+    if (!cat || cat.id === "custom") return;
+    setRole(cat.role);
+    setAiName(cat.recommendedAi);
+    setPromptTemplate(cat.promptTemplate);
+    setInputFiles(cat.inputHint);
+    setOutputFiles(cat.outputHint);
+  }
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -47,6 +62,34 @@ export function AddStepModal({ nextIndex, onCancel, onCreate }: Props) {
 
   return (
     <Modal title="新しいステップを追加" onClose={onCancel}>
+      <div className="flex flex-col gap-1.5">
+        <span className={labelClass}>どんな作業をしたいですか？（選ぶとAIと項目が自動で埋まります）</span>
+        <div className="flex flex-wrap gap-1.5">
+          {TASK_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => applyCategory(cat.id)}
+              className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold border transition-colors"
+              style={
+                categoryId === cat.id
+                  ? { background: "#B5563A", color: "white", borderColor: "#B5563A" }
+                  : { background: "#FFFFFF", color: "#2B2A26", borderColor: "#E9E4D9" }
+              }
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        {selectedCategory && selectedCategory.reason && (
+          <div className="flex items-start gap-2 mt-0.5 px-3 py-2 rounded-lg bg-bg border border-borderSoft">
+            <span className="text-[12px] leading-relaxed text-muted">
+              <span className="font-semibold text-ink">おすすめ: {selectedCategory.recommendedAi}</span> —{" "}
+              {selectedCategory.reason}
+            </span>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <span className={labelClass}>役割（例: Reviewer（設計レビュー））</span>
         <input className={inputClass} value={role} onChange={(e) => setRole(e.target.value)} />
