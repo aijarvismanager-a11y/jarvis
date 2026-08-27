@@ -77,7 +77,9 @@ Tauri/Electron化は「今は不要」と判断（現状のブラウザ+ロー�
 - `vitest`導入、コマンド生成ロジックとworkflowスキーマの自動テストを追加
 - Windowsでのコマンド出力文字化けを緩和
 - **実際に`claude` CLIで実行検証** → `-p --permission-mode acceptEdits`が非対話実行に必須と判明し追加
-- **重要**: 検証の過程で、実機の`claude` CLIが未ログインであることが判明。ユーザーが`claude login`を一度実行する必要あり（アプリ側の不具合ではなく環境セットアップ事項）。詳細はPROGRESS.md参照。
+- **重要**: 検証の過程で、実機の`claude` CLIが未ログインであることが判明 → `claude auth login`でログイン完了後、実際に「ローカルで実行」ボタンから`claude`を実行し、正常終了・ファイル読み込み・文字化けなし・安全な挙動（未生成ファイルへの依存を検知して実装を強行しない）まで実機で確認済み。詳細はPROGRESS.md参照。
+
+**→ 実機での動作確認、完了。**
 
 ## リポジトリ・Push状況
 2026-08-27、push権限エラーを解決済み。`git remote set-url`でリモートURLに正しいGitHubアカウント（`aijarvismanager-a11y`）を指定し、以後正常にpushできる状態。
