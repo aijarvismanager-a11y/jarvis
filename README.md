@@ -50,3 +50,4 @@ npm run lint    # oxlint
 
 - `legacy-ai-manager/` — 旧Electron版アプリ（参考用に退避、現行アプリとは無関係）
 - 進捗・既知の問題は [PLAN.md](PLAN.md) / [PROGRESS.md](PROGRESS.md) を参照
+- 使い方は [MANUAL.html](MANUAL.html) を参照（ダブルクリックでブラウザに開く。オンライン版もあり: https://claude.ai/code/artifact/97733358-e6fc-48e9-bb35-5cb45f284780）
