@@ -219,7 +219,9 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
                           : { background: "color-mix(in oklch, #8A3A2A 14%, white)", color: "#8A3A2A" }
                     }
                   >
-                    {execResult.timedOut ? "タイムアウト（2分）" : `終了コード: ${execResult.exitCode}`}
+                    {execResult.timedOut
+                      ? `タイムアウト（${Math.round((execResult.timeoutMs ?? 0) / 60000)}分）`
+                      : `終了コード: ${execResult.exitCode}`}
                   </span>
                 </div>
                 {(execResult.stdout || execResult.stderr) && (
@@ -253,7 +255,9 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
               <p className="font-mono text-[12.5px] bg-bg border border-border rounded-lg px-3 py-2 break-words">
                 {command}
               </p>
-              <p className="mt-2 text-muted text-[12.5px]">実行内容に問題がないか確認してください。</p>
+              <p className="mt-2 text-muted text-[12.5px]">
+                実行内容に問題がないか確認してください。実装タスクの場合、完了まで数分かかることがあります（最大10分）。
+              </p>
             </>
           }
           confirmLabel="実行する"

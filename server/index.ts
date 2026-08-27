@@ -6,6 +6,13 @@ import { exec } from "node:child_process";
 import path from "node:path";
 import http from "node:http";
 
+// Real "implement this" tasks routinely take longer than a couple minutes
+// (multiple file reads/writes, occasionally a lint/test pass) — this was
+// confirmed by an actual timeout during real-machine testing at the old
+// 120s limit. 10 minutes is a more realistic ceiling for a one-shot,
+// non-interactive coding run.
+const EXECUTE_TIMEOUT_MS = 10 * 60 * 1000;
+
 const ROOT = path.resolve(process.cwd());
 const WORKFLOW_PATH = path.join(ROOT, "config", "workflow.json");
 const AI_SERVICES_PATH = path.join(ROOT, "config", "ai_services.json");
@@ -72,11 +79,11 @@ app.post("/api/execute", (req, res) => {
   const shellCommand = process.platform === "win32" ? `chcp 65001>nul && ${command}` : command;
   exec(
     shellCommand,
-    { cwd: WORKSPACE_DIR, timeout: 120_000, maxBuffer: 5 * 1024 * 1024 },
+    { cwd: WORKSPACE_DIR, timeout: EXECUTE_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 },
     (err, stdout, stderr) => {
       const timedOut = !!err?.killed && err.signal === "SIGTERM";
       const exitCode = err ? (typeof err.code === "number" ? err.code : 1) : 0;
-      res.json({ exitCode, timedOut, stdout, stderr });
+      res.json({ exitCode, timedOut, timeoutMs: EXECUTE_TIMEOUT_MS, stdout, stderr });
     },
   );
 });
@@ -127,6 +134,11 @@ app.get("/api/artifacts/*", async (req, res) => {
 });
 
 const server = http.createServer(app);
+// Node's http.Server has its own request/header timeouts (independent of
+// the child_process timeout above) that would otherwise cut off a long
+// /api/execute response before EXECUTE_TIMEOUT_MS is reached.
+server.requestTimeout = 0;
+server.headersTimeout = 0;
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 function broadcast(message: unknown) {

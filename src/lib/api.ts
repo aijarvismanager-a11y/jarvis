@@ -67,7 +67,13 @@ export async function fetchArtifactContent(relPath: string): Promise<string> {
   return res.text();
 }
 
-export type ExecuteResult = { exitCode: number; timedOut: boolean; stdout: string; stderr: string };
+export type ExecuteResult = {
+  exitCode: number;
+  timedOut: boolean;
+  timeoutMs?: number;
+  stdout: string;
+  stderr: string;
+};
 
 export async function executeCommand(command: string): Promise<ExecuteResult> {
   const res = await fetch("/api/execute", {

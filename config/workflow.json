@@ -20,7 +20,7 @@
       "index": 2,
       "ai_name": "Claude (Web)",
       "role": "Reviewer（設計レビュー）",
-      "status": "active",
+      "status": "done",
       "input_files": [
         "workspace/docs/requirements.md",
         "workspace/docs/architecture.md"
@@ -36,7 +36,7 @@
       "index": 3,
       "ai_name": "Claude Code (CLI)",
       "role": "Lead Developer（実装）",
-      "status": "pending",
+      "status": "active",
       "input_files": [
         "workspace/docs/requirements.md",
         "workspace/docs/architecture.md",

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "step-1-requirements",
+      "index": 1,
+      "ai_name": "Claude",
+      "role": "要件定義",
+      "status": "done",
+      "input_files": ["docs/requirements.md"],
+      "output_files": ["docs/requirements.md"],
+      "prompt_template": "あなたは要件定義の担当AIです。role={{role}}\n\n{{input_files}}\n\n上記を踏まえて要件を明確化してください。"
+    },
+    {
+      "id": "step-2-design-review",
+      "index": 2,
+      "ai_name": "Claude",
+      "role": "設計レビュー",
+      "status": "done",
+      "input_files": ["docs/requirements.md", "docs/architecture.md"],
+      "output_files": ["docs/design_review.md"],
+      "prompt_template": "あなたは設計レビュー担当AIです。role={{role}}\n\n{{input_files}}\n\n不足点を指摘してください。"
+    },
+    {
+      "id": "step-3-implementation",
+      "index": 3,
+      "ai_name": "Claude",
+      "role": "実装",
+      "status": "in_progress",
+      "input_files": ["docs/requirements.md", "docs/architecture.md", "docs/design_review.md"],
+      "output_files": ["src/index.ts", "src/server.ts"],
+      "prompt_template": "あなたは実装担当AIです。role={{role}}\n\n{{input_files}}\n\n上記の要件・設計・レビューに基づき src/ に実装してください。"
+    }
+  ]
+}
