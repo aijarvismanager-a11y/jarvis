@@ -19,5 +19,19 @@
   { "id": "github-copilot", "name": "GitHub Copilot Chat (Web)", "url": "https://github.com/copilot" },
   { "id": "v0", "name": "v0 by Vercel (Web)", "url": "https://v0.dev" },
   { "id": "genspark", "name": "Genspark (Web)", "url": "https://www.genspark.ai" },
-  { "id": "manus", "name": "Manus (Web)", "url": "https://manus.im" }
+  { "id": "manus", "name": "Manus (Web)", "url": "https://manus.im" },
+  { "id": "midjourney", "name": "Midjourney（画像生成）", "url": "https://www.midjourney.com" },
+  { "id": "ideogram", "name": "Ideogram（画像生成）", "url": "https://ideogram.ai" },
+  { "id": "leonardo", "name": "Leonardo.Ai（画像生成）", "url": "https://leonardo.ai" },
+  { "id": "firefly", "name": "Adobe Firefly（画像生成）", "url": "https://firefly.adobe.com" },
+  { "id": "playground", "name": "Playground（画像生成）", "url": "https://playground.com" },
+  { "id": "recraft", "name": "Recraft（画像生成）", "url": "https://www.recraft.ai" },
+  { "id": "runway", "name": "Runway（動画生成）", "url": "https://runwayml.com" },
+  { "id": "pika", "name": "Pika（動画生成）", "url": "https://pika.art" },
+  { "id": "luma", "name": "Luma Dream Machine（動画生成）", "url": "https://lumalabs.ai/dream-machine" },
+  { "id": "kling", "name": "Kling AI（動画生成）", "url": "https://klingai.com" },
+  { "id": "google-flow", "name": "Google Flow / Veo（動画生成）", "url": "https://labs.google/flow" },
+  { "id": "sora", "name": "Sora（動画生成）", "url": "https://sora.chatgpt.com" },
+  { "id": "suno", "name": "Suno（音楽生成）", "url": "https://suno.com" },
+  { "id": "elevenlabs", "name": "ElevenLabs（音声生成）", "url": "https://elevenlabs.io" }
 ]
