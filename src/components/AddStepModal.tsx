@@ -5,6 +5,7 @@ import { TASK_CATEGORIES } from "../lib/taskCategories";
 
 type Props = {
   nextIndex: number;
+  initial?: { role: string; aiName: string; promptTemplate: string };
   onCancel: () => void;
   onCreate: (step: WorkflowStep) => void;
 };
@@ -20,13 +21,13 @@ const inputClass =
   "w-full border border-border rounded-lg px-3 py-2 text-[13px] bg-bg focus:outline-none focus:ring-2 focus:ring-accent/40";
 const labelClass = "text-[11px] font-semibold text-muted uppercase tracking-wide";
 
-export function AddStepModal({ nextIndex, onCancel, onCreate }: Props) {
+export function AddStepModal({ nextIndex, initial, onCancel, onCreate }: Props) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [role, setRole] = useState("");
-  const [aiName, setAiName] = useState("");
+  const [role, setRole] = useState(initial?.role ?? "");
+  const [aiName, setAiName] = useState(initial?.aiName ?? "");
   const [inputFiles, setInputFiles] = useState("");
-  const [outputFiles, setOutputFiles] = useState("");
-  const [promptTemplate, setPromptTemplate] = useState("");
+  const [outputFiles, setOutputFiles] = useState(initial ? "workspace/docs/ideas.md" : "");
+  const [promptTemplate, setPromptTemplate] = useState(initial?.promptTemplate ?? "");
   const [commandTemplate, setCommandTemplate] = useState("");
 
   const selectedCategory = TASK_CATEGORIES.find((c) => c.id === categoryId) ?? null;

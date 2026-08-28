@@ -19,6 +19,7 @@ import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { WelcomeBanner } from "./components/WelcomeBanner";
+import { IdeaIntakeModal } from "./components/IdeaIntakeModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 
 function stripWorkspacePrefix(p: string) {
@@ -37,7 +38,9 @@ export default function App() {
   const [loadingArtifact, setLoadingArtifact] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [showIdeaIntake, setShowIdeaIntake] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
+  const [addStepSeed, setAddStepSeed] = useState<{ role: string; aiName: string; promptTemplate: string } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
@@ -169,7 +172,9 @@ export default function App() {
     const next = { ...workflow, steps: [...workflow.steps, step] };
     setWorkflow(next);
     saveWorkflow(next).catch((e) => setError(String(e)));
+    setShowIdeaIntake(false);
     setShowAddStep(false);
+    setAddStepSeed(null);
     setSelectedStepId(step.id);
   }
 
@@ -247,7 +252,7 @@ export default function App() {
               selectedStepId={selectedStepId}
               onSelect={setSelectedStepId}
               onMove={handleMoveStep}
-              onAdd={() => setShowAddStep(true)}
+              onAdd={() => setShowIdeaIntake(true)}
               onDelete={setPendingDeleteId}
             />
             {selectedStep && (
@@ -274,10 +279,27 @@ export default function App() {
         />
       </div>
 
+      {showIdeaIntake && workflow && (
+        <IdeaIntakeModal
+          nextIndex={workflow.steps.length + 1}
+          onCancel={() => setShowIdeaIntake(false)}
+          onCreate={handleAddStep}
+          onEditManually={(seed) => {
+            setShowIdeaIntake(false);
+            setAddStepSeed(seed);
+            setShowAddStep(true);
+          }}
+        />
+      )}
+
       {showAddStep && workflow && (
         <AddStepModal
           nextIndex={workflow.steps.length + 1}
-          onCancel={() => setShowAddStep(false)}
+          initial={addStepSeed ?? undefined}
+          onCancel={() => {
+            setShowAddStep(false);
+            setAddStepSeed(null);
+          }}
           onCreate={handleAddStep}
         />
       )}
