@@ -19,9 +19,20 @@ type Props = {
   serviceUrl: string | null;
   onAdvance: () => void;
   onEditTemplate: () => void;
+  onOpenArtifact: (path: string) => void;
 };
 
-export function PromptPane({ projectId, step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
+export function PromptPane({
+  projectId,
+  step,
+  prompt,
+  loadingPrompt,
+  command,
+  serviceUrl,
+  onAdvance,
+  onEditTemplate,
+  onOpenArtifact,
+}: Props) {
   const [showGuide, setShowGuide] = useState(true);
   const [copied, setCopied] = useState(false);
   const [commandCopied, setCommandCopied] = useState(false);
@@ -215,18 +226,44 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
           </div>
         )}
 
-        <div className="flex gap-6">
-          <div className="flex-1 flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">入力ファイル</span>
-            <span className="text-[13px] font-mono">
-              {step.input_files.length ? step.input_files.join(" / ") : "なし（起点ステップ）"}
-            </span>
+        {(step.input_files.length > 0 || step.output_files.length > 0) && (
+          <div className="flex gap-6">
+            {step.input_files.length > 0 && (
+              <div className="flex-1 flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">参考にするファイル</span>
+                <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+                  {step.input_files.map((f, i) => (
+                    <span key={f} className="text-[13px] font-mono">
+                      {i > 0 && <span className="text-muted mr-1.5">/</span>}
+                      <button
+                        onClick={() => onOpenArtifact(stripProjectPrefix(f, projectId))}
+                        className="text-accent underline decoration-dotted hover:decoration-solid"
+                      >
+                        {stripProjectPrefix(f, projectId)}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex-1 flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">保存先</span>
+              <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+                {step.output_files.map((f, i) => (
+                  <span key={f} className="text-[13px] font-mono">
+                    {i > 0 && <span className="text-muted mr-1.5">/</span>}
+                    <button
+                      onClick={() => onOpenArtifact(stripProjectPrefix(f, projectId))}
+                      className="text-accent underline decoration-dotted hover:decoration-solid"
+                    >
+                      {stripProjectPrefix(f, projectId)}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex-1 flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">出力ファイル</span>
-            <span className="text-[13px] font-mono">{step.output_files.join(" / ")}</span>
-          </div>
-        </div>
+        )}
 
         <div className="flex flex-col gap-2">
           <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">生成されたプロンプト</span>
@@ -260,13 +297,6 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
             <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
               AIの回答を貼り付けて保存
             </span>
-            <span className="text-[12px] text-muted -mt-1">
-              何度かやり取りして構いません。最終的に確定した内容だけ（会話のやり取り全部ではなく）を貼り付けると、
-              <code className="mx-1 px-1 rounded bg-bg font-mono text-[11px]">
-                {stripProjectPrefix(step.output_files[0], projectId)}
-              </code>
-              として保存されます。
-            </span>
             <textarea
               className="border border-border rounded-xl p-4 bg-bg text-[13.5px] leading-relaxed min-h-[120px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
               placeholder="ここにAIの回答を貼り付け..."
@@ -284,6 +314,12 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
                   <path d="M17 21v-8H7v8M7 3v5h8" />
                 </svg>
                 {saving ? "保存中..." : saved ? "保存しました" : "保存する"}
+              </button>
+              <button
+                onClick={() => onOpenArtifact(stripProjectPrefix(step.output_files[0], projectId))}
+                className="text-[11.5px] text-muted font-mono hover:text-accent"
+              >
+                → {stripProjectPrefix(step.output_files[0], projectId)}
               </button>
               {saveError && <span className="text-[12px] text-[#8A3A2A]">{saveError}</span>}
             </div>

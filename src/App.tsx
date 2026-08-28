@@ -343,6 +343,7 @@ export default function App() {
                 serviceUrl={serviceUrl}
                 onAdvance={handleAdvance}
                 onEditTemplate={() => setEditingTemplate(true)}
+                onOpenArtifact={setSelectedArtifact}
               />
             )}
           </>
