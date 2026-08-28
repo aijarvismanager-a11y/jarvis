@@ -16,7 +16,7 @@ export const TASK_CATEGORIES: TaskCategory[] = [
   {
     id: "idea",
     label: "アイデア出し・壁打ち",
-    recommendedAi: "ChatGPT / Gemini / Claude (Web)",
+    recommendedAi: "ChatGPT (Web)",
     reason: "まだ形になっていない段階の発散的な会話は、汎用の対話AIとの壁打ちが向いています。",
     role: "Ideator（アイデア出し）",
     promptTemplate:
@@ -27,7 +27,7 @@ export const TASK_CATEGORIES: TaskCategory[] = [
   {
     id: "requirements",
     label: "要件定義・設計",
-    recommendedAi: "ChatGPT / Gemini (Web)",
+    recommendedAi: "ChatGPT (Web)",
     reason: "洗い出したアイデアを構造化された文章（要件定義書・ディレクトリ構成）にまとめるのが得意です。",
     role: "Architect（設計）",
     promptTemplate: "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",

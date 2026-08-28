@@ -18,7 +18,6 @@ import { ArtifactsPane } from "./components/ArtifactsPane";
 import { ProjectTabs } from "./components/ProjectTabs";
 import { NewProjectModal } from "./components/NewProjectModal";
 import { AddStepModal } from "./components/AddStepModal";
-import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { WelcomeBanner } from "./components/WelcomeBanner";
@@ -41,7 +40,6 @@ export default function App() {
   const [showIdeaIntake, setShowIdeaIntake] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
   const [addStepSeed, setAddStepSeed] = useState<{ role: string; aiName: string; promptTemplate: string } | null>(null);
-  const [editingTemplate, setEditingTemplate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
@@ -238,13 +236,27 @@ export default function App() {
         s.id === selectedStep.id ? { ...s, prompt_template: promptTemplate, command_template: commandTemplate } : s,
       ),
     }));
-    setEditingTemplate(false);
   }
 
   function handleSaveServices(services: AiServiceList) {
     setAiServices(services);
     saveAiServices(services).catch((e) => setError(String(e)));
     setShowSettings(false);
+  }
+
+  // Lets step-creation forms register (or update) an AI service's link
+  // right where the step is created, instead of requiring a separate trip
+  // to Settings first for the "開く" link to work.
+  function handleUpsertAiService(name: string, url: string) {
+    const trimmedName = name.trim();
+    const trimmedUrl = url.trim();
+    if (!trimmedName || !trimmedUrl) return;
+    const exists = aiServices.some((s) => s.name === trimmedName);
+    const next = exists
+      ? aiServices.map((s) => (s.name === trimmedName ? { ...s, url: trimmedUrl } : s))
+      : [...aiServices, { id: `svc_${Date.now()}`, name: trimmedName, url: trimmedUrl }];
+    setAiServices(next);
+    saveAiServices(next).catch((e) => setError(String(e)));
   }
 
   function handleSelectProject(id: string) {
@@ -342,7 +354,7 @@ export default function App() {
                 command={command}
                 serviceUrl={serviceUrl}
                 onAdvance={handleAdvance}
-                onEditTemplate={() => setEditingTemplate(true)}
+                onSaveTemplate={handleSaveTemplate}
                 onOpenArtifact={setSelectedArtifact}
               />
             )}
@@ -383,11 +395,8 @@ export default function App() {
             setAddStepSeed(null);
           }}
           onCreate={handleAddStep}
+          onUpsertService={handleUpsertAiService}
         />
-      )}
-
-      {editingTemplate && selectedStep && (
-        <EditTemplateModal step={selectedStep} onCancel={() => setEditingTemplate(false)} onSave={handleSaveTemplate} />
       )}
 
       {showSettings && (

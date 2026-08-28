@@ -18,7 +18,7 @@ type Props = {
   command: string | null;
   serviceUrl: string | null;
   onAdvance: () => void;
-  onEditTemplate: () => void;
+  onSaveTemplate: (promptTemplate: string, commandTemplate: string | null) => void;
   onOpenArtifact: (path: string) => void;
 };
 
@@ -30,7 +30,7 @@ export function PromptPane({
   command,
   serviceUrl,
   onAdvance,
-  onEditTemplate,
+  onSaveTemplate,
   onOpenArtifact,
 }: Props) {
   const [showGuide, setShowGuide] = useState(true);
@@ -45,6 +45,9 @@ export function PromptPane({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [promptDraft, setPromptDraft] = useState(step.prompt_template);
+  const [editingCommand, setEditingCommand] = useState(false);
+  const [commandDraft, setCommandDraft] = useState(command ?? "");
   const meta = STATUS_META[step.status];
 
   useEffect(() => {
@@ -54,7 +57,13 @@ export function PromptPane({
     setPasteText("");
     setSaveError(null);
     setSaved(false);
-  }, [step.id, command]);
+    setPromptDraft(step.prompt_template);
+    setEditingCommand(false);
+    setCommandDraft(command ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.id]);
+
+  const promptDirty = promptDraft.trim() !== step.prompt_template.trim() && promptDraft.trim().length > 0;
 
   async function handleSavePaste() {
     const outputFile = step.output_files[0];
@@ -117,6 +126,15 @@ export function PromptPane({
 
   const handleCopy = () => copyText(prompt, () => setCopied(true));
   const handleCopyCommand = () => command && copyText(command, () => setCommandCopied(true));
+
+  function handleSavePrompt() {
+    onSaveTemplate(promptDraft.trim(), step.command_template ?? null);
+  }
+
+  function handleSaveCommand() {
+    onSaveTemplate(step.prompt_template, commandDraft.trim() || null);
+    setEditingCommand(false);
+  }
 
   async function handleConfirmExecute() {
     if (!command) return;
@@ -266,11 +284,20 @@ export function PromptPane({
         )}
 
         <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">生成されたプロンプト</span>
-          <div className="border border-border rounded-xl p-4 bg-bg text-[13.5px] leading-relaxed whitespace-pre-line min-h-[80px]">
-            {loadingPrompt ? "入力ファイルを読み込み中..." : prompt}
-          </div>
-          <div className="flex gap-2.5 mt-0.5">
+          <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+            AIへの指示文（このまま直接書き換えられます）
+          </span>
+          <textarea
+            className="border border-border rounded-xl p-4 bg-bg text-[13.5px] leading-relaxed whitespace-pre-line min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+            value={promptDraft}
+            onChange={(e) => setPromptDraft(e.target.value)}
+          />
+          {!command && step.input_files.length > 0 && (
+            <span className="text-[11.5px] text-muted">
+              ＋ 上の「参考にするファイル」の中身も、コピー時に自動でまとめて付け加えられます。
+            </span>
+          )}
+          <div className="flex gap-2.5 mt-0.5 items-center">
             <button
               onClick={handleCopy}
               disabled={loadingPrompt}
@@ -282,12 +309,14 @@ export function PromptPane({
               </svg>
               {copied ? "コピーしました" : "プロンプトをコピー"}
             </button>
-            <button
-              onClick={onEditTemplate}
-              className="px-4 py-2 rounded-[9px] border border-border bg-white text-[13px] font-semibold"
-            >
-              テンプレートを編集
-            </button>
+            {promptDirty && (
+              <button
+                onClick={handleSavePrompt}
+                className="px-4 py-2 rounded-[9px] border border-accent text-accent text-[13px] font-semibold"
+              >
+                変更を保存
+              </button>
+            )}
           </div>
           {copyError && <span className="text-[12px] text-[#8A3A2A]">{copyError}</span>}
         </div>
@@ -331,30 +360,58 @@ export function PromptPane({
             <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
               Claude Code 実行コマンド
             </span>
-            <button
-              onClick={handleCopyCommand}
-              className="flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-3 bg-ink text-[#F4EFE4] font-mono text-[12.5px] text-left"
-              title="クリックしてコピー"
-            >
-              <span>{command}</span>
-              {commandCopied ? (
-                <span className="text-[11px] shrink-0">コピーしました</span>
-              ) : (
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#F4EFE4"
-                  strokeWidth="2"
-                  className="shrink-0"
-                >
-                  <rect x="9" y="9" width="12" height="12" rx="2" />
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                </svg>
-              )}
-            </button>
-            <div>
+            {editingCommand ? (
+              <>
+                <input
+                  className="border border-border rounded-xl px-3.5 py-3 bg-bg font-mono text-[12.5px] focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  value={commandDraft}
+                  onChange={(e) => setCommandDraft(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveCommand}
+                    className="px-3.5 py-1.5 rounded-[9px] bg-accent text-white text-[12.5px] font-semibold"
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingCommand(false);
+                      setCommandDraft(command ?? "");
+                    }}
+                    className="px-3.5 py-1.5 rounded-[9px] border border-border text-[12.5px] font-semibold"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={handleCopyCommand}
+                className="flex items-center justify-between gap-3 rounded-[10px] px-3.5 py-3 bg-ink text-[#F4EFE4] font-mono text-[12.5px] text-left"
+                title="クリックしてコピー"
+              >
+                <span>{command}</span>
+                {commandCopied ? (
+                  <span className="text-[11px] shrink-0">コピーしました</span>
+                ) : (
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#F4EFE4"
+                    strokeWidth="2"
+                    className="shrink-0"
+                  >
+                    <rect x="9" y="9" width="12" height="12" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                )}
+              </button>
+            )}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowExecuteConfirm(true)}
                 disabled={executing}
@@ -365,6 +422,14 @@ export function PromptPane({
                 </svg>
                 {executing ? "実行中..." : "ローカルで実行"}
               </button>
+              {!editingCommand && (
+                <button
+                  onClick={() => setEditingCommand(true)}
+                  className="text-[12px] text-muted hover:text-ink underline"
+                >
+                  コマンドを書き換える
+                </button>
+              )}
             </div>
 
             {execError && <span className="text-[12px] text-[#8A3A2A]">{execError}</span>}

@@ -8,7 +8,7 @@
         {
           "id": "step_0_idea",
           "index": 1,
-          "ai_name": "ChatGPT / Gemini / Claude (Web)",
+          "ai_name": "ChatGPT (Web)",
           "role": "Ideator（アイデア出し）",
           "status": "done",
           "input_files": [],
@@ -21,7 +21,7 @@
         {
           "id": "step_1_design",
           "index": 2,
-          "ai_name": "ChatGPT / Gemini (Web)",
+          "ai_name": "ChatGPT (Web)",
           "role": "Architect（設計）",
           "status": "done",
           "input_files": [
