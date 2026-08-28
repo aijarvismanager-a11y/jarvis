@@ -162,6 +162,36 @@ app.get("/api/projects/:projectId/artifacts/*", async (req, res) => {
   }
 });
 
+// Lets a step's "paste the AI's reply here" box save straight to that
+// step's output file, so the web-AI hand-off (copy prompt -> paste into
+// ChatGPT/etc. -> bring the reply back) doesn't require the user to open
+// a separate text editor and get the exact folder/filename right by hand.
+app.put("/api/projects/:projectId/artifacts/*", async (req, res) => {
+  const dir = projectDir(req.params.projectId);
+  if (!dir) {
+    res.status(400).json({ error: "不正なプロジェクトIDです" });
+    return;
+  }
+  const relPath = (req.params as Record<string, string>)[0] ?? "";
+  if (!isPathInsideDir(dir, relPath)) {
+    res.status(400).json({ error: "不正なパスです" });
+    return;
+  }
+  const content = req.body?.content;
+  if (typeof content !== "string") {
+    res.status(400).json({ error: "content は必須です" });
+    return;
+  }
+  try {
+    const target = path.join(dir, relPath);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, content, "utf-8");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "ファイルの保存に失敗しました", detail: String(err) });
+  }
+});
+
 const server = http.createServer(app);
 // Node's http.Server has its own request/header timeouts (independent of
 // the child_process timeout above) that would otherwise cut off a long

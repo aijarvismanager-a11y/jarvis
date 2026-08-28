@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WorkflowStep } from "../types/workflow";
-import { executeCommand, type ExecuteResult } from "../lib/api";
+import { executeCommand, saveArtifactContent, type ExecuteResult } from "../lib/api";
+import { stripProjectPrefix } from "../lib/paths";
 import { ConfirmModal } from "./ConfirmModal";
 
 const STATUS_META: Record<WorkflowStep["status"], { label: string; color: string; bg: string }> = {
@@ -29,13 +30,36 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
   const [executing, setExecuting] = useState(false);
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
+  const [pasteText, setPasteText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const meta = STATUS_META[step.status];
 
   useEffect(() => {
     setExecResult(null);
     setExecError(null);
     setShowGuide(true);
+    setPasteText("");
+    setSaveError(null);
+    setSaved(false);
   }, [step.id, command]);
+
+  async function handleSavePaste() {
+    const outputFile = step.output_files[0];
+    if (!outputFile || !pasteText.trim()) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveArtifactContent(projectId, stripProjectPrefix(outputFile, projectId), pasteText);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function fallbackCopy(text: string): boolean {
     const el = document.createElement("textarea");
@@ -139,7 +163,7 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
               ) : (
                 <>
                   下のプロンプトを<b>「プロンプトをコピー」</b> → {serviceUrl ? <b>「開く↗」</b> : "担当AIのサイト"}を開いて貼り付け・実行 →
-                  出てきた内容を <code className="px-1 rounded bg-white/60 font-mono text-[11.5px]">{step.output_files[0] ?? "workspace/配下"}</code> に保存 → <b>「次のステップへ」</b>を押す。
+                  返ってきた内容をコピーして、下の<b>「AIの回答を貼り付けて保存」</b>欄に貼り付けて保存 → <b>「次のステップへ」</b>を押す。
                 </>
               )}
             </div>
@@ -190,6 +214,41 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
           </div>
           {copyError && <span className="text-[12px] text-[#8A3A2A]">{copyError}</span>}
         </div>
+
+        {!command && step.output_files.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+              AIの回答を貼り付けて保存
+            </span>
+            <span className="text-[12px] text-muted -mt-1">
+              担当AIから返ってきた内容をここに貼り付けると、
+              <code className="mx-1 px-1 rounded bg-bg font-mono text-[11px]">
+                {stripProjectPrefix(step.output_files[0], projectId)}
+              </code>
+              として保存されます。
+            </span>
+            <textarea
+              className="border border-border rounded-xl p-4 bg-bg text-[13.5px] leading-relaxed min-h-[120px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+              placeholder="ここにAIの回答を貼り付け..."
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSavePaste}
+                disabled={!pasteText.trim() || saving}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[9px] bg-accent text-white text-[13px] font-semibold disabled:opacity-50"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                  <path d="M17 21v-8H7v8M7 3v5h8" />
+                </svg>
+                {saving ? "保存中..." : saved ? "保存しました" : "保存する"}
+              </button>
+              {saveError && <span className="text-[12px] text-[#8A3A2A]">{saveError}</span>}
+            </div>
+          </div>
+        )}
 
         {command && (
           <div className="flex flex-col gap-2">

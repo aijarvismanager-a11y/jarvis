@@ -67,6 +67,15 @@ export async function fetchArtifactContent(projectId: string, relPath: string): 
   return res.text();
 }
 
+export async function saveArtifactContent(projectId: string, relPath: string, content: string): Promise<void> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/artifacts/${relPath}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error("ファイルの保存に失敗しました");
+}
+
 export type ExecuteResult = {
   exitCode: number;
   timedOut: boolean;
