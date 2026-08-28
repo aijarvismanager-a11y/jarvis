@@ -194,7 +194,9 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
                     <li>
                       下のプロンプトを<b>「プロンプトをコピー」ボタン</b>でコピーし、開いたAIに貼り付けて実行する
                     </li>
-                    <li>AIから返ってきた回答をコピーする</li>
+                    <li>
+                      AIと何度かやり取りしても構いません。<b>納得のいく内容になったら、その最終的な回答だけ</b>をコピーする（途中のやり取り全部を貼る必要はありません）
+                    </li>
                     <li>
                       コピーした回答を下の<b>「AIの回答を貼り付けて保存」欄</b>に貼り付け、<b>「保存する」ボタン</b>を押す
                     </li>
@@ -259,7 +261,7 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
               AIの回答を貼り付けて保存
             </span>
             <span className="text-[12px] text-muted -mt-1">
-              担当AIから返ってきた内容をここに貼り付けると、
+              何度かやり取りして構いません。最終的に確定した内容だけ（会話のやり取り全部ではなく）を貼り付けると、
               <code className="mx-1 px-1 rounded bg-bg font-mono text-[11px]">
                 {stripProjectPrefix(step.output_files[0], projectId)}
               </code>
