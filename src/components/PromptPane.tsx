@@ -178,9 +178,6 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
                 ) : (
                   <>
                     <li>
-                      下のプロンプトを<b>「プロンプトをコピー」ボタン</b>でコピーする
-                    </li>
-                    <li>
                       {serviceUrl ? (
                         <a
                           href={serviceUrl}
@@ -191,9 +188,11 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
                           {step.ai_name} を開く ↗
                         </a>
                       ) : (
-                        "担当AIのサイトを開き"
+                        "担当AIのサイトを開く"
                       )}
-                      、コピーした内容を貼り付けて実行する
+                    </li>
+                    <li>
+                      下のプロンプトを<b>「プロンプトをコピー」ボタン</b>でコピーし、開いたAIに貼り付けて実行する
                     </li>
                     <li>AIから返ってきた回答をコピーする</li>
                     <li>
