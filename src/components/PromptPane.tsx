@@ -182,9 +182,14 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
                     </li>
                     <li>
                       {serviceUrl ? (
-                        <>
-                          <b>「開く↗」リンク</b>から担当AIのサイトを開き
-                        </>
+                        <a
+                          href={serviceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-accent underline"
+                        >
+                          {step.ai_name} を開く ↗
+                        </a>
                       ) : (
                         "担当AIのサイトを開き"
                       )}
