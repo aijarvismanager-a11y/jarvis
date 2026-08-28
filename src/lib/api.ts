@@ -1,4 +1,4 @@
-import { Workflow } from "../types/workflow";
+import { WorkflowFile } from "../types/workflow";
 import { AiServiceList } from "../types/aiService";
 
 function friendlyError(context: string, err: unknown): Error {
@@ -12,18 +12,18 @@ function friendlyError(context: string, err: unknown): Error {
   return new Error(`${context}: ${err instanceof Error ? err.message : String(err)}`);
 }
 
-export async function fetchWorkflow(): Promise<Workflow> {
+export async function fetchWorkflow(): Promise<WorkflowFile> {
   const res = await fetch("/api/workflow");
   if (!res.ok) throw new Error("workflow.json の取得に失敗しました");
   const json = await res.json();
   try {
-    return Workflow.parse(json);
+    return WorkflowFile.parse(json);
   } catch (err) {
     throw friendlyError("workflow.json", err);
   }
 }
 
-export async function saveWorkflow(workflow: Workflow): Promise<void> {
+export async function saveWorkflow(workflow: WorkflowFile): Promise<void> {
   const res = await fetch("/api/workflow", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -54,15 +54,15 @@ export async function saveAiServices(services: AiServiceList): Promise<void> {
 
 export type ArtifactFile = { path: string; mtimeMs: number };
 
-export async function fetchArtifactList(): Promise<ArtifactFile[]> {
-  const res = await fetch("/api/artifacts");
+export async function fetchArtifactList(projectId: string): Promise<ArtifactFile[]> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/artifacts`);
   if (!res.ok) throw new Error("成果物一覧の取得に失敗しました");
   const json = await res.json();
   return json.files as ArtifactFile[];
 }
 
-export async function fetchArtifactContent(relPath: string): Promise<string> {
-  const res = await fetch(`/api/artifacts/${relPath}`);
+export async function fetchArtifactContent(projectId: string, relPath: string): Promise<string> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/artifacts/${relPath}`);
   if (!res.ok) throw new Error("ファイルの取得に失敗しました");
   return res.text();
 }
@@ -75,8 +75,8 @@ export type ExecuteResult = {
   stderr: string;
 };
 
-export async function executeCommand(command: string): Promise<ExecuteResult> {
-  const res = await fetch("/api/execute", {
+export async function executeCommand(projectId: string, command: string): Promise<ExecuteResult> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ command }),

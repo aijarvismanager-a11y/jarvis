@@ -4,29 +4,34 @@ import type { WorkflowStep } from "../types/workflow";
 import { TASK_CATEGORIES } from "../lib/taskCategories";
 
 type Props = {
+  projectId: string;
   nextIndex: number;
   initial?: { role: string; aiName: string; promptTemplate: string };
   onCancel: () => void;
   onCreate: (step: WorkflowStep) => void;
 };
 
-function toFileList(text: string): string[] {
+// Users type paths relative to their own project ("docs/x.md"); stored
+// paths are "workspace/<projectId>/docs/x.md" so the server can resolve
+// them under that project's own folder.
+function toFileList(text: string, projectId: string): string[] {
   return text
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((s) => (s.startsWith("workspace/") ? s : `workspace/${projectId}/${s}`));
 }
 
 const inputClass =
   "w-full border border-border rounded-lg px-3 py-2 text-[13px] bg-bg focus:outline-none focus:ring-2 focus:ring-accent/40";
 const labelClass = "text-[11px] font-semibold text-muted uppercase tracking-wide";
 
-export function AddStepModal({ nextIndex, initial, onCancel, onCreate }: Props) {
+export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate }: Props) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [role, setRole] = useState(initial?.role ?? "");
   const [aiName, setAiName] = useState(initial?.aiName ?? "");
   const [inputFiles, setInputFiles] = useState("");
-  const [outputFiles, setOutputFiles] = useState(initial ? "workspace/docs/ideas.md" : "");
+  const [outputFiles, setOutputFiles] = useState(initial ? "docs/ideas.md" : "");
   const [promptTemplate, setPromptTemplate] = useState(initial?.promptTemplate ?? "");
   const [commandTemplate, setCommandTemplate] = useState("");
 
@@ -53,8 +58,8 @@ export function AddStepModal({ nextIndex, initial, onCancel, onCreate }: Props) 
       ai_name: aiName.trim(),
       role: role.trim(),
       status: "pending",
-      input_files: toFileList(inputFiles),
-      output_files: toFileList(outputFiles),
+      input_files: toFileList(inputFiles, projectId),
+      output_files: toFileList(outputFiles, projectId),
       prompt_template: promptTemplate.trim(),
       command_template: commandTemplate.trim() || null,
     };
@@ -101,11 +106,11 @@ export function AddStepModal({ nextIndex, initial, onCancel, onCreate }: Props) 
       </div>
       <div className="flex gap-3">
         <div className="flex-1 flex flex-col gap-1.5">
-          <span className={labelClass}>入力ファイル（カンマ区切り）</span>
+          <span className={labelClass}>入力ファイル（カンマ区切り、例: docs/x.md）</span>
           <input className={inputClass} value={inputFiles} onChange={(e) => setInputFiles(e.target.value)} />
         </div>
         <div className="flex-1 flex flex-col gap-1.5">
-          <span className={labelClass}>出力ファイル（カンマ区切り）</span>
+          <span className={labelClass}>出力ファイル（カンマ区切り、例: docs/y.md）</span>
           <input className={inputClass} value={outputFiles} onChange={(e) => setOutputFiles(e.target.value)} />
         </div>
       </div>

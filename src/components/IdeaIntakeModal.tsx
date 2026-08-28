@@ -4,6 +4,7 @@ import type { WorkflowStep } from "../types/workflow";
 import { recommend, type Recommendation } from "../lib/ideaRecommendation";
 
 type Props = {
+  projectId: string;
   nextIndex: number;
   onCancel: () => void;
   onCreate: (step: WorkflowStep) => void;
@@ -13,7 +14,7 @@ type Props = {
 const inputClass =
   "w-full border border-border rounded-lg px-3 py-2 text-[13px] bg-bg focus:outline-none focus:ring-2 focus:ring-accent/40";
 
-export function IdeaIntakeModal({ nextIndex, onCancel, onCreate, onEditManually }: Props) {
+export function IdeaIntakeModal({ projectId, nextIndex, onCancel, onCreate, onEditManually }: Props) {
   const [text, setText] = useState("");
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
 
@@ -31,7 +32,7 @@ export function IdeaIntakeModal({ nextIndex, onCancel, onCreate, onEditManually 
       role: "Ideator（アイデア出し）",
       status: "pending",
       input_files: [],
-      output_files: ["workspace/docs/ideas.md"],
+      output_files: [`workspace/${projectId}/docs/ideas.md`],
       prompt_template: text.trim(),
       command_template: null,
     };

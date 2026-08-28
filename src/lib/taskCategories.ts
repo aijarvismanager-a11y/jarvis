@@ -22,7 +22,7 @@ export const TASK_CATEGORIES: TaskCategory[] = [
     promptTemplate:
       "作りたいものについて、目的・想定ユーザー・欲しい機能を箇条書きで洗い出したいです。壁打ち相手になって、良い点も気になる点も遠慮なく指摘しながら一緒に整理してください。",
     inputHint: "",
-    outputHint: "workspace/docs/ideas.md",
+    outputHint: "docs/ideas.md",
   },
   {
     id: "requirements",
@@ -31,8 +31,8 @@ export const TASK_CATEGORIES: TaskCategory[] = [
     reason: "洗い出したアイデアを構造化された文章（要件定義書・ディレクトリ構成）にまとめるのが得意です。",
     role: "Architect（設計）",
     promptTemplate: "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
-    inputHint: "workspace/docs/ideas.md",
-    outputHint: "workspace/docs/requirements.md",
+    inputHint: "docs/ideas.md",
+    outputHint: "docs/requirements.md",
   },
   {
     id: "review",
@@ -42,8 +42,8 @@ export const TASK_CATEGORIES: TaskCategory[] = [
     role: "Reviewer（設計レビュー）",
     promptTemplate:
       "設計書をレビューし、懸念点・不足要件・改善案を箇条書きで出力してください。実装難易度の高い箇所には理由も添えてください。",
-    inputHint: "workspace/docs/requirements.md",
-    outputHint: "workspace/docs/design_review.md",
+    inputHint: "docs/requirements.md",
+    outputHint: "docs/design_review.md",
   },
   {
     id: "coding",
@@ -52,8 +52,8 @@ export const TASK_CATEGORIES: TaskCategory[] = [
     reason: "ローカルのファイルを直接読み書きしながら、実際のコードを書き進められます。",
     role: "Lead Developer（実装）",
     promptTemplate: "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
-    inputHint: "workspace/docs/design_review.md",
-    outputHint: "workspace/src/*",
+    inputHint: "docs/design_review.md",
+    outputHint: "src/*",
   },
   {
     id: "qa",
@@ -62,8 +62,8 @@ export const TASK_CATEGORIES: TaskCategory[] = [
     reason: "実装済みのコードに対して、テスト実行から修正までを一貫して行えます。",
     role: "QA（テスト・修正）",
     promptTemplate: "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
-    inputHint: "workspace/src/*",
-    outputHint: "workspace/logs/test-result.log",
+    inputHint: "src/*",
+    outputHint: "logs/test-result.log",
   },
   {
     id: "custom",

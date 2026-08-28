@@ -1,82 +1,126 @@
 {
-  "current_project": "my-awesome-app",
-  "steps": [
+  "current_project_id": "sample-project",
+  "projects": [
     {
-      "id": "step_0_idea",
-      "index": 1,
-      "ai_name": "ChatGPT / Gemini / Claude (Web)",
-      "role": "Ideator（アイデア出し）",
-      "status": "done",
-      "input_files": [],
-      "output_files": [
-        "workspace/docs/ideas.md"
-      ],
-      "prompt_template": "作りたいものについて、目的・想定ユーザー・欲しい機能を箇条書きで洗い出したいです。壁打ち相手になって、良い点も気になる点も遠慮なく指摘しながら一緒に整理してください。",
-      "command_template": null
+      "id": "sample-project",
+      "name": "サンプルプロジェクト（このアプリ自身のデモ）",
+      "steps": [
+        {
+          "id": "step_0_idea",
+          "index": 1,
+          "ai_name": "ChatGPT / Gemini / Claude (Web)",
+          "role": "Ideator（アイデア出し）",
+          "status": "done",
+          "input_files": [],
+          "output_files": [
+            "workspace/sample-project/docs/ideas.md"
+          ],
+          "prompt_template": "作りたいものについて、目的・想定ユーザー・欲しい機能を箇条書きで洗い出したいです。壁打ち相手になって、良い点も気になる点も遠慮なく指摘しながら一緒に整理してください。",
+          "command_template": null
+        },
+        {
+          "id": "step_1_design",
+          "index": 2,
+          "ai_name": "ChatGPT / Gemini (Web)",
+          "role": "Architect（設計）",
+          "status": "done",
+          "input_files": [
+            "workspace/sample-project/docs/ideas.md"
+          ],
+          "output_files": [
+            "workspace/sample-project/docs/requirements.md",
+            "workspace/sample-project/docs/architecture.md"
+          ],
+          "prompt_template": "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
+          "command_template": null
+        },
+        {
+          "id": "step_2_review",
+          "index": 3,
+          "ai_name": "Claude (Web)",
+          "role": "Reviewer（設計レビュー）",
+          "status": "done",
+          "input_files": [
+            "workspace/sample-project/docs/requirements.md",
+            "workspace/sample-project/docs/architecture.md"
+          ],
+          "output_files": [
+            "workspace/sample-project/docs/design_review.md"
+          ],
+          "prompt_template": "設計書をレビューし、懸念点・不足要件・改善案を箇条書きで出力してください。実装難易度の高い箇所には理由も添えてください。",
+          "command_template": null
+        },
+        {
+          "id": "step_3_coding",
+          "index": 4,
+          "ai_name": "Claude Code (CLI)",
+          "role": "Lead Developer（実装）",
+          "status": "done",
+          "input_files": [
+            "workspace/sample-project/docs/requirements.md",
+            "workspace/sample-project/docs/architecture.md",
+            "workspace/sample-project/docs/design_review.md"
+          ],
+          "output_files": [
+            "workspace/sample-project/src/*"
+          ],
+          "prompt_template": "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
+          "command_template": null
+        },
+        {
+          "id": "step_4_qa",
+          "index": 5,
+          "ai_name": "Claude Code (CLI)",
+          "role": "QA（テスト・修正）",
+          "status": "done",
+          "input_files": [
+            "workspace/sample-project/src/*"
+          ],
+          "output_files": [
+            "workspace/sample-project/logs/test-result.log"
+          ],
+          "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
+          "command_template": "claude -p --permission-mode acceptEdits \"src/ のコードをテストし、失敗があれば修正して\""
+        }
+      ]
     },
     {
-      "id": "step_1_design",
-      "index": 2,
-      "ai_name": "ChatGPT / Gemini (Web)",
-      "role": "Architect（設計）",
-      "status": "done",
-      "input_files": [
-        "workspace/docs/ideas.md"
-      ],
-      "output_files": [
-        "workspace/docs/requirements.md",
-        "workspace/docs/architecture.md"
-      ],
-      "prompt_template": "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
-      "command_template": null
+      "id": "soccer-history",
+      "name": "サッカーの歴史サイト",
+      "steps": [
+        {
+          "id": "step_1787904314779",
+          "index": 1,
+          "ai_name": "ChatGPT (Web)",
+          "role": "Ideator（アイデア出し）",
+          "status": "done",
+          "input_files": [],
+          "output_files": [
+            "workspace/soccer-history/docs/ideas.md"
+          ],
+          "prompt_template": "サッカーの歴史サイトが作りたい",
+          "command_template": null
+        }
+      ]
     },
     {
-      "id": "step_2_review",
-      "index": 3,
-      "ai_name": "Claude (Web)",
-      "role": "Reviewer（設計レビュー）",
-      "status": "done",
-      "input_files": [
-        "workspace/docs/requirements.md",
-        "workspace/docs/architecture.md"
-      ],
-      "output_files": [
-        "workspace/docs/design_review.md"
-      ],
-      "prompt_template": "設計書をレビューし、懸念点・不足要件・改善案を箇条書きで出力してください。実装難易度の高い箇所には理由も添えてください。",
-      "command_template": null
-    },
-    {
-      "id": "step_3_coding",
-      "index": 4,
-      "ai_name": "Claude Code (CLI)",
-      "role": "Lead Developer（実装）",
-      "status": "done",
-      "input_files": [
-        "workspace/docs/requirements.md",
-        "workspace/docs/architecture.md",
-        "workspace/docs/design_review.md"
-      ],
-      "output_files": [
-        "workspace/src/*"
-      ],
-      "prompt_template": "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
-      "command_template": null
-    },
-    {
-      "id": "step_4_qa",
-      "index": 5,
-      "ai_name": "Claude Code (CLI)",
-      "role": "QA（テスト・修正）",
-      "status": "done",
-      "input_files": [
-        "workspace/src/*"
-      ],
-      "output_files": [
-        "workspace/logs/test-result.log"
-      ],
-      "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
-      "command_template": "claude -p --permission-mode acceptEdits \"src/ のコードをテストし、失敗があれば修正して\""
+      "id": "soccer-japan-team",
+      "name": "サッカー日本代表のサイト",
+      "steps": [
+        {
+          "id": "step_1787904341243",
+          "index": 1,
+          "ai_name": "ChatGPT (Web)",
+          "role": "Ideator（アイデア出し）",
+          "status": "active",
+          "input_files": [],
+          "output_files": [
+            "workspace/soccer-japan-team/docs/ideas.md"
+          ],
+          "prompt_template": "サッカー日本代表のサイトを作りたい",
+          "command_template": null
+        }
+      ]
     }
   ]
 }

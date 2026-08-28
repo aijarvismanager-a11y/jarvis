@@ -399,3 +399,35 @@ JSONの妥当性とサーバー経由での反映（35件）、設定画面で�
 
 ### 次にやること
 特になし。
+
+---
+
+## 2026-08-28（5回目）: 複数プロジェクトが1つのワークフローに混在する問題を解消（プロジェクトタブ化）
+
+ユーザーの指摘: 「各ワークフローごとにタブとか何かしらで分けて表示できないの？現状は色んなものが一つのワークフローに入って見づらい」。実際に「サッカーの歴史サイト」「サッカー日本代表のサイト」という別々のアイデアが、サンプルの元のワークフローと同じ1本のステップリストに積み上がっていた（＝新しいアイデアを試すたびに前のプロジェクトの続きとして扱われてしまう構造上の欠陥）。
+
+データモデルから作り直した（破壊的変更）。
+
+### 完了（済）
+- **`src/types/workflow.ts`**: `Workflow{current_project, steps}` を廃止し、`WorkflowFile{current_project_id, projects: Project[]}` / `Project{id, name, steps}` に変更。
+- **`server/index.ts`**: Artifacts・コマンド実行のAPIを `/api/projects/:projectId/artifacts` 等のプロジェクトスコープ付きに変更。プロジェクトIDは英数字とハイフン・アンダースコアのみに制限（パストラバーサル対策）。実行時のcwdもプロジェクトごとの`workspace/<projectId>/`に。新規プロジェクトの初回実行時はディレクトリを自動作成。
+- **物理ファイルの移行**: 既存の`workspace/docs`・`workspace/src`・`workspace/logs`等を`workspace/sample-project/`配下に移動。
+- **`config/workflow.json`の移行**: 既存の1本のステップリストを3つのプロジェクトに分割
+  - `sample-project`（このアプリ自身のデモ、5ステップ、全て完了）
+  - `soccer-history`（「サッカーの歴史サイト」、実際にユーザーが試したアイデア出しステップ1件）
+  - `soccer-japan-team`（「サッカー日本代表のサイト」、同上、進行中）
+- **`src/components/ProjectTabs.tsx`**: プロジェクトタブバーを新設（ワークフローペインの上に配置）。タブ切り替え・削除（×ホバー表示）・「＋新しいプロジェクト」を提供。
+- **`src/components/NewProjectModal.tsx`**: プロジェクト名だけを聞く最小限のモーダル。
+- **`src/lib/paths.ts`**: `workspace/<projectId>/`プレフィックスを剥がす共通ヘルパー`stripProjectPrefix`を追加（`App.tsx`・`claudeCommand.ts`で共用）。
+- **`AddStepModal.tsx` / `IdeaIntakeModal.tsx`**: `projectId`を受け取り、ユーザーが入力するファイルパスは「プロジェクト内の相対パス」（例: `docs/x.md`）のままでよく、保存時に自動で`workspace/<projectId>/`が付与されるように変更（`taskCategories.ts`のヒントも相対パスに修正）。
+- **`App.tsx`**: プロジェクト切り替え・作成・削除のハンドラを追加。ステップ関連の全ハンドラ（追加・削除・並び替え・進行・テンプレート編集）を「現在選択中プロジェクトのstepsを更新する」形に書き換え。プロジェクト切り替え時は選択中ステップ・Artifacts選択をリセットし、そのプロジェクトの成果物一覧を再取得。
+- **`MANUAL.html`（root・public両方、オンライン版Artifactも）**: プロジェクトタブの説明を追記。
+- ブラウザで実際に動作確認: 3プロジェクトがタブとして分離表示されること、タブ切り替えでステップ・Artifacts・コマンドの表示（プロジェクトIDを含まない相対パス）が正しく切り替わること、タブ切り替えが`current_project_id`として永続化されること、新規プロジェクト作成→空のワークフローで開始→削除（実ファイルは残る）まで確認済み。
+- テストも更新（`workflow.test.ts`を新スキーマに、`claudeCommand.test.ts`にプロジェクトプレフィックス除去のテストを追加）。`npm run build` / `vitest`（9件） / `oxlint` すべてエラーなし。
+
+### 不具合・要確認
+- **[優先度: 低・仕様として明記] プロジェクト削除は一覧から外すだけで、`workspace/<projectId>/`の実ファイルは削除しない**
+  意図的な設計判断（誤操作でファイルを失わないため）。確認モーダルにもその旨明記。将来的に「完全に削除」オプションを求められたら別途対応。
+
+### 次にやること
+特になし。

@@ -16,8 +16,18 @@ export const WorkflowStep = z.object({
 });
 export type WorkflowStep = z.infer<typeof WorkflowStep>;
 
-export const Workflow = z.object({
-  current_project: z.string(),
+// A Project is its own workflow (steps) plus its own workspace/<id>/ folder
+// for artifacts, so unrelated projects never share files or clutter each
+// other's step list.
+export const Project = z.object({
+  id: z.string(),
+  name: z.string(),
   steps: z.array(WorkflowStep),
 });
-export type Workflow = z.infer<typeof Workflow>;
+export type Project = z.infer<typeof Project>;
+
+export const WorkflowFile = z.object({
+  current_project_id: z.string(),
+  projects: z.array(Project),
+});
+export type WorkflowFile = z.infer<typeof WorkflowFile>;

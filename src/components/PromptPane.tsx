@@ -10,6 +10,7 @@ const STATUS_META: Record<WorkflowStep["status"], { label: string; color: string
 };
 
 type Props = {
+  projectId: string;
   step: WorkflowStep;
   prompt: string;
   loadingPrompt: boolean;
@@ -19,7 +20,7 @@ type Props = {
   onEditTemplate: () => void;
 };
 
-export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
+export function PromptPane({ projectId, step, prompt, loadingPrompt, command, serviceUrl, onAdvance, onEditTemplate }: Props) {
   const [showGuide, setShowGuide] = useState(true);
   const [copied, setCopied] = useState(false);
   const [commandCopied, setCommandCopied] = useState(false);
@@ -89,7 +90,7 @@ export function PromptPane({ step, prompt, loadingPrompt, command, serviceUrl, o
     setExecError(null);
     setExecResult(null);
     try {
-      setExecResult(await executeCommand(command));
+      setExecResult(await executeCommand(projectId, command));
     } catch (e) {
       setExecError(e instanceof Error ? e.message : String(e));
     } finally {

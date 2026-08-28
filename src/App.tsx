@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Workflow, WorkflowStep } from "./types/workflow";
+import type { Project, WorkflowFile, WorkflowStep } from "./types/workflow";
 import type { AiServiceList } from "./types/aiService";
 import {
   connectFsWatch,
@@ -11,9 +11,12 @@ import {
   saveWorkflow,
   type ArtifactFile,
 } from "./lib/api";
+import { stripProjectPrefix } from "./lib/paths";
 import { WorkflowPane } from "./components/WorkflowPane";
 import { PromptPane } from "./components/PromptPane";
 import { ArtifactsPane } from "./components/ArtifactsPane";
+import { ProjectTabs } from "./components/ProjectTabs";
+import { NewProjectModal } from "./components/NewProjectModal";
 import { AddStepModal } from "./components/AddStepModal";
 import { EditTemplateModal } from "./components/EditTemplateModal";
 import { SettingsModal } from "./components/SettingsModal";
@@ -22,12 +25,9 @@ import { WelcomeBanner } from "./components/WelcomeBanner";
 import { IdeaIntakeModal } from "./components/IdeaIntakeModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 
-function stripWorkspacePrefix(p: string) {
-  return p.replace(/^workspace\//, "");
-}
-
 export default function App() {
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
+  const [workflowFile, setWorkflowFile] = useState<WorkflowFile | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [loadingPrompt, setLoadingPrompt] = useState(false);
@@ -43,24 +43,31 @@ export default function App() {
   const [addStepSeed, setAddStepSeed] = useState<{ role: string; aiName: string; promptTemplate: string } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
 
   const loadWorkflow = useCallback(async () => {
     try {
       const wf = await fetchWorkflow();
-      setWorkflow(wf);
-      setSelectedStepId((prev) => prev ?? wf.steps.find((s) => s.status === "active")?.id ?? wf.steps[0]?.id ?? null);
+      setWorkflowFile(wf);
+      setCurrentProjectId((prev) => {
+        if (prev && wf.projects.some((p) => p.id === prev)) return prev;
+        return wf.projects.some((p) => p.id === wf.current_project_id)
+          ? wf.current_project_id
+          : (wf.projects[0]?.id ?? null);
+      });
     } catch (e) {
       setError(String(e));
     }
   }, []);
 
-  const loadArtifacts = useCallback(async () => {
+  const loadArtifacts = useCallback(async (projectId: string) => {
     try {
-      const files = await fetchArtifactList();
+      const files = await fetchArtifactList(projectId);
       setArtifacts(files);
-      setSelectedArtifact((prev) => prev ?? files[0]?.path ?? null);
+      setSelectedArtifact((prev) => (prev && files.some((f) => f.path === prev) ? prev : (files[0]?.path ?? null)));
     } catch (e) {
       setError(String(e));
     }
@@ -76,29 +83,57 @@ export default function App() {
 
   useEffect(() => {
     loadWorkflow();
-    loadArtifacts();
     loadAiServices();
     const disconnect = connectFsWatch(() => {
       loadWorkflow();
-      loadArtifacts();
       loadAiServices();
+      setCurrentProjectId((id) => {
+        if (id) loadArtifacts(id);
+        return id;
+      });
     });
     return disconnect;
-  }, [loadWorkflow, loadArtifacts, loadAiServices]);
+  }, [loadWorkflow, loadAiServices, loadArtifacts]);
 
-  const selectedStep = useMemo(
-    () => workflow?.steps.find((s) => s.id === selectedStepId) ?? null,
-    [workflow, selectedStepId],
+  // switching projects resets the step/artifact selection and reloads that
+  // project's own artifact list (each project has its own workspace/<id>/)
+  useEffect(() => {
+    if (!currentProjectId) return;
+    setSelectedStepId(null);
+    setSelectedArtifact(null);
+    setArtifactContent(null);
+    loadArtifacts(currentProjectId);
+  }, [currentProjectId, loadArtifacts]);
+
+  const currentProject = useMemo(
+    () => workflowFile?.projects.find((p) => p.id === currentProjectId) ?? null,
+    [workflowFile, currentProjectId],
   );
 
-  const command = useMemo(() => (selectedStep ? buildClaudeCommand(selectedStep) : null), [selectedStep]);
+  useEffect(() => {
+    if (!currentProject) return;
+    setSelectedStepId((prev) => {
+      if (prev && currentProject.steps.some((s) => s.id === prev)) return prev;
+      return currentProject.steps.find((s) => s.status === "active")?.id ?? currentProject.steps[0]?.id ?? null;
+    });
+  }, [currentProject]);
+
+  const selectedStep = useMemo(
+    () => currentProject?.steps.find((s) => s.id === selectedStepId) ?? null,
+    [currentProject, selectedStepId],
+  );
+
+  const command = useMemo(
+    () => (selectedStep && currentProjectId ? buildClaudeCommand(selectedStep, currentProjectId) : null),
+    [selectedStep, currentProjectId],
+  );
 
   // build the prompt for the currently selected step: for steps with a
   // command_template (Claude Code) the CLI reads files itself, so we only
   // show the template + command. For web-AI steps we inline the referenced
   // file contents so the user can paste one block into the browser.
   useEffect(() => {
-    if (!selectedStep) return;
+    if (!selectedStep || !currentProjectId) return;
     if (command || selectedStep.input_files.length === 0) {
       setPrompt(selectedStep.prompt_template);
       return;
@@ -107,9 +142,9 @@ export default function App() {
     setLoadingPrompt(true);
     Promise.all(
       selectedStep.input_files.map(async (f) => {
-        const rel = stripWorkspacePrefix(f);
+        const rel = stripProjectPrefix(f, currentProjectId);
         try {
-          const content = await fetchArtifactContent(rel);
+          const content = await fetchArtifactContent(currentProjectId, rel);
           return `\n\n---\n### ${rel}\n${content}`;
         } catch {
           return `\n\n---\n### ${rel}\n(ファイルが見つかりません)`;
@@ -123,55 +158,61 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedStep, command]);
+  }, [selectedStep, command, currentProjectId]);
 
   useEffect(() => {
-    if (!selectedArtifact) return;
+    if (!selectedArtifact || !currentProjectId) return;
     let cancelled = false;
     setLoadingArtifact(true);
-    fetchArtifactContent(selectedArtifact)
+    fetchArtifactContent(currentProjectId, selectedArtifact)
       .then((c) => !cancelled && setArtifactContent(c))
       .catch(() => !cancelled && setArtifactContent("(読み込みに失敗しました)"))
       .finally(() => !cancelled && setLoadingArtifact(false));
     return () => {
       cancelled = true;
     };
-  }, [selectedArtifact]);
+  }, [selectedArtifact, currentProjectId]);
+
+  function updateCurrentProject(updater: (project: Project) => Project) {
+    if (!workflowFile || !currentProjectId) return;
+    const projects = workflowFile.projects.map((p) => (p.id === currentProjectId ? updater(p) : p));
+    const next = { ...workflowFile, projects };
+    setWorkflowFile(next);
+    saveWorkflow(next).catch((e) => setError(String(e)));
+  }
 
   function handleMoveStep(index: number, dir: -1 | 1) {
-    if (!workflow) return;
-    const steps = workflow.steps.map((s) => ({ ...s }));
-    const target = index + dir;
-    if (target < 0 || target >= steps.length) return;
-    [steps[index], steps[target]] = [steps[target], steps[index]];
-    steps.forEach((s, i) => {
-      s.index = i + 1;
+    updateCurrentProject((project) => {
+      const steps = project.steps.map((s) => ({ ...s }));
+      const target = index + dir;
+      if (target < 0 || target >= steps.length) return project;
+      [steps[index], steps[target]] = [steps[target], steps[index]];
+      steps.forEach((s, i) => {
+        s.index = i + 1;
+      });
+      return { ...project, steps };
     });
-    const next = { ...workflow, steps };
-    setWorkflow(next);
-    saveWorkflow(next).catch((e) => setError(String(e)));
   }
 
   function handleAdvance() {
-    if (!workflow || !selectedStep) return;
-    const idx = workflow.steps.findIndex((s) => s.id === selectedStep.id);
-    if (idx === -1) return;
-    const steps = workflow.steps.map((s, i) => {
-      if (i === idx) return { ...s, status: "done" as const };
-      if (i === idx + 1) return { ...s, status: "active" as const };
-      return s;
+    if (!selectedStep) return;
+    let nextId: string | null = null;
+    updateCurrentProject((project) => {
+      const idx = project.steps.findIndex((s) => s.id === selectedStep.id);
+      if (idx === -1) return project;
+      const steps = project.steps.map((s, i) => {
+        if (i === idx) return { ...s, status: "done" as const };
+        if (i === idx + 1) return { ...s, status: "active" as const };
+        return s;
+      });
+      nextId = steps[idx + 1]?.id ?? null;
+      return { ...project, steps };
     });
-    const next = { ...workflow, steps };
-    setWorkflow(next);
-    saveWorkflow(next).catch((e) => setError(String(e)));
-    if (steps[idx + 1]) setSelectedStepId(steps[idx + 1].id);
+    if (nextId) setSelectedStepId(nextId);
   }
 
   function handleAddStep(step: WorkflowStep) {
-    if (!workflow) return;
-    const next = { ...workflow, steps: [...workflow.steps, step] };
-    setWorkflow(next);
-    saveWorkflow(next).catch((e) => setError(String(e)));
+    updateCurrentProject((project) => ({ ...project, steps: [...project.steps, step] }));
     setShowIdeaIntake(false);
     setShowAddStep(false);
     setAddStepSeed(null);
@@ -179,24 +220,24 @@ export default function App() {
   }
 
   function handleConfirmDeleteStep() {
-    if (!workflow || !pendingDeleteId) return;
+    if (!pendingDeleteId) return;
     const id = pendingDeleteId;
-    const steps = workflow.steps.filter((s) => s.id !== id).map((s, i) => ({ ...s, index: i + 1 }));
-    const next = { ...workflow, steps };
-    setWorkflow(next);
-    saveWorkflow(next).catch((e) => setError(String(e)));
-    if (selectedStepId === id) setSelectedStepId(steps[0]?.id ?? null);
+    updateCurrentProject((project) => ({
+      ...project,
+      steps: project.steps.filter((s) => s.id !== id).map((s, i) => ({ ...s, index: i + 1 })),
+    }));
+    if (selectedStepId === id) setSelectedStepId(null);
     setPendingDeleteId(null);
   }
 
   function handleSaveTemplate(promptTemplate: string, commandTemplate: string | null) {
-    if (!workflow || !selectedStep) return;
-    const steps = workflow.steps.map((s) =>
-      s.id === selectedStep.id ? { ...s, prompt_template: promptTemplate, command_template: commandTemplate } : s,
-    );
-    const next = { ...workflow, steps };
-    setWorkflow(next);
-    saveWorkflow(next).catch((e) => setError(String(e)));
+    if (!selectedStep) return;
+    updateCurrentProject((project) => ({
+      ...project,
+      steps: project.steps.map((s) =>
+        s.id === selectedStep.id ? { ...s, prompt_template: promptTemplate, command_template: commandTemplate } : s,
+      ),
+    }));
     setEditingTemplate(false);
   }
 
@@ -204,6 +245,37 @@ export default function App() {
     setAiServices(services);
     saveAiServices(services).catch((e) => setError(String(e)));
     setShowSettings(false);
+  }
+
+  function handleSelectProject(id: string) {
+    if (!workflowFile || id === currentProjectId) return;
+    setCurrentProjectId(id);
+    const next = { ...workflowFile, current_project_id: id };
+    setWorkflowFile(next);
+    saveWorkflow(next).catch((e) => setError(String(e)));
+  }
+
+  function handleCreateProject(name: string) {
+    if (!workflowFile) return;
+    const id = `project_${Date.now()}`;
+    const project: Project = { id, name, steps: [] };
+    const next = { ...workflowFile, projects: [...workflowFile.projects, project], current_project_id: id };
+    setWorkflowFile(next);
+    saveWorkflow(next).catch((e) => setError(String(e)));
+    setCurrentProjectId(id);
+    setShowNewProject(false);
+  }
+
+  function handleConfirmDeleteProject() {
+    if (!workflowFile || !pendingDeleteProjectId) return;
+    const id = pendingDeleteProjectId;
+    const projects = workflowFile.projects.filter((p) => p.id !== id);
+    const nextCurrent = currentProjectId === id ? (projects[0]?.id ?? "") : workflowFile.current_project_id;
+    const next = { ...workflowFile, projects, current_project_id: nextCurrent };
+    setWorkflowFile(next);
+    saveWorkflow(next).catch((e) => setError(String(e)));
+    if (currentProjectId === id) setCurrentProjectId(projects[0]?.id ?? null);
+    setPendingDeleteProjectId(null);
   }
 
   const serviceUrl = useMemo(() => {
@@ -220,10 +292,6 @@ export default function App() {
             <path d="M12 2.5v3.2M12 18.3v3.2M21.5 12h-3.2M5.7 12H2.5M18.3 5.7l-2.3 2.3M8 13.7l-2.3 2.3M18.3 18.3l-2.3-2.3M8 10.3L5.7 8" />
           </svg>
           <span className="font-serif text-[17px] font-semibold tracking-tight">AI Orchestrator</span>
-        </div>
-        <div className="flex items-center gap-2 text-muted text-[13px]">
-          <span>プロジェクト:</span>
-          <span className="text-ink font-semibold">{workflow?.current_project ?? "..."}</span>
         </div>
         <button onClick={() => setShowSettings(true)} className="p-1.5 opacity-70 hover:opacity-100" title="設定">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A8578" strokeWidth="1.8">
@@ -244,19 +312,30 @@ export default function App() {
 
       <WelcomeBanner />
 
+      {workflowFile && currentProjectId && (
+        <ProjectTabs
+          projects={workflowFile.projects}
+          currentId={currentProjectId}
+          onSelect={handleSelectProject}
+          onAdd={() => setShowNewProject(true)}
+          onDelete={setPendingDeleteProjectId}
+        />
+      )}
+
       <div className="flex flex-1 min-h-0">
-        {workflow ? (
+        {currentProject ? (
           <>
             <WorkflowPane
-              steps={workflow.steps}
+              steps={currentProject.steps}
               selectedStepId={selectedStepId}
               onSelect={setSelectedStepId}
               onMove={handleMoveStep}
               onAdd={() => setShowIdeaIntake(true)}
               onDelete={setPendingDeleteId}
             />
-            {selectedStep && (
+            {selectedStep && currentProjectId && (
               <PromptPane
+                projectId={currentProjectId}
                 step={selectedStep}
                 prompt={prompt}
                 loadingPrompt={loadingPrompt}
@@ -279,9 +358,10 @@ export default function App() {
         />
       </div>
 
-      {showIdeaIntake && workflow && (
+      {showIdeaIntake && currentProject && currentProjectId && (
         <IdeaIntakeModal
-          nextIndex={workflow.steps.length + 1}
+          projectId={currentProjectId}
+          nextIndex={currentProject.steps.length + 1}
           onCancel={() => setShowIdeaIntake(false)}
           onCreate={handleAddStep}
           onEditManually={(seed) => {
@@ -292,9 +372,10 @@ export default function App() {
         />
       )}
 
-      {showAddStep && workflow && (
+      {showAddStep && currentProject && currentProjectId && (
         <AddStepModal
-          nextIndex={workflow.steps.length + 1}
+          projectId={currentProjectId}
+          nextIndex={currentProject.steps.length + 1}
           initial={addStepSeed ?? undefined}
           onCancel={() => {
             setShowAddStep(false);
@@ -312,18 +393,39 @@ export default function App() {
         <SettingsModal services={aiServices} onCancel={() => setShowSettings(false)} onSave={handleSaveServices} />
       )}
 
-      {pendingDeleteId && workflow && (
+      {showNewProject && <NewProjectModal onCancel={() => setShowNewProject(false)} onCreate={handleCreateProject} />}
+
+      {pendingDeleteId && currentProject && (
         <ConfirmModal
           title="ステップを削除"
           message={
             <>
-              「{workflow.steps.find((s) => s.id === pendingDeleteId)?.role ?? ""}」を削除します。この操作は元に戻せません。よろしいですか？
+              「{currentProject.steps.find((s) => s.id === pendingDeleteId)?.role ?? ""}」を削除します。この操作は元に戻せません。よろしいですか？
             </>
           }
           confirmLabel="削除する"
           danger
           onCancel={() => setPendingDeleteId(null)}
           onConfirm={handleConfirmDeleteStep}
+        />
+      )}
+
+      {pendingDeleteProjectId && workflowFile && (
+        <ConfirmModal
+          title="プロジェクトを削除"
+          message={
+            <>
+              「{workflowFile.projects.find((p) => p.id === pendingDeleteProjectId)?.name ?? ""}」をワークフロー一覧から削除します。
+              <br />
+              <span className="text-muted text-[12.5px]">
+                ※ workspace/ 内の実ファイルは削除されません。ワークフローの一覧から外れるだけです。
+              </span>
+            </>
+          }
+          confirmLabel="削除する"
+          danger
+          onCancel={() => setPendingDeleteProjectId(null)}
+          onConfirm={handleConfirmDeleteProject}
         />
       )}
     </div>

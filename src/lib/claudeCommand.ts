@@ -1,12 +1,9 @@
 import type { WorkflowStep } from "../types/workflow";
+import { stripProjectPrefix } from "./paths";
 
-function stripWorkspacePrefix(p: string) {
-  return p.replace(/^workspace\//, "");
-}
-
-function outputTarget(outputFiles: string[]): string {
+function outputTarget(outputFiles: string[], projectId: string): string {
   if (outputFiles.length === 0) return ".";
-  const first = stripWorkspacePrefix(outputFiles[0]);
+  const first = stripProjectPrefix(outputFiles[0], projectId);
   // "src/*" -> "src/", "logs/test-result.log" -> "logs/test-result.log"
   return first.endsWith("/*") ? first.slice(0, -1) : first;
 }
@@ -25,12 +22,12 @@ const NON_INTERACTIVE_FLAGS = "-p --permission-mode acceptEdits";
  * actual input/output files so it stays correct as those lists change,
  * instead of relying on a string someone typed once and forgot to update.
  */
-export function buildClaudeCommand(step: WorkflowStep): string | null {
+export function buildClaudeCommand(step: WorkflowStep, projectId: string): string | null {
   if (step.command_template) return step.command_template;
   if (!step.ai_name.toLowerCase().includes("claude code")) return null;
 
-  const inputs = step.input_files.map(stripWorkspacePrefix);
-  const target = outputTarget(step.output_files);
+  const inputs = step.input_files.map((f) => stripProjectPrefix(f, projectId));
+  const target = outputTarget(step.output_files, projectId);
 
   if (inputs.length === 0) {
     return `claude ${NON_INTERACTIVE_FLAGS} "${target} を実装して"`;

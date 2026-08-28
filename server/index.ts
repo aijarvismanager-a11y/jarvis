@@ -1,7 +1,7 @@
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import chokidar from "chokidar";
-import { readFile, writeFile, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
 import { exec } from "node:child_process";
 import path from "node:path";
 import http from "node:http";
@@ -58,20 +58,44 @@ app.put("/api/ai-services", async (req, res) => {
   }
 });
 
+// Each project gets its own workspace/<projectId>/ folder so unrelated
+// projects never share or collide over files. projectId is user-supplied
+// (comes from the project's id in workflow.json) so it's restricted to a
+// safe charset — this also rules out path traversal via the id itself.
+const PROJECT_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function projectDir(projectId: string): string | null {
+  if (!PROJECT_ID_RE.test(projectId)) return null;
+  return path.join(WORKSPACE_DIR, projectId);
+}
+
+function isPathInsideDir(dir: string, targetPath: string) {
+  const resolved = path.resolve(dir, targetPath);
+  return resolved === dir || resolved.startsWith(dir + path.sep);
+}
+
 // Runs a command the user chose to execute from the app (e.g. the
 // generated "claude ..." command for a step). This deliberately allows
 // arbitrary shell commands — the app is a single-user local tool and the
 // command text is something the user typed or accepted in the UI, same
 // trust level as them running it in their own terminal. It is opt-in per
-// click, never automatic. cwd is workspace/ so the relative file paths in
-// generated commands (docs/..., src/...) resolve the same way they would
-// if the user ran the command by hand from that folder.
-app.post("/api/execute", (req, res) => {
+// click, never automatic. cwd is workspace/<projectId>/ so the relative
+// file paths in generated commands (docs/..., src/...) resolve the same
+// way they would if the user ran the command by hand from that folder.
+app.post("/api/projects/:projectId/execute", async (req, res) => {
+  const dir = projectDir(req.params.projectId);
+  if (!dir) {
+    res.status(400).json({ error: "不正なプロジェクトIDです" });
+    return;
+  }
   const command = req.body?.command;
   if (typeof command !== "string" || !command.trim()) {
     res.status(400).json({ error: "command は必須です" });
     return;
   }
+  // A brand-new project has no workspace/<id>/ folder yet — exec's cwd
+  // option requires the directory to already exist.
+  await mkdir(dir, { recursive: true }).catch(() => {});
   // On Windows, cmd.exe defaults to the system codepage (e.g. Shift-JIS),
   // which mojibakes any non-ASCII output since we read it back as UTF-8.
   // Switching to codepage 65001 (UTF-8) first fixes that for commands that
@@ -79,7 +103,7 @@ app.post("/api/execute", (req, res) => {
   const shellCommand = process.platform === "win32" ? `chcp 65001>nul && ${command}` : command;
   exec(
     shellCommand,
-    { cwd: WORKSPACE_DIR, timeout: EXECUTE_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 },
+    { cwd: dir, timeout: EXECUTE_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 },
     (err, stdout, stderr) => {
       const timedOut = !!err?.killed && err.signal === "SIGTERM";
       const exitCode = err ? (typeof err.code === "number" ? err.code : 1) : 0;
@@ -88,30 +112,30 @@ app.post("/api/execute", (req, res) => {
   );
 });
 
-function isPathInsideWorkspace(targetPath: string) {
-  const resolved = path.resolve(WORKSPACE_DIR, targetPath);
-  return resolved === WORKSPACE_DIR || resolved.startsWith(WORKSPACE_DIR + path.sep);
-}
-
-async function listFilesRecursive(dir: string): Promise<{ path: string; mtimeMs: number }[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
+async function listFilesRecursive(dir: string, baseDir: string): Promise<{ path: string; mtimeMs: number }[]> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const results: { path: string; mtimeMs: number }[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...(await listFilesRecursive(full)));
+      results.push(...(await listFilesRecursive(full, baseDir)));
     } else {
       const s = await stat(full);
-      results.push({ path: path.relative(WORKSPACE_DIR, full).replace(/\\/g, "/"), mtimeMs: s.mtimeMs });
+      results.push({ path: path.relative(baseDir, full).replace(/\\/g, "/"), mtimeMs: s.mtimeMs });
     }
   }
   return results;
 }
 
-app.get("/api/artifacts", async (_req, res) => {
+app.get("/api/projects/:projectId/artifacts", async (req, res) => {
+  const dir = projectDir(req.params.projectId);
+  if (!dir) {
+    res.status(400).json({ error: "不正なプロジェクトIDです" });
+    return;
+  }
   try {
-    const files = await listFilesRecursive(WORKSPACE_DIR);
+    const files = await listFilesRecursive(dir, dir);
     files.sort((a, b) => b.mtimeMs - a.mtimeMs);
     res.json({ files });
   } catch (err) {
@@ -119,14 +143,19 @@ app.get("/api/artifacts", async (_req, res) => {
   }
 });
 
-app.get("/api/artifacts/*", async (req, res) => {
+app.get("/api/projects/:projectId/artifacts/*", async (req, res) => {
+  const dir = projectDir(req.params.projectId);
+  if (!dir) {
+    res.status(400).json({ error: "不正なプロジェクトIDです" });
+    return;
+  }
   const relPath = (req.params as Record<string, string>)[0] ?? "";
-  if (!isPathInsideWorkspace(relPath)) {
+  if (!isPathInsideDir(dir, relPath)) {
     res.status(400).json({ error: "不正なパスです" });
     return;
   }
   try {
-    const content = await readFile(path.join(WORKSPACE_DIR, relPath), "utf-8");
+    const content = await readFile(path.join(dir, relPath), "utf-8");
     res.type("text/plain").send(content);
   } catch (err) {
     res.status(404).json({ error: "ファイルが見つかりません", detail: String(err) });
