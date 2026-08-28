@@ -19,6 +19,7 @@ type Props = {
   serviceUrl: string | null;
   onAdvance: () => void;
   onSaveTemplate: (promptTemplate: string, commandTemplate: string | null) => void;
+  onSaveMeta: (role: string, aiName: string) => void;
   onOpenArtifact: (path: string) => void;
 };
 
@@ -31,6 +32,7 @@ export function PromptPane({
   serviceUrl,
   onAdvance,
   onSaveTemplate,
+  onSaveMeta,
   onOpenArtifact,
 }: Props) {
   const [showGuide, setShowGuide] = useState(true);
@@ -48,6 +50,8 @@ export function PromptPane({
   const [promptDraft, setPromptDraft] = useState(step.prompt_template);
   const [editingCommand, setEditingCommand] = useState(false);
   const [commandDraft, setCommandDraft] = useState(command ?? "");
+  const [roleDraft, setRoleDraft] = useState(step.role);
+  const [aiNameDraft, setAiNameDraft] = useState(step.ai_name);
   const meta = STATUS_META[step.status];
 
   useEffect(() => {
@@ -60,8 +64,22 @@ export function PromptPane({
     setPromptDraft(step.prompt_template);
     setEditingCommand(false);
     setCommandDraft(command ?? "");
+    setRoleDraft(step.role);
+    setAiNameDraft(step.ai_name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
+
+  function commitRole() {
+    const trimmed = roleDraft.trim();
+    if (trimmed && trimmed !== step.role) onSaveMeta(trimmed, step.ai_name);
+    else setRoleDraft(step.role);
+  }
+
+  function commitAiName() {
+    const trimmed = aiNameDraft.trim();
+    if (trimmed && trimmed !== step.ai_name) onSaveMeta(step.role, trimmed);
+    else setAiNameDraft(step.ai_name);
+  }
 
   const promptDirty = promptDraft.trim() !== step.prompt_template.trim() && promptDraft.trim().length > 0;
 
@@ -155,7 +173,14 @@ export function PromptPane({
     <div className="flex flex-col flex-1 min-w-0 bg-panel">
       <div className="px-7 pt-5 pb-3.5 border-b border-borderSoft">
         <div className="flex items-center gap-2.5">
-          <span className="font-serif text-xl font-semibold">{step.role}</span>
+          <input
+            value={roleDraft}
+            onChange={(e) => setRoleDraft(e.target.value)}
+            onBlur={commitRole}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="font-serif text-xl font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-accent outline-none px-0.5 -ml-0.5"
+            style={{ width: `${Math.max(roleDraft.length, 4)}ch` }}
+          />
           <span
             className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
             style={{ background: meta.bg, color: meta.color }}
@@ -164,7 +189,15 @@ export function PromptPane({
           </span>
         </div>
         <div className="mt-1 flex items-center gap-2 text-[13px] text-muted">
-          <span>担当AI: {step.ai_name}</span>
+          <span className="shrink-0">担当AI:</span>
+          <input
+            value={aiNameDraft}
+            onChange={(e) => setAiNameDraft(e.target.value)}
+            onBlur={commitAiName}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="bg-transparent border-b border-transparent hover:border-border focus:border-accent outline-none px-0.5 -ml-0.5 text-ink"
+            style={{ width: `${Math.max(aiNameDraft.length, 4)}ch` }}
+          />
           {serviceUrl && (
             <a
               href={serviceUrl}

@@ -238,6 +238,14 @@ export default function App() {
     }));
   }
 
+  function handleSaveMeta(role: string, aiName: string) {
+    if (!selectedStep) return;
+    updateCurrentProject((project) => ({
+      ...project,
+      steps: project.steps.map((s) => (s.id === selectedStep.id ? { ...s, role, ai_name: aiName } : s)),
+    }));
+  }
+
   function handleSaveServices(services: AiServiceList) {
     setAiServices(services);
     saveAiServices(services).catch((e) => setError(String(e)));
@@ -355,6 +363,7 @@ export default function App() {
                 serviceUrl={serviceUrl}
                 onAdvance={handleAdvance}
                 onSaveTemplate={handleSaveTemplate}
+                onSaveMeta={handleSaveMeta}
                 onOpenArtifact={setSelectedArtifact}
               />
             )}
