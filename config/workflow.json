@@ -112,7 +112,7 @@
           "index": 1,
           "ai_name": "ChatGPT (Web)",
           "role": "Ideator（アイデア出し）",
-          "status": "active",
+          "status": "done",
           "input_files": [],
           "output_files": [
             "workspace/soccer-japan-team/docs/ideas.md"

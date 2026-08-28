@@ -157,15 +157,49 @@ export function PromptPane({ projectId, step, prompt, loadingPrompt, command, se
               <path d="M12 8v5M12 16h.01" />
             </svg>
             <div className="flex-1 text-[12.5px] leading-relaxed text-ink">
-              <span className="font-semibold">このステップの進め方：</span>{" "}
-              {command ? (
-                <>下の実行コマンドを確認 → <b>「ローカルで実行」</b>を押す → 完了を待つ → 問題なければ<b>「次のステップへ」</b>を押す。</>
-              ) : (
-                <>
-                  下のプロンプトを<b>「プロンプトをコピー」</b> → {serviceUrl ? <b>「開く↗」</b> : "担当AIのサイト"}を開いて貼り付け・実行 →
-                  返ってきた内容をコピーして、下の<b>「AIの回答を貼り付けて保存」</b>欄に貼り付けて保存 → <b>「次のステップへ」</b>を押す。
-                </>
-              )}
+              <span className="font-semibold block">このステップの進め方</span>
+              <span className="block text-muted mb-1.5">
+                {command
+                  ? "まだ何も実行されていません。以下の手順で進めてください。"
+                  : "このアプリはAIと自動ではやり取りしません。まだAIには何も聞いていません — 以下の手順で、あなた自身がAIに聞きに行ってください。"}
+              </span>
+              <ol className="list-decimal pl-4 flex flex-col gap-0.5">
+                {command ? (
+                  <>
+                    <li>下の実行コマンドの内容を確認する</li>
+                    <li>
+                      <b>「ローカルで実行」ボタン</b>を押す
+                    </li>
+                    <li>完了するまで待つ（実装タスクは数分かかることがあります）</li>
+                    <li>
+                      問題なければ、下の<b>「次のステップへ」ボタン</b>を押す
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      下のプロンプトを<b>「プロンプトをコピー」ボタン</b>でコピーする
+                    </li>
+                    <li>
+                      {serviceUrl ? (
+                        <>
+                          <b>「開く↗」リンク</b>から担当AIのサイトを開き
+                        </>
+                      ) : (
+                        "担当AIのサイトを開き"
+                      )}
+                      、コピーした内容を貼り付けて実行する
+                    </li>
+                    <li>AIから返ってきた回答をコピーする</li>
+                    <li>
+                      コピーした回答を下の<b>「AIの回答を貼り付けて保存」欄</b>に貼り付け、<b>「保存する」ボタン</b>を押す
+                    </li>
+                    <li>
+                      下の<b>「次のステップへ」ボタン</b>を押す
+                    </li>
+                  </>
+                )}
+              </ol>
             </div>
             <button onClick={() => setShowGuide(false)} className="shrink-0 opacity-50 hover:opacity-100 mt-0.5">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2">
