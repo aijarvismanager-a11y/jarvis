@@ -16,13 +16,21 @@ import { WorkflowPane } from "./components/WorkflowPane";
 import { PromptPane } from "./components/PromptPane";
 import { ArtifactsPane } from "./components/ArtifactsPane";
 import { ProjectTabs } from "./components/ProjectTabs";
-import { NewProjectModal } from "./components/NewProjectModal";
 import { AddStepModal } from "./components/AddStepModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { WelcomeBanner } from "./components/WelcomeBanner";
 import { IdeaIntakeModal } from "./components/IdeaIntakeModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
+
+// A new project's first idea text doubles as its initial name (see
+// handleStartNewProject) — this just keeps a long sentence from making the
+// project tab unreasonably wide. The user can rename it anytime.
+function deriveProjectName(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  if (!trimmed) return "新しいプロジェクト";
+  return trimmed.length > 24 ? `${trimmed.slice(0, 24)}…` : trimmed;
+}
 
 export default function App() {
   const [workflowFile, setWorkflowFile] = useState<WorkflowFile | null>(null);
@@ -41,7 +49,11 @@ export default function App() {
   const [showAddStep, setShowAddStep] = useState(false);
   const [addStepSeed, setAddStepSeed] = useState<{ role: string; aiName: string; promptTemplate: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showNewProject, setShowNewProject] = useState(false);
+  // Set while creating a brand-new project: the project doesn't exist in
+  // workflowFile yet, but the idea-intake/add-step modals need a projectId
+  // up front (to build output_files paths). Once the first step is created,
+  // handleAddStep uses this to build the actual Project and clears it.
+  const [newProjectPending, setNewProjectPending] = useState<{ id: string } | null>(null);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
@@ -229,7 +241,20 @@ export default function App() {
   }
 
   function handleAddStep(step: WorkflowStep) {
-    updateCurrentProject((project) => ({ ...project, steps: [...project.steps, step] }));
+    if (newProjectPending) {
+      const id = newProjectPending.id;
+      const project: Project = { id, name: deriveProjectName(step.prompt_template || step.role), steps: [step] };
+      setWorkflowFile((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, projects: [...prev.projects, project], current_project_id: id };
+        saveWorkflow(next).catch((e) => setError(String(e)));
+        return next;
+      });
+      setCurrentProjectId(id);
+      setNewProjectPending(null);
+    } else {
+      updateCurrentProject((project) => ({ ...project, steps: [...project.steps, step] }));
+    }
     setShowIdeaIntake(false);
     setShowAddStep(false);
     setAddStepSeed(null);
@@ -294,15 +319,24 @@ export default function App() {
     saveWorkflow(next).catch((e) => setError(String(e)));
   }
 
-  function handleCreateProject(name: string) {
+  // Starting a new project asks "what do you want to build?" first (same
+  // idea-intake flow as adding a step) rather than a separate naming step —
+  // typing a name up front reads too much like typing the idea itself (users
+  // were typing full idea sentences into what was meant to be a name field).
+  // The project itself is only created once that first step exists, in
+  // handleAddStep. The name can be changed anytime by double-clicking the
+  // project tab (see ProjectTabs' onRename).
+  function handleStartNewProject() {
+    setNewProjectPending({ id: `project_${Date.now()}` });
+    setShowIdeaIntake(true);
+  }
+
+  function handleRenameProject(id: string, name: string) {
     if (!workflowFile) return;
-    const id = `project_${Date.now()}`;
-    const project: Project = { id, name, steps: [] };
-    const next = { ...workflowFile, projects: [...workflowFile.projects, project], current_project_id: id };
+    const projects = workflowFile.projects.map((p) => (p.id === id ? { ...p, name } : p));
+    const next = { ...workflowFile, projects };
     setWorkflowFile(next);
     saveWorkflow(next).catch((e) => setError(String(e)));
-    setCurrentProjectId(id);
-    setShowNewProject(false);
   }
 
   function handleConfirmDeleteProject() {
@@ -356,8 +390,9 @@ export default function App() {
           projects={workflowFile.projects}
           currentId={currentProjectId}
           onSelect={handleSelectProject}
-          onAdd={() => setShowNewProject(true)}
+          onAdd={handleStartNewProject}
           onDelete={setPendingDeleteProjectId}
+          onRename={handleRenameProject}
         />
       )}
 
@@ -401,11 +436,14 @@ export default function App() {
         />
       </div>
 
-      {showIdeaIntake && currentProject && currentProjectId && (
+      {showIdeaIntake && (newProjectPending?.id ?? currentProjectId) && (
         <IdeaIntakeModal
-          projectId={currentProjectId}
-          nextIndex={currentProject.steps.length + 1}
-          onCancel={() => setShowIdeaIntake(false)}
+          projectId={newProjectPending?.id ?? currentProjectId!}
+          nextIndex={newProjectPending ? 1 : (currentProject?.steps.length ?? 0) + 1}
+          onCancel={() => {
+            setShowIdeaIntake(false);
+            setNewProjectPending(null);
+          }}
           onCreate={handleAddStep}
           onEditManually={(seed) => {
             setShowIdeaIntake(false);
@@ -415,14 +453,15 @@ export default function App() {
         />
       )}
 
-      {showAddStep && currentProject && currentProjectId && (
+      {showAddStep && (newProjectPending?.id ?? currentProjectId) && (
         <AddStepModal
-          projectId={currentProjectId}
-          nextIndex={currentProject.steps.length + 1}
+          projectId={newProjectPending?.id ?? currentProjectId!}
+          nextIndex={newProjectPending ? 1 : (currentProject?.steps.length ?? 0) + 1}
           initial={addStepSeed ?? undefined}
           onCancel={() => {
             setShowAddStep(false);
             setAddStepSeed(null);
+            setNewProjectPending(null);
           }}
           onCreate={handleAddStep}
           onUpsertService={handleUpsertAiService}
@@ -432,8 +471,6 @@ export default function App() {
       {showSettings && (
         <SettingsModal services={aiServices} onCancel={() => setShowSettings(false)} onSave={handleSaveServices} />
       )}
-
-      {showNewProject && <NewProjectModal onCancel={() => setShowNewProject(false)} onCreate={handleCreateProject} />}
 
       {pendingDeleteId && currentProject && (
         <ConfirmModal
