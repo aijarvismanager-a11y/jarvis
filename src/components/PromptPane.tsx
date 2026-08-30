@@ -10,6 +10,20 @@ const STATUS_META: Record<WorkflowStep["status"], { label: string; color: string
   pending: { label: "未着手", color: "#8A8578", bg: "#F1EFEA" },
 };
 
+// A fixed window name means every "開く" click reuses the same popup
+// (browsers focus the existing one instead of spawning a new one) rather
+// than piling up tabs, and always at the same size/position so it sits
+// alongside the app instead of covering it. If the user closes it, the
+// next click just opens a fresh one at the same spot.
+const AI_WINDOW_NAME = "ai-orchestrator-ai-window";
+
+function openAiWindow(url: string) {
+  const width = Math.round(window.screen.availWidth / 2);
+  const height = window.screen.availHeight;
+  const left = window.screen.availWidth - width;
+  window.open(url, AI_WINDOW_NAME, `width=${width},height=${height},left=${left},top=0`);
+}
+
 type Props = {
   projectId: string;
   step: WorkflowStep;
@@ -203,14 +217,12 @@ export function PromptPane({
             style={{ width: `${Math.max(aiNameDraft.length, 4)}ch` }}
           />
           {serviceUrl && (
-            <a
-              href={serviceUrl}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={() => openAiWindow(serviceUrl)}
               className="text-accent text-[12px] font-semibold hover:underline"
             >
               開く ↗
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -245,14 +257,12 @@ export function PromptPane({
                   <>
                     <li>
                       {serviceUrl ? (
-                        <a
-                          href={serviceUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          onClick={() => openAiWindow(serviceUrl)}
                           className="font-semibold text-accent underline"
                         >
                           {step.ai_name} を開く ↗
-                        </a>
+                        </button>
                       ) : (
                         "担当AIのサイトを開く"
                       )}
@@ -347,14 +357,12 @@ export function PromptPane({
               {copied ? "コピーしました" : "プロンプトをコピー"}
             </button>
             {!command && serviceUrl && (
-              <a
-                href={serviceUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                onClick={() => openAiWindow(serviceUrl)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-[9px] border border-border bg-white text-[13px] font-semibold text-ink hover:border-accent hover:text-accent"
               >
                 {step.ai_name} を開く ↗
-              </a>
+              </button>
             )}
             {promptDirty && (
               <button
