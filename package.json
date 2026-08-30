@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "server": "tsx server/index.ts",
     "start": "concurrently -n server,app -c yellow,cyan \"npm:server\" \"npm:dev\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package": "powershell -ExecutionPolicy Bypass -File scripts/package-dist.ps1"
   },
   "dependencies": {
     "chokidar": "^4.0.3",
