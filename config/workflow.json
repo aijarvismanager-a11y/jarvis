@@ -125,7 +125,7 @@
           "index": 2,
           "ai_name": "ChatGPT (Web)",
           "role": "Architect（設計）",
-          "status": "pending",
+          "status": "done",
           "input_files": [
             "workspace/soccer-japan-team/docs/ideas.md"
           ],
@@ -133,6 +133,51 @@
             "workspace/soccer-japan-team/docs/requirements.md"
           ],
           "prompt_template": "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
+          "command_template": null
+        },
+        {
+          "id": "step_1788059670773",
+          "index": 3,
+          "ai_name": "Claude (Web)",
+          "role": "Reviewer（設計レビュー）",
+          "status": "done",
+          "input_files": [
+            "workspace/soccer-japan-team/docs/requirements.md"
+          ],
+          "output_files": [
+            "workspace/soccer-japan-team/docs/design_review.md"
+          ],
+          "prompt_template": "設計書をレビューし、懸念点・不足要件・改善案を箇条書きで出力してください。実装難易度の高い箇所には理由も添えてください。",
+          "command_template": null
+        },
+        {
+          "id": "step_1788059744454",
+          "index": 4,
+          "ai_name": "Claude Code (CLI)",
+          "role": "Lead Developer（実装）",
+          "status": "done",
+          "input_files": [
+            "workspace/soccer-japan-team/docs/design_review.md"
+          ],
+          "output_files": [
+            "workspace/soccer-japan-team/src/*"
+          ],
+          "prompt_template": "提供された設計書とレビュー内容を元に、実際のソースコードを実装・修正してください。",
+          "command_template": null
+        },
+        {
+          "id": "step_1788059808118",
+          "index": 5,
+          "ai_name": "Claude Code (CLI)",
+          "role": "QA（テスト・修正）",
+          "status": "pending",
+          "input_files": [
+            "workspace/soccer-japan-team/src/*"
+          ],
+          "output_files": [
+            "workspace/soccer-japan-team/logs/test-result.log"
+          ],
+          "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
           "command_template": null
         }
       ]
