@@ -47,7 +47,11 @@ export function ArtifactsPane({ files, selectedPath, content, loading, onSelect 
       </div>
 
       <div className="flex gap-0.5 px-3 border-b border-borderSoft overflow-x-auto">
-        {files.length === 0 && <span className="text-[12px] text-muted px-2 py-2">workspace/ にファイルがありません</span>}
+        {files.length === 0 && (
+          <span className="text-[12px] text-muted px-2 py-2">
+            まだ成果物がありません（ステップを進めるとここに表示されます）
+          </span>
+        )}
         {files.map((f) => {
           const active = f.path === selectedPath;
           return (

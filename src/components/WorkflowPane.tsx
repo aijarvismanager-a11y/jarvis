@@ -29,6 +29,20 @@ export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, o
       </div>
 
       <div className="flex-1 overflow-y-auto px-2.5 pb-3 flex flex-col gap-1.5">
+        {steps.length === 0 && (
+          <div className="flex flex-col items-center gap-2.5 text-center px-3 py-8">
+            <span className="text-[13px] font-semibold text-ink">まだステップがありません</span>
+            <span className="text-[12px] text-muted leading-relaxed">
+              上の「＋追加」から最初のステップ（アイデア出しなど）を作成すると、ここに表示されます。
+            </span>
+            <button
+              onClick={onAdd}
+              className="mt-1 px-3.5 py-1.5 rounded-lg bg-accent text-white text-[12.5px] font-semibold"
+            >
+              最初のステップを追加する
+            </button>
+          </div>
+        )}
         {steps.map((step, i) => {
           const meta = STATUS_META[step.status];
           const selected = step.id === selectedStepId;
