@@ -85,25 +85,6 @@
       ]
     },
     {
-      "id": "soccer-history",
-      "name": "サッカーの歴史サイト",
-      "steps": [
-        {
-          "id": "step_1787904314779",
-          "index": 1,
-          "ai_name": "ChatGPT (Web)",
-          "role": "Ideator（アイデア出し）",
-          "status": "done",
-          "input_files": [],
-          "output_files": [
-            "workspace/soccer-history/docs/ideas.md"
-          ],
-          "prompt_template": "サッカーの歴史サイトが作りたい",
-          "command_template": null
-        }
-      ]
-    },
-    {
       "id": "soccer-japan-team",
       "name": "サッカー日本代表のサイト",
       "steps": [
@@ -178,6 +159,49 @@
             "workspace/soccer-japan-team/logs/test-result.log"
           ],
           "prompt_template": "実装されたコードに対してテストを実行し、不具合があれば修正してください。",
+          "command_template": null
+        }
+      ]
+    },
+    {
+      "id": "project_1788063824457",
+      "name": "キン肉マンのサイト作りたい",
+      "steps": [
+        {
+          "id": "step_1788064206139",
+          "index": 1,
+          "ai_name": "Claude (Web)",
+          "role": "Ideator（アイデア出し）",
+          "status": "pending",
+          "input_files": [],
+          "output_files": [
+            "workspace/project_1788063824457/docs/ideas.md"
+          ],
+          "prompt_template": "キン肉マンのサイトを作りたい",
+          "command_template": null
+        }
+      ]
+    },
+    {
+      "id": "project_1788064243370",
+      "name": "カラフルな動画作りたい",
+      "steps": []
+    },
+    {
+      "id": "project_1788065203855",
+      "name": "部屋の間取りがすぐわかるアプリ",
+      "steps": [
+        {
+          "id": "step_1788065248605",
+          "index": 1,
+          "ai_name": "Claude (Web)",
+          "role": "Ideator（アイデア出し）",
+          "status": "pending",
+          "input_files": [],
+          "output_files": [
+            "workspace/project_1788065203855/docs/ideas.md"
+          ],
+          "prompt_template": "部屋の間取りがすぐわかるアプリ",
           "command_template": null
         }
       ]
