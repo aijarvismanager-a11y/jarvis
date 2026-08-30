@@ -17,10 +17,12 @@ type Props = {
   loadingPrompt: boolean;
   command: string | null;
   serviceUrl: string | null;
+  hasNextStep: boolean;
   onAdvance: () => void;
   onSaveTemplate: (promptTemplate: string, commandTemplate: string | null) => void;
   onSaveMeta: (role: string, aiName: string) => void;
   onOpenArtifact: (path: string) => void;
+  onAddNextStep: () => void;
 };
 
 export function PromptPane({
@@ -30,10 +32,12 @@ export function PromptPane({
   loadingPrompt,
   command,
   serviceUrl,
+  hasNextStep,
   onAdvance,
   onSaveTemplate,
   onSaveMeta,
   onOpenArtifact,
+  onAddNextStep,
 }: Props) {
   const [showGuide, setShowGuide] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -342,6 +346,16 @@ export function PromptPane({
               </svg>
               {copied ? "コピーしました" : "プロンプトをコピー"}
             </button>
+            {!command && serviceUrl && (
+              <a
+                href={serviceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[9px] border border-border bg-white text-[13px] font-semibold text-ink hover:border-accent hover:text-accent"
+              >
+                {step.ai_name} を開く ↗
+              </a>
+            )}
             {promptDirty && (
               <button
                 onClick={handleSavePrompt}
@@ -497,14 +511,28 @@ export function PromptPane({
         )}
       </div>
 
-      <div className="px-7 py-3.5 border-t border-borderSoft flex justify-end">
-        <button
-          onClick={onAdvance}
-          disabled={step.status === "done"}
-          className="px-5 py-2.5 rounded-[9px] bg-ink text-white text-[13.5px] font-semibold disabled:opacity-40"
-        >
-          成果物の回収を完了し、次のステップへ
-        </button>
+      <div className="px-7 py-3.5 border-t border-borderSoft flex items-center justify-end gap-3">
+        {step.status === "done" && !hasNextStep && (
+          <span className="text-[12.5px] text-muted mr-auto">
+            このステップは完了していますが、次の工程はまだありません。
+          </span>
+        )}
+        {step.status === "done" && !hasNextStep ? (
+          <button
+            onClick={onAddNextStep}
+            className="px-5 py-2.5 rounded-[9px] bg-accent text-white text-[13.5px] font-semibold"
+          >
+            ＋ 次のステップを追加する
+          </button>
+        ) : (
+          <button
+            onClick={onAdvance}
+            disabled={step.status === "done"}
+            className="px-5 py-2.5 rounded-[9px] bg-ink text-white text-[13.5px] font-semibold disabled:opacity-40"
+          >
+            成果物の回収を完了し、次のステップへ
+          </button>
+        )}
       </div>
 
       {showExecuteConfirm && command && (

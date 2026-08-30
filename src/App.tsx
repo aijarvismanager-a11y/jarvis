@@ -126,6 +126,12 @@ export default function App() {
     [selectedStep, currentProjectId],
   );
 
+  const hasNextStep = useMemo(() => {
+    if (!currentProject || !selectedStep) return true;
+    const idx = currentProject.steps.findIndex((s) => s.id === selectedStep.id);
+    return idx !== -1 && idx + 1 < currentProject.steps.length;
+  }, [currentProject, selectedStep]);
+
   // build the prompt for the currently selected step: for steps with a
   // command_template (Claude Code) the CLI reads files itself, so we only
   // show the template + command. For web-AI steps we inline the referenced
@@ -195,9 +201,11 @@ export default function App() {
   function handleAdvance() {
     if (!selectedStep) return;
     let nextId: string | null = null;
+    let hadNext = false;
     updateCurrentProject((project) => {
       const idx = project.steps.findIndex((s) => s.id === selectedStep.id);
       if (idx === -1) return project;
+      hadNext = idx + 1 < project.steps.length;
       const steps = project.steps.map((s, i) => {
         if (i === idx) return { ...s, status: "done" as const };
         if (i === idx + 1) return { ...s, status: "active" as const };
@@ -206,7 +214,18 @@ export default function App() {
       nextId = steps[idx + 1]?.id ?? null;
       return { ...project, steps };
     });
-    if (nextId) setSelectedStepId(nextId);
+    if (nextId) {
+      setSelectedStepId(nextId);
+    } else if (!hadNext) {
+      // Nothing to advance into yet — open step creation right away instead
+      // of leaving the user looking at a newly-disabled button with no
+      // indication of what to do next. This is the "continue an existing
+      // pipeline" case (not first-time onboarding), so go straight to the
+      // category picker rather than IdeaIntakeModal — that modal always
+      // labels what it creates as "Ideator（アイデア出し）", which would be
+      // a wrong role name for e.g. a design or review step added here.
+      setShowAddStep(true);
+    }
   }
 
   function handleAddStep(step: WorkflowStep) {
@@ -361,10 +380,12 @@ export default function App() {
                 loadingPrompt={loadingPrompt}
                 command={command}
                 serviceUrl={serviceUrl}
+                hasNextStep={hasNextStep}
                 onAdvance={handleAdvance}
                 onSaveTemplate={handleSaveTemplate}
                 onSaveMeta={handleSaveMeta}
                 onOpenArtifact={setSelectedArtifact}
+                onAddNextStep={() => setShowAddStep(true)}
               />
             )}
           </>
