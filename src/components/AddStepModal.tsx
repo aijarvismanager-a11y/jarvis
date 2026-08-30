@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Modal } from "./Modal";
 import type { WorkflowStep } from "../types/workflow";
 import { TASK_CATEGORIES } from "../lib/taskCategories";
+import { recommend, type Recommendation } from "../lib/ideaRecommendation";
+import { fetchArtifactContent } from "../lib/api";
 
 type Props = {
   projectId: string;
@@ -36,6 +38,8 @@ export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate
   const [outputFiles, setOutputFiles] = useState(initial ? "docs/ideas.md" : "");
   const [promptTemplate, setPromptTemplate] = useState(initial?.promptTemplate ?? "");
   const [commandTemplate, setCommandTemplate] = useState("");
+  const [contentSuggestion, setContentSuggestion] = useState<Recommendation | null>(null);
+  const [checkingContent, setCheckingContent] = useState(false);
 
   const selectedCategory = TASK_CATEGORIES.find((c) => c.id === categoryId) ?? null;
 
@@ -43,6 +47,7 @@ export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate
 
   function applyCategory(id: string) {
     setCategoryId(id);
+    setContentSuggestion(null);
     const cat = TASK_CATEGORIES.find((c) => c.id === id);
     if (!cat || cat.id === "custom") return;
     setRole(cat.role);
@@ -50,6 +55,26 @@ export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate
     setPromptTemplate(cat.promptTemplate);
     setInputFiles(cat.inputHint);
     setOutputFiles(cat.outputHint);
+
+    // The category default is a blind guess (no content to go on). Once a
+    // prior step's real output exists, its actual content is a much better
+    // signal than the category name alone — e.g. a requirements doc that
+    // turns out to call for a demo video should route to a video-gen AI,
+    // not whatever the "実装" category defaults to.
+    const files = cat.inputHint
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (files.length === 0) return;
+    setCheckingContent(true);
+    Promise.all(files.map((f) => fetchArtifactContent(projectId, f).catch(() => "")))
+      .then((contents) => {
+        const combined = contents.join("\n");
+        if (!combined.trim()) return;
+        const rec = recommend(combined);
+        if (rec.service !== cat.recommendedAi) setContentSuggestion(rec);
+      })
+      .finally(() => setCheckingContent(false));
   }
 
   function handleSubmit() {
@@ -95,6 +120,26 @@ export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate
               <span className="font-semibold text-ink">おすすめ: {selectedCategory.recommendedAi}</span> —{" "}
               {selectedCategory.reason}
             </span>
+          </div>
+        )}
+        {checkingContent && (
+          <span className="text-[11.5px] text-muted">前工程の成果物の内容を確認しています...</span>
+        )}
+        {contentSuggestion && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-accent-tint border border-borderSoft" style={{ background: "color-mix(in oklch, #B5563A 8%, white)" }}>
+            <span className="text-[12px] leading-relaxed text-ink">
+              前工程の成果物の内容から見ると、<span className="font-semibold text-accent">{contentSuggestion.service}</span> の方が合いそうです —{" "}
+              <span className="text-muted">{contentSuggestion.reason}</span>
+            </span>
+            <button
+              onClick={() => {
+                setAiName(contentSuggestion.service);
+                setContentSuggestion(null);
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-white text-[12px] font-semibold"
+            >
+              採用する
+            </button>
           </div>
         )}
       </div>

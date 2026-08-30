@@ -2,8 +2,51 @@ export type Recommendation = { service: string; reason: string };
 
 // A simple keyword heuristic, not real classification — it exists to give
 // a sensible starting suggestion so the user doesn't have to pick an AI
-// blind, not to be a smart judge of the idea. First matching rule wins.
+// blind, not to be a smart judge of the idea. First matching rule wins,
+// so more specific rules are listed before broader ones they could
+// otherwise be shadowed by (e.g. "文字入り画像" before the general
+// "画像" rule, since both mention images).
 const RULES: { keywords: string[]; service: string; reason: string }[] = [
+  {
+    keywords: ["文字入り", "テキスト入り", "文字が読める画像", "ロゴの文字"],
+    service: "Ideogram（画像生成）",
+    reason: "画像内に正確な文字を入れるのが得意です。",
+  },
+  {
+    keywords: ["商用利用", "Adobe", "Photoshop", "権利関係がクリア"],
+    service: "Adobe Firefly（画像生成）",
+    reason: "商用利用が明確に許諾された学習データを使っており、権利面で安心です。",
+  },
+  {
+    keywords: ["UIを作りたい", "コンポーネント", "React", "画面のデザインをコードに", "フロントエンドの見た目"],
+    service: "v0 by Vercel (Web)",
+    reason: "UIのデザインをそのまま動くコードに変換するのが得意です。",
+  },
+  {
+    keywords: ["GitHub", "リポジトリ", "プルリクエスト", "PRを"],
+    service: "GitHub Copilot Chat (Web)",
+    reason: "GitHub上のコード・PRとの連携作業に向いています。",
+  },
+  {
+    keywords: ["X（旧Twitter）", "Twitterの投稿", "SNSの反応", "リアルタイムの話題"],
+    service: "Grok (Web)",
+    reason: "X（旧Twitter）のリアルタイムな話題把握に強みがあります。",
+  },
+  {
+    keywords: ["雑談", "悩み相談", "話を聞いて", "愚痴"],
+    service: "Pi (Web)",
+    reason: "共感的な対話・雑談相手として設計されています。",
+  },
+  {
+    keywords: ["自動化したい", "エージェントに", "代行してほしい", "自動でやって"],
+    service: "Manus (Web)",
+    reason: "複数手順のタスクを自律的に代行するエージェント型AIです。",
+  },
+  {
+    keywords: ["オープンソースのAI", "オープンモデル"],
+    service: "HuggingChat (Web)",
+    reason: "オープンソースのモデルを無料で試せます。",
+  },
   {
     keywords: ["最新", "ニュース", "調べ", "リサーチ", "検索", "比較", "トレンド", "出典"],
     service: "Perplexity (Web)",
