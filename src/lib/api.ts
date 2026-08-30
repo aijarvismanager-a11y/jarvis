@@ -94,16 +94,47 @@ export async function executeCommand(projectId: string, command: string): Promis
   return res.json();
 }
 
+// A long-running tab (this app is meant to stay open all day) can lose its
+// WebSocket to a dev-server restart, a sleeping laptop, or a flaky network.
+// Without reconnecting, the tab silently stops seeing server-side changes
+// forever — e.g. a newly created project never appears, since only a
+// fs-change message ever triggers a re-fetch. Retrying (with backoff, capped
+// so it doesn't hammer a server that's actually down) keeps the tab live
+// without the user needing to know to hit refresh.
 export function connectFsWatch(onChange: () => void): () => void {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === "fs-change") onChange();
-    } catch {
-      // ignore malformed messages
-    }
+  let closedByCaller = false;
+  let socket: WebSocket | null = null;
+  let retryDelay = 1000;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function connect() {
+    const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    socket = ws;
+    ws.onopen = () => {
+      retryDelay = 1000;
+      // The tab may have missed changes while disconnected — catch up now.
+      onChange();
+    };
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "fs-change") onChange();
+      } catch {
+        // ignore malformed messages
+      }
+    };
+    ws.onclose = () => {
+      if (closedByCaller) return;
+      retryTimer = setTimeout(connect, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15000);
+    };
+  }
+  connect();
+
+  return () => {
+    closedByCaller = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    socket?.close();
   };
-  return () => ws.close();
 }
