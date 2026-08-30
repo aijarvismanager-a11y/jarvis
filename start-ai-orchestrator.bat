@@ -2,6 +2,15 @@
 setlocal
 cd /d "%~dp0"
 
+rem A ZIP distribution has no desktop shortcut yet (only this .bat) --
+rem create one on first run, pointing back at this same script/icon, so
+rem later launches don't require digging back into the extracted folder.
+set "DESKTOP_LNK=%USERPROFILE%\Desktop\AI Orchestrator.lnk"
+if not exist "%DESKTOP_LNK%" (
+  echo デスクトップにショートカットを作成しています...
+  powershell -NoProfile -Command "$s = New-Object -ComObject WScript.Shell; $lnk = $s.CreateShortcut('%DESKTOP_LNK%'); $lnk.TargetPath = '%~f0'; $lnk.WorkingDirectory = '%~dp0'; $lnk.IconLocation = '%~dp0public\app-icon.ico,0'; $lnk.Save()"
+)
+
 where node >nul 2>nul
 if errorlevel 1 goto :install_node
 goto :after_node
