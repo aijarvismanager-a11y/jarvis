@@ -119,6 +119,21 @@
           ],
           "prompt_template": "サッカー日本代表のサイトを作りたい",
           "command_template": null
+        },
+        {
+          "id": "step_1788059557400",
+          "index": 2,
+          "ai_name": "ChatGPT (Web)",
+          "role": "Architect（設計）",
+          "status": "pending",
+          "input_files": [
+            "workspace/soccer-japan-team/docs/ideas.md"
+          ],
+          "output_files": [
+            "workspace/soccer-japan-team/docs/requirements.md"
+          ],
+          "prompt_template": "前提条件と要望を元に、要件定義書とディレクトリ構造をMarkdownで出力してください。",
+          "command_template": null
         }
       ]
     }
