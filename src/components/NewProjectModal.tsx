@@ -21,11 +21,11 @@ export function NewProjectModal({ onCancel, onCreate }: Props) {
     <Modal title="新しいプロジェクト" onClose={onCancel}>
       <div className="flex flex-col gap-1.5">
         <span className="text-[13px] text-muted leading-relaxed">
-          プロジェクトごとにワークフローとファイルが分かれます。名前は後からいつでも変えられます。
+          プロジェクトごとにワークフローとファイルが分かれます。ここではまだ何も作られません — 短い「名前」を付けるだけです（後からいつでも変えられます）。何を作りたいかは、次にステップを追加するときに書けます。
         </span>
         <input
           className={inputClass}
-          placeholder="例）サッカー日本代表のサイト"
+          placeholder="例）サッカー日本代表サイト"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
