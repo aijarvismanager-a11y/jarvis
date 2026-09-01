@@ -82,6 +82,54 @@ function isPathInsideDir(dir: string, targetPath: string) {
 // click, never automatic. cwd is workspace/<projectId>/ so the relative
 // file paths in generated commands (docs/..., src/...) resolve the same
 // way they would if the user ran the command by hand from that folder.
+// Execution history is a simple append-only JSON array per project, used to
+// show a success-rate panel per step (see roadmap item from the competitive
+// teardown: legacy-ai-manager tracked nothing here, and neither did the
+// current app until now). Kept under workspace/<id>/logs/ so it rides along
+// with the rest of that project's files and shows up like any other
+// artifact if the user goes looking.
+const HISTORY_LIMIT = 200;
+
+function historyPath(dir: string): string {
+  return path.join(dir, "logs", "execution_history.json");
+}
+
+type HistoryEntry = {
+  id: string;
+  stepId: string | null;
+  role: string | null;
+  command: string;
+  exitCode: number;
+  timedOut: boolean;
+  finishedAt: string;
+};
+
+async function readHistory(dir: string): Promise<HistoryEntry[]> {
+  try {
+    const raw = await readFile(historyPath(dir), "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendHistory(dir: string, entry: HistoryEntry): Promise<void> {
+  const existing = await readHistory(dir);
+  const next = [...existing, entry].slice(-HISTORY_LIMIT);
+  await mkdir(path.dirname(historyPath(dir)), { recursive: true });
+  await writeFile(historyPath(dir), JSON.stringify(next, null, 2), "utf-8");
+}
+
+app.get("/api/projects/:projectId/history", async (req, res) => {
+  const dir = projectDir(req.params.projectId);
+  if (!dir) {
+    res.status(400).json({ error: "不正なプロジェクトIDです" });
+    return;
+  }
+  res.json({ entries: await readHistory(dir) });
+});
+
 app.post("/api/projects/:projectId/execute", async (req, res) => {
   const dir = projectDir(req.params.projectId);
   if (!dir) {
@@ -93,6 +141,8 @@ app.post("/api/projects/:projectId/execute", async (req, res) => {
     res.status(400).json({ error: "command は必須です" });
     return;
   }
+  const stepId = typeof req.body?.stepId === "string" ? req.body.stepId : null;
+  const role = typeof req.body?.role === "string" ? req.body.role : null;
   // A brand-new project has no workspace/<id>/ folder yet — exec's cwd
   // option requires the directory to already exist.
   await mkdir(dir, { recursive: true }).catch(() => {});
@@ -104,9 +154,18 @@ app.post("/api/projects/:projectId/execute", async (req, res) => {
   exec(
     shellCommand,
     { cwd: dir, timeout: EXECUTE_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 },
-    (err, stdout, stderr) => {
+    async (err, stdout, stderr) => {
       const timedOut = !!err?.killed && err.signal === "SIGTERM";
       const exitCode = err ? (typeof err.code === "number" ? err.code : 1) : 0;
+      await appendHistory(dir, {
+        id: `hist_${Date.now()}_${Math.round(Math.random() * 1e6)}`,
+        stepId,
+        role,
+        command,
+        exitCode,
+        timedOut,
+        finishedAt: new Date().toISOString(),
+      }).catch(() => {});
       res.json({ exitCode, timedOut, timeoutMs: EXECUTE_TIMEOUT_MS, stdout, stderr });
     },
   );

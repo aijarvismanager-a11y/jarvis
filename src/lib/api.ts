@@ -84,14 +84,36 @@ export type ExecuteResult = {
   stderr: string;
 };
 
-export async function executeCommand(projectId: string, command: string): Promise<ExecuteResult> {
+export async function executeCommand(
+  projectId: string,
+  command: string,
+  stepId?: string,
+  role?: string,
+): Promise<ExecuteResult> {
   const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command }),
+    body: JSON.stringify({ command, stepId, role }),
   });
   if (!res.ok) throw new Error("コマンドの実行に失敗しました");
   return res.json();
+}
+
+export type HistoryEntry = {
+  id: string;
+  stepId: string | null;
+  role: string | null;
+  command: string;
+  exitCode: number;
+  timedOut: boolean;
+  finishedAt: string;
+};
+
+export async function fetchExecutionHistory(projectId: string): Promise<HistoryEntry[]> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/history`);
+  if (!res.ok) throw new Error("実行履歴の取得に失敗しました");
+  const json = await res.json();
+  return json.entries as HistoryEntry[];
 }
 
 // A long-running tab (this app is meant to stay open all day) can lose its

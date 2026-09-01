@@ -1,5 +1,5 @@
 {
-  "current_project_id": "soccer-japan-team",
+  "current_project_id": "sample-project",
   "projects": [
     {
       "id": "sample-project",
@@ -186,25 +186,6 @@
       "id": "project_1788064243370",
       "name": "カラフルな動画作りたい",
       "steps": []
-    },
-    {
-      "id": "project_1788065203855",
-      "name": "部屋の間取りがすぐわかるアプリ",
-      "steps": [
-        {
-          "id": "step_1788065248605",
-          "index": 1,
-          "ai_name": "Claude (Web)",
-          "role": "Ideator（アイデア出し）",
-          "status": "pending",
-          "input_files": [],
-          "output_files": [
-            "workspace/project_1788065203855/docs/ideas.md"
-          ],
-          "prompt_template": "部屋の間取りがすぐわかるアプリ",
-          "command_template": null
-        }
-      ]
     }
   ]
 }

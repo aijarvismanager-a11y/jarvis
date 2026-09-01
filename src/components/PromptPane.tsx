@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import type { WorkflowStep } from "../types/workflow";
-import { executeCommand, saveArtifactContent, type ExecuteResult } from "../lib/api";
+import {
+  executeCommand,
+  fetchExecutionHistory,
+  saveArtifactContent,
+  type ExecuteResult,
+  type HistoryEntry,
+} from "../lib/api";
 import { stripProjectPrefix } from "../lib/paths";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -70,7 +76,21 @@ export function PromptPane({
   const [commandDraft, setCommandDraft] = useState(command ?? "");
   const [roleDraft, setRoleDraft] = useState(step.role);
   const [aiNameDraft, setAiNameDraft] = useState(step.ai_name);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const meta = STATUS_META[step.status];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchExecutionHistory(projectId)
+      .then((entries) => !cancelled && setHistory(entries))
+      .catch(() => !cancelled && setHistory([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, step.id, execResult]);
+
+  const stepHistory = history.filter((h) => h.stepId === step.id).slice().reverse();
+  const stepSuccessCount = stepHistory.filter((h) => !h.timedOut && h.exitCode === 0).length;
 
   useEffect(() => {
     setExecResult(null);
@@ -179,7 +199,7 @@ export function PromptPane({
     setExecError(null);
     setExecResult(null);
     try {
-      setExecResult(await executeCommand(projectId, command));
+      setExecResult(await executeCommand(projectId, command, step.id, step.role));
     } catch (e) {
       setExecError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -513,6 +533,39 @@ export function PromptPane({
                     {execResult.stderr}
                   </pre>
                 )}
+              </div>
+            )}
+
+            {stepHistory.length > 0 && (
+              <div className="flex flex-col gap-2 mt-1">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-muted uppercase tracking-wide">
+                  <span>実行履歴</span>
+                  <span className="normal-case font-mono text-ink">
+                    {stepSuccessCount}/{stepHistory.length} 成功
+                    （{Math.round((stepSuccessCount / stepHistory.length) * 100)}%）
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1">
+                  {stepHistory.slice(0, 5).map((h) => (
+                    <li key={h.id} className="flex items-center gap-2 text-[12px]">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: h.timedOut ? "#8A8578" : h.exitCode === 0 ? "#3F6B52" : "#8A3A2A" }}
+                      />
+                      <span className="text-muted font-mono shrink-0">
+                        {new Date(h.finishedAt).toLocaleString("ja-JP", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="text-muted">
+                        {h.timedOut ? "タイムアウト" : h.exitCode === 0 ? "成功" : `失敗 (終了コード ${h.exitCode})`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>

@@ -16,10 +16,12 @@ const inputClass =
 
 export function IdeaIntakeModal({ projectId, nextIndex, onCancel, onCreate, onEditManually }: Props) {
   const [text, setText] = useState("");
+  const [asked, setAsked] = useState(false);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
 
   function handleAsk() {
     if (!text.trim()) return;
+    setAsked(true);
     setRecommendation(recommend(text));
   }
 
@@ -51,13 +53,14 @@ export function IdeaIntakeModal({ projectId, nextIndex, onCancel, onCreate, onEd
           value={text}
           onChange={(e) => {
             setText(e.target.value);
+            setAsked(false);
             setRecommendation(null);
           }}
           autoFocus
         />
       </div>
 
-      {!recommendation ? (
+      {!asked ? (
         <div className="flex justify-end pt-1">
           <button
             onClick={handleAsk}
@@ -67,7 +70,7 @@ export function IdeaIntakeModal({ projectId, nextIndex, onCancel, onCreate, onEd
             おすすめのAIを聞く
           </button>
         </div>
-      ) : (
+      ) : recommendation ? (
         <>
           <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-bg border border-borderSoft">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B5563A" strokeWidth="2" className="shrink-0 mt-0.5">
@@ -93,6 +96,26 @@ export function IdeaIntakeModal({ projectId, nextIndex, onCancel, onCreate, onEd
             </button>
             <button onClick={handleCreate} className="px-4 py-2 rounded-[9px] bg-accent text-white text-[13px] font-semibold">
               このAIでステップを作る
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-bg border border-borderSoft">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8578" strokeWidth="2" className="shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v5M12 16h.01" />
+            </svg>
+            <div className="text-[13px] leading-relaxed text-muted">
+              この内容からは、特に強くおすすめできるAIが見つかりませんでした。自分でAIを選んで、詳しく編集してください。
+            </div>
+          </div>
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={() => onEditManually({ role: "Ideator（アイデア出し）", aiName: "", promptTemplate: text.trim() })}
+              className="px-4 py-2 rounded-[9px] bg-accent text-white text-[13px] font-semibold"
+            >
+              自分でAIを選ぶ／詳しく編集する
             </button>
           </div>
         </>

@@ -95,6 +95,11 @@
     "url": "https://v0.dev"
   },
   {
+    "id": "bolt-new",
+    "name": "Bolt.new (Web)",
+    "url": "https://bolt.new"
+  },
+  {
     "id": "genspark",
     "name": "Genspark (Web)",
     "url": "https://www.genspark.ai"
@@ -130,6 +135,16 @@
     "url": "https://playground.com"
   },
   {
+    "id": "ms-designer",
+    "name": "Microsoft Designer（画像生成）",
+    "url": "https://designer.microsoft.com"
+  },
+  {
+    "id": "craiyon",
+    "name": "Craiyon（画像生成）",
+    "url": "https://www.craiyon.com"
+  },
+  {
     "id": "recraft",
     "name": "Recraft（画像生成）",
     "url": "https://www.recraft.ai"
@@ -158,11 +173,6 @@
     "id": "google-flow",
     "name": "Google Flow / Veo（動画生成）",
     "url": "https://labs.google/flow"
-  },
-  {
-    "id": "sora",
-    "name": "Sora（動画生成）",
-    "url": "https://sora.chatgpt.com"
   },
   {
     "id": "suno",

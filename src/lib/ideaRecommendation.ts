@@ -54,13 +54,13 @@ const RULES: { keywords: string[]; service: string; reason: string }[] = [
   },
   {
     keywords: ["画像", "イラスト", "ロゴ", "写真", "アイコン", "サムネ"],
-    service: "Midjourney（画像生成）",
-    reason: "画像・イラストの生成に特化しています。",
+    service: "Microsoft Designer（画像生成）",
+    reason: "無料でDALL-E 3相当の高品質な画像が作れ、サインアップなしでもすぐ試せます。",
   },
   {
     keywords: ["動画", "ムービー", "映像", "アニメーション"],
-    service: "Runway（動画生成）",
-    reason: "動画生成に特化しています。",
+    service: "Google Flow / Veo（動画生成）",
+    reason: "毎日50クレジット（無料・クレカ不要）が付与され、繰り返し試しやすいです。",
   },
   {
     keywords: ["音楽", "作曲", "BGM", "曲"],
@@ -103,12 +103,11 @@ const RULES: { keywords: string[]; service: string; reason: string }[] = [
   },
 ];
 
-const DEFAULT: Recommendation = {
-  service: "ChatGPT (Web)",
-  reason: "特定の分野に偏らない、汎用的な壁打ち相手としてまず試すのにおすすめです。",
-};
-
-export function recommend(text: string): Recommendation {
+// No catch-all fallback: a recommendation is only returned when the
+// text's own wording actually points at a service's strength — otherwise
+// null, so the caller can leave the choice to the user rather than
+// asserting a pick the text gave no reason for.
+export function recommend(text: string): Recommendation | null {
   const hit = RULES.find((r) => r.keywords.some((k) => text.includes(k)));
-  return hit ?? DEFAULT;
+  return hit ? { service: hit.service, reason: hit.reason } : null;
 }
