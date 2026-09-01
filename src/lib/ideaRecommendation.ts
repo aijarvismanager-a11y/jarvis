@@ -1,3 +1,5 @@
+import { matchesKeyword } from "./tokenize";
+
 export type Recommendation = { service: string; reason: string };
 
 // A simple keyword heuristic, not real classification — it exists to give
@@ -108,6 +110,6 @@ const RULES: { keywords: string[]; service: string; reason: string }[] = [
 // null, so the caller can leave the choice to the user rather than
 // asserting a pick the text gave no reason for.
 export function recommend(text: string): Recommendation | null {
-  const hit = RULES.find((r) => r.keywords.some((k) => text.includes(k)));
+  const hit = RULES.find((r) => r.keywords.some((k) => matchesKeyword(text, k)));
   return hit ? { service: hit.service, reason: hit.reason } : null;
 }

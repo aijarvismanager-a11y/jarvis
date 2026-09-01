@@ -16,6 +16,11 @@ type Props = {
 };
 
 export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, onDelete }: Props) {
+  // Colors the rail up to the last completed step so the list reads as a
+  // single-glance progress line, not just a stack of independent cards.
+  const doneCount = steps.filter((s) => s.status === "done").length;
+  const railProgressPct = steps.length > 1 ? Math.min(100, (doneCount / (steps.length - 1)) * 100) : 100;
+
   return (
     <div className="flex flex-col w-[280px] shrink-0 border-r border-border bg-sidebar">
       <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
@@ -43,79 +48,102 @@ export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, o
             </button>
           </div>
         )}
-        {steps.map((step, i) => {
-          const meta = STATUS_META[step.status];
-          const selected = step.id === selectedStepId;
-          return (
-            <div
-              key={step.id}
-              onClick={() => onSelect(step.id)}
-              className="flex flex-col gap-2 px-2.5 py-2.5 rounded-[10px] cursor-pointer"
-              style={{ background: selected ? "color-mix(in oklch, #B5563A 10%, white)" : "transparent" }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-px"
-                    style={{ background: meta.bg, color: meta.color }}
-                  >
-                    {step.index}
+        {steps.length > 0 && (
+          <div className="relative flex flex-col gap-1.5">
+            {steps.length > 1 && (
+              <div
+                className="absolute w-0.5 rounded-full"
+                style={{
+                  left: "19px",
+                  top: "18px",
+                  bottom: "18px",
+                  background: `linear-gradient(to bottom, #3F6B52 0%, #3F6B52 ${railProgressPct}%, #E4DFD3 ${railProgressPct}%, #E4DFD3 100%)`,
+                }}
+              />
+            )}
+            {steps.map((step, i) => {
+              const meta = STATUS_META[step.status];
+              const selected = step.id === selectedStepId;
+              return (
+                <div
+                  key={step.id}
+                  onClick={() => onSelect(step.id)}
+                  className="relative flex flex-col gap-2 px-2.5 py-2.5 rounded-[10px] cursor-pointer"
+                  style={{ background: selected ? "color-mix(in oklch, #B5563A 10%, white)" : "transparent" }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <div className="relative w-5 h-5 shrink-0 mt-px">
+                        {step.status === "active" && (
+                          <span
+                            className="absolute inset-0 rounded-full animate-ping motion-reduce:animate-none"
+                            style={{ background: meta.color, opacity: 0.45 }}
+                          />
+                        )}
+                        <div
+                          className="relative w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold"
+                          style={{ background: meta.bg, color: meta.color }}
+                        >
+                          {step.index}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`text-[13px] leading-tight ${selected ? "font-bold" : "font-medium"}`}>
+                          {step.role}
+                        </span>
+                        <span className="text-[11.5px] text-muted">{step.ai_name}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        className="p-0.5 opacity-55 hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMove(i, -1);
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2.3">
+                          <path d="M18 15l-6-6-6 6" />
+                        </svg>
+                      </button>
+                      <button
+                        className="p-0.5 opacity-55 hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMove(i, 1);
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2.3">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className={`text-[13px] leading-tight ${selected ? "font-bold" : "font-medium"}`}>
-                      {step.role}
+                  <div className="flex items-center justify-between pl-7">
+                    <span
+                      className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full"
+                      style={{ background: meta.bg, color: meta.color }}
+                    >
+                      {meta.label}
                     </span>
-                    <span className="text-[11.5px] text-muted">{step.ai_name}</span>
+                    <button
+                      className="p-0.5 opacity-40 hover:opacity-100"
+                      title="ステップを削除"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(step.id);
+                      }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A3A2A" strokeWidth="2">
+                        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    className="p-0.5 opacity-55 hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMove(i, -1);
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2.3">
-                      <path d="M18 15l-6-6-6 6" />
-                    </svg>
-                  </button>
-                  <button
-                    className="p-0.5 opacity-55 hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMove(i, 1);
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2.3">
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pl-7">
-                <span
-                  className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full"
-                  style={{ background: meta.bg, color: meta.color }}
-                >
-                  {meta.label}
-                </span>
-                <button
-                  className="p-0.5 opacity-40 hover:opacity-100"
-                  title="ステップを削除"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(step.id);
-                  }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A3A2A" strokeWidth="2">
-                    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-3 border-t border-border text-[11.5px] text-muted leading-relaxed">

@@ -1,3 +1,5 @@
+import { matchesKeyword } from "./tokenize";
+
 export type ImageRecommendation = { serviceId: string; reason: string };
 
 // ai_services.json ids that are free-to-use image-generation tools (as
@@ -67,6 +69,6 @@ const RULES: { keywords: string[]; serviceId: string; reason: string }[] = [
 ];
 
 export function recommendImageService(text: string): ImageRecommendation | null {
-  const hit = RULES.find((r) => r.keywords.some((k) => text.includes(k)));
+  const hit = RULES.find((r) => r.keywords.some((k) => matchesKeyword(text, k)));
   return hit ? { serviceId: hit.serviceId, reason: hit.reason } : null;
 }

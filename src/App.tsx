@@ -276,6 +276,17 @@ export default function App() {
     setSelectedStepId(step.id);
   }
 
+  // Trying another AI against the same step no longer creates a new step —
+  // it's just one more named answer file attached to the step you're
+  // already on, so there is nothing else to navigate to or keep track of.
+  function handleUpdateAttempts(attempts: { ai_name: string; output_file: string }[]) {
+    if (!selectedStep) return;
+    updateCurrentProject((project) => ({
+      ...project,
+      steps: project.steps.map((s) => (s.id === selectedStep.id ? { ...s, attempts } : s)),
+    }));
+  }
+
   function handleConfirmDeleteStep() {
     if (!pendingDeleteId) return;
     const id = pendingDeleteId;
@@ -451,12 +462,14 @@ export default function App() {
                 loadingPrompt={loadingPrompt}
                 command={command}
                 serviceUrl={serviceUrl}
+                aiServices={aiServices}
                 hasNextStep={hasNextStep}
                 onAdvance={handleAdvance}
                 onSaveTemplate={handleSaveTemplate}
                 onSaveMeta={handleSaveMeta}
                 onOpenArtifact={setSelectedArtifact}
                 onAddNextStep={() => setShowAddStep(true)}
+                onUpdateAttempts={handleUpdateAttempts}
               />
             )}
           </>
