@@ -23,6 +23,7 @@ import { WelcomeBanner } from "./components/WelcomeBanner";
 import { IdeaIntakeModal } from "./components/IdeaIntakeModal";
 import { ImageGenModal } from "./components/ImageGenModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
+import { exportTemplate, parseWorkflowTemplate, stepsFromTemplate } from "./lib/workflowTemplate";
 import { IMAGE_SERVICE_IDS } from "./lib/imageRecommendation";
 
 // Separate window name/slot from the step-flow AI popup (see PromptPane's
@@ -365,6 +366,41 @@ export default function App() {
     saveWorkflow(next).catch((e) => setError(String(e)));
   }
 
+  // Downloads the project's steps (roles, AI assignments, prompts, file
+  // layout) as a plain JSON file — no workspace/ content, no ids — so it
+  // can be handed to someone else and re-imported as a starting point.
+  function handleExportTemplate(projectId: string) {
+    const project = workflowFile?.projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const template = exportTemplate(project);
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${project.name.replace(/[\\/:*?"<>|]/g, "_")}.workflow-template.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportTemplate(file: File) {
+    file
+      .text()
+      .then((text) => {
+        const template = parseWorkflowTemplate(text);
+        const id = `project_${Date.now()}`;
+        const steps = stepsFromTemplate(template, id);
+        const project: Project = { id, name: `${template.name}（インポート）`, steps };
+        setWorkflowFile((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, projects: [...prev.projects, project], current_project_id: id };
+          saveWorkflow(next).catch((e) => setError(String(e)));
+          return next;
+        });
+        setCurrentProjectId(id);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }
+
   function handleConfirmDeleteProject() {
     if (!workflowFile || !pendingDeleteProjectId) return;
     const id = pendingDeleteProjectId;
@@ -440,6 +476,8 @@ export default function App() {
           onAdd={handleStartNewProject}
           onDelete={setPendingDeleteProjectId}
           onRename={handleRenameProject}
+          onExport={handleExportTemplate}
+          onImportFile={handleImportTemplate}
         />
       )}
 
