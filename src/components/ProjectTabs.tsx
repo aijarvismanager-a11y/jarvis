@@ -65,16 +65,26 @@ export function ProjectTabs({
                 className="text-[13px] font-semibold bg-transparent border-b border-accent outline-none w-32"
               />
             ) : (
-              <span
-                className="text-[13px] whitespace-nowrap"
-                style={{ color: active ? "#2B2A26" : "#8A8578", fontWeight: active ? 600 : 500 }}
-                title="ダブルクリックで名前を変更"
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  startEdit(p);
-                }}
-              >
-                {p.name}
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="text-[13px] whitespace-nowrap"
+                  style={{ color: active ? "#2B2A26" : "#8A8578", fontWeight: active ? 600 : 500 }}
+                  title="ダブルクリックで名前を変更"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    startEdit(p);
+                  }}
+                >
+                  {p.name}
+                </span>
+                {p.steps.length > 0 && (
+                  <span
+                    className="text-[10.5px] font-mono whitespace-nowrap"
+                    style={{ color: active ? "#8A8578" : "#B2AC9C" }}
+                  >
+                    {p.steps.filter((s) => s.status === "done").length}/{p.steps.length}
+                  </span>
+                )}
               </span>
             )}
             {!editing && (

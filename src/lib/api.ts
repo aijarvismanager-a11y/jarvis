@@ -52,6 +52,53 @@ export async function saveAiServices(services: AiServiceList): Promise<void> {
   if (!res.ok) throw new Error("ai_services.json の保存に失敗しました");
 }
 
+export type OllamaConfig = { baseUrl: string; model: string };
+
+export async function fetchOllamaConfig(): Promise<OllamaConfig> {
+  const res = await fetch("/api/ollama-config");
+  if (!res.ok) throw new Error("Ollama設定の取得に失敗しました");
+  return res.json();
+}
+
+export async function saveOllamaConfig(config: OllamaConfig): Promise<void> {
+  const res = await fetch("/api/ollama-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Ollama設定の保存に失敗しました");
+}
+
+export type OllamaStatus = { connected: boolean; models: string[] };
+
+export async function fetchOllamaStatus(baseUrl: string): Promise<OllamaStatus> {
+  const res = await fetch(`/api/ollama/status?baseUrl=${encodeURIComponent(baseUrl)}`);
+  if (!res.ok) return { connected: false, models: [] };
+  return res.json();
+}
+
+// `model` should normally be passed explicitly (e.g. parsed from the
+// attempt row's own "Ollama（llama3.2）" label) rather than left to the
+// server's current default — otherwise a later change to the default model
+// in Settings silently changes what an existing attempt actually generates
+// with, while its label still shows the old model name.
+export async function generateWithOllama(
+  prompt: string,
+  model?: string,
+  projectId?: string,
+  stepId?: string,
+  role?: string,
+): Promise<string> {
+  const res = await fetch("/api/ollama/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, model, projectId, stepId, role }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? "Ollamaでの生成に失敗しました");
+  return json.text ?? "";
+}
+
 export type ArtifactFile = { path: string; mtimeMs: number };
 
 export async function fetchArtifactList(projectId: string): Promise<ArtifactFile[]> {

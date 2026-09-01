@@ -1,4 +1,4 @@
-import { matchesKeyword } from "./tokenize";
+import { matchKeywordRules, type KeywordRule } from "./keywordRules";
 
 export type ImageRecommendation = { serviceId: string; reason: string };
 
@@ -30,7 +30,7 @@ export const IMAGE_SERVICE_SPECIALTIES: Record<string, string> = {
 // the prompt's own wording actually points at a service's strength —
 // otherwise the picker is left to the user rather than asserting a pick
 // the prompt gave no reason for.
-const RULES: { keywords: string[]; serviceId: string; reason: string }[] = [
+const RULES: KeywordRule<ImageRecommendation>[] = [
   {
     keywords: ["文字入り", "テキスト入り", "文字が読める画像", "ロゴの文字", "タイポグラフィ"],
     serviceId: "ideogram",
@@ -69,6 +69,5 @@ const RULES: { keywords: string[]; serviceId: string; reason: string }[] = [
 ];
 
 export function recommendImageService(text: string): ImageRecommendation | null {
-  const hit = RULES.find((r) => r.keywords.some((k) => matchesKeyword(text, k)));
-  return hit ? { serviceId: hit.serviceId, reason: hit.reason } : null;
+  return matchKeywordRules(text, RULES);
 }

@@ -5,9 +5,11 @@ import {
   executeCommand,
   fetchArtifactContent,
   fetchExecutionHistory,
+  generateWithOllama,
   saveArtifactContent,
   type ExecuteResult,
   type HistoryEntry,
+  type OllamaConfig,
 } from "../lib/api";
 import { stripProjectPrefix } from "../lib/paths";
 import { ConfirmModal } from "./ConfirmModal";
@@ -36,6 +38,25 @@ function openAiWindow(url: string) {
 // picker when the user's own ai_services.json doesn't have many entries.
 const GENERAL_AI_POOL = ["ChatGPT (Web)", "Claude (Web)", "Gemini (Web)", "Perplexity (Web)"];
 
+// The one non-web-AI candidate: a locally-running Ollama model. It has no
+// browser page to open, so it gets a "生成する" button instead of "開く" —
+// calling the local server directly, same trust level as the existing
+// "ローカルで実行" Claude Code button (opt-in, local-only, never automatic).
+function ollamaAiName(model: string): string {
+  return `Ollama（${model.trim() || "ローカル"}）`;
+}
+function isOllamaAttempt(aiName: string): boolean {
+  return aiName.startsWith("Ollama（");
+}
+// Reads the model back out of the attempt's own label (see ollamaAiName)
+// so generation always uses the model the row says it does, even if the
+// default model in Settings has since changed.
+function extractOllamaModel(aiName: string): string | undefined {
+  const match = aiName.match(/^Ollama（(.+)）$/);
+  const model = match?.[1];
+  return model && model !== "ローカル" ? model : undefined;
+}
+
 function slugifyAiName(name: string): string {
   const base = name.replace(/\(.*?\)/g, "").trim();
   return base.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "ai";
@@ -53,8 +74,11 @@ function attemptOutputPath(baseOutputFile: string, aiName: string): string {
 
 type AttemptRowProps = {
   projectId: string;
+  stepId: string;
+  role: string;
   attempt: StepAttempt;
   aiUrl: string | null;
+  prompt: string;
   onRemove: () => void;
   onAdopt: (content: string) => void;
 };
@@ -63,12 +87,41 @@ type AttemptRowProps = {
 // step's own main answer box, just scoped to its own file. Deliberately not
 // a separate step and not a separate modal — it lives right where the user
 // is already looking.
-function AttemptRow({ projectId, attempt, aiUrl, onRemove, onAdopt }: AttemptRowProps) {
+function AttemptRow({ projectId, stepId, role, attempt, aiUrl, prompt, onRemove, onAdopt }: AttemptRowProps) {
   const [content, setContent] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [ollamaHistory, setOllamaHistory] = useState<HistoryEntry[]>([]);
+  const ollama = isOllamaAttempt(attempt.ai_name);
+
+  useEffect(() => {
+    if (!ollama) return;
+    let cancelled = false;
+    fetchExecutionHistory(projectId)
+      .then((entries) => !cancelled && setOllamaHistory(entries))
+      .catch(() => !cancelled && setOllamaHistory([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, ollama, generating]);
+
+  const ollamaRuns = ollamaHistory.filter((h) => h.stepId === stepId && h.command === "ollama generate");
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      setDraft(await generateWithOllama(prompt, extractOllamaModel(attempt.ai_name), projectId, stepId, role));
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -99,18 +152,36 @@ function AttemptRow({ projectId, attempt, aiUrl, onRemove, onAdopt }: AttemptRow
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-borderSoft p-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12.5px] font-semibold text-ink">{attempt.ai_name}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[12.5px] font-semibold text-ink">{attempt.ai_name}</span>
+          {ollama && ollamaRuns.length > 0 && (
+            <span className="text-[10.5px] text-muted font-mono">
+              生成 {ollamaRuns.filter((h) => h.exitCode === 0).length}/{ollamaRuns.length}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2.5">
-          {aiUrl && (
-            <button onClick={() => openAiWindow(aiUrl)} className="text-accent text-[11.5px] font-semibold hover:underline">
-              開く ↗
+          {ollama ? (
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="text-accent text-[11.5px] font-semibold hover:underline disabled:opacity-50"
+            >
+              {generating ? "生成中..." : "生成する"}
             </button>
+          ) : (
+            aiUrl && (
+              <button onClick={() => openAiWindow(aiUrl)} className="text-accent text-[11.5px] font-semibold hover:underline">
+                開く ↗
+              </button>
+            )
           )}
           <button onClick={onRemove} className="text-[11.5px] text-muted hover:text-ink underline">
             削除
           </button>
         </div>
       </div>
+      {generateError && <span className="text-[11.5px] text-[#8A3A2A]">{generateError}</span>}
 
       {loaded && content && (
         <div className="flex items-center justify-between gap-2 rounded-md bg-bg px-2.5 py-1.5">
@@ -127,7 +198,13 @@ function AttemptRow({ projectId, attempt, aiUrl, onRemove, onAdopt }: AttemptRow
       <div className="flex items-center gap-2">
         <input
           className="flex-1 border border-border rounded-md px-2.5 py-1.5 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-accent/40"
-          placeholder={content ? "上書きする場合はここに貼り付け" : "ここにAIの回答を貼り付け..."}
+          placeholder={
+            ollama
+              ? "「生成する」を押すとここに結果が入ります（編集してから保存できます）"
+              : content
+                ? "上書きする場合はここに貼り付け"
+                : "ここにAIの回答を貼り付け..."
+          }
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
@@ -151,6 +228,7 @@ type Props = {
   command: string | null;
   serviceUrl: string | null;
   aiServices: AiServiceList;
+  ollamaConfig: OllamaConfig;
   hasNextStep: boolean;
   onAdvance: () => void;
   onSaveTemplate: (promptTemplate: string, commandTemplate: string | null) => void;
@@ -168,6 +246,7 @@ export function PromptPane({
   command,
   serviceUrl,
   aiServices,
+  ollamaConfig,
   hasNextStep,
   onAdvance,
   onSaveTemplate,
@@ -195,7 +274,13 @@ export function PromptPane({
   const [aiNameDraft, setAiNameDraft] = useState(step.ai_name);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showAddAttempt, setShowAddAttempt] = useState(false);
+  const [showAttemptsSection, setShowAttemptsSection] = useState(false);
   const [newAttemptAi, setNewAttemptAi] = useState("");
+  const [showHandoff, setShowHandoff] = useState(false);
+  const [handoffDone, setHandoffDone] = useState("");
+  const [handoffFindings, setHandoffFindings] = useState("");
+  const [handoffRemaining, setHandoffRemaining] = useState("");
+  const [handoffNext, setHandoffNext] = useState("");
   // Whether this step's own (official) output file has anything saved in
   // it yet — null while still checking. Used to stop "成果物の回収を完了"
   // from being pressed before anything was actually saved, which used to
@@ -216,8 +301,11 @@ export function PromptPane({
   }, [projectId, step.id, execResult]);
 
   useEffect(() => {
+    // Claude Code steps' output is often a glob ("src/*"), not one readable
+    // file, so this file-existence check only applies to the paste-and-save
+    // flow — command steps are gated separately, on execution history.
     if (command || step.output_files.length === 0) {
-      setMainOutputSaved(true); // Claude Code steps produce their output by running, not by this box.
+      setMainOutputSaved(null);
       return;
     }
     let cancelled = false;
@@ -232,6 +320,11 @@ export function PromptPane({
 
   const stepHistory = history.filter((h) => h.stepId === step.id).slice().reverse();
   const stepSuccessCount = stepHistory.filter((h) => !h.timedOut && h.exitCode === 0).length;
+  // What actually gates "次のステップへ": for command steps, at least one
+  // recorded run (success or not — a failed run still means they tried and
+  // can decide for themselves whether to proceed); for everything else,
+  // whether the real answer box has been saved.
+  const outputReady = command ? stepHistory.length > 0 : mainOutputSaved !== false;
 
   useEffect(() => {
     setExecResult(null);
@@ -247,10 +340,31 @@ export function PromptPane({
     setAiNameDraft(step.ai_name);
     setShowAddAttempt(false);
     setNewAttemptAi("");
+    setShowAttemptsSection((step.attempts ?? []).length > 0);
+    setShowHandoff(false);
+    setHandoffDone("");
+    setHandoffFindings("");
+    setHandoffRemaining("");
+    setHandoffNext("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.id]);
 
-  const aiOptions = [...new Set([...aiServices.map((s) => s.name), ...GENERAL_AI_POOL])];
+  // Keeps the header's role/AI-name draft inputs in sync when the step's
+  // real value changes from outside this component (e.g. a Settings rename
+  // propagating to every step that used the old AI name). Without this,
+  // the draft stays on the old value until the user later blurs the field
+  // for an unrelated reason, and commitAiName/commitRole then "corrects"
+  // the fresh external value back to the stale draft — silently undoing
+  // the rename. Scoped separately from the step.id reset above so it
+  // doesn't also clobber in-progress edits to the prompt or paste box.
+  useEffect(() => {
+    setRoleDraft(step.role);
+    setAiNameDraft(step.ai_name);
+  }, [step.role, step.ai_name]);
+
+  const aiOptions = [
+    ...new Set([ollamaAiName(ollamaConfig.model), ...aiServices.map((s) => s.name), ...GENERAL_AI_POOL]),
+  ];
   const usedAiNames = new Set([step.ai_name, ...attempts.map((a) => a.ai_name)]);
   const attemptCandidates = aiOptions.filter((name) => !usedAiNames.has(name));
 
@@ -285,13 +399,29 @@ export function PromptPane({
 
   const promptDirty = promptDraft.trim() !== step.prompt_template.trim() && promptDraft.trim().length > 0;
 
+  // Legacy-ai-manager's Handoff screen (完了事項・重要な発見・残タスク・次のAIへの
+  // 指示) — brought back not as a separate screen/file but as an optional
+  // block appended to this step's own saved answer, since that file is what
+  // downstream steps already read as their input. No new mechanism needed
+  // for it to actually reach the next AI.
+  const handoffFilled = [handoffDone, handoffFindings, handoffRemaining, handoffNext].some((v) => v.trim());
+  function buildHandoffBlock(): string {
+    if (!handoffFilled) return "";
+    const lines = ["", "", "---", "## 引き継ぎメモ"];
+    if (handoffDone.trim()) lines.push("", "**完了事項:**", handoffDone.trim());
+    if (handoffFindings.trim()) lines.push("", "**重要な発見:**", handoffFindings.trim());
+    if (handoffRemaining.trim()) lines.push("", "**残タスク:**", handoffRemaining.trim());
+    if (handoffNext.trim()) lines.push("", "**次のAIへの指示:**", handoffNext.trim());
+    return lines.join("\n");
+  }
+
   async function handleSavePaste() {
     const outputFile = step.output_files[0];
     if (!outputFile || !pasteText.trim()) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await saveArtifactContent(projectId, stripProjectPrefix(outputFile, projectId), pasteText);
+      await saveArtifactContent(projectId, stripProjectPrefix(outputFile, projectId), pasteText + buildHandoffBlock());
       setSaved(true);
       setMainOutputSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -572,6 +702,64 @@ export function PromptPane({
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
             />
+
+            {showHandoff ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-borderSoft p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+                    引き継ぎメモ（任意・保存時に回答の末尾へ追記されます）
+                  </span>
+                  <button
+                    onClick={() => setShowHandoff(false)}
+                    className="text-[11.5px] text-muted hover:text-ink underline"
+                  >
+                    閉じる
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted">完了事項</span>
+                    <textarea
+                      className="border border-border rounded-lg px-2.5 py-1.5 bg-white text-[12.5px] min-h-[50px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+                      value={handoffDone}
+                      onChange={(e) => setHandoffDone(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted">重要な発見</span>
+                    <textarea
+                      className="border border-border rounded-lg px-2.5 py-1.5 bg-white text-[12.5px] min-h-[50px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+                      value={handoffFindings}
+                      onChange={(e) => setHandoffFindings(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted">残タスク</span>
+                    <textarea
+                      className="border border-border rounded-lg px-2.5 py-1.5 bg-white text-[12.5px] min-h-[50px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+                      value={handoffRemaining}
+                      onChange={(e) => setHandoffRemaining(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted">次のAIへの指示</span>
+                    <textarea
+                      className="border border-border rounded-lg px-2.5 py-1.5 bg-white text-[12.5px] min-h-[50px] resize-y focus:outline-none focus:ring-2 focus:ring-accent/40"
+                      value={handoffNext}
+                      onChange={(e) => setHandoffNext(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowHandoff(true)}
+                className="self-start px-3.5 py-1.5 rounded-lg border border-dashed border-border text-[12.5px] font-semibold text-muted hover:text-accent hover:border-accent"
+              >
+                ＋ 引き継ぎメモを追加（任意）
+              </button>
+            )}
+
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSavePaste}
@@ -582,7 +770,7 @@ export function PromptPane({
                   <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
                   <path d="M17 21v-8H7v8M7 3v5h8" />
                 </svg>
-                {saving ? "保存中..." : saved ? "保存しました" : "保存する"}
+                {saving ? "保存中..." : saved ? "保存しました" : handoffFilled ? "回答＋引き継ぎメモを保存" : "保存する"}
               </button>
               <button
                 onClick={() => onOpenArtifact(stripProjectPrefix(step.output_files[0], projectId))}
@@ -737,64 +925,86 @@ export function PromptPane({
         )}
 
         {step.output_files.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-xl border border-borderSoft p-3.5">
-            <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
-              他のAIにも同じ内容を聞いて比べる（任意）
-            </span>
-            <span className="text-[12px] text-muted leading-relaxed -mt-1">
-              同じ指示でも、AIによって得意分野や書き方の癖が違うため、返ってくる内容は変わります。ここでの保存はあくまで見比べるための下書きで、このステップの完了には使われません。気に入った回答（または組み合わせ）を「本命欄にコピー」で上の欄に移し、<b>上の「保存する」を押して初めて本採用</b>になります。
-            </span>
-
-            {attempts.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {attempts.map((a, i) => (
-                  <AttemptRow
-                    key={a.output_file}
-                    projectId={projectId}
-                    attempt={a}
-                    aiUrl={aiServices.find((s) => s.name === a.ai_name)?.url ?? null}
-                    onRemove={() => removeAttempt(i)}
-                    onAdopt={(content) => setPasteText(content)}
-                  />
-                ))}
+          showAttemptsSection ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-borderSoft p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+                  他のAIにも同じ内容を聞いて比べる（任意）
+                </span>
+                {attempts.length === 0 && (
+                  <button
+                    onClick={() => setShowAttemptsSection(false)}
+                    className="text-[11.5px] text-muted hover:text-ink underline"
+                  >
+                    閉じる
+                  </button>
+                )}
               </div>
-            )}
+              <span className="text-[12px] text-muted leading-relaxed -mt-1">
+                同じ指示でも、AIによって得意分野や書き方の癖が違うため、返ってくる内容は変わります。ここでの保存はあくまで見比べるための下書きで、このステップの完了には使われません。気に入った回答（または組み合わせ）を「本命欄にコピー」で上の欄に移し、<b>上の「保存する」を押して初めて本採用</b>になります。
+              </span>
 
-            {showAddAttempt ? (
-              <div className="flex items-center gap-2">
-                <select
-                  className="flex-1 border border-border rounded-md px-2.5 py-1.5 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-accent/40"
-                  value={newAttemptAi}
-                  onChange={(e) => setNewAttemptAi(e.target.value)}
-                >
-                  {aiOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
+              {attempts.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {attempts.map((a, i) => (
+                    <AttemptRow
+                      key={a.output_file}
+                      projectId={projectId}
+                      stepId={step.id}
+                      role={step.role}
+                      attempt={a}
+                      aiUrl={aiServices.find((s) => s.name === a.ai_name)?.url ?? null}
+                      prompt={prompt}
+                      onRemove={() => removeAttempt(i)}
+                      onAdopt={(content) => setPasteText(content)}
+                    />
                   ))}
-                </select>
+                </div>
+              )}
+
+              {showAddAttempt ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    className="flex-1 border border-border rounded-md px-2.5 py-1.5 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-accent/40"
+                    value={newAttemptAi}
+                    onChange={(e) => setNewAttemptAi(e.target.value)}
+                  >
+                    {aiOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={confirmAddAttempt}
+                    className="shrink-0 px-3 py-1.5 rounded-md bg-accent text-white text-[12px] font-semibold"
+                  >
+                    追加する
+                  </button>
+                  <button
+                    onClick={() => setShowAddAttempt(false)}
+                    className="shrink-0 px-3 py-1.5 rounded-md border border-border text-[12px] font-semibold"
+                  >
+                    やめる
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={confirmAddAttempt}
-                  className="shrink-0 px-3 py-1.5 rounded-md bg-accent text-white text-[12px] font-semibold"
+                  onClick={startAddAttempt}
+                  className="self-start px-3.5 py-1.5 rounded-lg border border-dashed border-border text-[12.5px] font-semibold text-muted hover:text-accent hover:border-accent"
                 >
-                  追加する
+                  ＋ 別のAIを試す
                 </button>
-                <button
-                  onClick={() => setShowAddAttempt(false)}
-                  className="shrink-0 px-3 py-1.5 rounded-md border border-border text-[12px] font-semibold"
-                >
-                  やめる
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={startAddAttempt}
-                className="self-start px-3.5 py-1.5 rounded-lg border border-dashed border-border text-[12.5px] font-semibold text-muted hover:text-accent hover:border-accent"
-              >
-                ＋ 別のAIを試す
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAttemptsSection(true)}
+              className="self-start px-3.5 py-1.5 rounded-lg border border-dashed border-border text-[12.5px] font-semibold text-muted hover:text-accent hover:border-accent"
+            >
+              ＋ 他のAIにも聞いて比べる（任意）
+            </button>
+          )
         )}
       </div>
 
@@ -804,9 +1014,11 @@ export function PromptPane({
             このステップは完了していますが、次の工程はまだありません。
           </span>
         )}
-        {mainOutputSaved === false && step.status !== "done" && (
+        {!outputReady && step.status !== "done" && (
           <span className="text-[12.5px] text-[#8A3A2A] mr-auto">
-            先に上の「保存する」でAIの回答を保存すると、次に進めます。
+            {command
+              ? "先に「ローカルで実行」を一度実行すると、次に進めます。"
+              : "先に上の「保存する」でAIの回答を保存すると、次に進めます。"}
           </span>
         )}
         {step.status === "done" && !hasNextStep ? (
@@ -819,8 +1031,8 @@ export function PromptPane({
         ) : (
           <button
             onClick={onAdvance}
-            disabled={step.status === "done" || mainOutputSaved === false}
-            title={mainOutputSaved === false ? "先にAIの回答を保存してください" : undefined}
+            disabled={step.status === "done" || !outputReady}
+            title={!outputReady ? "先に実行または保存してください" : undefined}
             className="px-5 py-2.5 rounded-[9px] bg-ink text-white text-[13.5px] font-semibold disabled:opacity-40"
           >
             成果物の回収を完了し、次のステップへ

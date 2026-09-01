@@ -16,8 +16,13 @@ const EXECUTE_TIMEOUT_MS = 10 * 60 * 1000;
 const ROOT = path.resolve(process.cwd());
 const WORKFLOW_PATH = path.join(ROOT, "config", "workflow.json");
 const AI_SERVICES_PATH = path.join(ROOT, "config", "ai_services.json");
+const OLLAMA_CONFIG_PATH = path.join(ROOT, "config", "ollama.json");
 const WORKSPACE_DIR = path.join(ROOT, "workspace");
 const PORT = Number(process.env.PORT ?? 4173);
+// Local model calls can take a while on modest hardware (CPU-only, larger
+// models) — long enough that the default fetch/HTTP timeouts would look
+// like a hang rather than "still thinking".
+const OLLAMA_TIMEOUT_MS = 3 * 60 * 1000;
 
 const app = express();
 app.use(express.json());
@@ -57,6 +62,122 @@ app.put("/api/ai-services", async (req, res) => {
     res.status(500).json({ error: "ai_services.json の書き込みに失敗しました", detail: String(err) });
   }
 });
+
+const DEFAULT_OLLAMA_CONFIG = { baseUrl: "http://localhost:11434", model: "llama3.2" };
+
+app.get("/api/ollama-config", async (_req, res) => {
+  try {
+    const raw = await readFile(OLLAMA_CONFIG_PATH, "utf-8");
+    res.type("application/json").send(raw);
+  } catch {
+    res.json(DEFAULT_OLLAMA_CONFIG);
+  }
+});
+
+app.put("/api/ollama-config", async (req, res) => {
+  try {
+    await writeFile(OLLAMA_CONFIG_PATH, JSON.stringify(req.body, null, 2), "utf-8");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "ollama.json の書き込みに失敗しました", detail: String(err) });
+  }
+});
+
+// Lightweight "is Ollama up, and what models does it have" check — lets
+// the settings screen confirm the connection and list real model names
+// without waiting on an actual (slower) generation call.
+app.get("/api/ollama/status", async (req, res) => {
+  const baseUrl = typeof req.query.baseUrl === "string" && req.query.baseUrl.trim() ? req.query.baseUrl.trim() : DEFAULT_OLLAMA_CONFIG.baseUrl;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/api/tags`, { signal: controller.signal });
+    if (!upstream.ok) {
+      res.json({ connected: false, models: [] });
+      return;
+    }
+    const data = (await upstream.json()) as { models?: { name: string }[] };
+    res.json({ connected: true, models: (data.models ?? []).map((m) => m.name) });
+  } catch {
+    res.json({ connected: false, models: [] });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+// Proxies a single non-streaming generation call to a locally-running
+// Ollama instance. This is the app's only "AI calls AI" path, and it's
+// deliberately scoped to stay inside the app's own no-paid-API principle:
+// Ollama runs entirely on the user's machine with models they downloaded
+// themselves, so this is the same trust level as the existing "ローカルで
+// 実行" Claude Code button — a local process the user already has, called
+// only when they explicitly click a button, never automatically.
+app.post("/api/ollama/generate", async (req, res) => {
+  const prompt = req.body?.prompt;
+  if (typeof prompt !== "string" || !prompt.trim()) {
+    res.status(400).json({ error: "prompt は必須です" });
+    return;
+  }
+  let config = DEFAULT_OLLAMA_CONFIG;
+  try {
+    config = JSON.parse(await readFile(OLLAMA_CONFIG_PATH, "utf-8"));
+  } catch {
+    // no saved config yet — use defaults
+  }
+  const baseUrl = typeof req.body?.baseUrl === "string" && req.body.baseUrl.trim() ? req.body.baseUrl.trim() : config.baseUrl;
+  const model = typeof req.body?.model === "string" && req.body.model.trim() ? req.body.model.trim() : config.model;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, prompt, stream: false }),
+      signal: controller.signal,
+    });
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => "");
+      res.status(502).json({ error: `Ollamaがエラーを返しました（${upstream.status}）`, detail: text });
+      return;
+    }
+    const data = (await upstream.json()) as { response?: string };
+    await logOllamaHistory(req.body, true).catch(() => {});
+    res.json({ text: data.response ?? "" });
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === "AbortError";
+    await logOllamaHistory(req.body, false).catch(() => {});
+    res.status(502).json({
+      error: timedOut
+        ? "Ollamaの応答がタイムアウトしました（3分）"
+        : `Ollamaに接続できませんでした。起動しているか、URL（${baseUrl}）が正しいか確認してください。`,
+      detail: String(err),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+// Piggybacks Ollama generations onto the same per-project execution-history
+// log Claude Code runs use, so a step's "生成する" attempts show up in the
+// same success-rate accounting instead of vanishing with no record. Only
+// logs when the client passed a projectId (i.e. it was called from a real
+// step, not some other future caller of this endpoint).
+async function logOllamaHistory(body: unknown, ok: boolean): Promise<void> {
+  const b = body as { projectId?: unknown; stepId?: unknown; role?: unknown };
+  if (typeof b.projectId !== "string") return;
+  const dir = projectDir(b.projectId);
+  if (!dir) return;
+  await appendHistory(dir, {
+    id: `hist_${Date.now()}_${Math.round(Math.random() * 1e6)}`,
+    stepId: typeof b.stepId === "string" ? b.stepId : null,
+    role: typeof b.role === "string" ? b.role : null,
+    command: "ollama generate",
+    exitCode: ok ? 0 : 1,
+    timedOut: false,
+    finishedAt: new Date().toISOString(),
+  });
+}
 
 // Each project gets its own workspace/<projectId>/ folder so unrelated
 // projects never share or collide over files. projectId is user-supplied

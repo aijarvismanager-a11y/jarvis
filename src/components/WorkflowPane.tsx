@@ -13,9 +13,10 @@ type Props = {
   onMove: (index: number, dir: -1 | 1) => void;
   onAdd: () => void;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
 };
 
-export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, onDelete }: Props) {
+export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, onDelete, onDuplicate }: Props) {
   // Colors the rail up to the last completed step so the list reads as a
   // single-glance progress line, not just a stack of independent cards.
   const doneCount = steps.filter((s) => s.status === "done").length;
@@ -91,7 +92,18 @@ export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, o
                         <span className={`text-[13px] leading-tight ${selected ? "font-bold" : "font-medium"}`}>
                           {step.role}
                         </span>
-                        <span className="text-[11.5px] text-muted">{step.ai_name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11.5px] text-muted">{step.ai_name}</span>
+                          {(step.attempts?.length ?? 0) > 0 && (
+                            <span
+                              className="text-[10px] font-semibold px-1.5 rounded-full"
+                              style={{ background: "#F1EFEA", color: "#5A564C" }}
+                              title={`他のAI ${step.attempts!.length}件を試行中`}
+                            >
+                              他AI {step.attempts!.length}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -126,18 +138,33 @@ export function WorkflowPane({ steps, selectedStepId, onSelect, onMove, onAdd, o
                     >
                       {meta.label}
                     </span>
-                    <button
-                      className="p-0.5 opacity-40 hover:opacity-100"
-                      title="ステップを削除"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(step.id);
-                      }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A3A2A" strokeWidth="2">
-                        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        className="p-0.5 opacity-40 hover:opacity-100"
+                        title="ステップを複製"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDuplicate(step.id);
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B2A26" strokeWidth="2">
+                          <rect x="8" y="8" width="12" height="12" rx="2" />
+                          <path d="M4 16V6a2 2 0 012-2h10" />
+                        </svg>
+                      </button>
+                      <button
+                        className="p-0.5 opacity-40 hover:opacity-100"
+                        title="ステップを削除"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(step.id);
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A3A2A" strokeWidth="2">
+                          <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

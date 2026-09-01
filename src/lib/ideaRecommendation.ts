@@ -1,4 +1,4 @@
-import { matchesKeyword } from "./tokenize";
+import { matchKeywordRules, type KeywordRule } from "./keywordRules";
 
 export type Recommendation = { service: string; reason: string };
 
@@ -8,7 +8,7 @@ export type Recommendation = { service: string; reason: string };
 // so more specific rules are listed before broader ones they could
 // otherwise be shadowed by (e.g. "文字入り画像" before the general
 // "画像" rule, since both mention images).
-const RULES: { keywords: string[]; service: string; reason: string }[] = [
+const RULES: KeywordRule<Recommendation>[] = [
   {
     keywords: ["文字入り", "テキスト入り", "文字が読める画像", "ロゴの文字"],
     service: "Ideogram（画像生成）",
@@ -110,6 +110,5 @@ const RULES: { keywords: string[]; service: string; reason: string }[] = [
 // null, so the caller can leave the choice to the user rather than
 // asserting a pick the text gave no reason for.
 export function recommend(text: string): Recommendation | null {
-  const hit = RULES.find((r) => r.keywords.some((k) => matchesKeyword(text, k)));
-  return hit ? { service: hit.service, reason: hit.reason } : null;
+  return matchKeywordRules(text, RULES);
 }

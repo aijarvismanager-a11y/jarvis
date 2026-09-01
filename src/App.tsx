@@ -6,10 +6,13 @@ import {
   fetchAiServices,
   fetchArtifactContent,
   fetchArtifactList,
+  fetchOllamaConfig,
   fetchWorkflow,
   saveAiServices,
+  saveOllamaConfig,
   saveWorkflow,
   type ArtifactFile,
+  type OllamaConfig,
 } from "./lib/api";
 import { stripProjectPrefix } from "./lib/paths";
 import { WorkflowPane } from "./components/WorkflowPane";
@@ -24,6 +27,9 @@ import { IdeaIntakeModal } from "./components/IdeaIntakeModal";
 import { ImageGenModal } from "./components/ImageGenModal";
 import { buildClaudeCommand } from "./lib/claudeCommand";
 import { exportTemplate, parseWorkflowTemplate, stepsFromTemplate } from "./lib/workflowTemplate";
+import { NewProjectModal } from "./components/NewProjectModal";
+import type { BuiltinTemplate } from "./lib/builtinTemplates";
+import { applyRenameMap, computeRenameMap } from "./lib/renameAiReferences";
 import { IMAGE_SERVICE_IDS } from "./lib/imageRecommendation";
 
 // Separate window name/slot from the step-flow AI popup (see PromptPane's
@@ -61,6 +67,7 @@ export default function App() {
 
   const [error, setError] = useState<string | null>(null);
   const [showIdeaIntake, setShowIdeaIntake] = useState(false);
+  const [showNewProjectPicker, setShowNewProjectPicker] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
   const [addStepSeed, setAddStepSeed] = useState<{ role: string; aiName: string; promptTemplate: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -71,6 +78,7 @@ export default function App() {
   // handleAddStep uses this to build the actual Project and clears it.
   const [newProjectPending, setNewProjectPending] = useState<{ id: string } | null>(null);
   const [aiServices, setAiServices] = useState<AiServiceList>([]);
+  const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({ baseUrl: "http://localhost:11434", model: "llama3.2" });
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
 
@@ -107,9 +115,18 @@ export default function App() {
     }
   }, []);
 
+  const loadOllamaConfig = useCallback(async () => {
+    try {
+      setOllamaConfig(await fetchOllamaConfig());
+    } catch {
+      // keep the default — ollama.json just doesn't exist yet, not an error worth surfacing
+    }
+  }, []);
+
   useEffect(() => {
     loadWorkflow();
     loadAiServices();
+    loadOllamaConfig();
     const disconnect = connectFsWatch(() => {
       loadWorkflow();
       loadAiServices();
@@ -119,7 +136,7 @@ export default function App() {
       });
     });
     return disconnect;
-  }, [loadWorkflow, loadAiServices, loadArtifacts]);
+  }, [loadWorkflow, loadAiServices, loadOllamaConfig, loadArtifacts]);
 
   // switching projects resets the step/artifact selection and reloads that
   // project's own artifact list (each project has its own workspace/<id>/)
@@ -288,6 +305,28 @@ export default function App() {
     }));
   }
 
+  // Copies a step's role/AI/prompt/command/files as a starting point for a
+  // similar one, right after the original — saves re-filling AddStepModal
+  // from scratch when the new step is "basically this, slightly different".
+  function handleDuplicateStep(id: string) {
+    updateCurrentProject((project) => {
+      const idx = project.steps.findIndex((s) => s.id === id);
+      if (idx === -1) return project;
+      const original = project.steps[idx];
+      const copy: WorkflowStep = {
+        ...original,
+        id: `step_${Date.now()}`,
+        status: "pending",
+        attempts: null,
+      };
+      const steps = [...project.steps.slice(0, idx + 1), copy, ...project.steps.slice(idx + 1)];
+      steps.forEach((s, i) => {
+        s.index = i + 1;
+      });
+      return { ...project, steps };
+    });
+  }
+
   function handleConfirmDeleteStep() {
     if (!pendingDeleteId) return;
     const id = pendingDeleteId;
@@ -318,9 +357,20 @@ export default function App() {
   }
 
   function handleSaveServices(services: AiServiceList) {
+    const renameMap = computeRenameMap(aiServices, services);
     setAiServices(services);
     saveAiServices(services).catch((e) => setError(String(e)));
+    if (renameMap.size > 0 && workflowFile) {
+      const next = applyRenameMap(workflowFile, renameMap);
+      setWorkflowFile(next);
+      saveWorkflow(next).catch((e) => setError(String(e)));
+    }
     setShowSettings(false);
+  }
+
+  function handleSaveOllamaConfig(config: OllamaConfig) {
+    setOllamaConfig(config);
+    saveOllamaConfig(config).catch((e) => setError(String(e)));
   }
 
   // Lets step-creation forms register (or update) an AI service's link
@@ -354,8 +404,27 @@ export default function App() {
   // handleAddStep. The name can be changed anytime by double-clicking the
   // project tab (see ProjectTabs' onRename).
   function handleStartNewProject() {
+    setShowNewProjectPicker(true);
+  }
+
+  function handleFreeformNewProject() {
+    setShowNewProjectPicker(false);
     setNewProjectPending({ id: `project_${Date.now()}` });
     setShowIdeaIntake(true);
+  }
+
+  function handleSelectBuiltinTemplate(builtin: BuiltinTemplate) {
+    const id = `project_${Date.now()}`;
+    const steps = stepsFromTemplate(builtin.template, id);
+    const project: Project = { id, name: builtin.template.name, steps };
+    setWorkflowFile((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, projects: [...prev.projects, project], current_project_id: id };
+      saveWorkflow(next).catch((e) => setError(String(e)));
+      return next;
+    });
+    setCurrentProjectId(id);
+    setShowNewProjectPicker(false);
   }
 
   function handleRenameProject(id: string, name: string) {
@@ -491,6 +560,7 @@ export default function App() {
               onMove={handleMoveStep}
               onAdd={() => setShowIdeaIntake(true)}
               onDelete={setPendingDeleteId}
+              onDuplicate={handleDuplicateStep}
             />
             {selectedStep && currentProjectId && (
               <PromptPane
@@ -501,6 +571,7 @@ export default function App() {
                 command={command}
                 serviceUrl={serviceUrl}
                 aiServices={aiServices}
+                ollamaConfig={ollamaConfig}
                 hasNextStep={hasNextStep}
                 onAdvance={handleAdvance}
                 onSaveTemplate={handleSaveTemplate}
@@ -522,6 +593,14 @@ export default function App() {
           onSelect={setSelectedArtifact}
         />
       </div>
+
+      {showNewProjectPicker && (
+        <NewProjectModal
+          onCancel={() => setShowNewProjectPicker(false)}
+          onSelectTemplate={handleSelectBuiltinTemplate}
+          onFreeform={handleFreeformNewProject}
+        />
+      )}
 
       {showIdeaIntake && (newProjectPending?.id ?? currentProjectId) && (
         <IdeaIntakeModal
@@ -556,7 +635,13 @@ export default function App() {
       )}
 
       {showSettings && (
-        <SettingsModal services={aiServices} onCancel={() => setShowSettings(false)} onSave={handleSaveServices} />
+        <SettingsModal
+          services={aiServices}
+          ollamaConfig={ollamaConfig}
+          onCancel={() => setShowSettings(false)}
+          onSave={handleSaveServices}
+          onSaveOllamaConfig={handleSaveOllamaConfig}
+        />
       )}
 
       {showImageGen && (
