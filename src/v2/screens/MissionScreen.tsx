@@ -1,0 +1,227 @@
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import { aiNameOf, type Ctx } from "../context";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, formatTime, progressOf, roleLabel } from "../labels";
+import { Badge, Button, Card, Details, useAction } from "../ui";
+import type { Handoff, MissionView, Task } from "../types";
+
+function StepMark({ status }: { status: Task["status"] }) {
+  if (status === "completed") return <span className="text-status-done">✓</span>;
+  if (status === "failed" || status === "blocked") return <span className="text-[#9B2C2C]">✕</span>;
+  if (status === "cancelled") return <span className="text-muted">–</span>;
+  if (status === "running" || status === "validation" || status === "waiting") return <span className="text-accent">●</span>;
+  return <span className="text-muted">○</span>;
+}
+
+function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
+  const [text, setText] = useState("");
+  const [copied, setCopied] = useState(false);
+  const { busy, run } = useAction(ctx.setError);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(handoff.prompt);
+      setCopied(true);
+    } catch {
+      ctx.setError("コピーできませんでした。「指示文を見る」を開いて手動でコピーしてください");
+    }
+  };
+  return (
+    <Card className="border-accent/40">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge tone="warn">あなたの操作が必要</Badge>
+        <span className="text-[13px] font-semibold">{handoff.aiName} に依頼してください</span>
+      </div>
+      <ol className="mb-3 list-decimal space-y-1 pl-5 text-[12.5px] text-[#4a473f]">
+        <li>『指示文をコピー』ボタンを押す</li>
+        <li>{handoff.url ? <>『{handoff.aiName}を開く』リンクから開き、貼り付けて送信する</> : <>{handoff.aiName} を開いて貼り付けて送信する</>}</li>
+        <li>返ってきた回答を下の欄に貼り付けて『回答を送る』ボタンを押す</li>
+      </ol>
+      {handoff.note && <p className="mb-2 text-[12px] text-muted">{handoff.note}</p>}
+      <div className="mb-2 flex flex-wrap gap-2">
+        <Button variant="ghost" onClick={copy}>{copied ? "コピーしました" : "指示文をコピー"}</Button>
+        {handoff.url && (
+          <a href={handoff.url} target="_blank" rel="noreferrer noopener" className="rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar">
+            {handoff.aiName}を開く
+          </a>
+        )}
+      </div>
+      <Details summary="指示文を見る">
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{handoff.prompt}</pre>
+      </Details>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="AIの回答をここに貼り付け" className="mt-3 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button disabled={busy || !text.trim()} onClick={() => run(async () => { await api.submitHandoff(handoff.id, text); setText(""); ctx.refresh(); })}>回答を送る</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.skipHandoff(handoff.id); ctx.refresh(); })}>Web AIに任せず Claude Code で実行</Button>
+      </div>
+    </Card>
+  );
+}
+
+function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
+  const [feedback, setFeedback] = useState("");
+  const { busy, run } = useAction(ctx.setError);
+  const { mission, proposal } = view;
+  if (!proposal) return <Card title="計画">計画を作成中です…</Card>;
+  const act = (action: "approve" | "reject") =>
+    run(async () => {
+      if (action === "approve") {
+        await api.missionAction(mission.projectId, mission.id, "approve");
+        await api.missionAction(mission.projectId, mission.id, "run");
+      } else await api.missionAction(mission.projectId, mission.id, "reject", feedback);
+      setFeedback("");
+      ctx.refresh();
+    });
+  return (
+    <Card title={proposal.kind === "replan" ? "再計画の提案" : "計画の提案"}>
+      {proposal.draft.summary && <p className="mb-3 text-[13px]">{proposal.draft.summary}</p>}
+      <ol className="mb-3 space-y-1.5">
+        {proposal.draft.tasks.map((t, i) => (
+          <li key={t.key} className="text-[13px]">
+            <span className="mr-2 text-muted">{i + 1}.</span>
+            <span className="font-semibold">{roleLabel(t.role)}</span>
+            <span className="ml-2 text-muted">{t.objective}</span>
+          </li>
+        ))}
+      </ol>
+      <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} placeholder="直してほしい点があれば入力(例: テストを厚く)" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
+        <Button variant="ghost" disabled={busy || !feedback.trim()} onClick={() => act("reject")}>修正して再提案</Button>
+      </div>
+    </Card>
+  );
+}
+
+function Intake({ ctx, onStarted }: { ctx: Ctx; onStarted: () => void }) {
+  const [goal, setGoal] = useState("");
+  const [constraints, setConstraints] = useState("");
+  const [tech, setTech] = useState("");
+  const { busy, run } = useAction(ctx.setError);
+  const lines = (s: string) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const start = () =>
+    run(async () => {
+      const project = await ctx.ensureProject(deriveProjectName(goal));
+      await api.createMission(project.id, goal.trim(), lines(constraints), tech.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean));
+      setGoal("");
+      onStarted();
+    });
+  return (
+    <Card>
+      <label htmlFor="goal" className="mb-2 block font-serif text-[18px] font-semibold">何を作りますか?</label>
+      <textarea id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} rows={3} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
+      <div className="mt-3">
+        <Details summary="詳細設定(任意)">
+          <label className="mb-1 block text-[12px] text-muted">守ってほしい条件(1行に1つ)</label>
+          <textarea value={constraints} onChange={(e) => setConstraints(e.target.value)} rows={2} className="mb-2 w-full rounded-lg border border-border bg-panel p-2 text-[13px]" />
+          <label className="mb-1 block text-[12px] text-muted">使いたい技術(カンマ区切り)</label>
+          <input value={tech} onChange={(e) => setTech(e.target.value)} className="w-full rounded-lg border border-border bg-panel p-2 text-[13px]" />
+        </Details>
+      </div>
+      <div className="mt-3">
+        <Button disabled={busy || !goal.trim()} onClick={start}>{busy ? "計画を作成中…(数十秒かかります)" : "開発を開始"}</Button>
+      </div>
+    </Card>
+  );
+}
+
+const FINISHED = ["completed", "failed", "cancelled"];
+
+export function MissionScreen({ ctx }: { ctx: Ctx }) {
+  const { mission, overview, services, handoffs, project } = ctx;
+  const [view, setView] = useState<MissionView | null>(null);
+  const { busy, run } = useAction(ctx.setError);
+  const [starting, setStarting] = useState(false);
+
+  // The proposal is not part of /overview, so fetch the full view while a plan awaits approval.
+  useEffect(() => {
+    if (!mission || mission.status !== "planning") return void setView(null);
+    let cancelled = false;
+    api.missionView(mission.projectId, mission.id).then((v) => !cancelled && setView(v)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mission?.id, mission?.status, mission?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showIntake = starting || !mission || FINISHED.includes(mission.status);
+  const tasks = mission ? overview.tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) : [];
+  const { done, total, percent } = progressOf(tasks);
+  const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
+  const myHandoffs = handoffs.filter((h) => h.projectId === project?.id);
+  const recent = [...overview.artifacts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
+  const act = (action: "pause" | "cancel" | "resume" | "run" | "replan") =>
+    run(async () => {
+      if (!mission) return;
+      await api.missionAction(mission.projectId, mission.id, action);
+      ctx.refresh();
+    });
+
+  return (
+    <div className="space-y-4">
+      {mission && !starting && (
+        <Card>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
+            <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
+          </div>
+          <p className="font-serif text-[18px] font-semibold">{mission.goal}</p>
+          {total > 0 && (
+            <div className="mt-3">
+              <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
+              </div>
+              <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
+            </div>
+          )}
+          {doing && (
+            <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</p>
+          )}
+          {tasks.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {tasks.map((t) => (
+                <li key={t.id} className={`flex items-center gap-2 text-[13px] ${t.status === "pending" || t.status === "cancelled" ? "text-muted" : ""}`}>
+                  <StepMark status={t.status} />
+                  <span>{roleLabel(t.role)}</span>
+                  {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
+                  {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {tasks.length === 0 && mission.status === "draft" && (
+            <p className="mt-3 text-[12.5px] text-muted">このミッションにはまだ計画がありません。「中止」してから新しいミッションを始めてください。</p>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {mission.status === "running" && <Button variant="ghost" disabled={busy} onClick={() => act("pause")}>一時停止</Button>}
+            {mission.status === "paused" && <Button disabled={busy} onClick={() => act("resume")}>再開</Button>}
+            {mission.status === "failed" && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
+            {["draft", "planning", "running", "paused"].includes(mission.status) && <Button variant="danger" disabled={busy} onClick={() => act("cancel")}>中止</Button>}
+            {FINISHED.includes(mission.status) && <Button variant="ghost" onClick={() => setStarting(true)}>新しいミッション</Button>}
+          </div>
+        </Card>
+      )}
+
+      {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
+      {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
+
+      {showIntake && (
+        <>
+          {starting && <div><Button variant="ghost" onClick={() => setStarting(false)}>← 現在のミッションに戻る</Button></div>}
+          <Intake ctx={ctx} onStarted={() => { setStarting(false); ctx.refresh(); }} />
+        </>
+      )}
+
+      {recent.length > 0 && (
+        <Card title="最近の成果物">
+          <ul className="space-y-1">
+            {recent.map((a) => (
+              <li key={a.id}>
+                <button onClick={() => ctx.openArtifact(a)} className="text-[13px] text-accent hover:underline">{a.path}</button>
+                <span className="ml-2 text-[11px] text-muted">{formatTime(a.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  );
+}

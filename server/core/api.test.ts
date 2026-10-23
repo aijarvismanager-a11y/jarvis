@@ -1,6 +1,9 @@
 import express from "express";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type Db } from "./db.ts";
 import { Store } from "./store.ts";
@@ -13,6 +16,7 @@ let db: Db;
 let store: Store;
 let server: http.Server;
 let base: string;
+let projectsRoot = "unused";
 
 const planner: Planner = {
   name: "scripted",
@@ -21,7 +25,7 @@ const planner: Planner = {
 
 async function boot(canExecute: boolean) {
   db = openDatabase(":memory:");
-  store = new Store(db, "unused");
+  store = new Store(db, projectsRoot);
   store.createProject({ id: "p1", name: "p" });
   const engine = new MissionEngine(store, { planner, executor: { name: "ok", execute: async () => ({ ok: true }) } });
   const app = express();
@@ -99,5 +103,45 @@ describe("orchestrator API with an executor", () => {
       await new Promise((r) => setTimeout(r, 10));
     }
     throw new Error("mission did not complete");
+  });
+});
+
+describe("orchestrator API: projects and artifacts (UI)", () => {
+  beforeEach(() => {
+    projectsRoot = mkdtempSync(path.join(os.tmpdir(), "api-proj-"));
+    return boot(false);
+  });
+  afterEach(() => {
+    rmSync(projectsRoot, { recursive: true, force: true });
+    projectsRoot = "unused";
+  });
+
+  it("lists and creates projects (create needs the token)", async () => {
+    expect((await call("/projects", "POST", { name: "新規" }, null)).status).toBe(403);
+    expect((await call("/projects", "POST", { name: "  " })).status).toBe(400);
+    const created = (await (await call("/projects", "POST", { name: "新規" })).json()) as { project: { id: string; name: string } };
+    expect(created.project.name).toBe("新規");
+    const list = (await (await call("/projects")).json()) as { projects: { id: string }[] };
+    expect(list.projects.map((p) => p.id)).toContain(created.project.id);
+  });
+
+  it("overview bundles missions, tasks, artifacts and runs", async () => {
+    await call("/projects/p1/missions", "POST", { goal: "g" });
+    const o = (await (await call("/projects/p1/overview")).json()) as Record<string, unknown[]>;
+    expect(o.missions).toHaveLength(1);
+    expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "tasks"]);
+  });
+
+  it("serves only registered artifacts, and never outside the project", async () => {
+    mkdirSync(path.join(projectsRoot, "p1", "docs"), { recursive: true });
+    writeFileSync(path.join(projectsRoot, "p1", "docs", "a.md"), "# hello");
+    writeFileSync(path.join(projectsRoot, "secret.txt"), "nope");
+    store.createArtifact({ projectId: "p1", path: "docs/a.md", createdBy: "test" });
+    store.createArtifact({ projectId: "p1", path: "../secret.txt", createdBy: "test" });
+    const ok = await call("/projects/p1/artifact-content?path=" + encodeURIComponent("docs/a.md"));
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { content: string }).content).toBe("# hello");
+    expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("docs/unregistered.md"))).status).toBe(404);
+    expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("../secret.txt"))).status).toBe(404);
   });
 });

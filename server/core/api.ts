@@ -2,7 +2,8 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
-import { PROJECT_ID_RE } from "./paths.ts";
+import { readFile, stat } from "node:fs/promises";
+import { PROJECT_ID_RE, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
@@ -34,6 +35,7 @@ const createSchema = z.object({
   constraints: z.array(z.string().max(500)).max(50).default([]),
   technologyPreferences: z.array(z.string().max(200)).max(50).default([]),
 });
+const MAX_ARTIFACT_BYTES = 1_000_000;
 const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default("") });
 
 export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
@@ -64,6 +66,42 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     mission: store.getMission(projectId, missionId),
     tasks: store.listTasks(projectId).filter((t) => t.missionId === missionId),
     proposal: engine.getProposal(missionId),
+  });
+
+  // ---- Projects / artifacts (Phase 7 UI) ---------------------------------------
+  router.get("/projects", (_req, res) => {
+    res.json({ projects: store.listProjects() });
+  });
+  router.post(
+    "/projects",
+    guarded((req, res) => {
+      const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(req.body ?? {});
+      res.status(201).json({ project: store.createProject({ name }) });
+    }),
+  );
+  router.get("/projects/:projectId/overview", (req, res) => {
+    const projectId = String(req.params.projectId);
+    res.json({
+      missions: store.listMissions(projectId),
+      tasks: store.listTasks(projectId),
+      artifacts: store.listArtifacts(projectId),
+      aiRuns: store.listAiRuns(projectId),
+    });
+  });
+  // Body of one registered artifact (text only, capped). Only paths the DB knows about can be read.
+  router.get("/projects/:projectId/artifact-content", async (req, res) => {
+    const projectId = String(req.params.projectId);
+    const relPath = typeof req.query.path === "string" ? req.query.path : "";
+    if (!store.listArtifacts(projectId).some((a) => a.path === relPath)) return void res.status(404).json({ error: "成果物が見つかりません" });
+    try {
+      const file = resolveInProject(store.projectsRoot, projectId, relPath);
+      const info = await stat(file);
+      if (!info.isFile()) throw new Error("ファイルではありません");
+      if (info.size > MAX_ARTIFACT_BYTES) return void res.status(413).json({ error: "ファイルが大きすぎて表示できません" });
+      res.json({ path: relPath, content: await readFile(file, "utf-8") });
+    } catch (err) {
+      res.status(404).json({ error: err instanceof Error ? err.message : "ファイルを読めません" });
+    }
   });
 
   router.get("/projects/:projectId/missions", (req, res) => {

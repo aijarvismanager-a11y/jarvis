@@ -1,0 +1,78 @@
+// Shapes returned by /api/v2 (mirrors server/core/store.ts; kept separate so the UI never imports server code).
+
+export type MissionStatus = "draft" | "planning" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type TaskStatus = "pending" | "ready" | "running" | "waiting" | "validation" | "completed" | "failed" | "blocked" | "cancelled" | "paused";
+
+export type Project = { id: string; name: string; status: "active" | "archived"; createdAt: string; updatedAt: string };
+export type Mission = {
+  id: string;
+  projectId: string;
+  goal: string;
+  constraints: string[];
+  technologyPreferences: string[];
+  budgetPolicy: "free_only" | "allow_paid";
+  status: MissionStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+export type Task = {
+  id: string;
+  missionId: string;
+  role: string;
+  objective: string;
+  expectedOutputs: string[];
+  selectedAi: string | null;
+  automationLevel: number;
+  status: TaskStatus;
+  retryCount: number;
+  validation: unknown;
+  position: number;
+  dependsOn: string[];
+};
+export type Artifact = {
+  id: string;
+  taskId: string | null;
+  path: string;
+  version: number;
+  createdBy: string;
+  createdAt: string;
+  sourceAi: string | null;
+  sourceUrl: string | null;
+  validationStatus: string;
+};
+export type AiRun = { id: string; task_id: string | null; ai_id: string | null; executor: string; automation_level: number; status: string; started_at: string; finished_at: string | null; summary: string | null };
+export type AiService = {
+  id: string;
+  name: string;
+  url: string | null;
+  freeStatus: string;
+  automationLevel: number;
+  accessMode: string;
+  status: string;
+  lastVerifiedAt: string | null;
+  capabilities: string[];
+  requiresApiKey: boolean;
+  limitations: string | null;
+};
+export type PlanDraft = {
+  summary: string;
+  tasks: { key: string; role: string; objective: string; expectedOutputs: string[]; dependsOn: string[] }[];
+};
+export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
+export type MissionView = { mission: Mission; tasks: Task[]; proposal: Proposal | null };
+export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[] };
+export type Handoff = {
+  id: string;
+  projectId: string;
+  taskId: string;
+  aiId: string;
+  aiName: string;
+  url: string | null;
+  level: 1 | 2;
+  note: string | null;
+  prompt: string;
+  status: "pending" | "submitted" | "skipped" | "cancelled";
+  createdAt: string;
+};
+export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[] };
+export type StoredEvent = { id: number; type: string; taskId: string | null; payload: unknown; createdAt: string };
