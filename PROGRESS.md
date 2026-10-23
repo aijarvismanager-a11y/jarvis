@@ -846,3 +846,26 @@ Phase 4 — AI Registry / Broker。その前に、使い捨てプロジェクト
 
 ### 次にやること
 Phase 5 — AI Discovery(必要時のみ発見、無料条件判定、`free_status` / `last_verified_at` 保存)。
+
+
+---
+
+## 2026-10-23(9回目): Phase 5 — AI Discovery
+
+### 完了(済)
+- `server/core/aiDiscovery.ts` On-Demand方式(§5)。①Registryに必要能力を満たす利用可能なAIがあれば**何も探さず**それを返す(`force`で上書き可) ②無ければ `DiscoverySource` から候補取得(同梱カタログ `BUNDLED_CATALOG`、差し替え/追加可能。常時クロールなし) ③登録済み(id/ホスト一致)を除外 ④候補ごとにURL到達性と公開料金ページの無料条件を確認 ⑤合格した上位3件(候補A/B/C)を返し、`save:true` のときだけRegistryに保存
+- 無料条件判定 `judgeFreeStatus`(§7): ページ文面から free_tier / trial / paid / unknown。**「free」とは断定しない**(上限の有無は公開ページから分からないため free_tier 止まり)。読めない・曖昧なページは `unknown`。APIキー/従量課金が主体なら `paid`+`requiresApiKey`
+- 不合格理由を候補ごとに返す(到達不可・能力不足・APIキー必須(Cost Guard)・無料条件未確認・言語/自動化レベル不一致)。`free_required`(既定true)では無料確認できない候補は保存しない。APIキー必須は `freeRequired:false` でも通さない
+- 保存内容: adapter_type=`manual`/Level 1(Brokerは推薦できるが実行基盤は自動実行しない)、free_status、free_limit(根拠の抜粋)、`last_verified_at`、limitations、decisions に仮定として記録。品質/信頼性スコアは未設定(中立値)
+- API: `POST /api/v2/ai-discovery`(トークン必須、Zod検証、未接続は501)。`server/index.ts` に接続
+- テスト +12(`phase5.test.ts`)。全体179件合格、`tsc -b` クリーン、oxlint警告0
+
+### 未検証・既知の問題・仮定
+- **実ネットワークでの探索は未実行**(テストはfetchのフェイクのみ)。同梱カタログの料金ページURL・能力スコアは私の仮定で、実在の料金ページ文面に対する判定精度は未確認
+- 無料条件の判定は単純なキーワード法。誤判定しうるため、結果は根拠の抜粋つきで提示し、`unknown`/不合格に倒す設計
+- Web検索エンジン由来の候補探索(検索APIはキー/課金が絡む)は未実装。`DiscoverySource` を足せば対応可能
+- Brokerが必要能力の欠落時に自動でDiscoveryを呼ぶ配線は未実装(現状はAPI手動呼び出し)。ログイン状態・UI可否は引き続き未確認(Phase 6)
+- 未コミット(指示待ち)
+
+### 次にやること
+Phase 6 — Web AI 自動化(Level 1 → 2 → 3)。

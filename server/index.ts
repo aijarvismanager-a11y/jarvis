@@ -17,6 +17,7 @@ import { ClaudeCodePlanner } from "./core/planner.ts";
 import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
+import { AiDiscovery } from "./core/aiDiscovery.ts";
 import { seedRegistryProfiles } from "./core/aiRegistry.ts";
 
 // Real "implement this" tasks routinely take longer than a couple minutes
@@ -99,7 +100,7 @@ const engine = new MissionEngine(coreStore, {
 });
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches, healthChecker: new AiHealthChecker(coreStore), executableAdapters: [...executor.adapterTypes] }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: [...executor.adapterTypes] }),
 );
 
 app.get("/api/session-token", (_req, res) => {

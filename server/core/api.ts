@@ -5,6 +5,7 @@ import type { Store } from "./store.ts";
 import { PROJECT_ID_RE } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
+import type { AiDiscovery } from "./aiDiscovery.ts";
 
 // HTTP surface for the new orchestrator (mounted under /api/v2). Reads are open
 // to the (already loopback/Origin-checked) app; every state change needs the
@@ -18,6 +19,8 @@ export type OrchestratorApiDeps = {
   tokenMatches: (candidate: unknown) => boolean;
   /** Enables POST /ai-services/health-check; without it that endpoint answers 501. */
   healthChecker?: AiHealthChecker;
+  /** Enables POST /ai-discovery; without it that endpoint answers 501. */
+  discovery?: AiDiscovery;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. */
   executableAdapters?: string[];
 };
@@ -79,6 +82,24 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!deps.healthChecker) return void res.status(501).json({ error: "ヘルスチェックが接続されていません" });
       const { ids } = z.object({ ids: z.array(z.string().max(100)).max(100).optional() }).parse(req.body ?? {});
       res.json({ results: await deps.healthChecker.checkAll(ids), services: store.listAiServices() });
+    }),
+  );
+  // On-demand discovery (Phase 5): no-op when the registry already covers the request.
+  router.post(
+    "/ai-discovery",
+    guarded(async (req, res) => {
+      if (!deps.discovery) return void res.status(501).json({ error: "AI Discoveryが接続されていません" });
+      const body = z
+        .object({
+          requiredCapabilities: z.array(z.string().trim().min(1).max(50)).min(1).max(10),
+          language: z.string().trim().max(10).optional(),
+          freeRequired: z.boolean().default(true),
+          automationRequired: z.number().int().min(1).max(3).optional(),
+          force: z.boolean().default(false),
+          save: z.boolean().default(false),
+        })
+        .parse(req.body ?? {});
+      res.json(await deps.discovery.discover(body));
     }),
   );
   // Dry run of the Broker: which AI would be chosen for a role, and why. Changes nothing.
