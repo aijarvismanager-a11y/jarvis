@@ -46,6 +46,7 @@ export const api = {
 
   handoffs: () => request<{ handoffs: Handoff[] }>("/web-handoffs?status=pending").then((r) => r.handoffs),
   submitHandoff: (id: string, text: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/result`, "POST", { text }),
+  reassignHandoff: (id: string, aiId: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/reassign`, "POST", { aiId }),
   skipHandoff: (id: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/skip`, "POST", {}),
 
   aiServices: () => request<{ services: AiService[] }>("/ai-services").then((r) => r.services),

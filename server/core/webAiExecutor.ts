@@ -7,7 +7,7 @@ import { isWriteTask } from "./scheduler.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { transitionTask } from "./taskStateMachine.ts";
 import { declaredPaths } from "./taskValidator.ts";
-import type { WebHandoffHub } from "./webHandoff.ts";
+import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { getWebAiSettings, resolveSiteProfile } from "./webAiSites.ts";
 
 // WebAiExecutor (spec §10, Phase 6): runs a Task on a web AI.
@@ -88,7 +88,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export class WebAiExecutor implements TaskExecutor {
   readonly name = "web-ai";
   /** Registry adapter types this executor can run: every web AI starts as `manual` (Level 1). */
-  readonly adapterTypes = ["manual", "browser"] as const;
+  readonly adapterTypes = WEB_ADAPTER_TYPES;
 
   constructor(
     private readonly store: Store,
@@ -149,6 +149,11 @@ export class WebAiExecutor implements TaskExecutor {
       const waited = await this.waitForUser({ task, svc, prompt, level: level === 2 ? 2 : 1, note, page, ctx });
       await page?.close().catch(() => {});
       if ("result" in waited) return waited.result;
+      if ("reassignTo" in waited) {
+        this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_REASSIGNED", payload: { from: svc.id, to: waited.reassignTo } });
+        this.store.setTaskSelectedAi(task.projectId, task.id, waited.reassignTo);
+        return this.execute(this.store.getTask(task.projectId, task.id) ?? task, ctx);
+      }
       text = waited.text;
       usedLevel = level === 2 ? 2 : 1;
     }
@@ -165,7 +170,7 @@ export class WebAiExecutor implements TaskExecutor {
     note: string | null;
     page: WebChatPage | null;
     ctx: { mission: Mission; signal: AbortSignal };
-  }): Promise<{ text: string } | { result: WebExecutionResult }> {
+  }): Promise<{ text: string } | { result: WebExecutionResult } | { reassignTo: string }> {
     const { task, svc, ctx } = input;
     const { projectId } = task;
     const handoff = this.hub.request({ projectId, taskId: task.id, aiId: svc.id, aiName: svc.name, url: svc.url, level: input.level, prompt: input.prompt, note: input.note });
@@ -191,6 +196,7 @@ export class WebAiExecutor implements TaskExecutor {
     try {
       const done = await this.hub.wait(handoff.id, signal);
       transitionTask(this.store, projectId, task.id, "running", "回答を受け取りました");
+      if (done.status === "skipped" && done.reassignTo) return { reassignTo: done.reassignTo };
       if (done.status === "skipped") {
         this.store.appendEvent({ projectId, taskId: task.id, type: "WEB_AI_FALLBACK", payload: { aiId: svc.id } });
         return { result: { ok: false, fallback: true, summary: "Web AIには任せず、Claude Codeで実行します" } };

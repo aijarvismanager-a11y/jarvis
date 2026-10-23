@@ -21,6 +21,8 @@ export type WebHandoff = {
   prompt: string;
   status: HandoffStatus;
   resultText: string | null;
+  /** Set when the user asked for another web AI instead: the executor re-runs the task on that AI. */
+  reassignTo?: string | null;
   /** True once an executor has taken the result, so a restarted run does not reuse it twice. */
   consumed: boolean;
   createdAt: string;
@@ -29,6 +31,8 @@ export type WebHandoff = {
 
 const KEY = "web_handoffs";
 const KEEP = 200;
+/** Registry adapter types the web AI executor can run (shared with the API so both agree on what "a web AI" is). */
+export const WEB_ADAPTER_TYPES = ["manual", "browser"] as const;
 export const MAX_RESULT_CHARS = 400_000;
 
 export class WebHandoffHub {
@@ -88,6 +92,14 @@ export class WebHandoffHub {
   /** The user does not want to hand this one to a web AI: the task falls back to the default executor. */
   skip(id: string, note?: string): WebHandoff {
     return this.close(id, "skipped", "WEB_HANDOFF_SKIPPED", note);
+  }
+  /** The user wants a different web AI for this task: the handoff is closed and the executor moves the task over. */
+  reassign(id: string, aiId: string): WebHandoff {
+    const h = this.get(id);
+    if (!h) throw new Error("ハンドオフが見つかりません");
+    if (h.status !== "pending") throw new Error("このハンドオフはすでに処理済みです");
+    this.update(id, { reassignTo: aiId });
+    return this.close(id, "skipped", "WEB_HANDOFF_REASSIGNED", `別のAI(${aiId})に切り替えました`);
   }
   cancel(id: string): WebHandoff {
     return this.close(id, "cancelled", "WEB_HANDOFF_CANCELLED");

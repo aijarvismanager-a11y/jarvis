@@ -8,7 +8,7 @@ import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
-import type { WebHandoffHub } from "./webHandoff.ts";
+import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
 
 // HTTP surface for the new orchestrator (mounted under /api/v2). Reads are open
@@ -250,8 +250,27 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!deps.webAi) return void res.status(501).json({ error: "Web AI自動化が接続されていません" });
     const query = z.object({ projectId: z.string().max(100).optional(), status: z.enum(["pending", "submitted", "skipped", "cancelled"]).optional() }).safeParse(req.query);
     if (!query.success) return void res.status(400).json({ error: "クエリが不正です" });
-    res.json({ handoffs: deps.webAi.hub.list(query.data) });
+    // Each handoff also lists the other web AIs the user could hand it to (free ones only, never an API-key one).
+    const handoffs = deps.webAi.hub.list(query.data).map((h) => ({
+      ...h,
+      alternatives: store
+        .listAiServices()
+        .filter((s) => s.id !== h.aiId && s.status === "active" && !!s.url && !s.requiresApiKey && s.freeStatus !== "paid" && (WEB_ADAPTER_TYPES as readonly string[]).includes(s.adapterType))
+        .map((s) => ({ id: s.id, name: s.name, freeStatus: s.freeStatus })),
+    }));
+    res.json({ handoffs });
   });
+  router.post(
+    "/web-handoffs/:id/reassign",
+    webGuarded((req, res, web) => {
+      const { aiId } = z.object({ aiId: z.string().max(100) }).parse(req.body ?? {});
+      const target = store.getAiService(aiId);
+      if (!target || !target.url || target.requiresApiKey || target.freeStatus === "paid" || !(WEB_ADAPTER_TYPES as readonly string[]).includes(target.adapterType)) {
+        return void res.status(400).json({ error: "そのAIには切り替えられません" });
+      }
+      res.json({ handoff: web.hub.reassign(String(req.params.id), aiId) });
+    }),
+  );
   router.post(
     "/web-handoffs/:id/result",
     webGuarded((req, res, web) => {

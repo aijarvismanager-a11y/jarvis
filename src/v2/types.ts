@@ -75,6 +75,8 @@ export type Handoff = {
   prompt: string;
   status: "pending" | "submitted" | "skipped" | "cancelled";
   createdAt: string;
+  /** Other web AIs this task could be handed to instead. */
+  alternatives?: { id: string; name: string; freeStatus: string }[];
 };
 export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[] };
 export type StoredEvent = { id: number; type: string; taskId: string | null; payload: unknown; createdAt: string };

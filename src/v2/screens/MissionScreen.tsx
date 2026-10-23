@@ -44,10 +44,15 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
 function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
   const [text, setText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [extra, setExtra] = useState("");
+  const [switchTo, setSwitchTo] = useState("");
   const { busy, run } = useAction(ctx.setError);
+  const alternatives = handoff.alternatives ?? [];
+  // The user's own addition goes at the end of the generated instruction, so it is copied along with it.
+  const fullPrompt = extra.trim() ? `${handoff.prompt}\n\n【追加の指示】\n${extra.trim()}` : handoff.prompt;
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(handoff.prompt);
+      await navigator.clipboard.writeText(fullPrompt);
       setCopied(true);
     } catch {
       ctx.setError("コピーできませんでした。「指示文を見る」を開いて手動でコピーしてください");
@@ -65,6 +70,20 @@ function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
         <li>返ってきた回答を下の欄に貼り付けて『回答を送る』ボタンを押す</li>
       </ol>
       {handoff.note && <p className="mb-2 text-[12px] text-muted">{handoff.note}</p>}
+      {alternatives.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[13px]">
+          <span className="text-muted">別のAIに頼む:</span>
+          <select aria-label="切り替え先のAI" value={switchTo} onChange={(e) => setSwitchTo(e.target.value)} className="rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
+            <option value="">選んでください</option>
+            {alternatives.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <Button variant="ghost" disabled={busy || !switchTo} onClick={() => run(async () => { await api.reassignHandoff(handoff.id, switchTo); ctx.refresh(); })}>このAIに切り替える</Button>
+        </div>
+      )}
+      <label className="mb-2 block text-[12.5px] text-muted">
+        指示文への追記(任意。コピーする指示文の末尾に付きます)
+        <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={2} placeholder="例: 日本語で、表を使って答えてください" className="mt-1 w-full rounded-lg border border-border bg-bg p-2 text-[13px] text-ink outline-none focus:border-accent" />
+      </label>
       <div className="mb-2 flex flex-wrap gap-2">
         <Button variant="ghost" onClick={copy}>{copied ? "コピーしました" : "指示文をコピー"}</Button>
         {handoff.url && (
@@ -74,7 +93,7 @@ function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
         )}
       </div>
       <Details summary="指示文を見る">
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{handoff.prompt}</pre>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{fullPrompt}</pre>
       </Details>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="AIの回答をここに貼り付け" className="mt-3 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
       <div className="mt-2 flex flex-wrap gap-2">
