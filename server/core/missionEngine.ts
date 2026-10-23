@@ -11,7 +11,16 @@ import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, tran
 // through the Scheduler -> completed / failed. Pause, resume, cancel and replan
 // are all expressed as legal state transitions.
 
-export type ExecutionResult = { ok: boolean; summary?: string; /** project-relative files the task created or changed */ artifacts?: string[] };
+export type ExecutionResult = {
+  ok: boolean;
+  summary?: string;
+  /** project-relative files the task created or changed */
+  artifacts?: string[];
+  /** Set by executors that route to several AIs, so ai_runs records who really ran the task and how. */
+  executor?: string;
+  aiId?: string;
+  automationLevel?: number;
+};
 export interface TaskExecutor {
   readonly name: string;
   /** registry adapter_types this executor can run; lets the Broker pick only AIs that can actually execute */
@@ -250,11 +259,11 @@ export class MissionEngine {
     }
     if (controller.signal.aborted) {
       const cancelled = this.store.getMission(projectId, mission.id)?.status === "cancelled";
-      this.store.recordAiRun({ projectId, taskId: task.id, executor: this.deps.executor.name, status: "cancelled", summary: result.summary });
+      this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: "cancelled", summary: result.summary });
       transitionTask(this.store, projectId, task.id, cancelled ? "cancelled" : "paused", cancelled ? "mission cancelled" : "mission paused");
       return;
     }
-    this.store.recordAiRun({ projectId, taskId: task.id, executor: this.deps.executor.name, status: result.ok ? "succeeded" : "failed", summary: result.summary });
+    this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary });
     if (!result.ok) {
       transitionTask(this.store, projectId, task.id, "failed", result.summary ?? "execution failed");
       return;

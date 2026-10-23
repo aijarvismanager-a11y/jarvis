@@ -6,6 +6,8 @@ import { PROJECT_ID_RE } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
+import type { WebHandoffHub } from "./webHandoff.ts";
+import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
 
 // HTTP surface for the new orchestrator (mounted under /api/v2). Reads are open
 // to the (already loopback/Origin-checked) app; every state change needs the
@@ -21,8 +23,10 @@ export type OrchestratorApiDeps = {
   healthChecker?: AiHealthChecker;
   /** Enables POST /ai-discovery; without it that endpoint answers 501. */
   discovery?: AiDiscovery;
-  /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. */
-  executableAdapters?: string[];
+  /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
+  executableAdapters?: string[] | (() => string[]);
+  /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
+  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean };
 };
 
 const createSchema = z.object({
@@ -102,11 +106,94 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json(await deps.discovery.discover(body));
     }),
   );
+  // ---- Web AI automation (Phase 6) -------------------------------------------
+  const siteSchema = z
+    .object({
+      inputSelector: z.string().trim().min(1).max(300),
+      sendSelector: z.string().trim().max(300).optional(),
+      responseSelector: z.string().trim().min(1).max(300),
+      stopSelector: z.string().trim().max(300).optional(),
+    })
+    .strict();
+  const webGuarded = (handler: (req: Request, res: Response, web: NonNullable<OrchestratorApiDeps["webAi"]>) => Promise<void> | void) =>
+    guarded(async (req, res) => {
+      if (!deps.webAi) return void res.status(501).json({ error: "Web AI自動化が接続されていません" });
+      await handler(req, res, deps.webAi);
+    });
+
+  router.get("/web-ai/settings", (_req, res) => {
+    const settings = getWebAiSettings(store);
+    res.json({
+      enabled: settings.enabled,
+      available: !!deps.webAi,
+      browserAvailable: deps.webAi?.browserAvailable() ?? false,
+      /** effective selector profile per web AI (bundled + overrides); null = Level 2/3 impossible for it */
+      sites: Object.fromEntries(store.listAiServices().filter((s) => s.url).map((s) => [s.id, resolveSiteProfile(store, s.id)])),
+      bundledSites: Object.keys(BUNDLED_SITE_PROFILES),
+    });
+  });
+  router.put(
+    "/web-ai/settings",
+    webGuarded((req, res) => {
+      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body ?? {});
+      setWebAiSettings(store, { enabled });
+      store.appendEvent({ type: "WEB_AI_SWITCHED", payload: { enabled } });
+      res.json({ enabled });
+    }),
+  );
+  // Selector override for one service (the bundled ones are unverified assumptions, so the user must be able to fix them).
+  router.put(
+    "/web-ai/sites/:aiId",
+    webGuarded((req, res) => {
+      const aiId = String(req.params.aiId);
+      if (!store.getAiService(aiId)) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      const site = siteSchema.parse(req.body ?? {});
+      const settings = getWebAiSettings(store);
+      setWebAiSettings(store, { sites: { ...settings.sites, [aiId]: site } });
+      res.json({ site: resolveSiteProfile(store, aiId) });
+    }),
+  );
+  // Raising the level is the user's decision (it is never raised automatically); lowering is always allowed.
+  router.put(
+    "/ai-services/:aiId/automation-level",
+    webGuarded((req, res, web) => {
+      const aiId = String(req.params.aiId);
+      const svc = store.getAiService(aiId);
+      if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      const { level } = z.object({ level: z.number().int().min(1).max(3) }).parse(req.body ?? {});
+      if (level > 1 && (!svc.url || !resolveSiteProfile(store, aiId))) throw new Error("このAIにはサイト設定(入力欄・回答欄のセレクタ)がないため、Level 2/3にできません。先に /web-ai/sites で設定してください");
+      if (level > 1 && !web.browserAvailable()) throw new Error("EdgeまたはChromeが見つからないため、Level 2/3にできません");
+      store.patchAiService(aiId, { automationLevel: level });
+      store.appendEvent({ type: "AUTOMATION_LEVEL_SET", payload: { aiId, from: svc.automationLevel, to: level } });
+      res.json({ service: store.getAiService(aiId) });
+    }),
+  );
+  router.get("/web-handoffs", (req, res) => {
+    if (!deps.webAi) return void res.status(501).json({ error: "Web AI自動化が接続されていません" });
+    const query = z.object({ projectId: z.string().max(100).optional(), status: z.enum(["pending", "submitted", "skipped", "cancelled"]).optional() }).safeParse(req.query);
+    if (!query.success) return void res.status(400).json({ error: "クエリが不正です" });
+    res.json({ handoffs: deps.webAi.hub.list(query.data) });
+  });
+  router.post(
+    "/web-handoffs/:id/result",
+    webGuarded((req, res, web) => {
+      const { text } = z.object({ text: z.string() }).parse(req.body ?? {});
+      res.json({ handoff: web.hub.submit(String(req.params.id), text) });
+    }),
+  );
+  router.post(
+    "/web-handoffs/:id/skip",
+    webGuarded((req, res, web) => {
+      const { note } = z.object({ note: z.string().max(500).optional() }).parse(req.body ?? {});
+      res.json({ handoff: web.hub.skip(String(req.params.id), note) });
+    }),
+  );
+
   // Dry run of the Broker: which AI would be chosen for a role, and why. Changes nothing.
   router.get("/broker/preview", (req, res) => {
     const query = z.object({ role: z.string().trim().min(1).max(100), budget: z.enum(["free_only", "allow_paid"]).default("free_only") }).safeParse(req.query);
     if (!query.success) return void res.status(400).json({ error: "role を指定してください" });
-    const decision = new AIBroker(store).select({ role: query.data.role }, { budgetPolicy: query.data.budget, executableAdapters: deps.executableAdapters });
+    const decision = new AIBroker(store).select({ role: query.data.role }, { budgetPolicy: query.data.budget, executableAdapters: typeof deps.executableAdapters === "function" ? deps.executableAdapters() : deps.executableAdapters });
     res.json({ role: query.data.role, capability: capabilityForTaskRole(query.data.role), decision });
   });
 

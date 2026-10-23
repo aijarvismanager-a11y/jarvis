@@ -869,3 +869,29 @@ Phase 5 — AI Discovery(必要時のみ発見、無料条件判定、`free_stat
 
 ### 次にやること
 Phase 6 — Web AI 自動化(Level 1 → 2 → 3)。
+
+
+---
+
+## 2026-10-24(10回目): Phase 6 — Web AI 自動化(Level 1 → 2 → 3)
+
+### 完了(済)
+- **Level 1(手動)** `webHandoff.ts` / `webAiExecutor.ts`: Brokerが Web AI を選んだタスクは `waiting` になり、プロンプトと AI の URL を持つ「ハンドオフ」が作られる。ユーザーが回答を `POST /api/v2/web-handoffs/:id/result` で貼り付けると、`期待する成果物` のパス(複数ある場合は `=== FILE: パス ===` 区切り、無ければ `web-ai/…md`)に保存し、Artifact(source_ai / source_url つき)と ai_runs(executor=web-ai, ai_id, automation_level)を記録。ハンドオフは settings に永続化され、一時停止/再起動後も同じものを待ち直す。キャンセルで閉じ、12時間で期限切れ。`POST …/skip` で「Web AIに任せず Claude Code で実行」に切替。前のタスクの成果物は(Web AIはフォルダを見られないため)抜粋してプロンプトに入れる
+- **Level 2(半自動)/ Level 3(完全自動)** `browserDriver.ts`: **追加依存なし**。既存の `ws` で、ユーザー自身の Edge/Chrome を専用プロファイル(`data/browser-profile`)で起動し DevTools Protocol で操作(可視ウィンドウ)。入力欄に入力 → 実マウスクリックで送信(無ければ Enter)→ 回答が増え・安定(3秒不変)・停止ボタンが見えなくなるまで待って取得。Level 2 は入力までして、送信はユーザー。回答はページから自動取得、または貼り付け
+- **自動降格(§10)**: Level 3 が壊れる(入力欄なし/回答取得失敗など)と、その回の実行は Level 2 → Level 1 に落ちて続行(ミッションは止めない)。**2回連続**で壊れるとレジストリの `automation_level` を1つ下げ、decisions と `AUTOMATION_DOWNGRADED` イベントに理由を記録。成功で連続回数はリセット。**自動で上げることはしない**
+- **禁止事項(§11)**: ログイン画面・ボット確認(CAPTCHA/Turnstile等)を検出したら突破せず、理由を添えて Level 1 に落とす(降格カウントにも数えない=ユーザーが解消できるため)。パスワード/Cookie は一切扱わない。ログインはユーザーが開いたウィンドウで通常どおり行う
+- **ルーティング** `RoutingExecutor`: Claude Code が既定かつ唯一のコード書込み役。Web AI へ渡るのは「マスタースイッチON」かつ「Brokerが選んだ」かつ「コード編集タスクではない」場合のみ。スイッチOFF(既定)では Broker の候補に Web AI を含めず、従来と完全に同じ動作
+- API: `GET/PUT /web-ai/settings`(スイッチ)、`PUT /web-ai/sites/:aiId`(セレクタ上書き)、`PUT /ai-services/:aiId/automation-level`(Level 2/3 への引き上げ。サイト設定とブラウザが無ければ拒否。引き下げは常に可)、`GET /web-handoffs`、`POST /web-handoffs/:id/{result,skip}`
+- `missionEngine`: `ExecutionResult` に executor / aiId / automationLevel を追加し、ai_runs に「実際に誰がどのLevelで実行したか」を記録
+- テスト +29(`phase6.test.ts`)。うち4件は**実ブラウザ(Edge headless)+ローカルのモックチャットサイト**で、入力→送信→ストリーミング回答の取得、2回目の質問で新しい回答が返ること、ログイン/ボット確認/UI変更ページで突破せず止まること、`WebAiExecutor` の Level 3 実行と Level 1 への降格を確認。全体208件合格、`tsc -b` クリーン、oxlint警告0
+
+### 未検証・既知の問題・仮定
+- **実在のサイト(ChatGPT/Gemini/Claude/Perplexity)では未検証**。同梱セレクタ(`webAiSites.ts`)は私の記憶に基づく仮定で、ログインが要るため実機確認していない。各AIの Level は既定のまま 1(手動)。Level 2/3 に上げるには、実サイトでセレクタを確かめてから API で引き上げる前提
+- 多くの Web AI は利用規約で自動操作を制限している可能性がある。Level 3 は**ユーザーが明示的に引き上げた場合のみ**動く(既定は Level 1)。規約の確認はユーザー側
+- 待機中のタスクは並列枠(既定2)を占有する。人の返答待ちが2件あると他のタスクが進まない
+- ハンドオフの承認UIは未着手(Phase 7)。現状はAPIのみ
+- ブラウザは終了時に明示的に閉じていない(サーバー終了時のshutdown未配線)。専用プロファイルが別のブラウザに使われていると起動に失敗し、Level 1 に落ちる
+- 同一プロンプトを Level 2 で送らずに放置すると、ページ側の監視は12時間まで続く
+
+### 次にやること
+Phase 7 — UI(Mission中心。ハンドオフの回答貼り付け/スキップ、Web AIスイッチ、Levelの表示と引き上げ)。
