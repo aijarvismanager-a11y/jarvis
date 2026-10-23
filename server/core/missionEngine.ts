@@ -2,6 +2,7 @@ import { transaction } from "./db.ts";
 import type { Mission, Store, Task } from "./store.ts";
 import type { MissionStatus } from "./schema.ts";
 import type { PlanRequest, Planner } from "./planner.ts";
+import type { AIBroker } from "./aiBroker.ts";
 import { Scheduler } from "./scheduler.ts";
 import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
@@ -13,6 +14,8 @@ import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, tran
 export type ExecutionResult = { ok: boolean; summary?: string; /** project-relative files the task created or changed */ artifacts?: string[] };
 export interface TaskExecutor {
   readonly name: string;
+  /** registry adapter_types this executor can run; lets the Broker pick only AIs that can actually execute */
+  readonly adapterTypes?: readonly string[];
   execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult>;
 }
 export interface TaskValidator {
@@ -30,7 +33,7 @@ export class MissionEngine {
 
   constructor(
     private readonly store: Store,
-    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; maxParallel?: number; lockTtlMs?: number },
+    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; maxParallel?: number; lockTtlMs?: number },
   ) {
     this.scheduler = new Scheduler(store, { maxParallel: deps.maxParallel, lockTtlMs: deps.lockTtlMs });
   }
@@ -201,6 +204,7 @@ export class MissionEngine {
     const { projectId } = task;
     const key = `${mission.id}:${task.id}`;
     const controller = new AbortController();
+    this.assignAi(mission, task);
     transitionTask(this.store, projectId, task.id, "running", "scheduled");
     const promise = this.execute(mission, task, controller)
       .catch((err) => this.store.appendEvent({ projectId, taskId: task.id, type: "ENGINE_ERROR", payload: { message: errMsg(err) } }))
@@ -209,6 +213,31 @@ export class MissionEngine {
         this.inFlight.delete(key);
       });
     this.inFlight.set(key, { controller, promise });
+  }
+
+  /** Broker picks the AI for a task that has none yet. Advisory: a Broker failure never stops the task. */
+  private assignAi(mission: Mission, task: Task): void {
+    const { broker, executor } = this.deps;
+    if (!broker || task.selectedAi) return;
+    try {
+      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypes ? [...executor.adapterTypes] : undefined });
+      const payload = { capability: decision.capability, confidence: decision.confidence, needsReview: decision.needsReview, selected: decision.selected?.aiId ?? null, excluded: decision.excluded };
+      if (!decision.selected) {
+        this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });
+        return;
+      }
+      this.store.setTaskSelectedAi(task.projectId, task.id, decision.selected.aiId);
+      this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTED", payload });
+      this.store.addDecision({
+        projectId: task.projectId,
+        title: `AI選定: ${task.role} → ${decision.selected.name}`,
+        reason: `${decision.reason}(信頼度 ${decision.confidence} / ${decision.confidenceLabel})`,
+        alternatives: decision.ranked.slice(1, 4).map((c) => `${c.name} (${c.score10}/10)`),
+        rejectedBecause: decision.excluded.length ? decision.excluded.map((e) => `${e.name}: ${e.reason}`).join(" / ") : null,
+      });
+    } catch (err) {
+      this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_ERROR", payload: { message: errMsg(err) } });
+    }
   }
 
   private async execute(mission: Mission, task: Task, controller: AbortController): Promise<void> {

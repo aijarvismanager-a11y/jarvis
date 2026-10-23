@@ -822,3 +822,27 @@ Phase 4 — AI Registry / Broker。その前に、使い捨てプロジェクト
 - **Pause**: 実行中の子プロセス(node)が1→0。pause 197ms、タスクpaused、run()はpausedで返る
 - 発見・修正: 同一プロジェクトで並列実行すると互いの生成ファイルを自分のartifactとして二重登録 → (path,署名)で重複排除。**帰属は並列時にベストエフォート**(先に終わったタスクに付く)
 - Phase 3 完了。次は Phase 4
+
+
+---
+
+## 2026-10-23(8回目): Phase 4 — AI Registry / Broker(Health Check・Cost Guard)
+
+### 完了(済)
+- `server/core/aiRegistry.ts` 既定プロファイル(claude-code / claude-web / chatgpt / gemini / perplexity / copilot / deepseek の能力0-5・品質・信頼性・自動化レベル・無料区分)。`seedRegistryProfiles` は**スコア未設定のサービスにだけ**適用し、手で調整した値は上書きしない(冪等)。適用時に仮定として `decisions` に記録。起動時に `server/index.ts` から実行
+- `store.ts` に `patchAiService` / `setTaskSelectedAi` を追加、`setCapabilities` が能力スコアを保存可能に。`AiService` に capabilityScores / qualityScore / reliabilityScore / freeLimit / limitations を追加(スキーマ変更なし)
+- `server/core/aiBroker.ts` §18の重み 能力適合4・品質3・自動化2・安全性1(最大50、÷5で10点換算)。役割→能力の対応(Planner役割名の別名表+旧分類にフォールバック)。**Cost Guard**: 有料/APIキー必須は `free_only` で除外、`allow_paid` のみ許可。利用不可・廃止は除外。実行基盤が走らせられない `adapter_type` も除外(`executableAdapters`)。信頼度 0-1(得点・データの揃い具合・次点との差)、0.7未満は `needsReview`。§19のA(品質)/B(自動化)/C(無料・安全)の代替案を返す
+- `server/core/aiHealth.ts` 到達性(URL: 5xx/無応答のみ失敗、403は稼働扱い)とCLI(`claude --version`)を確認し、`status` / `last_verified_at` を更新。**ログイン状態・無料条件・UI利用可否は「未確認(unverified)」と明示**し推測しない。2件以上のネット確認が全滅した場合はオフラインとみなしステータスを変更しない
+- `missionEngine.ts` タスク開始時に Broker が `selected_ai` を設定し、`AI_SELECTED` イベントと `decisions`(次点・除外理由つき)を記録。Broker の例外/候補なしでもタスクは従来どおり実行(助言のみ)。`TaskExecutor.adapterTypes` を追加(ClaudeCodeExecutor は `["claude-code"]`)
+- API: `GET /api/v2/ai-services`、`POST /api/v2/ai-services/health-check`(トークン必須)、`GET /api/v2/broker/preview?role=&budget=`(読み取り専用の試算)
+- テスト +21(`phase4.test.ts`)。全体167件合格、`tsc -b` クリーン、サーバー側lint警告0。実DBのコピーで seed→選定を確認(coding→Claude Code 信頼度0.81、ux_review は Claude Code のみ実行可のため候補なし=従来どおり実行)
+
+### 未検証・既知の問題・仮定
+- **スコア値はすべて仮定**(実測ではない)。実運用の成否で調整する前提。信頼度の式(0.55×得点+0.30×データ充足+0.15×次点との差)も仮定
+- 実際のネットワークでのヘルスチェック(`POST /ai-services/health-check`)は未実行(テストはフェイクのみ)
+- `selected_ai` は現状**記録のみ**。実行は常に Claude Code(Web AI の実行は Phase 6)。旧データ取込済みタスクの `selected_ai` は上書きしない
+- 「重要タスクだけ別AIで追加レビュー」(§57)は未実装。Broker側の材料(次点・A/B/C)までを用意
+- 新DBを見るUIは未着手(Phase 7)。**未コミット**(指示待ち)
+
+### 次にやること
+Phase 5 — AI Discovery(必要時のみ発見、無料条件判定、`free_status` / `last_verified_at` 保存)。

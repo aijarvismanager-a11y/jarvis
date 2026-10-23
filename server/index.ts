@@ -15,6 +15,9 @@ import { ClaudeCodeExecutor } from "./core/claudeCodeExecutor.ts";
 import { ProjectValidator } from "./core/taskValidator.ts";
 import { ClaudeCodePlanner } from "./core/planner.ts";
 import { createOrchestratorRouter } from "./core/api.ts";
+import { AIBroker } from "./core/aiBroker.ts";
+import { AiHealthChecker } from "./core/aiHealth.ts";
+import { seedRegistryProfiles } from "./core/aiRegistry.ts";
 
 // Real "implement this" tasks routinely take longer than a couple minutes
 // (multiple file reads/writes, occasionally a lint/test pass) — this was
@@ -86,12 +89,18 @@ app.use(express.json({ limit: "2mb" }));
 // project's own directory, restricted by the Permission Policy and checked by
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
+seedRegistryProfiles(coreStore);
+const executor = new ClaudeCodeExecutor(coreStore);
 const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
-  executor: new ClaudeCodeExecutor(coreStore),
+  executor,
   validator: new ProjectValidator(path.join(ROOT, "projects")),
+  broker: new AIBroker(coreStore),
 });
-app.use("/api/v2", createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches }));
+app.use(
+  "/api/v2",
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches, healthChecker: new AiHealthChecker(coreStore), executableAdapters: [...executor.adapterTypes] }),
+);
 
 app.get("/api/session-token", (_req, res) => {
   res.json({ token: SESSION_TOKEN });

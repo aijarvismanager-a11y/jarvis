@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
 import { PROJECT_ID_RE } from "./paths.ts";
+import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
+import type { AiHealthChecker } from "./aiHealth.ts";
 
 // HTTP surface for the new orchestrator (mounted under /api/v2). Reads are open
 // to the (already loopback/Origin-checked) app; every state change needs the
@@ -14,6 +16,10 @@ export type OrchestratorApiDeps = {
   /** False when no real TaskExecutor is wired: run/resume then answer 501. */
   canExecute: boolean;
   tokenMatches: (candidate: unknown) => boolean;
+  /** Enables POST /ai-services/health-check; without it that endpoint answers 501. */
+  healthChecker?: AiHealthChecker;
+  /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. */
+  executableAdapters?: string[];
 };
 
 const createSchema = z.object({
@@ -61,6 +67,26 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   });
   router.get("/projects/:projectId/events", (req, res) => {
     res.json({ events: store.listEvents({ projectId: String(req.params.projectId), limit: 200 }) });
+  });
+
+  // ---- AI Registry / Broker (Phase 4) -----------------------------------------
+  router.get("/ai-services", (_req, res) => {
+    res.json({ services: store.listAiServices() });
+  });
+  router.post(
+    "/ai-services/health-check",
+    guarded(async (req, res) => {
+      if (!deps.healthChecker) return void res.status(501).json({ error: "ヘルスチェックが接続されていません" });
+      const { ids } = z.object({ ids: z.array(z.string().max(100)).max(100).optional() }).parse(req.body ?? {});
+      res.json({ results: await deps.healthChecker.checkAll(ids), services: store.listAiServices() });
+    }),
+  );
+  // Dry run of the Broker: which AI would be chosen for a role, and why. Changes nothing.
+  router.get("/broker/preview", (req, res) => {
+    const query = z.object({ role: z.string().trim().min(1).max(100), budget: z.enum(["free_only", "allow_paid"]).default("free_only") }).safeParse(req.query);
+    if (!query.success) return void res.status(400).json({ error: "role を指定してください" });
+    const decision = new AIBroker(store).select({ role: query.data.role }, { budgetPolicy: query.data.budget, executableAdapters: deps.executableAdapters });
+    res.json({ role: query.data.role, capability: capabilityForTaskRole(query.data.role), decision });
   });
 
   router.post(

@@ -119,6 +119,7 @@ const quoteForShell = (v: string) => `"${v.replace(/"/g, "")}"`;
 
 export class ClaudeCodeExecutor implements TaskExecutor {
   readonly name = "claude-code";
+  readonly adapterTypes = ["claude-code"] as const;
   private caps: ExecutorCapabilities | null = null;
   /** project -> file -> signature already registered. Parallel tasks in one project see each other's writes; this keeps a file from being registered twice. */
   private readonly registered = new Map<string, Map<string, string>>();

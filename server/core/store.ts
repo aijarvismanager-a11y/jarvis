@@ -67,6 +67,12 @@ export type AiService = {
   lastVerifiedAt: string | null;
   legacyName: string | null;
   capabilities: string[];
+  /** 0-5 per capability; absent when the capability is registered but not yet scored. */
+  capabilityScores: Record<string, number>;
+  freeLimit: string | null;
+  qualityScore: number | null;
+  reliabilityScore: number | null;
+  limitations: string | null;
 };
 export type Artifact = {
   id: string;
@@ -319,10 +325,52 @@ export class Store {
     return this.getAiService(input.id)!;
   }
 
-  setCapabilities(aiId: string, capabilities: string[]): void {
+  /** Replaces the capability set. A plain list leaves scores unset; a record maps capability -> 0-5 score. */
+  setCapabilities(aiId: string, capabilities: string[] | Record<string, number | null>): void {
     this.db.prepare("DELETE FROM ai_capabilities WHERE ai_id = ?").run(aiId);
-    const ins = this.db.prepare("INSERT INTO ai_capabilities (ai_id, capability) VALUES (?, ?)");
-    for (const c of new Set(capabilities)) ins.run(aiId, c);
+    const ins = this.db.prepare("INSERT INTO ai_capabilities (ai_id, capability, score) VALUES (?, ?, ?)");
+    const entries: [string, number | null][] = Array.isArray(capabilities) ? [...new Set(capabilities)].map((c) => [c, null]) : Object.entries(capabilities);
+    for (const [c, score] of entries) ins.run(aiId, c, score);
+  }
+
+  /** Partial update of the registry fields that health checks and tuning change. */
+  patchAiService(
+    id: string,
+    patch: Partial<{
+      automationLevel: number;
+      freeStatus: FreeStatus;
+      freeLimit: string | null;
+      qualityScore: number | null;
+      reliabilityScore: number | null;
+      limitations: string | null;
+      status: "active" | "unavailable" | "retired";
+      lastVerifiedAt: string | null;
+    }>,
+  ): AiService | null {
+    const columns: Record<string, string> = {
+      automationLevel: "automation_level",
+      freeStatus: "free_status",
+      freeLimit: "free_limit",
+      qualityScore: "quality_score",
+      reliabilityScore: "reliability_score",
+      limitations: "limitations",
+      status: "status",
+      lastVerifiedAt: "last_verified_at",
+    };
+    const sets: string[] = [];
+    const values: (string | number | null)[] = [];
+    for (const [key, col] of Object.entries(columns)) {
+      const v = (patch as Record<string, string | number | null | undefined>)[key];
+      if (v === undefined) continue;
+      sets.push(`${col} = ?`);
+      values.push(v);
+    }
+    if (sets.length) this.db.prepare(`UPDATE ai_services SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
+    return this.getAiService(id);
+  }
+
+  setTaskSelectedAi(projectId: string, taskId: string, aiId: string | null): void {
+    this.db.prepare("UPDATE tasks SET selected_ai = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(aiId, now(), taskId, projectId);
   }
 
   getAiService(id: string): AiService | null {
@@ -340,7 +388,7 @@ export class Store {
   }
 
   private toAiService(r: Row): AiService {
-    const caps = this.db.prepare("SELECT capability FROM ai_capabilities WHERE ai_id = ? ORDER BY capability").all(r.id as string) as { capability: string }[];
+    const caps = this.db.prepare("SELECT capability, score FROM ai_capabilities WHERE ai_id = ? ORDER BY capability").all(r.id as string) as { capability: string; score: number | null }[];
     return {
       id: r.id as string,
       name: r.name as string,
@@ -356,6 +404,11 @@ export class Store {
       lastVerifiedAt: (r.last_verified_at as string | null) ?? null,
       legacyName: (r.legacy_name as string | null) ?? null,
       capabilities: caps.map((c) => c.capability),
+      capabilityScores: Object.fromEntries(caps.filter((c) => c.score !== null).map((c) => [c.capability, c.score as number])),
+      freeLimit: (r.free_limit as string | null) ?? null,
+      qualityScore: (r.quality_score as number | null) ?? null,
+      reliabilityScore: (r.reliability_score as number | null) ?? null,
+      limitations: (r.limitations as string | null) ?? null,
     };
   }
 
