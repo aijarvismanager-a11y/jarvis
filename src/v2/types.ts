@@ -62,6 +62,14 @@ export type PlanDraft = {
 export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
 export type MissionView = { mission: Mission; tasks: Task[]; proposal: Proposal | null };
 export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[]; taskNotes?: Record<string, string> };
+export type Preview = {
+  state: "stopped" | "starting" | "running" | "error";
+  url: string | null;
+  message: string;
+  startedAt: string | null;
+  check: { ok: boolean; problems: string[] } | null;
+  log: string;
+};
 export type Approval = { id: string; projectId: string; taskId: string; level: "READ" | "WORKSPACE_WRITE" | "NETWORK" | "DEPLOY" | "DESTRUCTIVE"; reason: string; createdAt: string };
 export type Handoff = {
   id: string;

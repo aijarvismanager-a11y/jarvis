@@ -58,7 +58,7 @@ export function detectApps(root: string): DetectedApp[] {
   return found;
 }
 
-const freePort = () =>
+export const freePort = () =>
   new Promise<number>((resolve, reject) => {
     const srv = net.createServer();
     srv.once("error", reject);
@@ -68,8 +68,8 @@ const freePort = () =>
     });
   });
 
-type Started = { proc: ChildProcess; log: () => string; exited: () => boolean };
-function startServer(app: DetectedApp, args: string[], env: Record<string, string>): Started {
+export type Started = { proc: ChildProcess; log: () => string; exited: () => boolean };
+export function startServer(app: DetectedApp, args: string[], env: Record<string, string>): Started {
   let out = "";
   const proc = spawn("npm", ["run", app.script, ...args], { cwd: app.dir, env: { ...process.env, ...env, BROWSER: "none", CI: "" }, shell: needsShell("npm"), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const keep = (b: Buffer) => (out = (out + b.toString()).slice(-20_000));
@@ -79,7 +79,7 @@ function startServer(app: DetectedApp, args: string[], env: Record<string, strin
 }
 
 /** Resolves true once the URL answers with any HTTP response; false if the process dies or time runs out. */
-async function waitReady(url: string, s: Started, signal?: AbortSignal): Promise<boolean> {
+export async function waitReady(url: string, s: Started, signal?: AbortSignal): Promise<boolean> {
   const ok = await waitUntil(
     async () => {
       if (s.exited() || signal?.aborted) return null;
@@ -95,9 +95,9 @@ async function waitReady(url: string, s: Started, signal?: AbortSignal): Promise
   return !!ok;
 }
 
-type PageReport = { problems: string[]; textLength: number };
+export type PageReport = { problems: string[]; textLength: number };
 
-async function probePage(browserExe: string, url: string, apiOrigins: string[]): Promise<PageReport> {
+export async function probePage(browserExe: string, url: string, apiOrigins: string[]): Promise<PageReport> {
   const profile = mkdtempSync(path.join(os.tmpdir(), "smoke-profile-"));
   const port = await freePort();
   const proc = spawn(browserExe, ["--headless=new", `--remote-debugging-port=${port}`, "--remote-debugging-address=127.0.0.1", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore", windowsHide: true });

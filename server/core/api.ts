@@ -7,6 +7,7 @@ import { PROJECT_ID_RE, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
+import type { PreviewManager } from "./previewManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
@@ -27,6 +28,8 @@ export type OrchestratorApiDeps = {
   discovery?: AiDiscovery;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
   executableAdapters?: string[] | (() => string[]);
+  /** Enables the preview endpoints (run the project's app while it is being built). */
+  previews?: PreviewManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
@@ -230,6 +233,26 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ service: store.getAiService(aiId) });
     }),
   );
+  // ---- Preview: run what has been built so far ----------------------------------------------
+  router.get("/projects/:projectId/preview", (req, res) => {
+    res.json({ preview: deps.previews?.status(String(req.params.projectId)) ?? null });
+  });
+  router.post(
+    "/projects/:projectId/preview/start",
+    guarded((req, res) => {
+      if (!deps.previews) return void res.status(501).json({ error: "プレビュー機能が接続されていません" });
+      res.json({ preview: deps.previews.start(String(req.params.projectId)) });
+    }),
+  );
+  router.post(
+    "/projects/:projectId/preview/stop",
+    guarded((req, res) => {
+      if (!deps.previews) return void res.status(501).json({ error: "プレビュー機能が接続されていません" });
+      deps.previews.stop(String(req.params.projectId));
+      res.json({ preview: deps.previews.status(String(req.params.projectId)) });
+    }),
+  );
+
   // ---- Approvals: a task needing a level above the default waits for the user's answer ----------
   router.get("/approvals", (req, res) => {
     const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;

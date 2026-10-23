@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatTime, progressOf, roleLabel } from "../labels";
-import { Badge, Button, Card, Details, useAction } from "../ui";
-import type { Approval, Handoff, MissionView, Task } from "../types";
+import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
+import type { Approval, Handoff, MissionView, Preview, Task } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -11,6 +11,46 @@ function StepMark({ status }: { status: Task["status"] }) {
   if (status === "cancelled") return <span className="text-muted">–</span>;
   if (status === "running" || status === "validation" || status === "waiting") return <span className="text-accent">●</span>;
   return <span className="text-muted">○</span>;
+}
+
+const PREVIEW_LABEL: Record<Preview["state"], string> = { stopped: "停止中", starting: "起動中", running: "動作中", error: "起動できませんでした" };
+
+/** Runs the project's app as it is right now, so it can be tried while the mission is still going. */
+function PreviewCard({ ctx }: { ctx: Ctx }) {
+  const projectId = ctx.project!.id;
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const { busy, run } = useAction(ctx.setError);
+  const refresh = usePoll(async () => setPreview(await api.preview(projectId)), 2500, [projectId]);
+  const state = preview?.state ?? "stopped";
+  const active = state === "starting" || state === "running";
+  return (
+    <Card title="動かして見る">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={state === "running" ? "ok" : state === "error" ? "bad" : state === "starting" ? "info" : "neutral"}>{PREVIEW_LABEL[state]}</Badge>
+        {state === "running" && preview?.url && (
+          <a href={preview.url} target="_blank" rel="noreferrer noopener" className="rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar">画面を開く</a>
+        )}
+        {active ? (
+          <Button variant="ghost" disabled={busy} onClick={() => run(async () => { setPreview(await api.stopPreview(projectId)); })}>停止</Button>
+        ) : (
+          <Button disabled={busy} onClick={() => run(async () => { setPreview(await api.startPreview(projectId)); refresh(); })}>{state === "error" ? "もう一度起動" : "起動して見る"}</Button>
+        )}
+      </div>
+      {preview?.message && state !== "running" && <p className="mt-2 text-[13px]">{preview.message}</p>}
+      {state === "running" && preview?.check && (
+        preview.check.ok ? (
+          <p className="mt-2 text-[12.5px] text-status-done">画面を開いて確認しました。エラーは出ていません。</p>
+        ) : (
+          <div className="mt-2 text-[12.5px] text-[#9B2C2C]">
+            <p className="font-semibold">画面を開いたところ、問題がありました:</p>
+            <ul className="list-disc pl-5">{preview.check.problems.map((p, i) => <li key={i} className="break-words">{p}</li>)}</ul>
+          </div>
+        )
+      )}
+      {preview?.log && state === "error" && <Details summary="ログを見る"><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{preview.log}</pre></Details>}
+      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。ミッションが作業中のファイルを読むため、動きが不安定なことがあります。</p>
+    </Card>
+  );
 }
 
 const APPROVAL_LEVEL: Record<Approval["level"], string> = {
@@ -252,6 +292,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
 
       {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
+      {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
 

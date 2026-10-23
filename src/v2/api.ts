@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, Preview, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -41,6 +41,9 @@ export const api = {
   missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "replan" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/${action}`, "POST", { feedback }),
 
+  preview: (projectId: string) => request<{ preview: Preview | null }>(`/projects/${encodeURIComponent(projectId)}/preview`).then((r) => r.preview),
+  startPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/start`, "POST", {}).then((r) => r.preview),
+  stopPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/stop`, "POST", {}).then((r) => r.preview),
   approvals: () => request<{ approvals: Approval[] }>("/approvals").then((r) => r.approvals),
   answerApproval: (id: string, approve: boolean) => request<{ ok: boolean }>(`/approvals/${encodeURIComponent(id)}/${approve ? "approve" : "deny"}`, "POST", {}),
 
