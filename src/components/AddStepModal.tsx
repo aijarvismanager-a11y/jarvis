@@ -72,7 +72,7 @@ export function AddStepModal({ projectId, nextIndex, initial, onCancel, onCreate
         const combined = contents.join("\n");
         if (!combined.trim()) return;
         const rec = recommend(combined);
-        if (rec.service !== cat.recommendedAi) setContentSuggestion(rec);
+        if (rec && rec.service !== cat.recommendedAi) setContentSuggestion(rec);
       })
       .finally(() => setCheckingContent(false));
   }

@@ -23,3 +23,8 @@ dist-release
 *.njsproj
 *.sln
 *.sw?
+
+# New core state (user data): SQLite DB, new project folders, pre-migration backups
+/data/
+/projects/
+/backups/

@@ -1,6 +1,9 @@
 {
   "name": "ai-orchestrator",
   "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -9,6 +12,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "server": "tsx server/index.ts",
+    "migrate:legacy": "tsx server/core/cli.ts",
     "start": "concurrently -n server,app -c yellow,cyan \"npm:server\" \"npm:dev\"",
     "test": "vitest run",
     "package": "powershell -ExecutionPolicy Bypass -File scripts/package-dist.ps1"

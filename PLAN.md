@@ -1,5 +1,7 @@
 # AI Orchestrator 再構築計画
 
+> **2026-10-23 更新**: 本書(フェーズ0〜5)は旧設計(固定Workflow方式)の計画で、すべて完了済み。今後は新仕様「新AIオーケストラ — ゼロベース再構築・完全実装仕様書」に基づき再構築する。Phase 0(完全監査)は完了、結果と新ロードマップは [docs/audit/](docs/audit/) を参照(入口: `EXECUTIVE_SUMMARY.md`、計画: `IMPLEMENTATION_ROADMAP.md`)。以下は履歴として残す。
+
 作成日: 2026-08-26
 仕様書: `~/Desktop/ai-orchestrator-spec.md`
 参考(旧実装): `legacy-ai-manager/`（既存の ai-manager アプリ一式を退避。中身は必要な時だけ覗く程度でOK。削除はしていない）

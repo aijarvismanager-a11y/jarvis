@@ -5,6 +5,16 @@ import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
 import { exec } from "node:child_process";
 import path from "node:path";
 import http from "node:http";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { WorkflowFile } from "../src/types/workflow.ts";
+import { AiServiceList } from "../src/types/aiService.ts";
+import { openDatabase } from "./core/db.ts";
+import { Store } from "./core/store.ts";
+import { MissionEngine } from "./core/missionEngine.ts";
+import { ClaudeCodeExecutor } from "./core/claudeCodeExecutor.ts";
+import { ProjectValidator } from "./core/taskValidator.ts";
+import { ClaudeCodePlanner } from "./core/planner.ts";
+import { createOrchestratorRouter } from "./core/api.ts";
 
 // Real "implement this" tasks routinely take longer than a couple minutes
 // (multiple file reads/writes, occasionally a lint/test pass) — this was
@@ -24,8 +34,68 @@ const PORT = Number(process.env.PORT ?? 4173);
 // like a hang rather than "still thinking".
 const OLLAMA_TIMEOUT_MS = 3 * 60 * 1000;
 
+// The API can run arbitrary shell commands (see /execute), so it must only be
+// reachable from the user's own browser on this machine: bind to loopback,
+// reject requests whose Host/Origin aren't local (blocks DNS rebinding and
+// cross-site requests), and require a per-launch token for /execute.
+const BIND_HOST = "127.0.0.1";
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const SESSION_TOKEN = randomBytes(32).toString("hex");
+
+function hostnameOf(hostHeader: string | undefined): string | null {
+  if (!hostHeader) return null;
+  try {
+    return new URL(`http://${hostHeader}`).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalHostHeader(hostHeader: string | undefined): boolean {
+  const name = hostnameOf(hostHeader);
+  return name !== null && LOCAL_HOSTNAMES.has(name);
+}
+
+function isLocalOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // non-browser callers and same-origin GETs send none
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function tokenMatches(candidate: unknown): boolean {
+  if (typeof candidate !== "string") return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(SESSION_TOKEN);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 const app = express();
-app.use(express.json());
+app.use((req, res, next) => {
+  if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
+    res.status(403).json({ error: "このアプリはローカルのブラウザからのみ利用できます" });
+    return;
+  }
+  next();
+});
+app.use(express.json({ limit: "2mb" }));
+
+// New orchestrator (Phase 2/3): Claude Code plans and executes inside each
+// project's own directory, restricted by the Permission Policy and checked by
+// Validation L1-L3.
+const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
+const engine = new MissionEngine(coreStore, {
+  planner: new ClaudeCodePlanner({ cwd: ROOT }),
+  executor: new ClaudeCodeExecutor(coreStore),
+  validator: new ProjectValidator(path.join(ROOT, "projects")),
+});
+app.use("/api/v2", createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches }));
+
+app.get("/api/session-token", (_req, res) => {
+  res.json({ token: SESSION_TOKEN });
+});
 
 app.get("/api/workflow", async (_req, res) => {
   try {
@@ -37,8 +107,13 @@ app.get("/api/workflow", async (_req, res) => {
 });
 
 app.put("/api/workflow", async (req, res) => {
+  const parsed = WorkflowFile.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "workflow の形式が不正です", detail: parsed.error.issues[0]?.message });
+    return;
+  }
   try {
-    await writeFile(WORKFLOW_PATH, JSON.stringify(req.body, null, 2), "utf-8");
+    await writeFile(WORKFLOW_PATH, JSON.stringify(parsed.data, null, 2), "utf-8");
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "workflow.json の書き込みに失敗しました", detail: String(err) });
@@ -55,8 +130,13 @@ app.get("/api/ai-services", async (_req, res) => {
 });
 
 app.put("/api/ai-services", async (req, res) => {
+  const parsed = AiServiceList.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "ai_services の形式が不正です", detail: parsed.error.issues[0]?.message });
+    return;
+  }
   try {
-    await writeFile(AI_SERVICES_PATH, JSON.stringify(req.body, null, 2), "utf-8");
+    await writeFile(AI_SERVICES_PATH, JSON.stringify(parsed.data, null, 2), "utf-8");
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "ai_services.json の書き込みに失敗しました", detail: String(err) });
@@ -252,6 +332,10 @@ app.get("/api/projects/:projectId/history", async (req, res) => {
 });
 
 app.post("/api/projects/:projectId/execute", async (req, res) => {
+  if (!tokenMatches(req.headers["x-orchestrator-token"])) {
+    res.status(403).json({ error: "実行トークンが無効です。ページを再読み込みしてください" });
+    return;
+  }
   const dir = projectDir(req.params.projectId);
   if (!dir) {
     res.status(400).json({ error: "不正なプロジェクトIDです" });
@@ -378,7 +462,11 @@ const server = http.createServer(app);
 // /api/execute response before EXECUTE_TIMEOUT_MS is reached.
 server.requestTimeout = 0;
 server.headersTimeout = 0;
-const wss = new WebSocketServer({ server, path: "/ws" });
+const wss = new WebSocketServer({
+  server,
+  path: "/ws",
+  verifyClient: ({ req }: { req: http.IncomingMessage }) => isLocalHostHeader(req.headers.host) && isLocalOrigin(req.headers.origin),
+});
 
 function broadcast(message: unknown) {
   const payload = JSON.stringify(message);
@@ -396,7 +484,7 @@ watcher
   .on("change", (p) => broadcast({ type: "fs-change", event: "change", path: p }))
   .on("unlink", (p) => broadcast({ type: "fs-change", event: "unlink", path: p }));
 
-server.listen(PORT, () => {
-  console.log(`[ai-orchestrator] server listening on http://localhost:${PORT}`);
+server.listen(PORT, BIND_HOST, () => {
+  console.log(`[ai-orchestrator] server listening on http://${BIND_HOST}:${PORT}`);
   console.log(`[ai-orchestrator] watching ${WORKSPACE_DIR} and ${WORKFLOW_PATH}`);
 });

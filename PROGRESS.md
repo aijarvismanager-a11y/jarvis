@@ -651,3 +651,167 @@ JSONの妥当性とサーバー経由での反映（35件）、設定画面で�
 
 ### 次にやること
 特になし。
+
+
+---
+
+## 2026-10-23: 新仕様の受領とPhase 0(完全監査)を実施 — コード変更なし
+
+新仕様「新AIオーケストラ — ゼロベース再構築・完全実装仕様書」と監査プロンプトに基づき、現行プロジェクトを監査した。実装・削除は行っていない。
+
+### 完了（済）
+- `docs/audit/` に監査文書12本を作成(AUDIT_PROJECT_STRUCTURE / FEATURES / ARCHITECTURE / SECURITY / TESTS / DATA、REUSE、MIGRATION、DECISIONS、GAP_ANALYSIS、IMPLEMENTATION_ROADMAP、EXECUTIVE_SUMMARY)
+- 実測: `npm test` 26件合格 / lint エラー0 / **`npm run build` 失敗**(`AddStepModal.tsx:75` TS18047)
+- 推奨移行方式は B(段階的リビルド)。`PLAN.md` `README.md` に再構築中の注記を追記
+
+### 不具合・要確認
+- [優先度: 高] APIサーバーが認証なしの任意コマンド実行(`/api/projects/:id/execute`)を全インターフェース(`::`)で待ち受け(S-1/S-2)。修正は承認待ち
+- [優先度: 中] `npm run build` 失敗(上記)
+- [優先度: 低] ルート直下に空ディレクトリ8個(Phase 9で処分)。※テスト残骸と推定していたプロジェクト2件は実プロジェクトと判明(2026-10-23訂正)
+
+### 次にやること
+ユーザー承認後、Phase 0.5(緊急修正)→ Phase 1(Core State)。詳細は `docs/audit/IMPLEMENTATION_ROADMAP.md`。
+
+
+---
+
+## 2026-10-23（2回目）: Phase 0.5 緊急修正(セキュリティ+build)
+
+### 完了（済）
+- `server/index.ts`: `127.0.0.1` のみで待ち受け / 全APIでHost・Origin検査(403) / `/execute` に起動ごとのトークン必須 / WebSocketにも検査 / `PUT /api/workflow`・`/api/ai-services` をZod検証(400) / JSON上限2MB / `GET /api/session-token` 追加
+- `src/lib/api.ts`: `executeCommand` がトークンを自動取得して付与(サーバー再起動後の403は1回だけ再取得して再試行)
+- `vite.config.ts`: プロキシ先を `127.0.0.1` に(`localhost` が `::1` に解決されると接続できなくなるため)
+- `tsconfig.server.json`: サーバーがZodスキーマを共有できるよう `src/types` の2ファイルを対象に追加
+- `AddStepModal.tsx:75` の null ガードで build 失敗を解消
+- 検証: `npm run build` 成功 / test 26件合格 / lint エラー0 / 実機: LAN IPへの接続拒否、偽Host・偽Origin・トークンなし 403、正トークン 200、ブラウザ(Vite経由)から実行成功、WebSocket接続成功
+
+### 不具合・要確認
+- 同一PC・同一ユーザーの別プロセスからはトークンを取得できる(単一ユーザーのローカルツールとして許容)
+- S-3(shell文字列実行)・S-5(同時数制限)は Phase 3 で対応
+- 起動直後にページを開くとWebSocket接続失敗が数回出る(サーバー起動待ち。再接続後は正常)
+
+### 次にやること
+Phase 1 — Core State(SQLite)。先に better-sqlite3 のWindowsビルド可否をスパイク。
+
+
+---
+
+## 2026-10-23（3回目）: Phase 1 着手 — SQLiteドライバのスパイク
+
+### 完了（済）
+- 隔離ディレクトリで better-sqlite3 13.0.3 を試行 → プリビルド導入4秒、動作OK(プロジェクトへの依存追加なし)
+- `node:sqlite` でWAL・外部キー・ROLLBACK・2万件INSERT(104ms)を確認
+- 決定: **`node:sqlite` を採用**(ネイティブ依存を増やさない)。詳細は `docs/audit/DECISIONS.md` D-11
+
+### 不具合・要確認
+- 配布用Node 22.13.0(bat内MSI)での `node:sqlite` は実機未検証
+- `package.json` に `engines` 未指定(Phase 1最初に追加)
+
+### 次にやること
+Phase 1 本体: スキーマ(12テーブル)とリポジトリ層、Project分離テスト、旧workflow.jsonの読み取り専用インポータ。
+
+
+---
+
+## 2026-10-23（4回目）: Phase 1 本体 — Core State(SQLite)・リポジトリ層・旧データ読み取り専用インポータ
+
+### 完了（済）
+- `server/core/schema.ts` 仕様§44の12テーブル+`task_edges`。**Project分離をDBで強制**: 子テーブルの親参照は複合外部キー(id, project_id)。別プロジェクトのMissionにTaskを付ける・Artifact/Validation/Runを他プロジェクトのTaskに付ける・依存を跨ぐ、は全てDBが拒否。`retry_count`は0〜5のCHECK(仕様§32)、project idはGLOBで英数_-のみ
+- `server/core/db.ts` `node:sqlite`(WAL・外部キーON)、`PRAGMA user_version`による番号付きマイグレーション、再入可能トランザクション(SAVEPOINT)
+- `server/core/store.ts` リポジトリ層(projects/missions/tasks+依存/ai_services+capabilities/ai_runs/artifacts(自動version)/validations/decisions/events/settings/locks(期限付き排他))。全プロジェクト系メソッドがprojectIdを必須にして絞り込み
+- `server/core/paths.ts` `resolveInProject`: 絶対パス・ドライブ文字・`..`・NUL・ジャンクション/シンボリックリンク経由の逸脱を拒否(監査の未確認事項を解消)
+- `server/core/legacyImport.ts` + `cli.ts` 旧 workflow.json/ai_services.json/workspace を**読み取り専用**で解析→新DBへ変換。ドライラン既定、`--apply` 時は先に `backups/<日時>/` へ config/ と workspace/ をコピー、冪等(既存IDはスキップ・上書きなし)、ファイルは移動でなくコピー。`npm run migrate:legacy`
+- `package.json` に `engines: node >=22.13`、`.gitignore` に `/data/ /projects/ /backups/`
+- テスト: 新規40件(スキーマ制約、Project分離7種、リポジトリ、ロック、パス逸脱、インポータ・冪等性・バックアップ)。合計66件合格、build成功、lint エラー0
+- テストが捕捉した不具合を修正: 入れ子トランザクション(SAVEPOINT化)、「設計レビュー」が「設計」に先に一致する役割分類の順序
+- 実データのドライラン(config 不変をハッシュで確認): 4プロジェクト・AIサービス37件・警告3件。`data/migration-report.md`
+
+### 不具合・要確認
+- 実データへの `--apply` は未実施(バックアップ→取込。ユーザー確認後)
+- `project_1788063824457` `project_1788064243370` は実プロジェクトと判明(以前の「テスト残骸」推定を訂正)
+- ウェブAIの capabilities は未分類(Phase 4で付与)。旧 `workflow.json` の status は ready/completed に写像(仮定)
+- Node 22.13.0 での `node:sqlite` 実機検証は未実施(開発機は24.22.1)
+- 新DBは現行サーバー(`server/index.ts`)にはまだ接続していない(Phase 2)
+
+### 次にやること
+Phase 2 — Orchestrator(Mission Engine、Task Graph、状態機械、Scheduler、Pause/Resume)。先に実データへの `--apply` の可否を決める。
+
+---
+
+## 2026-10-23（5回目）: 実データへ `migrate:legacy --apply` を実行
+
+### 完了（済）
+- バックアップ: `backups/2026-10-23T13-59-57-077Z/`(config/ と workspace/、26ファイル)
+- 取込 4プロジェクト・スキップ0・AIサービス37件。新DB `data/orchestrator.db`: projects 4 / missions 4 / tasks 11 / task_edges 8 / artifacts 8 / ai_services 37 / ai_capabilities 5 / events 31
+- `projects/` へコピー: sample-project 20ファイル、soccer-japan-team 3ファイル、他2件は空(元から0ファイル)
+- 旧 `config/` と `workspace/` は変更なし(config はハッシュで不変を確認)。旧ファイルは移行検証が済むまで残す
+
+### 不具合・要確認
+- 新DBの内容を新UIで確認する手段はまだ無い(Phase 2/7)
+- 取込を再実行しても既存プロジェクトはスキップされる(冪等)
+
+---
+
+## 2026-10-23(6回目): Phase 2 — Orchestrator(Mission Engine・Task Graph・状態機械・Scheduler・Pause/Resume・Retry・Replan)
+
+### 完了(済)
+- `server/core/taskStateMachine.ts` Task/Mission の合法遷移表。不正遷移は `IllegalTransitionError`。`retryTask` は failed→ready で `retry_count`+1、**最大5回**(DBのCHECKも二重の歯止め)。completed/cancelled は終端
+- `server/core/taskGraph.ts` 動的Task Graph。Zodスキーマ(最大50タスク)、重複キー/存在しない依存/自己依存/循環の検出、`applyPlan`(トランザクションで原子的)、`refreshReadiness`(依存完了でready化、再試行不能な依存先があれば下流を推移的にblocked、回復すれば戻す)
+- `server/core/planner.ts` `Planner` インターフェース(差し替え可能)+ `ClaudeCodePlanner`。**`claude --help` を実行して存在するフラグだけ**使う(`--print` 必須、`--permission-mode plan` が無ければ安全のため実行拒否、`--output-format json`/`--json-schema`/`--no-session-persistence` は検出時のみ)。プロンプトは stdin 渡し。出力はZod+グラフ検証。Windowsの `.cmd` 経由(シェル使用)時は JSON 引数が安全にクォートできないため `--json-schema` を付けない
+- `server/core/scheduler.ts` 最大並列2(設定可)、コード編集ロール(coding等)はプロジェクトごとに1系統。`locks` テーブルの `code:<projectId>` を Write Lock として使用(TTL付き、所有者は task:<id>)
+- `server/core/missionEngine.ts` 計画提案→**ユーザー承認ゲート**(承認前はタスク未作成・未実行)→実行ループ→completed/failed。reject(フィードバック付き再提案)、pause(実行中をabort→paused、失敗扱いにしない)、resume、cancel、クラッシュ復旧(running等→ready)、replan(完了済み/失敗をPlannerへ渡し、旧未完了タスクは**承認後に**cancelled。失敗時は旧グラフ無傷)
+- テスト新規54件(状態機械、グラフ、Scheduler、Planner、Engine)。全体 120件合格、`npm run build` 成功、`npm run lint` エラー0(既存warningのみ)
+
+### 失敗・誤り・修正した点
+- 当初 `heredoc` でのテスト作成が構文エラーで失敗 → ファイル作成ツールに切替。Windowsパスのエスケープ崩れ(TS1125)を修正
+- 設計上の見落としを自己発見して修正: 他ミッションが並列枠を埋めていると「書込みロック不可」と誤判定して失敗にする恐れ → 他ミッションの完了待ちに変更
+
+### 誤っている/未検証の仮定
+- **実際の `claude -p` によるプラン生成は未実行**(サブスク消費と、モデル出力形式の実測が必要)。`--output-format json` の `result`/`structured_output` 解釈は想定で、テストはフェイク出力のみ。Phase 3 の実機検証で確認する
+- コード編集ロールの判定は役割名の固定リスト(coding/fix/refactor 等)。Plannerが別名を使うと読み取り扱いになる → Phase 3 でPermission Policyと統合して見直し
+- 並列上限2はエンジン単位(プロジェクト横断)。仕様の意図(プロジェクト単位かもしれない)は未確認
+- プロセス再起動後の復旧は `run()` 時に行うが、起動時の自動再開フックはまだ無い
+- 失敗ミッションの扱い: リトライ上限到達でミッション failed → ユーザーが replan か手動対応(自動Replanはしない)
+
+### 残り(未着手)
+- 現行サーバー `server/index.ts` へのAPI接続(新DBは依然未接続)、UI(Phase 7)
+- 実Executor(ClaudeCodeExecutor、Phase 3)、Validation L1〜L3、Permission Policy
+- AI Broker/Registry(Phase 4)。現状 `selected_ai` は未設定のまま
+- コミットは未実施(指示どおり)
+
+### 追記(Phase 2 続き): 新オーケストレーターAPIを現行サーバーへ接続
+- `server/core/api.ts` `/api/v2` ルーター: ミッション一覧/詳細/イベント(GET)、作成・approve・reject(feedback必須)・replan・pause・cancel・run・resume(POST、`x-orchestrator-token` 必須)。入力はZod、projectId/missionIdはDB存在確認(他プロジェクトのミッションは404)
+- `server/index.ts` に配線(`data/orchestrator.db`)。実Executorが無いため `canExecute: false` で run/resume は **501**(計画・承認・一時停止・取消のみ動作)。実サーバー起動で移行済みの実データのGETを確認
+- テスト +6(計126件合格)、build成功、lint エラー0
+- 残り: 実Executor(Phase 3)、UI(Phase 7)、起動時の自動復旧フック(Executor実装後)
+
+---
+
+## 2026-10-23(7回目): Phase 3 — Claude Code実行基盤(Executor・Permission Policy・CommandRunner・Validation・自己修復)
+
+### 完了(済)
+- `server/core/commandRunner.ts` 子プロセス起動の一本化。タイムアウト/中断で**プロセスツリーごとkill**(Windowsは `taskkill /T /F`)、出力上限2MB、`env`指定、`timedOut`報告。`planner.ts` はここから再エクスポート(互換維持)
+- `server/core/permissionPolicy.ts` READ/WORKSPACE_WRITE/NETWORK/DEPLOY/DESTRUCTIVE。既定は READ+WRITE。CLIには必ず `--disallowed-tools`(WebFetch/curl/git push/rm 等)を付与、コード系タスクのみ npm/npx/node を許可。タスク文面にデプロイ・削除があれば `ApprovalGate` に確認(既定は拒否=実行しない)。`classifyCommand` でコマンドの必要レベルを判定
+- `server/core/claudeCodeExecutor.ts` `claude --print` を `projects/<id>/` をcwdに実行。`--help` で存在を確認したフラグのみ使用(`acceptEdits`/`--permission-prompts none` が無ければ**実行拒否**)。`bypassPermissions` は使わない。プロンプトはstdin、依存タスクの成果物を渡す。実行前後のスナップショット差分を artifacts に登録。ログイン切れ・タイムアウト・異常終了を日本語で報告。20分上限(書込みロックTTL30分より短い)
+- `server/core/taskValidator.ts` L1 宣言された成果物の存在/非空(コード作業で変更0件も失敗) → L2 JSON/JS構文 → L3 `npm test`(テストスクリプトがあるコードタスクのみ、`CI=true`)。判定は到達レベルで `validations` に記録
+- **自己修復**: 検証/実行の失敗内容を次の試行のプロンプトに渡して再実行(エンジンの再試行は最大5回、無限ループなし)
+- `missionEngine.ts` に `ExecutionResult.artifacts` と検証 `level` を追加。`server/index.ts` を実Executor+Validatorに接続し `canExecute: true`(run/resume が有効に)
+- テスト +26(全体146件合格)、`npm run build` 成功、lint エラー0。実際の `claude --help` に対しフラグ検出と引数生成を確認(トークン消費なし)
+
+### 未検証・既知の問題
+- **実際の `claude --print` でのタスク実行は未実施**(サブスク消費のため)。`--output-format json` の `result`/`is_error` の解釈は想定。Test 3/4(実機E2E)は未実施
+- 承認フローは `ApprovalGate` までで、承認UIは Phase 7。それまで DEPLOY/DESTRUCTIVE は常に拒否
+- リトライ上限(5回)到達は task `failed` のまま(仕様の `blocked` 表示・ユーザー報告は未対応)
+- ログイン切れでも5回リトライする(即時失敗なので実害は小さい)
+- コード編集ロールの判定は依然として役割名の固定リスト(Scheduler)
+- Windowsでは `claude` が `.cmd` のためシェル経由。ツール指定は空白を含むため引用符で囲んで渡している(実機未確認)
+- 起動時の自動復旧フックは未実装
+
+### 次にやること
+Phase 4 — AI Registry / Broker。その前に、使い捨てプロジェクトで実機の `claude --print` による1タスク実行(Test 3/4)を確認したい。
+
+### 追記(Phase 3 実機検証、2026-10-23)
+- 使い捨てプロジェクトで実機 `claude --print` により「hello.js を作る」を実行 → mission completed(約50秒)。`hello.js` が生成され `Hello, World!` を出力
+- 1回目は `code/hello.js` に作成 → L1検証が「hello.js なし」で失敗 → 失敗内容を次の試行に渡して再実行 → ルートに作成し L2 合格。**自己修復ループが実機で動作**。artifacts/validations/ai_runs も記録された
+- 原因はプロンプトの食い違い(「コードはcode/」と期待パス「hello.js」)。期待パス優先の一文を追加
+- 未確認: `npm test`(L3)の実機、並列実行、Pause中の実プロセスkill

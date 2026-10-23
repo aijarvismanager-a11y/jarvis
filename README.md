@@ -2,6 +2,9 @@
 
 複数のAI（ChatGPT/Gemini/Claude等のWeb版、Claude Code CLI）をバトンリレー方式で連携させ、ローカル完結でアプリ開発の工程を管理するツール。API課金を導入せず、既存のブラウザ/CLIをそのまま使う。
 
+> **再構築中(2026-10-23〜)**: 新仕様「新AIオーケストラ」(Mission→動的Task Graph→AI自動選定)へ段階的に移行する。監査結果とロードマップは [docs/audit/](docs/audit/) 。下記は現行(旧設計)の説明。
+> APIサーバーは `127.0.0.1` のみで待ち受け、Host/Origin検査と起動ごとのトークン(`/execute`)で保護している(Phase 0.5、詳細: docs/audit/AUDIT_SECURITY.md)。
+
 ## 起動方法
 
 ```bash
@@ -23,6 +26,7 @@ npm run dev      # フロントエンド（Vite）
 - `config/workflow.json` — ワークフローのステップ定義（順序・担当AI・状態・入出力ファイル・プロンプト/コマンドのテンプレート）
 - `config/ai_services.json` — 設定画面で管理するAIサービス一覧（名前・URL）
 - `workspace/` — 各AIが読み書きする成果物置き場（`docs/`・`src/`・`logs/`）。Artifactsペインが監視する対象
+- `server/core/` — 新しい状態管理(SQLite、リポジトリ、旧データ移行)。`npm run migrate:legacy` で旧データのドライランを実行(`-- --apply` で取込。事前に自動バックアップ)
 - `server/` — Expressサーバー（`workflow.json`/`ai_services.json`のAPI、`workspace/`のファイル監視・配信、コマンド実行）
 - `src/` — フロントエンド（React + TypeScript + Tailwind）
 

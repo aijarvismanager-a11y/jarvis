@@ -131,17 +131,32 @@ export type ExecuteResult = {
   stderr: string;
 };
 
+// Per-launch token the server requires for /execute. Fetched lazily and
+// refreshed once if the server was restarted (a stale token gets a 403).
+let sessionToken: string | null = null;
+
+async function getSessionToken(refresh = false): Promise<string> {
+  if (sessionToken && !refresh) return sessionToken;
+  const res = await fetch("/api/session-token");
+  if (!res.ok) throw new Error("実行トークンの取得に失敗しました");
+  sessionToken = (await res.json()).token as string;
+  return sessionToken;
+}
+
 export async function executeCommand(
   projectId: string,
   command: string,
   stepId?: string,
   role?: string,
 ): Promise<ExecuteResult> {
-  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/execute`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command, stepId, role }),
-  });
+  const send = async (refresh: boolean) =>
+    fetch(`/api/projects/${encodeURIComponent(projectId)}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-orchestrator-token": await getSessionToken(refresh) },
+      body: JSON.stringify({ command, stepId, role }),
+    });
+  let res = await send(false);
+  if (res.status === 403) res = await send(true);
   if (!res.ok) throw new Error("コマンドの実行に失敗しました");
   return res.json();
 }
