@@ -169,13 +169,14 @@ export class ClaudeCodeExecutor implements TaskExecutor {
 
   /** Why the last attempt failed (validation output first, then the run summary), for the retry prompt. */
   private previousFailure(task: Task): string | undefined {
-    if (task.retryCount === 0) return undefined;
     const failedValidation = this.store
       .listValidations(task.projectId)
       .filter((v) => v.task_id === task.id && v.status === "failed")
       .pop();
     const detail = (failedValidation?.detail as string | null) ?? this.store.listAiRuns(task.projectId).filter((r) => r.task_id === task.id && r.status === "failed").pop()?.summary;
-    return typeof detail === "string" && detail ? detail.slice(-3000) : "(詳細不明)";
+    if (typeof detail === "string" && detail) return detail.slice(-3000);
+    // a task that never failed has nothing to report; one that did (even after a manual retry reset the counter) does
+    return task.retryCount === 0 ? undefined : "(詳細不明)";
   }
 
   private dependencyNotes(task: Task): string[] {

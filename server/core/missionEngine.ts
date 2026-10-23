@@ -137,6 +137,26 @@ export class MissionEngine {
     }
   }
 
+  /**
+   * The user retries one failed task (optionally with an extra instruction), on
+   * top of the automatic retries. Tasks blocked behind it recover on their own,
+   * and a failed mission is started again.
+   */
+  retryFailedTask(projectId: string, missionId: string, taskId: string, instruction?: string): Promise<MissionStatus> {
+    const mission = this.requireMission(projectId, missionId);
+    const task = this.store.getTask(projectId, taskId);
+    if (!task || task.missionId !== missionId) throw new Error("タスクが見つかりません");
+    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了したミッションのタスクはやり直せません");
+    if (mission.status === "planning") throw new Error("計画の承認待ちの間はやり直せません");
+    if (task.status !== "failed") throw new Error("失敗したタスクだけやり直せます");
+    this.noRetry.delete(taskId);
+    this.store.resetTaskForManualRetry(projectId, taskId, instruction?.trim() || undefined);
+    this.store.appendEvent({ projectId, taskId, type: "TASK_MANUAL_RETRY", payload: { instruction: instruction?.trim() || null } });
+    transitionTask(this.store, projectId, taskId, "ready", "manual retry");
+    if (mission.status === "failed" || mission.status === "paused") transitionMission(this.store, projectId, missionId, "running", "task retried by user");
+    return this.run(projectId, missionId);
+  }
+
   // ---- pause / resume / cancel ---------------------------------------------
   async pause(projectId: string, missionId: string): Promise<void> {
     this.requireMission(projectId, missionId);

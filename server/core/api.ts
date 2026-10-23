@@ -338,6 +338,18 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       }),
     );
 
+  router.post(
+    "/projects/:projectId/missions/:missionId/tasks/:taskId/retry",
+    guarded(async (req, res) => {
+      if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、実行できません" });
+      const projectId = String(req.params.projectId);
+      const missionId = String(req.params.missionId);
+      const { feedback } = feedbackSchema.parse(req.body ?? {});
+      void engine.retryFailedTask(projectId, missionId, String(req.params.taskId), feedback || undefined).catch(() => {});
+      res.json(view(projectId, missionId));
+    }),
+  );
+
   action("approve", (p, m) => engine.approvePlan(p, m));
   action("reject", (p, m, b) => {
     if (!b.feedback) throw new Error("修正してほしい点(feedback)を入力してください");

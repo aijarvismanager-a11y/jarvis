@@ -268,13 +268,13 @@ export class WebAiExecutor implements TaskExecutor {
   }
 
   private previousFailure(task: Task): string | undefined {
-    if (task.retryCount === 0) return undefined;
     const failed = this.store
       .listValidations(task.projectId)
       .filter((v) => v.task_id === task.id && v.status === "failed")
       .pop();
     const detail = (failed?.detail as string | null) ?? this.store.listAiRuns(task.projectId).filter((r) => r.task_id === task.id && r.status === "failed").pop()?.summary;
-    return typeof detail === "string" && detail ? detail.slice(-2000) : "(詳細不明)";
+    if (typeof detail === "string" && detail) return detail.slice(-2000);
+    return task.retryCount === 0 ? undefined : "(詳細不明)";
   }
 
   // ---- automatic downgrade (spec §10) -----------------------------------------

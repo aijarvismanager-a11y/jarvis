@@ -251,6 +251,14 @@ export class Store {
     );
   }
 
+  /** A manual retry gives the task a fresh automatic-retry budget and may carry the user's extra instruction. */
+  resetTaskForManualRetry(projectId: string, id: string, extraInstruction?: string): void {
+    const task = this.getTask(projectId, id);
+    if (!task) throw new Error("タスクが見つかりません");
+    const constraints = extraInstruction ? [...task.constraints, `ユーザーからの追加指示: ${extraInstruction}`] : task.constraints;
+    this.db.prepare("UPDATE tasks SET retry_count = 0, constraints = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(json(constraints), now(), id, projectId);
+  }
+
   /** Plain status write. The legal-transition state machine is Phase 2. */
   setTaskStatus(projectId: string, id: string, status: TaskStatus): void {
     const res = this.db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(status, now(), id, projectId);

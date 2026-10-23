@@ -180,6 +180,36 @@ describe("retry", () => {
     expect(exec.order).not.toContain("b");
   });
 
+  it("the user can retry a failed task with an extra instruction: it gets a fresh budget, dependents recover, the mission finishes", async () => {
+    const seen: string[][] = [];
+    const exec = new FakeExecutor((task, attempt) => {
+      if (task.objective === "a") seen.push(task.constraints);
+      return task.objective === "a" && attempt <= 6 ? { ok: false, summary: "always" } : { ok: true };
+    });
+    const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
+    const mid = await started(engine);
+    expect(await engine.run(pid, mid)).toBe("failed");
+    expect(byObjective(mid, "b").status).toBe("blocked");
+
+    const a = byObjective(mid, "a");
+    expect(await engine.retryFailedTask(pid, mid, a.id, "もっと小さく作って")).toBe("completed");
+    expect(byObjective(mid, "a")).toMatchObject({ status: "completed", retryCount: 0 });
+    expect(byObjective(mid, "b").status).toBe("completed");
+    expect(seen.at(-1)).toContain("ユーザーからの追加指示: もっと小さく作って");
+    expect(store.listEvents({ projectId: pid }).some((e) => e.type === "TASK_MANUAL_RETRY")).toBe(true);
+  });
+
+  it("only failed tasks of a live mission can be retried by hand", async () => {
+    const exec = new FakeExecutor((task) => (task.objective === "a" ? { ok: false, summary: "x" } : { ok: true }));
+    const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
+    const mid = await started(engine);
+    await engine.run(pid, mid);
+    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "b").id)).toThrow("失敗したタスク");
+    expect(() => engine.retryFailedTask(pid, mid, "nope")).toThrow("見つかりません");
+    await engine.cancel(pid, mid);
+    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "a").id)).toThrow("終了したミッション");
+  });
+
   it("does not retry a failure the executor marks as unretryable (e.g. a denied approval)", async () => {
     const exec = new FakeExecutor((task) => (task.objective === "a" ? { ok: false, retryable: false, summary: "approval denied" } : { ok: true }));
     const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });

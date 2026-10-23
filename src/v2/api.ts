@@ -41,6 +41,8 @@ export const api = {
   missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "replan" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/${action}`, "POST", { feedback }),
 
+  retryTask: (projectId: string, missionId: string, taskId: string, feedback = "") =>
+    request<MissionView>(`${mission(projectId, missionId)}/tasks/${encodeURIComponent(taskId)}/retry`, "POST", { feedback }),
   preview: (projectId: string) => request<{ preview: Preview | null }>(`/projects/${encodeURIComponent(projectId)}/preview`).then((r) => r.preview),
   startPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/start`, "POST", {}).then((r) => r.preview),
   stopPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/stop`, "POST", {}).then((r) => r.preview),

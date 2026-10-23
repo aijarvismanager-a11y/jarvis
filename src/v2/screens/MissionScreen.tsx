@@ -13,6 +13,31 @@ function StepMark({ status }: { status: Task["status"] }) {
   return <span className="text-muted">○</span>;
 }
 
+/** Retry one failed task, optionally telling the AI what to do differently. */
+function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const { busy, run } = useAction(ctx.setError);
+  const go = () => run(async () => { await api.retryTask(ctx.project!.id, task.missionId, task.id, text); setText(""); setOpen(false); ctx.refresh(); });
+  return (
+    <div className="ml-6 mt-1">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="ghost" disabled={busy} onClick={go}>このタスクをやり直す</Button>
+        {!open && <Button variant="ghost" disabled={busy} onClick={() => setOpen(true)}>指示を足してやり直す</Button>}
+      </div>
+      {open && (
+        <div className="mt-2">
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="例: 削除機能は後回しにして、一覧と登録だけ作ってください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
+          <div className="mt-1 flex gap-2">
+            <Button disabled={busy || !text.trim()} onClick={go}>この指示でやり直す</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PREVIEW_LABEL: Record<Preview["state"], string> = { stopped: "停止中", starting: "起動中", running: "動作中", error: "起動できませんでした" };
 
 /** Runs the project's app as it is right now, so it can be tried while the mission is still going. */
@@ -274,6 +299,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                     {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
+                  {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
                 </li>
               ))}
             </ul>
