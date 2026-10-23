@@ -815,3 +815,10 @@ Phase 4 — AI Registry / Broker。その前に、使い捨てプロジェクト
 - 1回目は `code/hello.js` に作成 → L1検証が「hello.js なし」で失敗 → 失敗内容を次の試行に渡して再実行 → ルートに作成し L2 合格。**自己修復ループが実機で動作**。artifacts/validations/ai_runs も記録された
 - 原因はプロンプトの食い違い(「コードはcode/」と期待パス「hello.js」)。期待パス優先の一文を追加
 - 未確認: `npm test`(L3)の実機、並列実行、Pause中の実プロセスkill
+
+### 追記2(Phase 3 実機検証の残り3点、2026-10-23)— すべて確認済み
+- **L3 `npm test`**: 実機で add.js/test.js/package.json を生成 → Windowsで `npm test` が走り L3 合格(検証レベル3で記録)
+- **並列+書込みロック**: research2本+coding2本で、同時実行の最大2、同時コーディング最大1(c1完了後にc2開始)を確認
+- **Pause**: 実行中の子プロセス(node)が1→0。pause 197ms、タスクpaused、run()はpausedで返る
+- 発見・修正: 同一プロジェクトで並列実行すると互いの生成ファイルを自分のartifactとして二重登録 → (path,署名)で重複排除。**帰属は並列時にベストエフォート**(先に終わったタスクに付く)
+- Phase 3 完了。次は Phase 4

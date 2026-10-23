@@ -115,7 +115,7 @@
 - Pause/Resume/Replan、Retry最大5、Write Lock
 - Planner は A案(Claude Code が計画兼実行)で開始【仮定】
 
-### Phase 3 — Claude Code / 実行基盤 【L】【実装済 2026-10-23(実機の claude 実行 Test 3/4 のみ未実施)、PROGRESS 7回目】
+### Phase 3 — Claude Code / 実行基盤 【L】【完了 2026-10-23(実機検証済、PROGRESS 7回目・追記)】
 - `claude --help` 再確認、`ClaudeCodeExecutor`(spawn、timeout、kill、stdout/stderr/exit code)
 - Permission Policy(READ / WORKSPACE_WRITE / NETWORK / DEPLOY / DESTRUCTIVE)、CommandRunner、承認フロー
 - Validation L1〜L3(存在・構文・unit)、自己修復ループ

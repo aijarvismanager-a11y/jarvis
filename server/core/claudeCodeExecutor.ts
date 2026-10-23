@@ -120,6 +120,8 @@ const quoteForShell = (v: string) => `"${v.replace(/"/g, "")}"`;
 export class ClaudeCodeExecutor implements TaskExecutor {
   readonly name = "claude-code";
   private caps: ExecutorCapabilities | null = null;
+  /** project -> file -> signature already registered. Parallel tasks in one project see each other's writes; this keeps a file from being registered twice. */
+  private readonly registered = new Map<string, Map<string, string>>();
 
   constructor(
     private readonly store: Store,
@@ -204,8 +206,17 @@ export class ClaudeCodeExecutor implements TaskExecutor {
 
     const before = snapshotDir(cwd);
     const res = await this.runner(this.command, args, { input: prompt, cwd, signal: ctx.signal, timeoutMs: this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS });
-    const files = changedFiles(before, snapshotDir(cwd)).slice(0, MAX_ARTIFACTS);
-    for (const file of files) this.store.createArtifact({ projectId, taskId: task.id, path: file, createdBy: this.name });
+    const afterSnap = snapshotDir(cwd);
+    const files = changedFiles(before, afterSnap).slice(0, MAX_ARTIFACTS);
+    // Best effort: with parallel tasks a file may be attributed to whichever task finished first.
+    const seen = this.registered.get(projectId) ?? new Map<string, string>();
+    this.registered.set(projectId, seen);
+    for (const file of files) {
+      const sig = afterSnap.get(file)!;
+      if (seen.get(file) === sig) continue;
+      seen.set(file, sig);
+      this.store.createArtifact({ projectId, taskId: task.id, path: file, createdBy: this.name });
+    }
 
     const out = parseRunOutput(res.stdout);
     const combined = `${out.text}\n${res.stderr}`;
