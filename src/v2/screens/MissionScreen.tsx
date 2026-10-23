@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, formatTime, progressOf, roleLabel } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatTime, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction } from "../ui";
-import type { Handoff, MissionView, Task } from "../types";
+import type { Approval, Handoff, MissionView, Task } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -11,6 +11,34 @@ function StepMark({ status }: { status: Task["status"] }) {
   if (status === "cancelled") return <span className="text-muted">–</span>;
   if (status === "running" || status === "validation" || status === "waiting") return <span className="text-accent">●</span>;
   return <span className="text-muted">○</span>;
+}
+
+const APPROVAL_LEVEL: Record<Approval["level"], string> = {
+  READ: "読み取り",
+  WORKSPACE_WRITE: "ファイルの書き込み",
+  NETWORK: "ネットワーク通信",
+  DEPLOY: "公開・デプロイ",
+  DESTRUCTIVE: "ファイルやデータの削除",
+};
+
+function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
+  const { busy, run } = useAction(ctx.setError);
+  const task = ctx.overview.tasks.find((t) => t.id === approval.taskId);
+  const answer = (approve: boolean) => run(async () => { await api.answerApproval(approval.id, approve); ctx.refresh(); });
+  return (
+    <Card className="border-accent/40">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge tone="warn">許可が必要</Badge>
+        <span className="text-[13px] font-semibold">{APPROVAL_LEVEL[approval.level]}を伴う作業です</span>
+      </div>
+      <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
+      <p className="mt-1 text-[12px] text-muted">許可しても、このタスクの間だけ有効です。他のタスクには広がりません。拒否するとこのタスクは失敗として止まります。30分で自動的に拒否されます。</p>
+      <div className="mt-3 flex gap-2">
+        <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>
+        <Button variant="danger" disabled={busy} onClick={() => answer(false)}>拒否する</Button>
+      </div>
+    </Card>
+  );
 }
 
 function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
@@ -127,7 +155,7 @@ function Intake({ ctx, onStarted }: { ctx: Ctx; onStarted: () => void }) {
 const FINISHED = ["completed", "failed", "cancelled"];
 
 export function MissionScreen({ ctx }: { ctx: Ctx }) {
-  const { mission, overview, services, handoffs, project } = ctx;
+  const { mission, overview, services, handoffs, approvals, project } = ctx;
   const [view, setView] = useState<MissionView | null>(null);
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
@@ -178,11 +206,15 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           {tasks.length > 0 && (
             <ul className="mt-3 space-y-1">
               {tasks.map((t) => (
-                <li key={t.id} className={`flex items-center gap-2 text-[13px] ${t.status === "pending" || t.status === "cancelled" ? "text-muted" : ""}`}>
-                  <StepMark status={t.status} />
-                  <span>{roleLabel(t.role)}</span>
-                  {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
-                  {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
+                <li key={t.id} className={`text-[13px] ${t.status === "pending" || t.status === "cancelled" ? "text-muted" : ""}`}>
+                  <div className="flex items-start gap-2">
+                    <StepMark status={t.status} />
+                    <span className="min-w-0 flex-1"><span className="text-muted">{roleLabel(t.role)} / </span>{t.objective}</span>
+                    {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
+                    {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
+                    {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}
+                  </div>
+                  {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
                 </li>
               ))}
             </ul>
@@ -201,6 +233,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
 
       {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
+      {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
 
       {showIntake && (

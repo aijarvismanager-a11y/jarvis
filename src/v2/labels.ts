@@ -57,6 +57,12 @@ export const deriveProjectName = (goal: string) => {
   return t.length > 24 ? `${t.slice(0, 24)}…` : t || "新しいプロジェクト";
 };
 
+/** "3分12秒" style elapsed time since an ISO timestamp. */
+export const elapsedSince = (iso: string, now = Date.now()) => {
+  const sec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  return sec < 60 ? `${sec}秒` : sec < 3600 ? `${Math.floor(sec / 60)}分${sec % 60}秒` : `${Math.floor(sec / 3600)}時間${Math.floor((sec % 3600) / 60)}分`;
+};
+
 export const formatTime = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });

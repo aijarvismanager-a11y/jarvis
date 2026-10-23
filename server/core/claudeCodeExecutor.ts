@@ -150,7 +150,7 @@ export class ClaudeCodeExecutor implements TaskExecutor {
     return (this.caps = parseExecutorCapabilities(`${res.stdout}\n${res.stderr}`));
   }
 
-  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role">, shell: boolean = needsShell(this.command)): string[] {
+  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string }, shell: boolean = needsShell(this.command)): string[] {
     if (!caps.print) throw new Error("このClaude Codeは非対話実行(--print)に対応していないため実行できません");
     // Without a way to deny prompts or restrict tools the run could hang or exceed its grants: refuse.
     if (!caps.acceptEdits) throw new Error("--permission-mode acceptEdits が使えないため、安全にタスクを実行できません");
@@ -193,10 +193,10 @@ export class ClaudeCodeExecutor implements TaskExecutor {
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult> {
     const { projectId } = task;
     for (const level of requestedElevatedLevels(task)) {
-      const approved = await this.policy.ensure({ projectId, taskId: task.id, level, reason: task.objective });
+      const approved = await this.policy.ensure({ projectId, taskId: task.id, level, reason: task.objective, signal: ctx.signal });
       if (!approved) {
         this.store.appendEvent({ projectId, taskId: task.id, type: "APPROVAL_DENIED", payload: { level } });
-        return { ok: false, summary: `この操作には承認が必要です(${level})。承認されなかったため実行しませんでした` };
+        return { ok: false, retryable: false, summary: `この操作には承認が必要です(${level})。承認されなかったため実行しませんでした` };
       }
     }
 

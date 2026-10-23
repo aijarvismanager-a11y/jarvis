@@ -1,4 +1,4 @@
-import type { AiService, Handoff, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -40,6 +40,9 @@ export const api = {
     request<MissionView>(`/projects/${encodeURIComponent(projectId)}/missions`, "POST", { goal, constraints, technologyPreferences }),
   missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "replan" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/${action}`, "POST", { feedback }),
+
+  approvals: () => request<{ approvals: Approval[] }>("/approvals").then((r) => r.approvals),
+  answerApproval: (id: string, approve: boolean) => request<{ ok: boolean }>(`/approvals/${encodeURIComponent(id)}/${approve ? "approve" : "deny"}`, "POST", {}),
 
   handoffs: () => request<{ handoffs: Handoff[] }>("/web-handoffs?status=pending").then((r) => r.handoffs),
   submitHandoff: (id: string, text: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/result`, "POST", { text }),

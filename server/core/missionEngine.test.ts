@@ -180,6 +180,16 @@ describe("retry", () => {
     expect(exec.order).not.toContain("b");
   });
 
+  it("does not retry a failure the executor marks as unretryable (e.g. a denied approval)", async () => {
+    const exec = new FakeExecutor((task) => (task.objective === "a" ? { ok: false, retryable: false, summary: "approval denied" } : { ok: true }));
+    const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
+    const mid = await started(engine);
+    expect(await engine.run(pid, mid)).toBe("failed");
+    expect(exec.order.filter((o) => o === "a")).toHaveLength(1);
+    expect(byObjective(mid, "a")).toMatchObject({ status: "failed", retryCount: 0 });
+    expect(byObjective(mid, "b").status).toBe("blocked");
+  });
+
   it("an executor that throws counts as a failure", async () => {
     const exec = new FakeExecutor((_t, attempt) => {
       if (attempt === 1) throw new Error("crash");

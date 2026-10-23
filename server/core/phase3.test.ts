@@ -80,13 +80,22 @@ describe("PermissionPolicy", () => {
     expect(await denied.ensure({ projectId: pid, taskId: "t", level: "DEPLOY", reason: "" })).toBe(false);
     const approved = new PermissionPolicy(undefined, async () => true);
     expect(await approved.ensure({ projectId: pid, taskId: "t", level: "DEPLOY", reason: "" })).toBe(true);
-    expect(approved.restrictionsFor({ role: "coding" }).disallowedTools).not.toContain("Bash(git push:*)");
+    expect(approved.restrictionsFor({ role: "coding", id: "t" }).disallowedTools).not.toContain("Bash(git push:*)");
+    // the approval belongs to that task only
+    expect(approved.restrictionsFor({ role: "coding", id: "other" }).disallowedTools).toContain("Bash(git push:*)");
   });
 
   it("spots deploy/delete wording in a task", () => {
     expect(requestedElevatedLevels({ objective: "本番にデプロイする", constraints: [] })).toEqual(["DEPLOY"]);
     expect(requestedElevatedLevels({ objective: "古いファイルを削除", constraints: [] })).toEqual(["DESTRUCTIVE"]);
     expect(requestedElevatedLevels({ objective: "ログイン画面を作る", constraints: [] })).toEqual([]);
+  });
+
+  it("does not treat an app's own delete feature as a destructive request", () => {
+    expect(requestedElevatedLevels({ objective: "商品一覧・登録・編集・削除のUI/UXワイヤーフレームを設計する", constraints: [] })).toEqual([]);
+    expect(requestedElevatedLevels({ objective: "商品の削除APIを実装する", constraints: [] })).toEqual([]);
+    expect(requestedElevatedLevels({ objective: "Implement a delete button and drop-down menu", constraints: [] })).toEqual([]);
+    expect(requestedElevatedLevels({ objective: "rm -rf dist して作り直す", constraints: [] })).toEqual(["DESTRUCTIVE"]);
   });
 });
 

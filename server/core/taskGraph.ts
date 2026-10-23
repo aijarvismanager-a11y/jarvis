@@ -111,11 +111,11 @@ export function applyPlan(store: Store, projectId: string, missionId: string, dr
  * failed with no retries left); blocked -> pending when its dependencies recovered.
  * Returns the ids that changed.
  */
-export function refreshReadiness(store: Store, projectId: string, missionId: string, maxRetries: number): string[] {
+export function refreshReadiness(store: Store, projectId: string, missionId: string, maxRetries: number, noRetry: (t: Task) => boolean = () => false): string[] {
   const changed: string[] = [];
   const tasks = store.listTasks(projectId).filter((t) => t.missionId === missionId);
   const byId = new Map(tasks.map((t) => [t.id, t]));
-  const dead = (t: Task) => t.status === "cancelled" || (t.status === "failed" && t.retryCount >= maxRetries) || t.status === "blocked";
+  const dead = (t: Task) => t.status === "cancelled" || (t.status === "failed" && (t.retryCount >= maxRetries || noRetry(t))) || t.status === "blocked";
   // Iterate to a fixed point so blocking propagates down a chain.
   for (let pass = 0; pass <= tasks.length; pass++) {
     let moved = false;

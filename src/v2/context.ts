@@ -1,10 +1,11 @@
-import type { AiService, Artifact, Handoff, Mission, Overview, Project } from "./types";
+import type { AiService, Approval, Artifact, Handoff, Mission, Overview, Project } from "./types";
 
 export type Ctx = {
   project: Project | null;
   overview: Overview;
   services: AiService[];
   handoffs: Handoff[];
+  approvals: Approval[];
   mission: Mission | null;
   refresh: () => void;
   setError: (message: string) => void;

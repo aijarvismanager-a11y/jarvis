@@ -17,6 +17,7 @@ export type Mission = {
 };
 export type Task = {
   id: string;
+  updatedAt: string;
   missionId: string;
   role: string;
   objective: string;
@@ -60,7 +61,8 @@ export type PlanDraft = {
 };
 export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
 export type MissionView = { mission: Mission; tasks: Task[]; proposal: Proposal | null };
-export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[] };
+export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[]; taskNotes?: Record<string, string> };
+export type Approval = { id: string; projectId: string; taskId: string; level: "READ" | "WORKSPACE_WRITE" | "NETWORK" | "DEPLOY" | "DESTRUCTIVE"; reason: string; createdAt: string };
 export type Handoff = {
   id: string;
   projectId: string;

@@ -7,6 +7,7 @@ import { PROJECT_ID_RE, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
+import type { ApprovalHub } from "./approvalHub.ts";
 import type { WebHandoffHub } from "./webHandoff.ts";
 import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
 
@@ -26,6 +27,8 @@ export type OrchestratorApiDeps = {
   discovery?: AiDiscovery;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
   executableAdapters?: string[] | (() => string[]);
+  /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
+  approvals?: ApprovalHub;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
   webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean };
 };
@@ -37,6 +40,25 @@ const createSchema = z.object({
 });
 const MAX_ARTIFACT_BYTES = 1_000_000;
 const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default("") });
+
+/** Why a task is failed / blocked, for the UI: the last failure reason, or which task it is waiting on. */
+function taskNotes(store: Store, projectId: string, tasks: ReturnType<Store["listTasks"]>): Record<string, string> {
+  const notes: Record<string, string> = {};
+  const reasons = new Map<string, string>();
+  for (const e of store.listEvents({ projectId, limit: 1000 })) {
+    const p = e.payload as { to?: string; reason?: string };
+    if (e.type === "TASK_TRANSITION" && e.taskId && p.to === "failed" && p.reason) reasons.set(e.taskId, p.reason);
+  }
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  for (const t of tasks) {
+    if (t.status === "failed") notes[t.id] = reasons.get(t.id) ?? "失敗しました";
+    else if (t.status === "blocked") {
+      const dep = t.dependsOn.map((id) => byId.get(id)).find((d) => d && (d.status === "failed" || d.status === "blocked"));
+      if (dep) notes[t.id] = `「${dep.objective}」が先に進めないため止まっています`;
+    }
+  }
+  return notes;
+}
 
 export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   const { store, engine } = deps;
@@ -81,9 +103,11 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   );
   router.get("/projects/:projectId/overview", (req, res) => {
     const projectId = String(req.params.projectId);
+    const tasks = store.listTasks(projectId);
     res.json({
       missions: store.listMissions(projectId),
-      tasks: store.listTasks(projectId),
+      tasks,
+      taskNotes: taskNotes(store, projectId, tasks),
       artifacts: store.listArtifacts(projectId),
       aiRuns: store.listAiRuns(projectId),
     });
@@ -206,6 +230,22 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ service: store.getAiService(aiId) });
     }),
   );
+  // ---- Approvals: a task needing a level above the default waits for the user's answer ----------
+  router.get("/approvals", (req, res) => {
+    const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+    res.json({ approvals: deps.approvals?.list(projectId) ?? [] });
+  });
+  for (const [name, approved] of [["approve", true], ["deny", false]] as const) {
+    router.post(
+      `/approvals/:id/${name}`,
+      guarded((req, res) => {
+        if (!deps.approvals) return void res.status(501).json({ error: "承認機能が接続されていません" });
+        deps.approvals.resolve(String(req.params.id), approved);
+        res.json({ ok: true });
+      }),
+    );
+  }
+
   router.get("/web-handoffs", (req, res) => {
     if (!deps.webAi) return void res.status(501).json({ error: "Web AI自動化が接続されていません" });
     const query = z.object({ projectId: z.string().max(100).optional(), status: z.enum(["pending", "submitted", "skipped", "cancelled"]).optional() }).safeParse(req.query);

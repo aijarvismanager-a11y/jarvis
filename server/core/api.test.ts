@@ -129,7 +129,7 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     await call("/projects/p1/missions", "POST", { goal: "g" });
     const o = (await (await call("/projects/p1/overview")).json()) as Record<string, unknown[]>;
     expect(o.missions).toHaveLength(1);
-    expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "tasks"]);
+    expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "taskNotes", "tasks"]);
   });
 
   it("serves only registered artifacts, and never outside the project", async () => {

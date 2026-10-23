@@ -5,6 +5,7 @@ import type { ExecutionResult, TaskValidator } from "./missionEngine.ts";
 import { projectDir, resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
 import type { Task } from "./store.ts";
+import type { SmokeResult } from "./appSmokeTest.ts";
 
 // Validation L1-L3 (spec §31): files exist, files are well-formed, unit tests
 // pass. Each level only runs if the lower one passed; the verdict reports the
@@ -21,10 +22,15 @@ export function declaredPaths(expectedOutputs: string[]): string[] {
   return expectedOutputs.map((o) => o.trim()).filter((o) => o.length <= 200 && !/\s/.test(o) && /[./\\]/.test(o) && /\.[a-z0-9]{1,8}$/i.test(o));
 }
 
+/** The task that connects frontend and backend ("フロントエンドとバックエンドAPIを結合し…"): the point where a mismatch between them first shows. */
+export function isIntegrationTask(task: Pick<Task, "role" | "objective">): boolean {
+  return isWriteTask(task) && /結合|統合|連携|integrat|wire\s*up/i.test(task.objective);
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
-    private readonly opts: { runner?: CommandRunner; runTests?: boolean } = {},
+    private readonly opts: { runner?: CommandRunner; runTests?: boolean; smoke?: { run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> } } = {},
   ) {}
 
   private get runner() {
@@ -76,13 +82,24 @@ export class ProjectValidator implements TaskValidator {
     if (syntaxErrors.length) return { passed: false, level: 2, detail: `構文エラー:\n${syntaxErrors.join("\n")}` };
 
     // L3: unit tests, only for code tasks in a project that defines a test script
+    let level = toCheck.length ? 2 : 1;
+    let detail: string | undefined;
     if (this.opts.runTests !== false && isWriteTask(task) && this.hasTestScript(task.projectId)) {
       const res = await this.runner("npm", ["test"], { cwd: projectDir(this.projectsRoot, task.projectId), timeoutMs: TEST_TIMEOUT_MS, env: { CI: "true" } });
       if (res.timedOut) return { passed: false, level: 3, detail: "テストがタイムアウトしました" };
       if (res.code !== 0) return { passed: false, level: 3, detail: `テスト失敗(npm test, code=${res.code}):\n${`${res.stdout}\n${res.stderr}`.trim().slice(-TAIL_CHARS)}` };
-      return { passed: true, level: 3, detail: "npm test 合格" };
+      level = 3;
+      detail = "npm test 合格";
     }
-    return { passed: true, level: toCheck.length ? 2 : 1 };
+
+    // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
+    if (this.opts.smoke && isIntegrationTask(task)) {
+      const smoke = await this.opts.smoke.run(projectDir(this.projectsRoot, task.projectId));
+      if (smoke.status === "failed") return { passed: false, level: 4, detail: smoke.detail };
+      detail = [detail, `結合ゲート(${smoke.status === "passed" ? "合格" : "未実施"}): ${smoke.detail}`].filter(Boolean).join("\n");
+      if (smoke.status === "passed") level = 4;
+    }
+    return { passed: true, level, ...(detail ? { detail } : {}) };
   }
 
   private hasTestScript(projectId: string): boolean {

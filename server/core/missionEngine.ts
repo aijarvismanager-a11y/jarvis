@@ -20,6 +20,8 @@ export type ExecutionResult = {
   executor?: string;
   aiId?: string;
   automationLevel?: number;
+  /** false = retrying cannot help (e.g. an approval was denied), so the engine skips the automatic retries. */
+  retryable?: boolean;
 };
 export interface TaskExecutor {
   readonly name: string;
@@ -39,6 +41,7 @@ export class MissionEngine {
   readonly scheduler: Scheduler;
   private readonly inFlight = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   private readonly loops = new Map<string, Promise<MissionStatus>>();
+  private readonly noRetry = new Set<string>();
 
   constructor(
     private readonly store: Store,
@@ -176,11 +179,11 @@ export class MissionEngine {
         if (mission.status === "cancelled") this.settleCancelled(projectId, missionId);
         return this.requireMission(projectId, missionId).status;
       }
-      refreshReadiness(this.store, projectId, missionId, MAX_RETRIES);
+      refreshReadiness(this.store, projectId, missionId, MAX_RETRIES, (t) => this.noRetry.has(t.id));
       let tasks = this.missionTasks(projectId, missionId);
 
       // automatic retry, bounded by MAX_RETRIES
-      for (const t of tasks.filter((x) => x.status === "failed" && x.retryCount < MAX_RETRIES)) retryTask(this.store, projectId, t.id);
+      for (const t of tasks.filter((x) => x.status === "failed" && x.retryCount < MAX_RETRIES && !this.noRetry.has(x.id))) retryTask(this.store, projectId, t.id);
       tasks = this.missionTasks(projectId, missionId);
 
       const ready = tasks.filter((t) => t.status === "ready");
@@ -274,6 +277,7 @@ export class MissionEngine {
     }
     this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? undefined, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary });
     if (!result.ok) {
+      if (result.retryable === false) this.noRetry.add(task.id);
       transitionTask(this.store, projectId, task.id, "failed", result.summary ?? "execution failed");
       return;
     }

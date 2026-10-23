@@ -7,7 +7,7 @@ import { DevelopmentScreen } from "./screens/DevelopmentScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MissionScreen } from "./screens/MissionScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import type { AiService, Artifact, Handoff, Overview, Project } from "./types";
+import type { AiService, Approval, Artifact, Handoff, Overview, Project } from "./types";
 import { ErrorBar, usePoll } from "./ui";
 
 const SCREENS = [
@@ -37,6 +37,7 @@ export default function V2App() {
   const [overview, setOverview] = useState<Overview>(EMPTY);
   const [services, setServices] = useState<AiService[]>([]);
   const [handoffs, setHandoffs] = useState<Handoff[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,10 +63,11 @@ export default function V2App() {
       const active = list.find((p) => p.id === projectId) ?? (projectId === null && !loaded ? list[list.length - 1] : undefined);
       if (active && active.id !== projectId) choose(active.id);
       setLoaded(true);
-      const [ov, svc, hand] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), api.aiServices(), api.handoffs().catch(() => [] as Handoff[])]);
+      const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), api.aiServices(), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
       setOverview(ov);
       setServices(svc);
       setHandoffs(hand);
+      setApprovals(appr);
     },
     2500,
     [projectId],
@@ -88,6 +90,7 @@ export default function V2App() {
     overview,
     services,
     handoffs,
+    approvals,
     mission,
     refresh,
     setError,
@@ -97,7 +100,7 @@ export default function V2App() {
       setScreen("artifacts");
     },
   };
-  const waiting = handoffs.filter((h) => h.projectId === project?.id).length;
+  const waiting = handoffs.filter((h) => h.projectId === project?.id).length + approvals.filter((a) => a.projectId === project?.id).length;
 
   return (
     <div className="min-h-screen bg-bg text-ink">

@@ -10,7 +10,7 @@ import type { Task } from "./store.ts";
 export const PERMISSION_LEVELS = ["READ", "WORKSPACE_WRITE", "NETWORK", "DEPLOY", "DESTRUCTIVE"] as const;
 export type PermissionLevel = (typeof PERMISSION_LEVELS)[number];
 
-export type ApprovalRequest = { projectId: string; taskId: string; level: PermissionLevel; reason: string };
+export type ApprovalRequest = { projectId: string; taskId: string; level: PermissionLevel; reason: string; /** aborts the wait when the task is paused/cancelled */ signal?: AbortSignal };
 /** Asks the user. The default gate denies; the UI (Phase 7) supplies a real one. */
 export type ApprovalGate = (req: ApprovalRequest) => Promise<boolean>;
 export const denyAll: ApprovalGate = async () => false;
@@ -39,7 +39,9 @@ export function requestedElevatedLevels(task: Pick<Task, "objective" | "constrai
   const text = `${task.objective} ${task.constraints.join(" ")}`.toLowerCase();
   const levels: PermissionLevel[] = [];
   if (/デプロイ|公開する|本番|\bdeploy\b|\bpublish\b|\brelease\b/.test(text)) levels.push("DEPLOY");
-  if (/削除|消去|全消し|\bdelete\b|\bremove all\b|\bwipe\b|\bdrop\b/.test(text)) levels.push("DESTRUCTIVE");
+  // Only deleting files / repos / databases counts. A bare "削除" is usually the app's own delete
+  // feature ("商品一覧・登録・編集・削除"), which must not need an approval.
+  if (/(ファイル|フォルダ|ディレクトリ|リポジトリ|データベース|ブランチ)[^。\n]{0,8}(削除|消去)|全消し|\brm\s+-rf?\b|\bdelete\s+(all\s+|the\s+)?(files?|folders?|directories|repos?|repository|database)\b|\bwipe\b|\bdrop\s+(table|database)\b/.test(text)) levels.push("DESTRUCTIVE");
   return levels;
 }
 
@@ -54,26 +56,32 @@ export class PermissionPolicy {
     this.granted.add("READ");
   }
 
-  isGranted(level: PermissionLevel): boolean {
-    return this.granted.has(level);
+  /** Levels approved for one specific task only: an approval never widens what other tasks may do. */
+  private readonly taskGrants = new Map<string, Set<PermissionLevel>>();
+
+  isGranted(level: PermissionLevel, taskId?: string): boolean {
+    return this.granted.has(level) || (!!taskId && !!this.taskGrants.get(taskId)?.has(level));
   }
 
-  /** Grants the level for the rest of this policy's life if the gate approves. */
+  /** Grants the level to this task (and only this task) if the gate approves. */
   async ensure(req: ApprovalRequest): Promise<boolean> {
-    if (this.granted.has(req.level)) return true;
+    if (this.isGranted(req.level, req.taskId)) return true;
     if (!(await this.gate(req))) return false;
-    this.granted.add(req.level);
+    const set = this.taskGrants.get(req.taskId) ?? new Set<PermissionLevel>();
+    set.add(req.level);
+    this.taskGrants.set(req.taskId, set);
     return true;
   }
 
   /** CLI tool allow/deny lists for a task given the currently granted levels. */
-  restrictionsFor(task: Pick<Task, "role">): ToolRestrictions {
+  restrictionsFor(task: Pick<Task, "role"> & { id?: string }): ToolRestrictions {
     const writes = isWriteTask(task);
-    const allowedTools = writes && this.granted.has("WORKSPACE_WRITE") ? [...PACKAGE_MANAGER_TOOLS] : [];
+    const has = (level: PermissionLevel) => this.isGranted(level, task.id);
+    const allowedTools = writes && has("WORKSPACE_WRITE") ? [...PACKAGE_MANAGER_TOOLS] : [];
     const disallowedTools: string[] = [];
-    if (!this.granted.has("NETWORK")) disallowedTools.push(...NETWORK_DENY);
-    if (!this.granted.has("DEPLOY")) disallowedTools.push(...DEPLOY_DENY);
-    if (!this.granted.has("DESTRUCTIVE")) disallowedTools.push(...DESTRUCTIVE_DENY);
+    if (!has("NETWORK")) disallowedTools.push(...NETWORK_DENY);
+    if (!has("DEPLOY")) disallowedTools.push(...DEPLOY_DENY);
+    if (!has("DESTRUCTIVE")) disallowedTools.push(...DESTRUCTIVE_DENY);
     return { allowedTools, disallowedTools };
   }
 }

@@ -16,6 +16,9 @@ import { seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
+import { AppSmokeTester } from "./core/appSmokeTest.ts";
+import { ApprovalHub } from "./core/approvalHub.ts";
+import { PermissionPolicy } from "./core/permissionPolicy.ts";
 
 const ROOT = path.resolve(process.cwd());
 const PORT = Number(process.env.PORT ?? 4173);
@@ -72,7 +75,8 @@ app.use(express.json({ limit: "2mb" }));
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
 seedRegistryProfiles(coreStore);
-const claudeExecutor = new ClaudeCodeExecutor(coreStore);
+const approvals = new ApprovalHub(coreStore);
+const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate) });
 // Web AI automation (Phase 6): off until the user switches it on (PUT /api/v2/web-ai/settings).
 // Level 2/3 drive the user's own Edge/Chrome in a dedicated profile; Level 1 needs no browser.
 const browserExecutable = findBrowserExecutable();
@@ -82,12 +86,12 @@ const executor = new RoutingExecutor(coreStore, claudeExecutor, new WebAiExecuto
 const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
-  validator: new ProjectValidator(path.join(ROOT, "projects")),
+  validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester() }),
   broker: new AIBroker(coreStore),
 });
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, approvals, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null } }),
 );
 
 app.get("/api/session-token", (_req, res) => {

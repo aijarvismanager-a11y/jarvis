@@ -64,19 +64,24 @@ export function findBrowserExecutable(env: NodeJS.ProcessEnv = process.env): str
 }
 
 // ---- minimal CDP client -----------------------------------------------------
-class CdpClient {
+export class CdpClient {
   private id = 0;
+  /** CDP events (Runtime.exceptionThrown, Log.entryAdded, ...), for callers that watch a page rather than drive it. */
+  onEvent: ((method: string, params: Record<string, unknown>) => void) | null = null;
   private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
   private constructor(private readonly ws: WebSocket) {
     ws.on("message", (data) => {
-      let msg: { id?: number; result?: unknown; error?: { message: string } };
+      let msg: { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { message: string } };
       try {
         msg = JSON.parse(String(data));
       } catch {
         return;
       }
-      if (msg.id === undefined) return;
+      if (msg.id === undefined) {
+        if (msg.method) this.onEvent?.(msg.method, msg.params ?? {});
+        return;
+      }
       const p = this.pending.get(msg.id);
       if (!p) return;
       this.pending.delete(msg.id);
@@ -141,7 +146,7 @@ const sleep = (ms: number, signal?: AbortSignal) =>
     );
   });
 
-async function waitUntil<T>(probe: () => Promise<T | null | false>, opts: { timeoutMs: number; intervalMs?: number; signal?: AbortSignal }): Promise<T | null> {
+export async function waitUntil<T>(probe: () => Promise<T | null | false>, opts: { timeoutMs: number; intervalMs?: number; signal?: AbortSignal }): Promise<T | null> {
   const deadline = Date.now() + opts.timeoutMs;
   for (;;) {
     const v = await probe();
