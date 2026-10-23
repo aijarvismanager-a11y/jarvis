@@ -227,14 +227,18 @@ export class MissionEngine {
   /** Broker picks the AI for a task that has none yet. Advisory: a Broker failure never stops the task. */
   private assignAi(mission: Mission, task: Task): void {
     const { broker, executor } = this.deps;
-    if (!broker || task.selectedAi) return;
+    if (!broker) return;
+    const failedAis = this.failedAis(task);
+    // keep a chosen AI unless it already failed this task: then fall back to the next candidate
+    if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
     try {
-      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypes ? [...executor.adapterTypes] : undefined });
+      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: failedAis });
       const payload = { capability: decision.capability, confidence: decision.confidence, needsReview: decision.needsReview, selected: decision.selected?.aiId ?? null, excluded: decision.excluded };
       if (!decision.selected) {
         this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });
-        return;
+        return; // no fallback left: the retry runs on the same AI
       }
+      if (task.selectedAi) this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_FALLBACK", payload: { from: task.selectedAi, to: decision.selected.aiId } });
       this.store.setTaskSelectedAi(task.projectId, task.id, decision.selected.aiId);
       this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTED", payload });
       this.store.addDecision({
@@ -247,6 +251,11 @@ export class MissionEngine {
     } catch (err) {
       this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_ERROR", payload: { message: errMsg(err) } });
     }
+  }
+
+  private failedAis(task: Task): string[] {
+    const rows = this.store.db.prepare("SELECT DISTINCT ai_id FROM ai_runs WHERE project_id = ? AND task_id = ? AND status = 'failed' AND ai_id IS NOT NULL").all(task.projectId, task.id) as { ai_id: string }[];
+    return rows.map((r) => r.ai_id);
   }
 
   private async execute(mission: Mission, task: Task, controller: AbortController): Promise<void> {
@@ -263,7 +272,7 @@ export class MissionEngine {
       transitionTask(this.store, projectId, task.id, cancelled ? "cancelled" : "paused", cancelled ? "mission cancelled" : "mission paused");
       return;
     }
-    this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary });
+    this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? undefined, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary });
     if (!result.ok) {
       transitionTask(this.store, projectId, task.id, "failed", result.summary ?? "execution failed");
       return;

@@ -917,3 +917,31 @@ Phase 7 — UI(Mission中心。ハンドオフの回答貼り付け/スキップ
 
 ### 次にやること
 Phase 8 — 総合検証(Unit/Integration/E2E、Test 1〜7)。UIの実データ表示確認も含める。
+
+
+---
+
+## 2026-10-24(12回目): Phase 8 — 総合検証
+
+### 完了(済)
+- `server/core/phase8.test.ts`(+8件): 仕様 §62 の Test 1〜7 を、実エンジン・実Store・実ClaudeCodeExecutor・実Validatorで通す。外部は `claude`/`npm` プロセスとWebだけをフェイクにした
+  - Test 1 簡単サイト: 計画→承認→design→coding→検証→completed、成果物登録
+  - Test 2 調査: Discovery(レジストリに無い能力だけ探索し、無料条件を通ったものだけ保存)→ Brokerが research を Web AI に→ハンドオフ回答がArtifact(source_ai付き)に
+  - Test 3 AI失敗: **検証で実装の穴を発見・修正**(下記)
+  - Test 4 テスト失敗: npm test の失敗出力が次の試行のプロンプトに入り、修正→L3再検証で通過
+  - Test 5 再起動: ファイルDBを開き直し、状態・成果物が復元され、完了済みタスクはやり直さない
+  - Test 6 複数Project: A/B同時実行でファイルが混ざらない
+  - Test 7 無料制約: APIキー環境変数なしで完走、APIキー必須/有料AIはCost Guardが除外
+- **修正した不具合(Test 3)**: タスクが失敗してもリトライは失敗したAIに固定されたままで、仕様の「Failure → Fallback → Retry」が成立していなかった。`BrokerOptions.excludeAiIds` を追加し、`missionEngine.assignAi` が「そのタスクで失敗したAIは除外して次点を選び直す」ようにした(`AI_FALLBACK` イベント記録)。候補が他に無ければ従来どおり同じAIで再試行。`ai_runs.ai_id` は executor が返さない場合 `selected_ai` で補完
+- UI実データ確認(Phase 7の持ち越し): 一時ディレクトリに進行中ミッション(2/4完了・実装中・成果物1件)をseedして実サーバーで確認。進捗バー(50%)、現在の担当、チェックリスト、最近の成果物、成果物画面のmd本文表示を確認、コンソールエラーなし。本物の `data/` には触れていない
+- 全体 219 件中、既知のタイミング系フレーク以外すべて合格、`tsc -b` クリーン
+
+### 未検証・既知の問題
+- **フレーク**: 全件並列実行時に、プロセス強制終了/実ブラウザ(Edge)終了を待つテストが5秒/10秒のタイムアウトで毎回別の1件落ちる(phase3 `spawnRunner` / phase6 `ChromiumDriver`)。単体実行では合格。負荷依存で、今回の変更とは無関係
+- 計画承認ボタン・ハンドオフカードのUI実表示は今回も未クリック確認(APIテストのみ)
+- Test 2 の「実ネットワークでの Discovery」「実在AIサイト」は未実施(フェイクfetch・フェイクWebのみ)。実機の通し確認は Phase 10
+- oxlint は旧UI `src/App.tsx` の警告(set-state-in-effect)が残る。今回の変更前から存在
+- 未コミット(指示待ち)
+
+### 次にやること
+Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補を削除)。
