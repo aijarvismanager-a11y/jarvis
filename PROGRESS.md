@@ -945,3 +945,20 @@ Phase 8 — 総合検証(Unit/Integration/E2E、Test 1〜7)。UIの実データ�
 
 ### 次にやること
 Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補を削除)。
+
+---
+
+## 2026-10-24: Phase 9 — 移行・掃除(コード側)
+
+### 完了(済)
+- 移行の完了確認: `data/orchestrator.db` に4プロジェクト・37 AIサービスを取込済み(5回目の記録)。`backups/` にバックアップあり
+- 旧UI削除: `src/App.tsx` `src/components/` `src/lib/`(旧テスト含む)。`main.tsx` は新UIのみ(`/?legacy` 廃止)
+- 旧API削除: `/api/workflow` `/api/ai-services` `/api/ollama*` `/api/projects/:id/{history,execute,artifacts}` と WebSocket/ファイル監視(`server/index.ts`)。任意シェル実行の `/execute` も消えた
+- 未使用依存の削除: `chokidar` `shiki`(`ws` は browserDriver が使うので残す)
+- ルート直下の空ディレクトリ8個を削除(中身0を確認済み)
+- `tsc -b` / `npm run build` 成功、全198件合格(旧libテスト分が減少)
+
+### 残している物(ユーザー判断待ち)
+- `config/` `workspace/`: `migrate:legacy` と `npm run package` がまだ参照
+- `legacy-ai-manager/`(D-6): 旧Electron版。未移行データの有無は `data/logs.jsonl` のみ
+- `backups/` `src/types/{workflow,aiService}.ts`(legacyImport が使用)
