@@ -3,7 +3,7 @@ import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatTime, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
-import type { Approval, Handoff, LogEntry, MissionView, Preview, Task } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -46,6 +46,40 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
           </ul>
           {entries.length > 5 && <button className="mt-1 text-[11.5px] text-accent hover:underline" onClick={() => setAll(!all)}>{all ? "最新だけ表示" : `すべて表示(${entries.length}件)`}</button>}
         </>
+      )}
+    </div>
+  );
+}
+
+const CHANGE_LABEL = { added: "追加", modified: "変更", deleted: "削除" } as const;
+
+/** What this task changed in the project folder, with a way to put those files back. */
+function TaskChangesPanel({ task, ctx, canRollback }: { task: Task; ctx: Ctx; canRollback: boolean }) {
+  const [changes, setChanges] = useState<TaskChanges | null | undefined>(undefined);
+  const [open, setOpen] = useState(false);
+  const { busy, run } = useAction(ctx.setError);
+  const projectId = ctx.project!.id;
+  useEffect(() => {
+    let alive = true;
+    api.taskChanges(projectId, task.id).then((c) => alive && setChanges(c)).catch(() => alive && setChanges(null));
+    return () => { alive = false; };
+  }, [projectId, task.id, task.updatedAt]);
+  if (!changes || changes.files.length === 0) return null;
+  const rollback = () => {
+    if (!window.confirm(`このタスクが変えた${changes.files.length}個のファイルを、タスク実行前の状態に戻します。後のタスクがこれらのファイルを使っている場合、動かなくなることがあります。よろしいですか?`)) return;
+    void run(async () => { await api.rollbackTask(projectId, task.id); ctx.refresh(); setChanges(await api.taskChanges(projectId, task.id)); });
+  };
+  return (
+    <div className="ml-6 mt-1">
+      <button className="text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "変更内容を閉じる" : `変更内容を見る(${changes.files.length}ファイル)`}</button>
+      {open && (
+        <div className="mt-1 rounded-lg bg-sidebar px-3 py-2">
+          <ul className="text-[12px]">
+            {changes.files.map((f) => <li key={f.path} className="font-mono"><span className="mr-2 text-muted">{CHANGE_LABEL[f.status]}</span>{f.path}</li>)}
+          </ul>
+          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-[#4a473f]">{changes.patch}{changes.truncated ? "\n…(長いため途中まで)" : ""}</pre>
+          {canRollback && <div className="mt-2"><Button variant="ghost" disabled={busy} onClick={rollback}>このタスクの変更を元に戻す</Button></div>}
+        </div>
       )}
     </div>
   );
@@ -338,6 +372,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
                   {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
+                  {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
                   {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
                 </li>
               ))}

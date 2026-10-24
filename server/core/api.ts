@@ -9,6 +9,7 @@ import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import type { PreviewManager } from "./previewManager.ts";
+import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
@@ -33,6 +34,8 @@ export type OrchestratorApiDeps = {
   logs?: TaskLogStore;
   /** Enables the preview endpoints (run the project's app while it is being built). */
   previews?: PreviewManager;
+  /** Enables the per-task changes (diff) and rollback endpoints. */
+  snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
@@ -245,6 +248,39 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const after = Number(req.query.after ?? 0);
     res.json({ status: task.status, entries: deps.logs?.read(taskId, Number.isFinite(after) ? after : 0) ?? [] });
   });
+
+  // ---- Changes made by one task: diff and rollback ---------------------------------------------
+  const snapshotName = (projectId: string, taskId: string): string | null => {
+    const e = store.listEvents({ projectId, limit: 1000 }).filter((x) => x.type === "TASK_SNAPSHOT" && x.taskId === taskId);
+    const last = e[e.length - 1]?.payload as { name?: string } | undefined;
+    return last?.name ?? null;
+  };
+  router.get("/projects/:projectId/tasks/:taskId/changes", async (req, res) => {
+    const projectId = String(req.params.projectId);
+    const taskId = String(req.params.taskId);
+    if (!deps.snapshots) return void res.json({ changes: null });
+    const name = snapshotName(projectId, taskId);
+    if (!name) return void res.json({ changes: null });
+    try {
+      res.json({ changes: await deps.snapshots.diff(projectId, `${name}-before`, `${name}-after`) });
+    } catch (err) {
+      fail(res, err, 500);
+    }
+  });
+  router.post(
+    "/projects/:projectId/tasks/:taskId/rollback",
+    guarded(async (req, res) => {
+      const projectId = String(req.params.projectId);
+      const taskId = String(req.params.taskId);
+      if (!deps.snapshots) return void res.status(501).json({ error: "ロールバック機能が接続されていません" });
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      const name = snapshotName(projectId, taskId);
+      if (!name) throw new Error("このタスクの変更履歴がありません");
+      const files = await deps.snapshots.rollback(projectId, `${name}-before`, `${name}-after`);
+      store.appendEvent({ projectId, taskId, type: "TASK_ROLLBACK", payload: { files } });
+      res.json({ restored: files });
+    }),
+  );
 
   // ---- Preview: run what has been built so far ----------------------------------------------
   router.get("/projects/:projectId/preview", (req, res) => {

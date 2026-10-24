@@ -5,6 +5,7 @@ import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
+import type { SnapshotManager } from "./snapshotManager.ts";
 import type { Mission, Store, Task } from "./store.ts";
 
 // ClaudeCodeExecutor (spec Phase 3): runs one Task through `claude --print` in
@@ -147,6 +148,8 @@ export class ClaudeCodeExecutor implements TaskExecutor {
       timeoutMs?: number;
       /** When set, the run is streamed (stream-json) and what Claude Code does is written here, per task. */
       logs?: TaskLogStore;
+      /** When set, the folder is snapshotted before and after each run so the task's changes can be viewed and rolled back. */
+      snapshots?: SnapshotManager;
     } = {},
   ) {}
 
@@ -224,11 +227,15 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task) });
 
     const before = snapshotDir(cwd);
+    const snaps = this.opts.snapshots;
+    const snapName = `${projectId}-${task.id}-${task.retryCount}`;
+    await snaps?.capture(projectId, `${snapName}-before`).catch(() => undefined);
     const logs = this.opts.logs;
     logs?.clear(task.id);
     const logger = logs ? new StreamJsonLogger(logs, task.id, cwd) : null;
     const res = await this.runner(this.command, args, { input: prompt, cwd, signal: ctx.signal, timeoutMs: this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS, onStdout: logger ? (chunk) => logger.push(chunk) : undefined });
     const afterSnap = snapshotDir(cwd);
+    await snaps?.capture(projectId, `${snapName}-after`).then(() => this.store.appendEvent({ projectId, taskId: task.id, type: "TASK_SNAPSHOT", payload: { name: snapName } })).catch(() => undefined);
     const files = changedFiles(before, afterSnap).slice(0, MAX_ARTIFACTS);
     // Best effort: with parallel tasks a file may be attributed to whichever task finished first.
     const seen = this.registered.get(projectId) ?? new Map<string, string>();

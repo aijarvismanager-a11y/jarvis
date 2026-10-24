@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -45,6 +45,8 @@ export const api = {
     request<MissionView>(`${mission(projectId, missionId)}/tasks/${encodeURIComponent(taskId)}/retry`, "POST", { feedback }),
   taskLog: (projectId: string, taskId: string, after = 0) =>
     request<{ status: string; entries: LogEntry[] }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/log?after=${after}`),
+  taskChanges: (projectId: string, taskId: string) => request<{ changes: TaskChanges | null }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/changes`).then((r) => r.changes),
+  rollbackTask: (projectId: string, taskId: string) => request<{ restored: string[] }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/rollback`, "POST", {}),
   preview: (projectId: string) => request<{ preview: Preview | null }>(`/projects/${encodeURIComponent(projectId)}/preview`).then((r) => r.preview),
   startPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/start`, "POST", {}).then((r) => r.preview),
   stopPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/stop`, "POST", {}).then((r) => r.preview),
