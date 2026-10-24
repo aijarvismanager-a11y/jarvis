@@ -1,4 +1,7 @@
+import { existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { transaction } from "./db.ts";
+import { projectDir } from "./paths.ts";
 import type { Mission, Store, Task } from "./store.ts";
 import type { MissionStatus } from "./schema.ts";
 import type { PlanRequest, Planner } from "./planner.ts";
@@ -92,11 +95,14 @@ export class MissionEngine {
   private async propose(projectId: string, missionId: string, kind: PlanProposal["kind"], feedback?: string): Promise<PlanProposal> {
     const mission = this.store.getMission(projectId, missionId)!;
     const tasks = this.store.listTasks(projectId).filter((t) => t.missionId === missionId);
+    mkdirSync(projectDir(this.store.projectsRoot, projectId), { recursive: true }); // the planner runs from here
     const request: PlanRequest = {
       goal: mission.goal,
       constraints: mission.constraints,
       technologyPreferences: mission.technologyPreferences,
       feedback,
+      cwd: projectDir(this.store.projectsRoot, projectId),
+      existingProject: this.store.listArtifacts(projectId).length > 0 || this.store.listMissions(projectId).length > 1 || existsSync(path.join(projectDir(this.store.projectsRoot, projectId), "docs", "status-report.md")),
     };
     if (kind === "replan") {
       request.completed = tasks.filter((t) => t.status === "completed").map((t) => ({ role: t.role, objective: t.objective }));

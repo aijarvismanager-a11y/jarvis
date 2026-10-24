@@ -1,6 +1,7 @@
 import express from "express";
 import path from "node:path";
 import http from "node:http";
+import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { openDatabase } from "./core/db.ts";
@@ -133,6 +134,19 @@ app.get("/api/version", (_req, res) => {
 app.get("/api/session-token", (_req, res) => {
   res.json({ token: SESSION_TOKEN });
 });
+
+// Production mode: when the screen has been built (npm run build) this server serves it too, so one process on one
+// port is the whole app (no Vite dev server to start, to keep alive, or to lose). During development `npm start` still uses Vite.
+const UI_DIR = path.join(ROOT, "dist");
+if (existsSync(path.join(UI_DIR, "index.html"))) {
+  app.use(express.static(UI_DIR, { index: false, setHeaders: (res, file) => { if (/\.html$/i.test(file)) res.setHeader("cache-control", "no-store"); } }));
+  // any other page address (a reload on a sub-page) gets the app; API paths never do
+  app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.setHeader("cache-control", "no-store");
+    res.sendFile(path.join(UI_DIR, "index.html"));
+  });
+  console.log(`[ai-orchestrator] serving the built screen from ${UI_DIR}`);
+}
 
 const server = http.createServer(app);
 // Mission runs can outlast Node's default request/header timeouts.

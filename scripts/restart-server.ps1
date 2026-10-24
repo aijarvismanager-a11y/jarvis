@@ -1,14 +1,24 @@
 # Restarts the API server (port 4173 by default) so it runs the code that is on disk now.
 #   npm run server:restart            stop the running one (and its children), start a fresh one
 #   npm run server:restart -- -StopOnly   only stop it
+# The screen is built first and served by the server itself (one process, one port: http://127.0.0.1:4173).
 # The old process is killed together with its child processes (preview servers, claude, browsers),
 # so nothing is left behind holding the port. Running missions resume on their own after the start.
 param(
   [int]$Port = 4173,
-  [switch]$StopOnly
+  [switch]$StopOnly,
+  # skip rebuilding the screen (it is built before every start so the page matches the server)
+  [switch]$NoBuild
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+
+# Build first, while the old server is still up: a failed build must not leave the app down.
+if (-not $StopOnly -and -not $NoBuild -and $Port -eq 4173) {
+  Write-Host 'Building the screen...'
+  Push-Location $root
+  try { & npm run build 2>&1 | Out-Host; if ($LASTEXITCODE -ne 0) { throw 'The build failed; the running server was not touched. Fix the errors and run it again.' } } finally { Pop-Location }
+}
 
 $owners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
 foreach ($id in $owners) {
@@ -39,10 +49,3 @@ for ($i = 0; $i -lt 40 -and -not $ready; $i++) {
 if (-not $ready) { throw "The server did not come up. See $log" }
 Write-Host "Server is up on http://127.0.0.1:$Port (log: $log)"
 
-# The screen (Vite, port 5173) talks to this server through a proxy. If it is not running the page shows
-# "Failed to fetch" even though the server is fine, so bring it up too when nothing is listening there.
-if ($Port -eq 4173 -and -not (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue)) {
-  $uiLog = Join-Path $root 'vite.log'
-  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "npm run dev > `"$uiLog`" 2>&1" -WorkingDirectory $root -WindowStyle Hidden | Out-Null
-  Write-Host "The screen (port 5173) was not running; started it (log: $uiLog)."
-}

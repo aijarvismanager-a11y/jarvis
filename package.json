@@ -12,6 +12,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "server": "tsx server/index.ts",
+    "app": "npm run build && tsx server/index.ts",
     "server:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-server.ps1",
     "migrate:legacy": "tsx server/core/cli.ts",
     "start": "concurrently -n server,app -c yellow,cyan \"npm:server\" \"npm:dev\"",

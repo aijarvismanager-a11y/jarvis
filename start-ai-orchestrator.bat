@@ -63,8 +63,10 @@ if not exist node_modules (
 )
 
 rem A server left over from an earlier launch would keep running old code (and hold the port): stop it first.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scriptsestart-server.ps1" -StopOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts
+estart-server.ps1" -StopOnly
 
-start "AI Orchestrator" cmd /k "npm run start"
-timeout /t 5 /nobreak >nul
-start "" "http://localhost:5173"
+rem One process, one port: build the screen and let the server serve it.
+start "AI Orchestrator" cmd /k "npm run app"
+powershell -NoProfile -Command "for($i=0;$i -lt 120;$i++){try{Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4173/api/version -TimeoutSec 2 | Out-Null;break}catch{Start-Sleep 1}}"
+start "" "http://localhost:4173"

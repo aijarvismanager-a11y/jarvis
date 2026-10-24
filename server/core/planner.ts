@@ -13,6 +13,10 @@ export type PlanRequest = {
   completed?: { role: string; objective: string }[];
   failed?: { role: string; objective: string; reason?: string }[];
   feedback?: string;
+  /** The project folder: the plan is made from there, so an existing project is read, not the orchestrator itself. */
+  cwd?: string;
+  /** The project already has files (an import, or earlier missions): look at them before planning. */
+  existingProject?: boolean;
 };
 
 export interface Planner {
@@ -75,8 +79,10 @@ export function buildPlannerPrompt(req: PlanRequest): string {
     "出力形式: {\"summary\": string, \"tasks\": [{\"key\", \"role\", \"objective\", \"inputs\", \"expectedOutputs\", \"constraints\", \"dependsOn\": [key]}]}",
     "role は research / design / coding / review / test / document など。コードを書くタスクの role は coding にする。タスクは最大50件、循環依存は禁止。",
     "有料APIは使わない。ファイルを実際に変更したり、コマンドを実行したりせず、計画だけを返すこと。",
+    "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",
     `ゴール: ${req.goal}`,
   ];
+  if (req.existingProject) lines.push("このフォルダは既存のプロジェクトです。docs/status-report.md があれば先に読み、既存のコードを調べたうえで、既存の構成・見た目・書き方を尊重した計画にすること。作り直しは避ける。");
   if (req.constraints.length) lines.push(`制約: ${req.constraints.join(" / ")}`);
   if (req.technologyPreferences.length) lines.push(`技術の希望: ${req.technologyPreferences.join(", ")}`);
   if (req.completed?.length) lines.push(`完了済み(再計画。重複させない): ${req.completed.map((t) => `[${t.role}] ${t.objective}`).join(" ; ")}`);
@@ -147,15 +153,27 @@ export class ClaudeCodePlanner implements Planner {
     const caps = await this.capabilities();
     if (!caps.permissionModePlan) throw new Error("読み取り専用モード(--permission-mode plan)が使えないため、安全にPlannerを実行できません");
     const args = this.buildArgs(caps);
-    const res = await this.runner(this.command, args, {
-      input: buildPlannerPrompt(request),
-      cwd: this.opts.cwd,
-      signal,
-      timeoutMs: this.opts.timeoutMs ?? 5 * 60_000,
-    });
-    if (res.code !== 0) throw new Error(`Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 500)}`);
-    const parsed = planDraftSchema.safeParse(extractPlanJson(res.stdout));
-    if (!parsed.success) throw new Error(`Plannerの出力を計画として解釈できません: ${parsed.error.issues[0]?.message ?? "invalid"}`);
+    const cwd = request.cwd ?? this.opts.cwd;
+    const ask = async (prompt: string) => {
+      const res = await this.runner(this.command, args, { input: prompt, cwd, signal, timeoutMs: this.opts.timeoutMs ?? 5 * 60_000 });
+      if (res.code !== 0) throw new Error(`Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 500)}`);
+      return res.stdout;
+    };
+    const prompt = buildPlannerPrompt(request);
+    let stdout = await ask(prompt);
+    let parsed = planDraftSchema.safeParse(extractPlanJson(stdout));
+    if (!parsed.success) {
+      // The model sometimes answers in prose (a question, or a plan in words). Ask once more, for JSON only.
+      stdout = await ask(`${prompt}
+
+前回の出力は計画のJSONとして解釈できませんでした。質問や説明は不要です。指定した形式のJSONだけを出力してください。`);
+      parsed = planDraftSchema.safeParse(extractPlanJson(stdout));
+    }
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const where = issue?.path.length ? `「${issue.path.join(".")}」` : "";
+      throw new Error(`Plannerの出力を計画として解釈できません: ${where}${issue?.message ?? "invalid"}(出力の冒頭: ${stdout.replace(/\s+/g, " ").slice(0, 160)})`);
+    }
     const problems = validatePlan(parsed.data);
     if (problems.length) throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
     return parsed.data;

@@ -91,6 +91,28 @@ describe("ClaudeCodePlanner", () => {
     await expect(new ClaudeCodePlanner({ runner: fakeRunner({ nope: 1 }).runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/解釈/);
   });
 
+  it("plans from the project folder, and asks once more when the answer was prose", async () => {
+    const cwds: (string | undefined)[] = [];
+    let asked = 0;
+    const runner: CommandRunner = async (_c, args, opts) => {
+      if (args[0] === "--help") return { stdout: HELP, stderr: "", code: 0 };
+      cwds.push(opts.cwd);
+      asked += 1;
+      // first answer: a question in prose (what the model does when it is unsure); second: the plan
+      const result = asked === 1 ? "どのファイルを変更してよいですか?" : "```json\n" + JSON.stringify(PLAN) + "\n```";
+      return { stdout: JSON.stringify({ type: "result", result }), stderr: "", code: 0 };
+    };
+    const draft = await new ClaudeCodePlanner({ runner, cwd: "C:/orchestrator" }).plan({ goal: "g", constraints: [], technologyPreferences: [], cwd: "C:/projects/p1", existingProject: true });
+    expect(draft.tasks).toHaveLength(2);
+    expect(cwds).toEqual(["C:/projects/p1", "C:/projects/p1"]);
+    expect(buildPlannerPrompt({ goal: "g", constraints: [], technologyPreferences: [], existingProject: true })).toContain("既存のプロジェクト");
+  });
+
+  it("gives up after the second prose answer and shows how it began", async () => {
+    const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: JSON.stringify({ result: "質問があります" }), stderr: "", code: 0 });
+    await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/質問があります/);
+  });
+
   it("surfaces a non-zero exit code", async () => {
     const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: "", stderr: "not logged in", code: 1 });
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/not logged in/);
