@@ -39,4 +39,19 @@ describe("SnapshotManager", () => {
     expect(readFileSync(path.join(dir, "keep.txt"), "utf-8")).toBe("later work");
     expect(existsSync(path.join(dir, ".git"))).toBe(false);
   });
+
+  it("reads files as they were at a capture, and refuses paths outside the project", async () => {
+    const { snaps, dir } = setup();
+    mkdirSync(path.join(dir, "site"));
+    writeFileSync(path.join(dir, "site", "index.html"), "<h1>before</h1>");
+    await snaps.capture("p1", "t-before");
+    writeFileSync(path.join(dir, "site", "index.html"), "<h1>after</h1>");
+    await snaps.capture("p1", "t-after");
+
+    expect((await snaps.readFile("p1", "t-before", "site/index.html"))?.toString()).toBe("<h1>before</h1>");
+    expect((await snaps.readFile("p1", "t-after", "site/index.html"))?.toString()).toBe("<h1>after</h1>");
+    expect(await snaps.readFile("p1", "t-before", "missing.html")).toBeNull();
+    expect(await snaps.readFile("p1", "t-before", "../../etc/passwd")).toBeNull();
+    expect(await snaps.listFiles("p1", "t-before")).toEqual(["site/index.html"]);
+  });
 });

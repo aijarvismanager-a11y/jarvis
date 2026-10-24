@@ -27,7 +27,7 @@ export type PreviewStatus = {
 const MAX_PREVIEWS = 2;
 const IDLE: PreviewStatus = { state: "stopped", url: null, message: "", startedAt: null, check: null, log: "" };
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".git", "coverage"]);
-const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8" };
+export const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8" };
 
 /** Folder holding an index.html (project root first, then one or two levels down), for projects without a dev server. */
 export function findStaticRoot(root: string): string | null {

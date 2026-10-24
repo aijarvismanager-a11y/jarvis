@@ -100,3 +100,4 @@ export type MissionReport = {
   markdown: string;
 };
 export type TaskChanges = { files: { path: string; status: "added" | "modified" | "deleted" }[]; patch: string; truncated: boolean };
+export type SnapshotInfo = { name: string; taskId: string; objective: string; at: string };

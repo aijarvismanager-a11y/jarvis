@@ -8,7 +8,7 @@ import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
-import type { PreviewManager } from "./previewManager.ts";
+import { MIME, type PreviewManager } from "./previewManager.ts";
 import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -309,6 +309,40 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ restored: files });
     }),
   );
+
+  // ---- Before/after: the project as it was around each task, served as a static site ------------
+  // Lists the tasks that have a snapshot (newest last), so the UI can pick what to compare against.
+  router.get("/projects/:projectId/snapshots", (req, res) => {
+    const projectId = String(req.params.projectId);
+    if (!deps.snapshots) return void res.json({ snapshots: [] });
+    const tasks = new Map(store.listTasks(projectId).map((t) => [t.id, t]));
+    const seen = new Set<string>();
+    const snapshots: { name: string; taskId: string; objective: string; at: string }[] = [];
+    for (const e of store.listEvents({ projectId, limit: 1000 })) {
+      const name = (e.payload as { name?: string } | null)?.name;
+      if (e.type !== "TASK_SNAPSHOT" || !e.taskId || !name || seen.has(name)) continue;
+      seen.add(name);
+      snapshots.push({ name, taskId: e.taskId, objective: tasks.get(e.taskId)?.objective ?? "", at: e.createdAt });
+    }
+    res.json({ snapshots });
+  });
+  // Files of `<name>-before` / `<name>-after`. The page is shown in a sandboxed iframe; the header sandboxes it again.
+  router.get(/^\/projects\/([^/]+)\/snapshot-site\/([\w.-]+)\/(before|after)\/(.*)$/, async (req, res) => {
+    const params = req.params as unknown as Record<string, string>;
+    const [projectId = "", name = "", which = "", rest = ""] = [params[0], params[1], params[2], params[3]];
+    if (!deps.snapshots || !PROJECT_ID_RE.test(projectId)) return void res.status(404).end();
+    const ref = `${name}-${which}`;
+    let rel = rest; // express has already percent-decoded the captures
+    if (rel === "" || rel.endsWith("/")) rel += "index.html";
+    let body = await deps.snapshots.readFile(projectId, ref, rel);
+    if (!body && rel === "index.html") {
+      // No page at the root: fall back to the shallowest index.html, as the live preview does.
+      const hit = (await deps.snapshots.listFiles(projectId, ref)).filter((f) => f.endsWith("/index.html") && !f.includes("node_modules/")).sort((a, b) => a.split("/").length - b.split("/").length)[0];
+      if (hit) return void res.redirect(`/api/v2/projects/${encodeURIComponent(projectId)}/snapshot-site/${name}/${which}/${hit.split("/").map(encodeURIComponent).join("/")}`);
+    }
+    if (!body) return void res.status(404).type("text/plain").send("このスナップショットにそのファイルはありません");
+    res.set({ "content-type": MIME[path.extname(rel).toLowerCase()] ?? "application/octet-stream", "content-security-policy": "sandbox allow-scripts", "cache-control": "no-store" }).send(body);
+  });
 
   // ---- Preview: run what has been built so far ----------------------------------------------
   router.get("/projects/:projectId/preview", (req, res) => {

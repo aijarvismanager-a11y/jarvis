@@ -72,6 +72,31 @@ export class SnapshotManager {
     });
   }
 
+  /** Bytes of one file as it was at capture `name`, or null when it did not exist then. */
+  readFile(projectId: string, name: string, file: string): Promise<Buffer | null> {
+    return this.serial(projectId, async () => {
+      if (!existsSync(path.join(this.gitDir(projectId), "HEAD"))) return null;
+      const rel = path.posix.normalize(file.replace(/\\/g, "/")).replace(/^\/+/, "");
+      if (!rel || rel === "." || rel.startsWith("..")) return null;
+      const gitDir = this.gitDir(projectId);
+      return new Promise<Buffer | null>((resolve) => {
+        execFile(this.gitCommand, [`--git-dir=${gitDir}`, "show", `refs/snapshots/${name}:${rel}`], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024, windowsHide: true }, (err, stdout) => resolve(err ? null : stdout));
+      });
+    });
+  }
+
+  /** Paths of all files in capture `name` (forward slashes). */
+  listFiles(projectId: string, name: string): Promise<string[]> {
+    return this.serial(projectId, async () => {
+      if (!existsSync(path.join(this.gitDir(projectId), "HEAD"))) return [];
+      try {
+        return (await this.git(projectId, ["ls-tree", "-r", "--name-only", `refs/snapshots/${name}`])).split("\n").filter(Boolean);
+      } catch {
+        return [];
+      }
+    });
+  }
+
   /** What changed between two captures. */
   diff(projectId: string, from: string, to: string): Promise<TaskDiff> {
     return this.serial(projectId, async () => {

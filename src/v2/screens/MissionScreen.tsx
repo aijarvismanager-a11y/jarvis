@@ -3,6 +3,7 @@ import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
+import { SplitPreview } from "./SplitPreview";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
@@ -479,6 +480,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
 
       {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
+      {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
 

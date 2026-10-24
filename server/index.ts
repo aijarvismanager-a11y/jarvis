@@ -65,7 +65,9 @@ function tokenMatches(candidate: unknown): boolean {
 
 const app = express();
 app.use((req, res, next) => {
-  if (!isLocalHostHeader(req.headers.host) || !isLocalOrigin(req.headers.origin)) {
+  // Before/after pages run in a sandboxed iframe, so their own requests carry "Origin: null"; only the read-only snapshot files accept that.
+  const sandboxedRead = req.method === "GET" && req.headers.origin === "null" && /^\/api\/v2\/projects\/[^/]+\/snapshot-site\//.test(req.path);
+  if (!isLocalHostHeader(req.headers.host) || !(sandboxedRead || isLocalOrigin(req.headers.origin))) {
     res.status(403).json({ error: "このアプリはローカルのブラウザからのみ利用できます" });
     return;
   }
