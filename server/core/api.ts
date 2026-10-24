@@ -11,6 +11,7 @@ import type { TaskLogStore } from "./taskLog.ts";
 import type { PreviewManager } from "./previewManager.ts";
 import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import path from "node:path";
+import { buildMissionReport } from "./missionReport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
@@ -166,6 +167,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   });
   router.get("/projects/:projectId/missions/:missionId", (req, res) => {
     res.json(view(String(req.params.projectId), String(req.params.missionId)));
+  });
+  router.get("/projects/:projectId/missions/:missionId/report", (req, res) => {
+    res.json({ report: buildMissionReport(store, String(req.params.projectId), String(req.params.missionId)) });
   });
   router.get("/projects/:projectId/events", (req, res) => {
     res.json({ events: store.listEvents({ projectId: String(req.params.projectId), limit: 200 }) });

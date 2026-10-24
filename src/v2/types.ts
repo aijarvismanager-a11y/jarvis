@@ -90,4 +90,13 @@ export type Handoff = {
 export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[] };
 export type StoredEvent = { id: number; type: string; taskId: string | null; payload: unknown; createdAt: string };
 
+export type MissionReport = {
+  missionId: string;
+  verdict: "verified" | "partial" | "unfinished";
+  verdictLabel: string;
+  tasks: { id: string; objective: string; status: string; level: number; attempts: number; isCode: boolean }[];
+  notChecked: string[];
+  notes: string[];
+  markdown: string;
+};
 export type TaskChanges = { files: { path: string; status: "added" | "modified" | "deleted" }[]; patch: string; truncated: boolean };

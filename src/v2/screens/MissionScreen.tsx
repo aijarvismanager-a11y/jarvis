@@ -3,7 +3,7 @@ import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
-import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -53,6 +53,55 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
           </ul>
           {entries.length > 5 && <button className="mt-1 text-[11.5px] text-accent hover:underline" onClick={() => setAll(!all)}>{all ? "最新だけ表示" : `すべて表示(${entries.length}件)`}</button>}
         </>
+      )}
+    </div>
+  );
+}
+
+const VERDICT_TONE = { verified: "ok", partial: "warn", unfinished: "bad" } as const;
+const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認" };
+
+/** What was done, how far it was actually checked, and what was not checked. */
+function ReportPanel({ projectId, missionId, status }: { projectId: string; missionId: string; status: string }) {
+  const [report, setReport] = useState<MissionReport | null>(null);
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.missionReport(projectId, missionId).then((r) => alive && setReport(r)).catch(() => alive && setReport(null));
+    return () => { alive = false; };
+  }, [projectId, missionId, status]);
+  if (!report) return null;
+  const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
+  return (
+    <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold">完了検証レポート</span>
+        <Badge tone={VERDICT_TONE[report.verdict]}>{report.verdictLabel}</Badge>
+        <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "詳しく見る"}</button>
+      </div>
+      {open && (
+        <div className="mt-2 space-y-2 text-[12.5px]">
+          <ul className="space-y-0.5">
+            {report.tasks.map((t) => (
+              <li key={t.id}>
+                <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span> {t.objective}
+                <span className="ml-2 text-muted">{t.level ? `検証: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "検証なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}</span>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <p className="font-semibold">確認していないこと</p>
+            <ul className="list-disc pl-5 text-muted">{report.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
+          </div>
+          {report.notes.length > 0 && (
+            <div>
+              <p className="font-semibold">注意点</p>
+              <ul className="list-disc pl-5 text-muted">{report.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+            </div>
+          )}
+          <Button variant="ghost" onClick={copy}>{copied ? "コピーしました" : "Markdownでコピー"}</Button>
+        </div>
       )}
     </div>
   );
@@ -364,6 +413,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
+          {["completed", "failed"].includes(mission.status) && <ReportPanel projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (
             <p className="mt-2 text-[12px] text-muted">
               AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
