@@ -68,6 +68,17 @@ describe("orchestrator API", () => {
     expect((await call(`/projects/p1/missions/${v.mission.id}/approve`, "POST")).status).toBe(400);
   });
 
+  it("remembers which web AIs the user is signed in to", async () => {
+    store.upsertAiService({ id: "gemini", name: "Gemini", url: "https://gemini.google.com" });
+    const loggedIn = async () => ((await (await call("/web-ai/settings")).json()) as { loggedIn: Record<string, boolean> }).loggedIn;
+    expect((await call("/ai-services/gemini/logged-in", "PUT", { value: true }, null)).status).toBe(403);
+    expect((await call("/ai-services/nope/logged-in", "PUT", { value: true })).status).toBe(404);
+    expect((await call("/ai-services/gemini/logged-in", "PUT", { value: true })).status).toBe(200);
+    expect(await loggedIn()).toEqual({ gemini: true });
+    await call("/ai-services/gemini/logged-in", "PUT", { value: false });
+    expect(await loggedIn()).toEqual({});
+  });
+
   it("validates input and ids", async () => {
     expect((await call("/projects/p1/missions", "POST", { goal: "" })).status).toBe(400);
     expect((await call("/projects/nope/missions")).status).toBe(404);

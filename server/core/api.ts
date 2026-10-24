@@ -397,6 +397,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       /** effective selector profile per web AI (bundled + overrides); null = Level 2/3 impossible for it */
       sites: Object.fromEntries(store.listAiServices().filter((s) => s.url).map((s) => [s.id, resolveSiteProfile(store, s.id)])),
       bundledSites: Object.keys(BUNDLED_SITE_PROFILES),
+      loggedIn: settings.loggedIn,
     });
   });
   router.put(
@@ -427,6 +428,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const svc = store.getAiService(String(req.params.aiId));
       if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
       if (!svc.url) throw new Error("このAIにはページのURLがありません");
+      if (getWebAiSettings(store).loggedIn[svc.id]) return void res.status(409).json({ error: `${svc.name} はログイン済みになっています。ログインし直すときは、先に「ログイン済みを解除」を押してください` });
       if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
       web.openLogin(svc.url);
       res.json({ ok: true, url: svc.url });
@@ -440,6 +442,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const r = await web.importSignIn();
       store.appendEvent({ type: "WEB_AI_SIGNIN_IMPORTED", payload: { profile: r.profile } });
       res.json({ ok: true, ...r });
+    }),
+  );
+  // The user says whether they are signed in to a service. While it is set, "open for login" is refused (nothing left to do there).
+  router.put(
+    "/ai-services/:aiId/logged-in",
+    guarded((req, res) => {
+      const aiId = String(req.params.aiId);
+      if (!store.getAiService(aiId)) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      const { value } = z.object({ value: z.boolean() }).parse(req.body ?? {});
+      const loggedIn = { ...getWebAiSettings(store).loggedIn };
+      if (value) loggedIn[aiId] = true;
+      else delete loggedIn[aiId];
+      setWebAiSettings(store, { loggedIn });
+      res.json({ aiId, loggedIn: value });
     }),
   );
   // Raising the level is the user's decision (it is never raised automatically); lowering is always allowed.

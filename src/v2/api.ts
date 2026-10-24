@@ -102,5 +102,6 @@ export const api = {
   openLogin: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-login`, "POST", {}),
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
+  setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
 };

@@ -115,11 +115,6 @@
     "url": "https://leonardo.ai"
   },
   {
-    "id": "firefly",
-    "name": "Adobe Firefly（画像生成）",
-    "url": "https://firefly.adobe.com"
-  },
-  {
     "id": "playground",
     "name": "Playground（画像生成）",
     "url": "https://playground.com"

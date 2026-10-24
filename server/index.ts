@@ -14,7 +14,7 @@ import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
-import { applyGoogleLoginRegistry, seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { applyGoogleLoginRegistry, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
@@ -91,6 +91,7 @@ app.use(express.json({ limit: "2mb" }));
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
 applyGoogleLoginRegistry(coreStore);
+applyLaterRetirements(coreStore);
 seedRegistryProfiles(coreStore);
 const approvals = new ApprovalHub(coreStore);
 const previews = new PreviewManager(path.join(ROOT, "projects"));

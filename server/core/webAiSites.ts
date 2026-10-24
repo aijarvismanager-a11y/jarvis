@@ -75,14 +75,16 @@ export type WebAiSettings = {
   enabled: boolean;
   /** Per-service selector overrides, merged over the bundled profile. */
   sites: Record<string, Partial<SiteProfile>>;
+  /** Services the user says they are already signed in to (self-reported: the app cannot see inside the browser). */
+  loggedIn: Record<string, boolean>;
 };
 
 const SETTINGS_KEY = "web_ai";
-const DEFAULT_SETTINGS: WebAiSettings = { enabled: false, sites: {} };
+const DEFAULT_SETTINGS: WebAiSettings = { enabled: false, sites: {}, loggedIn: {} };
 
 export function getWebAiSettings(store: Store): WebAiSettings {
   const raw = store.getSetting<Partial<WebAiSettings>>(SETTINGS_KEY, {});
-  return { enabled: raw.enabled === true, sites: raw.sites && typeof raw.sites === "object" ? raw.sites : DEFAULT_SETTINGS.sites };
+  return { enabled: raw.enabled === true, sites: raw.sites && typeof raw.sites === "object" ? raw.sites : DEFAULT_SETTINGS.sites, loggedIn: raw.loggedIn && typeof raw.loggedIn === "object" ? raw.loggedIn : DEFAULT_SETTINGS.loggedIn };
 }
 
 export function setWebAiSettings(store: Store, patch: Partial<WebAiSettings>): WebAiSettings {

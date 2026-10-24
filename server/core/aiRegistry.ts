@@ -203,14 +203,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     freeStatus: "free_tier",
     limitations: "無料枠のトークンに上限あり",
   },
-  firefly: {
-    capabilities: { image_generation: 4 },
-    qualityScore: 4,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "free_tier",
-    limitations: "無料枠のクレジットに上限あり",
-  },
   playground: {
     capabilities: { image_generation: 4 },
     qualityScore: 4,
@@ -391,4 +383,17 @@ export function applyGoogleLoginRegistry(store: Store): { removed: string[]; add
     });
   }
   return result;
+}
+
+/** Later retirements, each applied once under its own key (Adobe Firefly: Adobe ID only, no Google sign-in). */
+const LATER_RETIREMENTS: { key: string; ids: string[] }[] = [{ key: "registry.retired.firefly.v1", ids: ["firefly"] }];
+
+export function applyLaterRetirements(store: Store): string[] {
+  const removed: string[] = [];
+  for (const { key, ids } of LATER_RETIREMENTS) {
+    if (store.getSetting<boolean>(key, false)) continue;
+    for (const id of ids) if (store.deleteAiService(id)) removed.push(id);
+    store.setSetting(key, true);
+  }
+  return removed;
 }

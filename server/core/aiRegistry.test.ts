@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AI_PROFILES, applyGoogleLoginRegistry, seedRegistryProfiles } from "./aiRegistry.ts";
+import { DEFAULT_AI_PROFILES, applyGoogleLoginRegistry, applyLaterRetirements, seedRegistryProfiles } from "./aiRegistry.ts";
 import { openDatabase } from "./db.ts";
 import { Store } from "./store.ts";
 import { BUNDLED_SITE_PROFILES } from "./webAiSites.ts";
@@ -83,5 +83,16 @@ describe("importEverydaySignIn", () => {
     expect(existsSync(path.join(dest, "Default", "Network", "Cookies"))).toBe(true);
     expect(existsSync(path.join(dest, "Local State"))).toBe(true);
     expect(existsSync(path.join(dest, "Default", "Login Data"))).toBe(false);
+  });
+});
+
+describe("later retirements", () => {
+  it("removes Adobe Firefly once", () => {
+    const store = new Store(openDatabase(":memory:"), "unused");
+    store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
+    expect(applyLaterRetirements(store)).toEqual(["firefly"]);
+    expect(store.getAiService("firefly")).toBeNull();
+    store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
+    expect(applyLaterRetirements(store)).toEqual([]);
   });
 });

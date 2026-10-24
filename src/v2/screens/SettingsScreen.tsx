@@ -104,8 +104,18 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
               </div>
               {s.url && web?.available && web.browserAvailable && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.openLogin(s.id); })}>ログイン用に開く</Button>
-                  <span className="text-[11.5px] text-muted">自動化用の専用ブラウザで開きます。ご自身でログインして、終わったらそのブラウザを閉じてください(次回から自動で使われます)。</span>
+                  {web.loggedIn[s.id] ? (
+                    <>
+                      <Badge tone="ok">ログイン済み</Badge>
+                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.setLoggedIn(s.id, false); done(); })}>ログイン済みを解除</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.openLogin(s.id); })}>ログイン用に開く</Button>
+                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.setLoggedIn(s.id, true); done(); })}>ログイン済みにする</Button>
+                      <span className="text-[11.5px] text-muted">専用ブラウザで開きます。ご自身でログインして、終わったらそのブラウザを閉じ、「ログイン済みにする」を押してください(次回から自動で使われます)。</span>
+                    </>
+                  )}
                 </div>
               )}
               <Details summary="詳細">
