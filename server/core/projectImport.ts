@@ -8,8 +8,8 @@ import type { PlanDraft } from "./taskGraph.ts";
 
 export const STATUS_REPORT_PATH = "docs/status-report.md";
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "coverage", ".venv", "venv", "__pycache__", ".cache", ".turbo", "target"]);
-const SKIP_FILE = /^(\.env(\..*)?|.*\.(log|pem|key|pfx|p12)|id_rsa.*|\.npmrc|\.DS_Store|Thumbs\.db)$/i;
+export const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "coverage", ".venv", "venv", "__pycache__", ".cache", ".turbo", "target"]);
+export const SKIP_FILE = /^(\.env(\..*)?|.*\.(log|pem|key|pfx|p12)|id_rsa.*|\.npmrc|\.DS_Store|Thumbs\.db)$/i;
 export const MAX_IMPORT_FILES = 5_000;
 export const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
 

@@ -39,7 +39,7 @@ function ImportBar({ onImported, setError }: { onImported: (p: Project) => void;
   if (!open) return <div className="mx-auto max-w-3xl px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
   const go = () => run(async () => {
     const r = await api.importProject(folder.trim());
-    setNote(`${r.files}ファイルを取り込みました${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}`);
+    setNote(r.existing ? `このフォルダは取り込み済みです。「${r.project.name}」を開きました(コピーは増やしません)` : `${r.files}ファイルを取り込みました${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}`);
     setFolder("");
     setOpen(false);
     onImported(r.project);
@@ -102,7 +102,7 @@ export default function V2App() {
       }
       setProjects(list);
       // A stored id may point at a project that no longer exists; fall back to the newest one.
-      const active = list.find((p) => p.id === projectId) ?? (projectId === null && !loaded ? list[list.length - 1] : undefined);
+      const active = list.find((p) => p.id === projectId) ?? (!loaded && !list.some((p) => p.id === projectId) ? list[list.length - 1] : undefined);
       if (active && active.id !== projectId) choose(active.id);
       setLoaded(true);
       const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), api.aiServices(), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
@@ -160,13 +160,14 @@ export default function V2App() {
                 {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
               </Button>
             )}
+            <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }}>＋ 新規</Button>
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
-        <ImportBar setError={setError} onImported={(p) => { setProjects((ps) => [...ps, p]); choose(p.id); setScreen("mission"); }} />
+        <ImportBar setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
         <nav className="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-3" aria-label="画面">
           {SCREENS.map((s) => (
             <button

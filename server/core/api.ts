@@ -10,6 +10,7 @@ import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
+import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTree, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -41,6 +42,8 @@ export type OrchestratorApiDeps = {
   snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
+  /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
+  syncBackupsRoot?: string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
   webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void };
 };
@@ -51,7 +54,8 @@ const createSchema = z.object({
   technologyPreferences: z.array(z.string().max(200)).max(50).default([]),
 });
 const MAX_ARTIFACT_BYTES = 1_000_000;
-const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default("") });
+// `run` is only read by /approve: approve and start in one request, so a failure in between cannot leave an approved plan idle.
+const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default(""), run: z.boolean().default(false) });
 
 /** Why a task is failed / blocked, for the UI: the last failure reason, or which task it is waiting on. */
 function taskNotes(store: Store, projectId: string, tasks: ReturnType<Store["listTasks"]>): Record<string, string> {
@@ -120,6 +124,13 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
       const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional() }).parse(req.body ?? {});
       const scan = scanImportSource(body.path, store.projectsRoot);
+      // The same folder is one project: importing it again must not make a second copy.
+      const wanted = normalizeSource(body.path);
+      const known = store.listProjects().find((p) => {
+        const link = store.getSetting<SyncLink | null>(linkKey(p.id), null);
+        return !!link && normalizeSource(link.sourcePath) === wanted;
+      });
+      if (known) return void res.status(200).json({ project: known, existing: true, missionId: null, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets });
       const folderName = path.basename(path.resolve(body.path));
       const project = store.createProject({ name: body.name || folderName });
       try {
@@ -129,6 +140,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
         store.deleteProject(project.id);
         throw err;
       }
+      store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline: hashTree(projectDir(store.projectsRoot, project.id)) } satisfies SyncLink);
       store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets } });
       const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name) });
       void engine.run(project.id, mission.id).catch(() => undefined);
@@ -146,6 +158,48 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       aiRuns: store.listAiRuns(projectId),
     });
   });
+  // ---- Sync with the folder the project was imported from: review the diff, then write it back ----
+  const syncGuarded = (handler: (req: Request, res: Response, ctx: { projectId: string; link: SyncLink; backupDir: string }) => Promise<void> | void) =>
+    guarded((req, res) => {
+      if (!deps.syncBackupsRoot) return void res.status(501).json({ error: "同期機能が接続されていません" });
+      const projectId = String(req.params.projectId);
+      const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
+      if (!link) return void res.status(404).json({ error: "このプロジェクトは取り込んだものではありません" });
+      return handler(req, res, { projectId, link, backupDir: path.join(deps.syncBackupsRoot, projectId) });
+    });
+  router.get("/projects/:projectId/sync", (req, res) => {
+    const projectId = String(req.params.projectId);
+    const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
+    if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false });
+    const backupDir = path.join(deps.syncBackupsRoot, projectId);
+    try {
+      res.json({ linked: true, sourcePath: link.sourcePath, entries: computeDiff(link, projectDir(store.projectsRoot, projectId)), backups: listBackups(backupDir) });
+    } catch (err) {
+      res.json({ linked: true, sourcePath: link.sourcePath, entries: [], backups: listBackups(backupDir), problem: err instanceof Error ? err.message : String(err) });
+    }
+  });
+  router.post(
+    "/projects/:projectId/sync/apply",
+    syncGuarded((req, res, { projectId, link, backupDir }) => {
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      const opts = z.object({ deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false) }).parse(req.body ?? {});
+      const r = applySync(link, projectDir(store.projectsRoot, projectId), backupDir, opts);
+      store.setSetting(linkKey(projectId), r.link);
+      const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
+      pruneBackups(backupDir, keep);
+      store.appendEvent({ projectId, type: "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
+      res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null });
+    }),
+  );
+  router.post(
+    "/projects/:projectId/sync/restore",
+    syncGuarded((req, res, { projectId, link, backupDir }) => {
+      const { backupId } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/) }).parse(req.body ?? {});
+      store.setSetting(linkKey(projectId), restoreBackup(link, backupDir, backupId));
+      store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
+      res.json({ ok: true });
+    }),
+  );
   // Body of one registered artifact (text only, capped). Only paths the DB knows about can be read.
   router.get("/projects/:projectId/artifact-content", async (req, res) => {
     const projectId = String(req.params.projectId);
@@ -449,7 +503,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     }),
   );
 
-  const action = (name: string, fn: (projectId: string, missionId: string, body: { feedback: string }) => Promise<unknown> | unknown, needsExecutor = false) =>
+  const action = (name: string, fn: (projectId: string, missionId: string, body: { feedback: string; run: boolean }) => Promise<unknown> | unknown, needsExecutor = false) =>
     router.post(
       `/projects/:projectId/missions/:missionId/${name}`,
       guarded(async (req, res) => {
@@ -473,7 +527,11 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     }),
   );
 
-  action("approve", (p, m) => engine.approvePlan(p, m));
+  action("approve", (p, m, b) => {
+    if (b.run && !deps.canExecute) throw new Error("実行基盤が接続されていないため、実行できません");
+    engine.approvePlan(p, m);
+    if (b.run) void engine.run(p, m).catch(() => {});
+  });
   action("reject", (p, m, b) => {
     if (!b.feedback) throw new Error("修正してほしい点(feedback)を入力してください");
     return engine.rejectPlan(p, m, b.feedback);

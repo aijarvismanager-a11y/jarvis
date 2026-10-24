@@ -101,3 +101,7 @@ export type MissionReport = {
 };
 export type TaskChanges = { files: { path: string; status: "added" | "modified" | "deleted" }[]; patch: string; truncated: boolean };
 export type SnapshotInfo = { name: string; taskId: string; objective: string; at: string };
+
+export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; conflict: boolean };
+export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean }[] };
+export type SyncState = { linked: false } | { linked: true; sourcePath: string; entries: SyncEntry[]; backups: SyncBackup[]; problem?: string };

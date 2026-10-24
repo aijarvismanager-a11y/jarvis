@@ -104,6 +104,17 @@ describe("orchestrator API with an executor", () => {
     }
     throw new Error("mission did not complete");
   });
+
+  it("approve with run:true approves and starts the mission in one request", async () => {
+    const v = await asView(await call("/projects/p1/missions", "POST", { goal: "g" }));
+    expect((await call(`/projects/p1/missions/${v.mission.id}/approve`, "POST", { run: true })).status).toBe(200);
+    for (let i = 0; i < 100; i++) {
+      const cur = await asView(await call(`/projects/p1/missions/${v.mission.id}`));
+      if (cur.mission.status === "completed") return;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error("mission did not complete");
+  });
 });
 
 describe("orchestrator API: projects and artifacts (UI)", () => {

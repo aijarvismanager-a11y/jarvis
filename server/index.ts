@@ -108,7 +108,7 @@ for (const project of coreStore.listProjects()) {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
 );
 
 app.get("/api/session-token", (_req, res) => {

@@ -77,6 +77,12 @@ describe("POST /projects/import", () => {
       const bad = await fetch(`${base}/projects/import`, { method: "POST", headers: { "content-type": "application/json", "x-orchestrator-token": "t" }, body: JSON.stringify({ path: path.join(src, "missing") }) });
       expect(bad.status).toBe(400);
       expect(store.listProjects()).toHaveLength(1);
+
+      // importing the same folder again must not create a second copy
+      const again = await fetch(`${base}/projects/import`, { method: "POST", headers: { "content-type": "application/json", "x-orchestrator-token": "t" }, body: JSON.stringify({ path: src.toUpperCase() === src ? src : `${src}${path.sep}` }) });
+      expect(again.status).toBe(200);
+      expect(((await again.json()) as { existing: boolean; project: { id: string } }).project.id).toBe(body.project.id);
+      expect(store.listProjects()).toHaveLength(1);
     } finally {
       await new Promise((r) => server.close(r));
       db.close();

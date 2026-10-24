@@ -36,7 +36,13 @@ export function classifyCommand(commandLine: string): PermissionLevel {
 
 /** Levels above the default that the task's own wording asks for (deploy / delete). */
 export function requestedElevatedLevels(task: Pick<Task, "objective" | "constraints">): PermissionLevel[] {
-  const text = `${task.objective} ${task.constraints.join(" ")}`.toLowerCase();
+  // A clause that forbids the action ("既存ファイルの変更・削除・移動は禁止") is the opposite of asking for it.
+  const forbids = /禁止|しない|しないで|してはいけ|不可|\bdo not\b|\bdon't\b|\bnever\b|\bmust not\b|\bno\s+(deploy|delet)/;
+  const text = [task.objective, ...task.constraints]
+    .flatMap((s) => s.split(/[。\n]/))
+    .filter((clause) => !forbids.test(clause.toLowerCase()))
+    .join(" ")
+    .toLowerCase();
   const levels: PermissionLevel[] = [];
   if (/デプロイ|公開する|本番|\bdeploy\b|\bpublish\b|\brelease\b/.test(text)) levels.push("DEPLOY");
   // Only deleting files / repos / databases counts. A bare "削除" is usually the app's own delete

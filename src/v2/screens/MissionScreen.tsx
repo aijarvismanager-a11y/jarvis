@@ -4,6 +4,7 @@ import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
 import { SplitPreview } from "./SplitPreview";
+import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
@@ -324,10 +325,8 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
   if (!proposal) return <Card title="計画">計画を作成中です…</Card>;
   const act = (action: "approve" | "reject") =>
     run(async () => {
-      if (action === "approve") {
-        await api.missionAction(mission.projectId, mission.id, "approve");
-        await api.missionAction(mission.projectId, mission.id, "run");
-      } else await api.missionAction(mission.projectId, mission.id, "reject", feedback);
+      if (action === "approve") await api.approveAndRun(mission.projectId, mission.id);
+      else await api.missionAction(mission.projectId, mission.id, "reject", feedback);
       setFeedback("");
       ctx.refresh();
     });
@@ -402,8 +401,10 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
     };
   }, [mission?.id, mission?.status, mission?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const showIntake = starting || !mission || FINISHED.includes(mission.status);
   const tasks = mission ? overview.tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) : [];
+  // A draft without a plan (e.g. migrated from the old app) can never run: let the user start a fresh mission right away.
+  const emptyDraft = mission?.status === "draft" && tasks.length === 0;
+  const showIntake = starting || !mission || FINISHED.includes(mission.status) || emptyDraft;
   const { done, total, percent } = progressOf(tasks);
   const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
@@ -465,7 +466,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </ul>
           )}
           {tasks.length === 0 && mission.status === "draft" && (
-            <p className="mt-3 text-[12.5px] text-muted">このミッションにはまだ計画がありません。「中止」してから新しいミッションを始めてください。</p>
+            <p className="mt-3 text-[12.5px] text-muted">このミッションにはまだ計画がありません。下のフォームから新しいミッションを始められます(このミッションは不要なら「中止」してください)。</p>
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             {mission.status === "running" && <Button variant="ghost" disabled={busy} onClick={() => act("pause")}>一時停止</Button>}
@@ -481,6 +482,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
+      {project && <SyncCard ctx={ctx} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
 

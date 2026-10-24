@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, SyncState, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -32,7 +32,11 @@ export const api = {
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, name = "") =>
-    request<{ project: Project; missionId: string; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
+    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
+  sync: (projectId: string) => request<SyncState>(`/projects/${encodeURIComponent(projectId)}/sync`),
+  applySync: (projectId: string, opts: { deletes: boolean; overwriteConflicts: boolean }) =>
+    request<{ applied: number; skipped: unknown[]; backup: string | null }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
+  restoreSync: (projectId: string, backupId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId }),
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),
   artifactContent: (projectId: string, path: string) => request<{ content: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`).then((r) => r.content),
@@ -42,6 +46,7 @@ export const api = {
     request<MissionView>(`/projects/${encodeURIComponent(projectId)}/missions`, "POST", { goal, constraints, technologyPreferences }),
   missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "replan" | "redirect" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/${action}`, "POST", { feedback }),
+  approveAndRun: (projectId: string, missionId: string) => request<MissionView>(`${mission(projectId, missionId)}/approve`, "POST", { run: true }),
 
   retryTask: (projectId: string, missionId: string, taskId: string, feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/tasks/${encodeURIComponent(taskId)}/retry`, "POST", { feedback }),

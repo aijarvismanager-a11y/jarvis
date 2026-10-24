@@ -93,6 +93,9 @@ describe("PermissionPolicy", () => {
 
   it("does not treat an app's own delete feature as a destructive request", () => {
     expect(requestedElevatedLevels({ objective: "商品一覧・登録・編集・削除のUI/UXワイヤーフレームを設計する", constraints: [] })).toEqual([]);
+    // a prohibition is not a request (the import analysis task says exactly this)
+    expect(requestedElevatedLevels({ objective: "現状を調べる。既存のコードは一切変更しないでください", constraints: ["既存ファイルの変更・削除・移動は禁止。新規に作るのはレポートのみ"] })).toEqual([]);
+    expect(requestedElevatedLevels({ objective: "古いファイルを削除", constraints: ["本番へのデプロイは禁止"] })).toEqual(["DESTRUCTIVE"]);
     expect(requestedElevatedLevels({ objective: "商品の削除APIを実装する", constraints: [] })).toEqual([]);
     expect(requestedElevatedLevels({ objective: "Implement a delete button and drop-down menu", constraints: [] })).toEqual([]);
     expect(requestedElevatedLevels({ objective: "rm -rf dist して作り直す", constraints: [] })).toEqual(["DESTRUCTIVE"]);
