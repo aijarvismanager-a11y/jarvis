@@ -38,3 +38,11 @@ for ($i = 0; $i -lt 40 -and -not $ready; $i++) {
 }
 if (-not $ready) { throw "The server did not come up. See $log" }
 Write-Host "Server is up on http://127.0.0.1:$Port (log: $log)"
+
+# The screen (Vite, port 5173) talks to this server through a proxy. If it is not running the page shows
+# "Failed to fetch" even though the server is fine, so bring it up too when nothing is listening there.
+if ($Port -eq 4173 -and -not (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue)) {
+  $uiLog = Join-Path $root 'vite.log'
+  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "npm run dev > `"$uiLog`" 2>&1" -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+  Write-Host "The screen (port 5173) was not running; started it (log: $uiLog)."
+}
