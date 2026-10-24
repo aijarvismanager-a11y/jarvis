@@ -141,6 +141,25 @@ function TaskChangesPanel({ task, ctx, canRollback }: { task: Task; ctx: Ctx; ca
   );
 }
 
+/** Change direction mid-run: stops the work, then a new plan is proposed that keeps what is already done. */
+function RedirectControls({ mission, ctx }: { mission: { projectId: string; id: string }; ctx: Ctx }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const { busy, run } = useAction(ctx.setError);
+  const go = () => run(async () => { await api.missionAction(mission.projectId, mission.id, "redirect", text); setText(""); setOpen(false); ctx.refresh(); });
+  if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>方針を変える</Button>;
+  return (
+    <div className="w-full">
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="例: 検索機能を先に作って、画像アップロードは後回しにしてください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
+      <p className="mt-1 text-[12px] text-muted">実行中の作業はここで止まります。完了済みの作業は残したまま新しい計画を提案するので、内容を確認して承認してください(承認するまで、止まったタスクは置き換わりません)。</p>
+      <div className="mt-1 flex gap-2">
+        <Button disabled={busy || !text.trim()} onClick={go}>止めて新しい計画を作る</Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Retry one failed task, optionally telling the AI what to do differently. */
 function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
   const [open, setOpen] = useState(false);
@@ -451,6 +470,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             {mission.status === "running" && <Button variant="ghost" disabled={busy} onClick={() => act("pause")}>一時停止</Button>}
             {mission.status === "paused" && <Button disabled={busy} onClick={() => act("resume")}>再開</Button>}
             {mission.status === "failed" && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
+            {["running", "paused", "failed"].includes(mission.status) && <RedirectControls mission={mission} ctx={ctx} />}
             {["draft", "planning", "running", "paused"].includes(mission.status) && <Button variant="danger" disabled={busy} onClick={() => act("cancel")}>中止</Button>}
             {FINISHED.includes(mission.status) && <Button variant="ghost" onClick={() => setStarting(true)}>新しいミッション</Button>}
           </div>

@@ -347,3 +347,38 @@ describe("replan", () => {
     expect(byObjective(mid, "a").status).toBe("failed");
   });
 });
+
+describe("redirect (change direction mid-run)", () => {
+  it("stops the running work, keeps completed tasks, and replaces the rest only after approval", async () => {
+    const exec = new FakeExecutor(async (task) => {
+      if (task.objective === "b") await new Promise(() => undefined); // hangs until aborted
+      return { ok: true };
+    });
+    const original = exec.execute.bind(exec);
+    exec.execute = (task, ctx) => {
+      const p = original(task, ctx);
+      if (task.objective !== "b") return p;
+      return Promise.race([p, new Promise<ExecutionResult>((res) => ctx.signal.addEventListener("abort", () => res({ ok: false, summary: "aborted" })))]);
+    };
+    const planner = new ScriptedPlanner([plan(t("a"), t("b", ["a"]), t("c", ["b"])), plan(t("x"))]);
+    const engine = new MissionEngine(store, { planner, executor: exec });
+    const mid = await started(engine);
+    const run = engine.run(pid, mid);
+    while (!exec.order.includes("b")) await new Promise((r) => setTimeout(r, 2));
+
+    await expect(engine.redirect(pid, mid, "  ")).rejects.toThrow();
+    const proposal = await engine.redirect(pid, mid, "検索を先に作って");
+    await run;
+    expect(proposal.kind).toBe("replan");
+    expect(proposal.feedback).toContain("検索を先に作って");
+    expect(planner.requests[1]?.completed?.map((c) => c.objective)).toEqual(["a"]);
+    expect(store.getMission(pid, mid)?.status).toBe("planning");
+    expect(byObjective(mid, "b").status).not.toBe("cancelled"); // untouched until approved
+
+    engine.approvePlan(pid, mid);
+    expect(byObjective(mid, "a").status).toBe("completed");
+    expect(byObjective(mid, "b").status).toBe("cancelled");
+    expect(byObjective(mid, "c").status).toBe("cancelled");
+    expect(byObjective(mid, "x").status).toBe("pending"); // becomes ready when the loop runs
+  });
+});

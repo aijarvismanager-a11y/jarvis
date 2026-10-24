@@ -433,6 +433,10 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     return engine.rejectPlan(p, m, b.feedback);
   });
   action("replan", (p, m, b) => engine.replan(p, m, b.feedback || undefined));
+  action("redirect", (p, m, b) => {
+    if (!b.feedback) throw new Error("新しい方針を入力してください");
+    return engine.redirect(p, m, b.feedback);
+  });
   action("pause", (p, m) => engine.pause(p, m));
   action("cancel", (p, m) => engine.cancel(p, m));
   // run/resume return once the loop is started; progress is read via GET.

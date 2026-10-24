@@ -159,6 +159,23 @@ export class MissionEngine {
   }
 
   /**
+   * The user changes direction while the mission is running (or paused/failed):
+   * stop what is running, then ask the Planner for a new plan that keeps the
+   * completed work and follows the new instruction. Nothing changes until the
+   * user approves that proposal; an unfinished task is replaced only then.
+   */
+  async redirect(projectId: string, missionId: string, instruction: string): Promise<PlanProposal> {
+    const text = instruction.trim();
+    if (!text) throw new Error("新しい方針を入力してください");
+    const mission = this.requireMission(projectId, missionId);
+    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了したミッションの方針は変えられません");
+    if (mission.status === "planning") throw new Error("計画の承認待ちです。計画に対して修正を依頼してください");
+    this.store.appendEvent({ projectId, type: "MISSION_REDIRECTED", payload: { missionId, instruction: text } });
+    if (mission.status === "running") await this.pause(projectId, missionId);
+    return this.replan(projectId, missionId, `【途中での方針変更】${text}`);
+  }
+
+  /**
    * The user retries one failed task (optionally with an extra instruction), on
    * top of the automatic retries. Tasks blocked behind it recover on their own,
    * and a failed mission is started again.
