@@ -39,7 +39,7 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   usePoll(async () => setProgress(busy ? await api.importProgress() : null), 700, [busy]);
 
-  if (!open) return <div className="mx-auto max-w-3xl px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
+  if (!open) return <div className="mx-auto max-w-[1600px] px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
 
   // The browser cannot read a folder's path, so the server opens the Windows folder dialog and returns it.
   const pick = async () => {
@@ -90,7 +90,7 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
     });
 
   return (
-    <div className="mx-auto max-w-3xl px-4 pb-3">
+    <div className="mx-auto max-w-[1600px] px-4 pb-3">
       <p className="text-[12px] text-muted">フォルダはコピーして取り込みます(元のフォルダは変更しません)。node_modules・.git・.env などは除きます。取り込み後、Claude Code が現状レポートを作ります。</p>
       <label htmlFor="import-folder" className="mt-2 block text-[12.5px] font-semibold">取り込むフォルダ</label>
       <div className="mt-1 flex flex-wrap gap-2">

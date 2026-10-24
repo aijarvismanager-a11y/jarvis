@@ -435,6 +435,9 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
         <NextStepBanner step={step} />
       )}
 
+      {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+      <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
       {pendingPlan && <PlanReview view={view} ctx={ctx} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
@@ -508,6 +511,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
         </>
       )}
 
+      </div>
+      <div className="min-w-0 space-y-4">
       {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
       {project && <SyncCard ctx={ctx} />}
@@ -524,6 +529,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           </ul>
         </Card>
       )}
+      </div>
+      </div>
     </div>
   );
 }

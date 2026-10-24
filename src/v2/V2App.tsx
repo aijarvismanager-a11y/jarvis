@@ -176,7 +176,7 @@ export default function V2App() {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <header className="border-b border-border bg-sidebar">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
           <div className="ml-auto flex items-center gap-2">
             {notifySupported() && (
@@ -193,7 +193,7 @@ export default function V2App() {
           </div>
         </div>
         <ImportBar setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
-        <nav className="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-3" aria-label="画面">
+        <nav className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3" aria-label="画面">
           {SCREENS.map((s) => (
             <button
               key={s.id}
@@ -211,7 +211,7 @@ export default function V2App() {
         </nav>
       </header>
       {help && <HelpDialog version={appVersion} onClose={() => setHelp(false)} />}
-      <main className="mx-auto max-w-3xl px-4 py-5">
+      <main className="mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
         {outdated && !offline && (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
             <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中の依頼は再起動後に自動で再開します)。</span>
