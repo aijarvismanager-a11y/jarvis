@@ -63,3 +63,11 @@ npm run lint    # oxlint
 - `legacy-ai-manager/` — 旧Electron版アプリ（参考用に退避、現行アプリとは無関係）
 - 進捗・既知の問題は [PLAN.md](PLAN.md) / [PROGRESS.md](PROGRESS.md) を参照
 - 使い方は [public/MANUAL.html](public/MANUAL.html) を参照（アプリ内の「？ 使い方」からも開ける: /MANUAL.html）
+
+## インストーラー(Windows)
+
+```bash
+npm run dist:win    # dist-installer/ に「AIオーケストラ Setup 1.0.0.exe」ができる
+```
+
+ダブルクリックで入り(管理者権限不要)、デスクトップとスタートメニューにアイコンができる。サーバーは同梱で、窓を開くと自動で起動し、閉じると止まる。データ(プロジェクト・記録)は `%APPDATA%\ai-orchestrator` に保存され、アンインストールしても消えない。使うパソコンに Claude Code が必要(Node.js は不要。ただし取り込んだプロジェクトの「動かして確認」には、そのプロジェクトが使う Node.js / npm が必要)。署名なしのため、初回は Windows の「PCを保護しました」が出る場合がある(「詳細情報」→「実行」)。

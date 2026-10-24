@@ -29,7 +29,12 @@ import { DepsInstaller } from "./core/depsInstaller.ts";
 import { SystemCheck } from "./core/systemCheck.ts";
 import { VersionWatch } from "./core/version.ts";
 
+// ROOT = where the user data lives (data/, projects/, backups/): the working directory.
+// APP_DIR = where the program itself is (server/, dist/): the same folder when run from the repository,
+// a separate read-only folder when the desktop installer runs it (it sets ORCHESTRATOR_APP_DIR).
 const ROOT = path.resolve(process.cwd());
+const APP_DIR = process.env.ORCHESTRATOR_APP_DIR ? path.resolve(process.env.ORCHESTRATOR_APP_DIR) : ROOT;
+const INSTALLED = APP_DIR !== ROOT;
 const PORT = Number(process.env.PORT ?? 4173);
 // The API can start local CLI processes, so it must only be
 // reachable from the user's own browser on this machine: bind to loopback,
@@ -123,11 +128,11 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.
-const versionWatch = new VersionWatch(path.join(ROOT, "server"));
+const versionWatch = new VersionWatch(path.join(APP_DIR, "server"));
 app.get("/api/version", (_req, res) => {
   res.json(versionWatch.status());
 });
@@ -138,7 +143,7 @@ app.get("/api/session-token", (_req, res) => {
 
 // Production mode: when the screen has been built (npm run build) this server serves it too, so one process on one
 // port is the whole app (no Vite dev server to start, to keep alive, or to lose). During development `npm start` still uses Vite.
-const UI_DIR = path.join(ROOT, "dist");
+const UI_DIR = path.join(APP_DIR, "dist");
 if (existsSync(path.join(UI_DIR, "index.html"))) {
   app.use(express.static(UI_DIR, { index: false, setHeaders: (res, file) => { if (/\.html$/i.test(file)) res.setHeader("cache-control", "no-store"); } }));
   // any other page address (a reload on a sub-page) gets the app; API paths never do

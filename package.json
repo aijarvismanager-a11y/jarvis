@@ -4,7 +4,7 @@
   "engines": {
     "node": ">=22.13"
   },
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,13 +18,15 @@
     "start": "concurrently -n server,app -c yellow,cyan \"npm:server\" \"npm:dev\"",
     "test": "vitest run",
     "package": "powershell -ExecutionPolicy Bypass -File scripts/package-dist.ps1",
-    "desktop": "electron electron/main.cjs"
+    "desktop": "electron electron/main.cjs",
+    "dist:win": "npm run build && electron-builder --win nsis"
   },
   "dependencies": {
     "express": "^4.21.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
+    "tsx": "^4.19.2",
     "ws": "^8.22.0",
     "zod": "^3.24.1"
   },
@@ -38,12 +40,56 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.5",
     "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "oxlint": "^1.79.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.19.2",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
+  },
+  "main": "electron/main.cjs",
+  "description": "AIオーケストラ",
+  "author": "AI Orchestrator",
+  "build": {
+    "appId": "local.ai-orchestrator",
+    "productName": "AIオーケストラ",
+    "asar": false,
+    "directories": {
+      "output": "dist-installer"
+    },
+    "files": [
+      "electron/**",
+      "server/**",
+      "!server/**/*.test.ts",
+      "src/types/**",
+      "dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "public/app-icon.ico",
+        "to": "app-icon.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/app-icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AIオーケストラ",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

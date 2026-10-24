@@ -2,6 +2,7 @@
 // If no server is running it starts one (npm run app = build the screen + serve it) and stops it again on quit.
 const { app, BrowserWindow, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
 const http = require("node:http");
 const path = require("node:path");
 
@@ -9,6 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const PORT = Number(process.env.PORT) || 4173;
 const URL_BASE = `http://127.0.0.1:${PORT}`;
 let spawned = false;
+let child = null; // installed build: the server process this window started
 let win = null;
 
 const isUp = () =>
@@ -29,7 +31,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function ensureServer() {
   if (await isUp()) return true;
   spawned = true;
-  spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
+  if (app.isPackaged) {
+    // Installed build: run the bundled server with Electron's own Node, keeping user data outside the install folder.
+    const loader = pathToFileURL(path.join(ROOT, "node_modules", "tsx", "dist", "loader.mjs")).href;
+    child = spawn(process.execPath, ["--import", loader, path.join(ROOT, "server", "index.ts")], {
+      cwd: app.getPath("userData"),
+      windowsHide: true,
+      stdio: "ignore",
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ORCHESTRATOR_APP_DIR: ROOT, PORT: String(PORT) },
+    });
+    child.on("exit", () => { child = null; });
+  } else {
+    spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
+  }
   for (let i = 0; i < 180; i++) {
     await sleep(1000);
     if (await isUp()) return true;
@@ -41,6 +55,11 @@ const splash = (text) => "data:text/html;charset=utf-8," + encodeURIComponent(`<
 
 function stopOwnServer() {
   if (!spawned) return;
+  if (app.isPackaged) {
+    // children of the server (preview servers, Claude Code) go with it
+    if (child) spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    return;
+  }
   spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(ROOT, "scripts", "restart-server.ps1"), "-Port", String(PORT), "-StopOnly"], { cwd: ROOT, windowsHide: true, timeout: 30000 });
 }
 
@@ -51,7 +70,7 @@ async function start() {
     minWidth: 480,
     minHeight: 480,
     title: "AIオーケストラ",
-    icon: path.join(ROOT, "public", "app-icon.ico"),
+    icon: app.isPackaged ? path.join(process.resourcesPath, "app-icon.ico") : path.join(ROOT, "public", "app-icon.ico"),
     autoHideMenuBar: true,
     backgroundColor: "#fbf9f5",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },

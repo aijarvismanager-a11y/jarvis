@@ -31,3 +31,4 @@ dist-release
 /projects/
 /backups/
 /snapshots/
+/dist-installer
