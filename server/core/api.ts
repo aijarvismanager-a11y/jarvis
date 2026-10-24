@@ -10,7 +10,7 @@ import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
-import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
+import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTree, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -141,8 +141,15 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects/import",
     guarded(async (req, res) => {
       if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
-      const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional() }).parse(req.body ?? {});
-      const scan = scanImportSource(body.path, store.projectsRoot);
+      const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional(), exclude: z.array(z.string().trim().min(1).max(260)).max(100).default([]) }).parse(req.body ?? {});
+      let scan;
+      try {
+        scan = scanImportSource(body.path, store.projectsRoot, { exclude: body.exclude });
+      } catch (err) {
+        // over the limits: tell the UI what is heavy so the user can leave those folders out
+        if (err instanceof ImportTooLargeError) return void res.status(413).json({ error: err.message, tooLarge: { files: err.files, bytes: err.bytes, folders: err.folders } });
+        throw err;
+      }
       // The same folder is one project: importing it again must not make a second copy.
       const wanted = normalizeSource(body.path);
       const known = store.listProjects().find((p) => {
@@ -153,17 +160,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const folderName = path.basename(path.resolve(body.path));
       const project = store.createProject({ name: body.name || folderName });
       try {
-        copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan);
+        await copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan);
         await deps.snapshots?.capture(project.id, `${project.id}-import-baseline`).catch(() => undefined);
       } catch (err) {
         store.deleteProject(project.id);
         throw err;
       }
-      store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline: hashTree(projectDir(store.projectsRoot, project.id)) } satisfies SyncLink);
-      store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets } });
+      store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline: hashTree(projectDir(store.projectsRoot, project.id)), exclude: scan.excluded } satisfies SyncLink);
+      store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded } });
       const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name) });
       void engine.run(project.id, mission.id).catch(() => undefined);
-      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets });
+      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded });
     }),
   );
   router.get("/projects/:projectId/overview", (req, res) => {

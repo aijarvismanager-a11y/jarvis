@@ -12,6 +12,17 @@ async function getToken(refresh = false): Promise<string> {
   return token;
 }
 
+/** An error answer from the server, keeping the JSON body (some carry details beyond the message). */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly data: Record<string, unknown>;
+  constructor(message: string, status: number, data: Record<string, unknown>) {
+    super(message);
+    this.status = status;
+    this.data = data;
+  }
+}
+
 async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const send = async (refresh: boolean) =>
     fetch(BASE + path, {
@@ -22,7 +33,7 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   let res = await send(false);
   if (res.status === 403 && method !== "GET") res = await send(true);
   const json = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new Error(json.error ?? `リクエストに失敗しました(${res.status})`);
+  if (!res.ok) throw new ApiError(json.error ?? `リクエストに失敗しました(${res.status})`, res.status, json);
   return json as T;
 }
 
@@ -40,8 +51,8 @@ export const api = {
   serverVersion,
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
-  importProject: (path: string, name = "") =>
-    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
+  importProject: (path: string, exclude: string[] = [], name = "") =>
+    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[] }>("/projects/import", "POST", { path, name, exclude }),
   restartServer: (force = false) => request<{ ok: boolean; running: number }>("/system/restart", "POST", { force }),
   deps: (projectId: string) => request<DepsState>(`/projects/${encodeURIComponent(projectId)}/deps`),
   installDeps: (projectId: string) => request<{ install: DepsState["install"] }>(`/projects/${encodeURIComponent(projectId)}/deps/install`, "POST", {}),

@@ -9,7 +9,7 @@ import { SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
 // Nothing is written to the original without first saving the files it would overwrite or
 // delete into a backup generation, from which they can be restored.
 
-export type SyncLink = { sourcePath: string; importedAt: string; /** project-relative path -> sha1, as it was when last in step with the source */ baseline: Record<string, string> };
+export type SyncLink = { sourcePath: string; importedAt: string; /** top-level folders left out of the import; never compared or copied */ exclude?: string[]; /** project-relative path -> sha1, as it was when last in step with the source */ baseline: Record<string, string> };
 export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean };
 export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean; prevBaseline: string | null }[] };
 
@@ -20,11 +20,13 @@ export const normalizeSource = (p: string) => path.resolve(p).replace(/[\\/]+$/,
 const sha1 = (file: string) => createHash("sha1").update(readFileSync(file)).digest("hex");
 
 /** project-relative path -> hash for every file that import/sync cares about (same skip rules as the import). */
-export function hashTree(root: string): Record<string, string> {
+export function hashTree(root: string, exclude: string[] = []): Record<string, string> {
   const out: Record<string, string> = {};
+  const left = new Set(exclude.map((n) => n.toLowerCase()));
   const walk = (dir: string, rel: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (e.isSymbolicLink()) continue;
+      if (rel === "" && e.isDirectory() && left.has(e.name.toLowerCase())) continue;
       const childRel = rel ? `${rel}/${e.name}` : e.name;
       const abs = path.join(dir, e.name);
       if (e.isDirectory()) {
@@ -46,8 +48,8 @@ const rootsOf = (link: SyncLink, projectRoot: string, dir: SyncDirection) => (di
 export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirection = "push"): SyncEntry[] {
   if (!existsSync(link.sourcePath) || !statSync(link.sourcePath).isDirectory()) throw new Error("元のフォルダが見つかりません");
   const roots = rootsOf(link, projectRoot, dir);
-  const from = hashTree(roots.from);
-  const to = hashTree(roots.to);
+  const from = hashTree(roots.from, link.exclude);
+  const to = hashTree(roots.to, link.exclude);
   const entries: SyncEntry[] = [];
   for (const rel of new Set([...Object.keys(from), ...Object.keys(link.baseline)])) {
     const b = link.baseline[rel];
@@ -96,7 +98,7 @@ export function applySync(link: SyncLink, projectRoot: string, backupDir: string
   writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
   // 2) write
   const baseline = { ...link.baseline };
-  const written = hashTree(roots.from);
+  const written = hashTree(roots.from, link.exclude);
   for (const e of todo) {
     const target = abs(e.path);
     if (e.kind === "deleted") {

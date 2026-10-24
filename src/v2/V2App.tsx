@@ -9,7 +9,8 @@ import { MissionScreen } from "./screens/MissionScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
-import { useAction, usePoll } from "./hooks";
+import { usePoll } from "./hooks";
+import { ImportBar } from "./ImportBar";
 import { Button, ErrorBar } from "./ui";
 
 const SCREENS = [
@@ -30,32 +31,6 @@ const readStored = () => {
     return null;
   }
 };
-
-/** Brings an existing folder in as a new project; Claude Code then writes a status report about it. */
-function ImportBar({ onImported, setError }: { onImported: (p: Project) => void; setError: (m: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [folder, setFolder] = useState("");
-  const [note, setNote] = useState<string | null>(null);
-  const { busy, run } = useAction(setError);
-  if (!open) return <div className="mx-auto max-w-3xl px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
-  const go = () => run(async () => {
-    const r = await api.importProject(folder.trim());
-    setNote(r.existing ? `このフォルダは取り込み済みです。「${r.project.name}」を開きました(コピーは増やしません)` : `${r.files}ファイルを取り込みました${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}`);
-    setFolder("");
-    setOpen(false);
-    onImported(r.project);
-  });
-  return (
-    <div className="mx-auto max-w-3xl px-4 pb-3">
-      <p className="text-[12px] text-muted">フォルダはコピーして取り込みます(元のフォルダは変更しません)。node_modules・.git・.env などは除きます。取り込み後、Claude Code が現状レポートを作ります。</p>
-      <div className="mt-1 flex gap-2">
-        <input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="例: C:\Users\you\my-app" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent" />
-        <Button disabled={busy || !folder.trim()} onClick={go}>{busy ? "取り込み中…" : "取り込む"}</Button>
-        <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
-      </div>
-    </div>
-  );
-}
 
 export default function V2App() {
   const [screen, setScreen] = useState<ScreenId>("mission");

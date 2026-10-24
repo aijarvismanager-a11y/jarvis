@@ -9,7 +9,7 @@ import { openDatabase } from "./db.ts";
 import { Store } from "./store.ts";
 import { MissionEngine } from "./missionEngine.ts";
 import { createOrchestratorRouter } from "./api.ts";
-import { scanImportSource } from "./projectImport.ts";
+import { ImportTooLargeError, scanImportSource } from "./projectImport.ts";
 
 const dirs: string[] = [];
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -38,6 +38,30 @@ describe("scanImportSource", () => {
     expect(() => scanImportSource(path.join(src, "nope"), "x")).toThrow();
     const root = tmp();
     expect(() => scanImportSource(path.join(root, "projects"), path.join(root, "projects"))).toThrow();
+  });
+});
+
+describe("scanImportSource limits", () => {
+  it("names the heavy folders when over the limit, and leaves excluded ones out", () => {
+    const src = tmp();
+    mkdirSync(path.join(src, "media"));
+    mkdirSync(path.join(src, "code"));
+    writeFileSync(path.join(src, "media", "big.bin"), Buffer.alloc(5000));
+    writeFileSync(path.join(src, "code", "a.js"), "x");
+    writeFileSync(path.join(src, "README.md"), "r");
+    const projects = path.join(tmp(), "projects");
+    let err: unknown;
+    try {
+      scanImportSource(src, projects, { maxBytes: 1000 });
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(ImportTooLargeError);
+    expect((err as ImportTooLargeError).folders[0]).toMatchObject({ name: "media", files: 1 });
+    expect((err as Error).message).toContain("除外");
+    const ok = scanImportSource(src, projects, { maxBytes: 1000, exclude: ["MEDIA"] });
+    expect(ok.files.sort()).toEqual(["README.md", "code/a.js"]);
+    expect(ok.excluded).toEqual(["media"]);
   });
 });
 
