@@ -515,13 +515,19 @@ export class Store {
       .run(input.projectId ?? null, input.taskId ?? null, input.type, JSON.stringify(input.payload ?? {}), now());
   }
 
-  listEvents(filter: { projectId?: string | null; limit?: number } = {}): StoredEvent[] {
+  listEvents(filter: { projectId?: string | null; type?: string; limit?: number } = {}): StoredEvent[] {
     const limit = Math.min(filter.limit ?? 200, 1000);
-    const rows = (
-      filter.projectId
-        ? this.db.prepare("SELECT * FROM events WHERE project_id = ? ORDER BY id DESC LIMIT ?").all(filter.projectId, limit)
-        : this.db.prepare("SELECT * FROM events ORDER BY id DESC LIMIT ?").all(limit)
-    ) as Row[];
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (filter.projectId) {
+      where.push("project_id = ?");
+      args.push(filter.projectId);
+    }
+    if (filter.type) {
+      where.push("type = ?");
+      args.push(filter.type);
+    }
+    const rows = this.db.prepare(`SELECT * FROM events ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ?`).all(...args, limit) as Row[];
     return rows.reverse().map((r) => ({
       id: r.id as number,
       projectId: (r.project_id as string | null) ?? null,

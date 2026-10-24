@@ -156,4 +156,11 @@ describe("repositories", () => {
     const types = store.listEvents({ projectId: "p1" }).map((e) => e.type);
     expect(types).toEqual(["PROJECT_CREATED", "MISSION_CREATED", "TASK_CREATED"]);
   });
+
+  it("filters events by type before applying the limit, so old ones are not pushed out", () => {
+    seed("p1");
+    for (let i = 0; i < 1100; i++) store.appendEvent({ projectId: "p1", type: "NOISE", payload: {} });
+    expect(store.listEvents({ projectId: "p1", limit: 1000 }).some((e) => e.type === "PROJECT_CREATED")).toBe(false);
+    expect(store.listEvents({ projectId: "p1", type: "PROJECT_CREATED", limit: 1000 })).toHaveLength(1);
+  });
 });

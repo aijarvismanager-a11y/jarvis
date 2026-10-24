@@ -100,6 +100,12 @@ const engine = new MissionEngine(coreStore, {
   validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester() }),
   broker: new AIBroker(coreStore),
 });
+// A restart leaves approved missions marked "running" with no loop behind them: pick them up again.
+for (const project of coreStore.listProjects()) {
+  for (const mission of coreStore.listMissions(project.id)) {
+    if (mission.status === "running") void engine.run(project.id, mission.id).catch(() => undefined);
+  }
+}
 app.use(
   "/api/v2",
   createOrchestratorRouter({ store: coreStore, engine, canExecute: true, approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),

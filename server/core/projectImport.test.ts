@@ -60,7 +60,8 @@ describe("POST /projects/import", () => {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
     try {
-      const res = await fetch(`${base}/projects/import`, { method: "POST", headers: { "content-type": "application/json", "x-orchestrator-token": "t" }, body: JSON.stringify({ path: src }) });
+      // Windows "Copy as path" wraps the path in quotes
+      const res = await fetch(`${base}/projects/import`, { method: "POST", headers: { "content-type": "application/json", "x-orchestrator-token": "t" }, body: JSON.stringify({ path: `"${src}"` }) });
       expect(res.status).toBe(201);
       const body = (await res.json()) as { project: { id: string }; missionId: string; files: number };
       expect(body.files).toBe(2);

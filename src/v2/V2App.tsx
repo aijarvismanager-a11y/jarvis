@@ -86,9 +86,20 @@ export default function V2App() {
 
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
+  const [offline, setOffline] = useState(false);
+
   const refresh = usePoll(
     async () => {
-      const list = await api.projects();
+      let list: Project[];
+      try {
+        list = await api.projects();
+        setOffline(false);
+      } catch {
+        // server unreachable: keep what is on screen, say so, and let the next poll retry
+        setOffline(true);
+        setLoaded(true);
+        return;
+      }
       setProjects(list);
       // A stored id may point at a project that no longer exists; fall back to the newest one.
       const active = list.find((p) => p.id === projectId) ?? (projectId === null && !loaded ? list[list.length - 1] : undefined);
@@ -171,6 +182,7 @@ export default function V2App() {
         </nav>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-5">
+        {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}
         <ErrorBar message={error} onClose={() => setError(null)} />
         {!loaded ? (
           <p className="text-[13px] text-muted">読み込み中…</p>

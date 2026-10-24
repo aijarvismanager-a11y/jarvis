@@ -17,7 +17,7 @@ export type ImportScan = { files: string[]; bytes: number; skippedSecrets: strin
 
 /** Lists what would be copied. Throws when the folder is unsuitable or too large. */
 export function scanImportSource(source: string, projectsRoot: string): ImportScan {
-  if (typeof source !== "string" || !path.isAbsolute(source)) throw new Error("フォルダの絶対パスを指定してください(例: C:\Users\you\my-app)");
+  if (typeof source !== "string" || !path.isAbsolute(source)) throw new Error("フォルダの絶対パスを指定してください(例: C:\\Users\\you\\my-app)");
   const root = path.resolve(source);
   if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error("フォルダが見つかりません");
   if (path.dirname(root) === root) throw new Error("ドライブ全体は取り込めません");

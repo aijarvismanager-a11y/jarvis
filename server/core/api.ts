@@ -57,9 +57,9 @@ const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default(
 function taskNotes(store: Store, projectId: string, tasks: ReturnType<Store["listTasks"]>): Record<string, string> {
   const notes: Record<string, string> = {};
   const reasons = new Map<string, string>();
-  for (const e of store.listEvents({ projectId, limit: 1000 })) {
+  for (const e of store.listEvents({ projectId, type: "TASK_TRANSITION", limit: 1000 })) {
     const p = e.payload as { to?: string; reason?: string };
-    if (e.type === "TASK_TRANSITION" && e.taskId && p.to === "failed" && p.reason) reasons.set(e.taskId, p.reason);
+    if (e.taskId && p.to === "failed" && p.reason) reasons.set(e.taskId, p.reason);
   }
   const byId = new Map(tasks.map((t) => [t.id, t]));
   for (const t of tasks) {
@@ -118,7 +118,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects/import",
     guarded(async (req, res) => {
       if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
-      const body = z.object({ path: z.string().trim().min(1).max(1000), name: z.string().trim().max(100).optional() }).parse(req.body ?? {});
+      const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional() }).parse(req.body ?? {});
       const scan = scanImportSource(body.path, store.projectsRoot);
       const folderName = path.basename(path.resolve(body.path));
       const project = store.createProject({ name: body.name || folderName });
@@ -291,7 +291,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
 
   // ---- Changes made by one task: diff and rollback ---------------------------------------------
   const snapshotName = (projectId: string, taskId: string): string | null => {
-    const e = store.listEvents({ projectId, limit: 1000 }).filter((x) => x.type === "TASK_SNAPSHOT" && x.taskId === taskId);
+    const e = store.listEvents({ projectId, type: "TASK_SNAPSHOT", limit: 1000 }).filter((x) => x.taskId === taskId);
     const last = e[e.length - 1]?.payload as { name?: string } | undefined;
     return last?.name ?? null;
   };
@@ -330,9 +330,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const tasks = new Map(store.listTasks(projectId).map((t) => [t.id, t]));
     const seen = new Set<string>();
     const snapshots: { name: string; taskId: string; objective: string; at: string }[] = [];
-    for (const e of store.listEvents({ projectId, limit: 1000 })) {
+    for (const e of store.listEvents({ projectId, type: "TASK_SNAPSHOT", limit: 1000 })) {
       const name = (e.payload as { name?: string } | null)?.name;
-      if (e.type !== "TASK_SNAPSHOT" || !e.taskId || !name || seen.has(name)) continue;
+      if (!e.taskId || !name || seen.has(name)) continue;
       seen.add(name);
       snapshots.push({ name, taskId: e.taskId, objective: tasks.get(e.taskId)?.objective ?? "", at: e.createdAt });
     }
