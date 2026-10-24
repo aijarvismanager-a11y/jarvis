@@ -42,3 +42,14 @@ describe("resolveInProject", () => {
     expect(() => resolveInProject(root, "p1", "docs/escape")).toThrow();
   });
 });
+
+describe("projectSlug", () => {
+  it("keeps the ASCII part of a name for a readable folder, with a safe fallback", async () => {
+    const { projectSlug, PROJECT_ID_RE } = await import("./paths.ts");
+    expect(projectSlug("My App v2")).toBe("my-app-v2");
+    expect(projectSlug("商品管理 shop")).toBe("shop");
+    expect(projectSlug("カラフルな動画")).toBe("project");
+    expect(projectSlug("a".repeat(80)).length).toBe(24);
+    expect(PROJECT_ID_RE.test(`${projectSlug("../evil name")}_ab12cd34`)).toBe(true);
+  });
+});

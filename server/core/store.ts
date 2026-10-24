@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import type { Db } from "./db.ts";
 import { transaction } from "./db.ts";
-import { assertProjectId, projectDir } from "./paths.ts";
+import { assertProjectId, projectDir, projectSlug } from "./paths.ts";
 import type { FreeStatus, MissionStatus, TaskStatus } from "./schema.ts";
 
 // Repository layer over the state database. Every project-scoped method takes
@@ -101,7 +101,7 @@ export class Store {
 
   // ---- projects -----------------------------------------------------------
   createProject(input: { id?: string; name: string; legacyId?: string | null }): Project {
-    const id = input.id ?? `proj_${randomUUID().slice(0, 8)}`;
+    const id = input.id ?? `${projectSlug(input.name)}_${randomUUID().slice(0, 8)}`;
     assertProjectId(id);
     const ts = now();
     this.db

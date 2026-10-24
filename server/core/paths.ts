@@ -47,3 +47,15 @@ export function resolveInProject(projectsRoot: string, projectId: string, relPat
   }
   return target;
 }
+
+/** Folder-name prefix for a new project: the ASCII part of its name (so `projects/` is readable), else "project". */
+export function projectSlug(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 24)
+    .replace(/-+$/g, "");
+  return slug || "project";
+}
