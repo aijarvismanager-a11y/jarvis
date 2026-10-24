@@ -41,7 +41,7 @@ export type Artifact = {
   sourceUrl: string | null;
   validationStatus: string;
 };
-export type AiRun = { id: string; task_id: string | null; ai_id: string | null; executor: string; automation_level: number; status: string; started_at: string; finished_at: string | null; summary: string | null };
+export type AiRun = { id: string; task_id: string | null; ai_id: string | null; executor: string; automation_level: number; status: string; started_at: string; finished_at: string | null; summary: string | null; duration_ms: number | null; cost_usd: number | null; input_tokens: number | null; output_tokens: number | null };
 export type AiService = {
   id: string;
   name: string;

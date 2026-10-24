@@ -22,6 +22,12 @@ export type ExecutionResult = {
   automationLevel?: number;
   /** false = retrying cannot help (e.g. an approval was denied), so the engine skips the automatic retries. */
   retryable?: boolean;
+  /** Measured by the engine when the executor does not report it. */
+  durationMs?: number;
+  /** API-equivalent cost reported by the AI CLI (a subscription plan is not billed per run). */
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 export interface TaskExecutor {
   readonly name: string;
@@ -299,6 +305,7 @@ export class MissionEngine {
   private async execute(mission: Mission, task: Task, controller: AbortController): Promise<void> {
     const { projectId } = task;
     let result: ExecutionResult;
+    const startedMs = Date.now();
     try {
       result = await this.deps.executor.execute(this.store.getTask(projectId, task.id)!, { mission, signal: controller.signal });
     } catch (err) {
@@ -306,11 +313,11 @@ export class MissionEngine {
     }
     if (controller.signal.aborted) {
       const cancelled = this.store.getMission(projectId, mission.id)?.status === "cancelled";
-      this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: "cancelled", summary: result.summary });
+      this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: "cancelled", summary: result.summary, ...this.metrics(result, startedMs) });
       transitionTask(this.store, projectId, task.id, cancelled ? "cancelled" : "paused", cancelled ? "mission cancelled" : "mission paused");
       return;
     }
-    this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? undefined, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary });
+    this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? undefined, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary, ...this.metrics(result, startedMs) });
     if (!result.ok) {
       if (result.retryable === false) this.noRetry.add(task.id);
       transitionTask(this.store, projectId, task.id, "failed", result.summary ?? "execution failed");
@@ -327,6 +334,10 @@ export class MissionEngine {
     }
     this.store.addValidation({ projectId, taskId: task.id, level: verdict.level ?? 1, status: verdict.passed ? "passed" : "failed", detail: verdict.detail });
     transitionTask(this.store, projectId, task.id, verdict.passed ? "completed" : "failed", verdict.detail);
+  }
+
+  private metrics(result: ExecutionResult, startedMs: number) {
+    return { durationMs: result.durationMs ?? Date.now() - startedMs, costUsd: result.costUsd, inputTokens: result.inputTokens, outputTokens: result.outputTokens };
   }
 
   /** After a crash or a pause: tasks left mid-flight go back to ready (resume). */

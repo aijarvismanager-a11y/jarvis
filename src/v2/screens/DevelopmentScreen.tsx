@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
-import { LEVEL_LABEL, TASK_LABEL, formatTime, roleLabel } from "../labels";
+import { LEVEL_LABEL, TASK_LABEL, formatCost, formatDuration, formatTime, roleLabel } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import type { Task, TaskStatus } from "../types";
 
@@ -54,7 +54,7 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
               <ul className="mt-2 space-y-1 text-[12px]">
                 {runs.map((r) => (
                   <li key={r.id} className="text-muted">
-                    {formatTime(r.started_at)} · {r.executor} · Level {r.automation_level} · {r.status}
+                    {formatTime(r.started_at)} · {r.executor} · Level {r.automation_level} · {r.status}{r.duration_ms != null && ` · ${formatDuration(r.duration_ms)}`}{r.cost_usd != null && ` · ${formatCost(r.cost_usd)}`}
                     {r.summary && <span className="block whitespace-pre-wrap text-ink">{r.summary.slice(0, 400)}</span>}
                   </li>
                 ))}

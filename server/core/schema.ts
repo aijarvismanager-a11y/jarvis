@@ -29,7 +29,15 @@ export type FreeStatus = (typeof FREE_STATUSES)[number];
 
 const list = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+/** v2: time and cost of each AI run. */
+export const SCHEMA_V2 = `
+ALTER TABLE ai_runs ADD COLUMN duration_ms INTEGER;
+ALTER TABLE ai_runs ADD COLUMN cost_usd REAL;
+ALTER TABLE ai_runs ADD COLUMN input_tokens INTEGER;
+ALTER TABLE ai_runs ADD COLUMN output_tokens INTEGER;
+`;
 
 export const SCHEMA_V1 = `
 CREATE TABLE projects (

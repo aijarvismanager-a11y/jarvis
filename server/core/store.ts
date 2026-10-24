@@ -430,15 +430,19 @@ export class Store {
     status?: "running" | "succeeded" | "failed" | "timed_out" | "cancelled";
     exitCode?: number | null;
     summary?: string | null;
+    durationMs?: number | null;
+    costUsd?: number | null;
+    inputTokens?: number | null;
+    outputTokens?: number | null;
   }): string {
     const id = `run_${randomUUID().slice(0, 8)}`;
     const ts = now();
     const finished = input.status && input.status !== "running" ? ts : null;
     this.db
       .prepare(
-        "INSERT INTO ai_runs (id, project_id, task_id, ai_id, executor, automation_level, status, started_at, finished_at, exit_code, summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO ai_runs (id, project_id, task_id, ai_id, executor, automation_level, status, started_at, finished_at, exit_code, summary, duration_ms, cost_usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(id, input.projectId, input.taskId ?? null, input.aiId ?? null, input.executor, input.automationLevel ?? 1, input.status ?? "running", ts, finished, input.exitCode ?? null, input.summary ?? null);
+      .run(id, input.projectId, input.taskId ?? null, input.aiId ?? null, input.executor, input.automationLevel ?? 1, input.status ?? "running", ts, finished, input.exitCode ?? null, input.summary ?? null, input.durationMs ?? null, input.costUsd ?? null, input.inputTokens ?? null, input.outputTokens ?? null);
     return id;
   }
 

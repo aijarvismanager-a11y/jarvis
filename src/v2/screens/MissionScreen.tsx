@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatTime, progressOf, roleLabel } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges } from "../types";
 
@@ -11,6 +11,13 @@ function StepMark({ status }: { status: Task["status"] }) {
   if (status === "cancelled") return <span className="text-muted">–</span>;
   if (status === "running" || status === "validation" || status === "waiting") return <span className="text-accent">●</span>;
   return <span className="text-muted">○</span>;
+}
+
+/** "3分12秒 · $0.21" for one task, over all its attempts. */
+function taskTime(runs: Parameters<typeof summarizeUsage>[0], taskId: string): string {
+  const u = summarizeUsage(runs, new Set([taskId]));
+  if (u.runs === 0 || u.durationMs === 0) return "";
+  return `${formatDuration(u.durationMs)}${u.hasCost ? ` · ${formatCost(u.costUsd)}` : ""}`;
 }
 
 const LOG_MARK: Record<LogEntry["kind"], string> = { text: "💬", tool: "🔧", info: "•", error: "⚠" };
@@ -329,6 +336,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const showIntake = starting || !mission || FINISHED.includes(mission.status);
   const tasks = mission ? overview.tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) : [];
   const { done, total, percent } = progressOf(tasks);
+  const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
   const myHandoffs = handoffs.filter((h) => h.projectId === project?.id);
   const recent = [...overview.artifacts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
@@ -356,6 +364,13 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
+          {usage.runs > 0 && (
+            <p className="mt-2 text-[12px] text-muted">
+              AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
+              {usage.hasCost && <> · 使用量(API換算) {formatCost(usage.costUsd)}</>}
+              {usage.inputTokens + usage.outputTokens > 0 && <> · トークン 入力{formatTokens(usage.inputTokens)} / 出力{formatTokens(usage.outputTokens)}</>}
+            </p>
+          )}
           {doing && (
             <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</p>
           )}
@@ -368,6 +383,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                     <span className="min-w-0 flex-1"><span className="text-muted">{roleLabel(t.role)} / </span>{t.objective}</span>
                     {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
                     {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
+                    {["completed", "failed"].includes(t.status) && taskTime(overview.aiRuns, t.id) && <span className="shrink-0 text-[11.5px] text-muted">{taskTime(overview.aiRuns, t.id)}</span>}
                     {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}

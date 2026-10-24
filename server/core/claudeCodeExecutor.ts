@@ -135,6 +135,28 @@ export function parseRunOutput(stdout: string): { text: string; isError: boolean
   return { text: stdout.trim(), isError: false };
 }
 
+/** Cost and token counts from the CLI's final "result" event (stream-json) or JSON envelope. */
+export function parseRunMetrics(stdout: string): { costUsd?: number; inputTokens?: number; outputTokens?: number } {
+  const lines = stdout.includes('"type":"result"') ? stdout.trim().split("\n").reverse() : [stdout.trim()];
+  for (const line of lines) {
+    try {
+      const o = JSON.parse(line) as Record<string, unknown>;
+      if (!o || typeof o !== "object" || (lines.length > 1 && o.type !== "result")) continue;
+      const u = (o.usage ?? {}) as Record<string, unknown>;
+      const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      const input = n(u.input_tokens) + n(u.cache_creation_input_tokens) + n(u.cache_read_input_tokens);
+      return {
+        costUsd: typeof o.total_cost_usd === "number" ? o.total_cost_usd : typeof o.cost_usd === "number" ? o.cost_usd : undefined,
+        inputTokens: input || undefined,
+        outputTokens: n(u.output_tokens) || undefined,
+      };
+    } catch {
+      /* not a JSON line */
+    }
+  }
+  return {};
+}
+
 const quoteForShell = (v: string) => `"${v.replace(/"/g, "")}"`;
 
 export class ClaudeCodeExecutor implements TaskExecutor {
@@ -253,14 +275,15 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     }
 
     const out = parseRunOutput(res.stdout);
+    const metrics = parseRunMetrics(res.stdout);
     const combined = `${out.text}\n${res.stderr}`;
-    if (res.timedOut) return { ok: false, summary: `タイムアウトしました(${Math.round((this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS) / 60_000)}分)`, artifacts: files };
+    if (res.timedOut) return { ok: false, summary: `タイムアウトしました(${Math.round((this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS) / 60_000)}分)`, artifacts: files, ...metrics };
     if (AUTH_ERROR.test(combined) && (res.code !== 0 || out.isError)) {
-      return { ok: false, summary: "Claude Codeにログインできていません。ターミナルで claude を起動してログインしてください", artifacts: files };
+      return { ok: false, summary: "Claude Codeにログインできていません。ターミナルで claude を起動してログインしてください", artifacts: files, ...metrics };
     }
     if (res.code !== 0 || out.isError) {
-      return { ok: false, summary: `Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files };
+      return { ok: false, summary: `Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
     }
-    return { ok: true, summary: out.text.slice(0, 2000), artifacts: files };
+    return { ok: true, summary: out.text.slice(0, 2000), artifacts: files, ...metrics };
   }
 }

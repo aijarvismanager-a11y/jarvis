@@ -32,7 +32,7 @@ describe("schema", () => {
     for (const t of ["projects", "missions", "tasks", "ai_services", "ai_capabilities", "ai_runs", "artifacts", "validations", "decisions", "events", "settings", "locks", "task_edges"]) {
       expect(names).toContain(t);
     }
-    expect((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(1);
+    expect((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(2);
   });
 
   it("rejects an unsafe project id at the database level", () => {

@@ -67,3 +67,26 @@ export const formatTime = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 };
+
+export const formatDuration = (ms: number) => {
+  const sec = Math.round(ms / 1000);
+  return sec < 60 ? `${sec}秒` : sec < 3600 ? `${Math.floor(sec / 60)}分${sec % 60}秒` : `${Math.floor(sec / 3600)}時間${Math.floor((sec % 3600) / 60)}分`;
+};
+export const formatCost = (usd: number) => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
+export const formatTokens = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+
+export type Usage = { runs: number; failedRuns: number; durationMs: number; costUsd: number; hasCost: boolean; inputTokens: number; outputTokens: number };
+/** Totals over the AI runs of the given tasks (all runs, including failed attempts: they cost time and money too). */
+export function summarizeUsage(runs: { task_id: string | null; status: string; duration_ms: number | null; cost_usd: number | null; input_tokens: number | null; output_tokens: number | null }[], taskIds: Set<string>): Usage {
+  const u: Usage = { runs: 0, failedRuns: 0, durationMs: 0, costUsd: 0, hasCost: false, inputTokens: 0, outputTokens: 0 };
+  for (const r of runs) {
+    if (!r.task_id || !taskIds.has(r.task_id)) continue;
+    u.runs++;
+    if (r.status === "failed" || r.status === "timed_out") u.failedRuns++;
+    u.durationMs += r.duration_ms ?? 0;
+    if (r.cost_usd != null) { u.costUsd += r.cost_usd; u.hasCost = true; }
+    u.inputTokens += r.input_tokens ?? 0;
+    u.outputTokens += r.output_tokens ?? 0;
+  }
+  return u;
+}

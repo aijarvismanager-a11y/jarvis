@@ -1,13 +1,13 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { SCHEMA_V1, SCHEMA_VERSION } from "./schema.ts";
+import { SCHEMA_V1, SCHEMA_V2, SCHEMA_VERSION } from "./schema.ts";
 
 export type Db = DatabaseSync;
 
 // Ordered migrations; index 0 upgrades user_version 0 -> 1, and so on. Never
 // edit an applied migration, add a new one.
-const MIGRATIONS: string[] = [SCHEMA_V1];
+const MIGRATIONS: string[] = [SCHEMA_V1, SCHEMA_V2];
 
 export function migrate(db: Db): void {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
