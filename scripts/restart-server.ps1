@@ -25,7 +25,8 @@ if ($owners.Count -gt 0) {
 }
 if ($StopOnly) { return }
 
-$log = Join-Path $root 'server.log'
+# one log per port: a second server must not try to open the log another one is holding
+$log = Join-Path $root $(if ($Port -eq 4173) { 'server.log' } else { "server-$Port.log" })
 $env:PORT = "$Port"
 $cmd = "npm run server > `"$log`" 2>&1"
 Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $cmd -WorkingDirectory $root -WindowStyle Hidden | Out-Null

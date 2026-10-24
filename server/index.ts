@@ -1,6 +1,7 @@
 import express from "express";
 import path from "node:path";
 import http from "node:http";
+import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { openDatabase } from "./core/db.ts";
 import { Store } from "./core/store.ts";
@@ -107,9 +108,18 @@ for (const project of coreStore.listProjects()) {
     if (mission.status === "running") void engine.run(project.id, mission.id).catch(() => undefined);
   }
 }
+// Restart = run scripts/restart-server.ps1 (it kills this process tree and starts a new server). It is created through
+// WMI so it is not a child of this process and survives being killed with it.
+function restartSelf(): void {
+  if (process.platform !== "win32") return;
+  const q = (v: string) => v.replace(/'/g, "''");
+  const script = path.join(ROOT, "scripts", "restart-server.ps1");
+  const command = `Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = 'powershell -NoProfile -ExecutionPolicy Bypass -File "${q(script)}" -Port ${PORT}'; CurrentDirectory = '${q(ROOT)}' } | Out-Null`;
+  spawn("powershell", ["-NoProfile", "-Command", command], { stdio: "ignore", windowsHide: true }).unref();
+}
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, restart: process.platform === "win32" ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.

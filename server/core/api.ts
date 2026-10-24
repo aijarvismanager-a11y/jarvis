@@ -42,6 +42,8 @@ export type OrchestratorApiDeps = {
   snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
+  /** Restarts the whole server (Windows launcher script); without it POST /system/restart answers 501. */
+  restart?: () => void;
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
@@ -105,6 +107,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     tasks: store.listTasks(projectId).filter((t) => t.missionId === missionId),
     proposal: engine.getProposal(missionId),
   });
+
+  // ---- Restart from the UI: picks up new code without a terminal. Missions that are running resume by themselves after the start. ----
+  router.post(
+    "/system/restart",
+    guarded((req, res) => {
+      if (!deps.restart) return void res.status(501).json({ error: "この環境では画面からの再起動に対応していません。ターミナルで npm run server:restart を実行してください" });
+      const { force } = z.object({ force: z.boolean().default(false) }).parse(req.body ?? {});
+      const running = store.listProjects().flatMap((p) => store.listMissions(p.id)).filter((m) => m.status === "running").length;
+      if (running > 0 && !force) return void res.status(409).json({ error: `実行中のミッションが${running}件あります。再起動すると作業が一度止まります(再起動後に自動で再開します)`, running });
+      const restart = deps.restart;
+      setTimeout(restart, 300); // let this answer go out first
+      res.json({ ok: true, running });
+    }),
+  );
 
   // ---- Projects / artifacts (Phase 7 UI) ---------------------------------------
   router.get("/projects", (_req, res) => {

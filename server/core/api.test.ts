@@ -156,3 +156,45 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("../secret.txt"))).status).toBe(404);
   });
 });
+
+describe("POST /system/restart", () => {
+  let called = 0;
+  beforeEach(async () => {
+    called = 0;
+    await boot(true);
+  });
+  const withRestart = async () => {
+    // boot() has no restart hook: rebuild the router with one
+    await new Promise((r) => server.close(r));
+    const engine = new MissionEngine(store, { planner, executor: { name: "ok", execute: () => new Promise(() => {}) } });
+    const app = express();
+    app.use(express.json());
+    app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute: true, restart: () => void called++, tokenMatches: (c) => c === TOKEN }));
+    server = http.createServer(app);
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
+    return engine;
+  };
+
+  it("needs the token, and is unavailable without a restart hook", async () => {
+    expect((await call("/system/restart", "POST", {}, null)).status).toBe(403);
+    expect((await call("/system/restart", "POST", {})).status).toBe(501);
+  });
+
+  it("restarts at once when idle, but asks first while a mission is running", async () => {
+    const engine = await withRestart();
+    expect((await call("/system/restart", "POST", {})).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 450));
+    expect(called).toBe(1);
+
+    const v = await asView(await call("/projects/p1/missions", "POST", { goal: "g" }));
+    await call(`/projects/p1/missions/${v.mission.id}/approve`, "POST", { run: true });
+    void engine;
+    const blocked = await call("/system/restart", "POST", {});
+    expect(blocked.status).toBe(409);
+    expect(called).toBe(1);
+    expect((await call("/system/restart", "POST", { force: true })).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 450));
+    expect(called).toBe(2);
+  });
+});

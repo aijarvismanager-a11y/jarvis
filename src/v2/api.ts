@@ -42,6 +42,7 @@ export const api = {
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, name = "") =>
     request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
+  restartServer: (force = false) => request<{ ok: boolean; running: number }>("/system/restart", "POST", { force }),
   sync: (projectId: string) => request<SyncState>(`/projects/${encodeURIComponent(projectId)}/sync`),
   syncSummary: (projectId: string) => request<SyncSummary>(`/projects/${encodeURIComponent(projectId)}/sync/summary`),
   applySync: (projectId: string, opts: { deletes: boolean; overwriteConflicts: boolean; direction: "push" | "pull" }) =>

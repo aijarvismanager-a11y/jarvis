@@ -90,6 +90,36 @@ export default function V2App() {
   const [offline, setOffline] = useState(false);
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const restartServer = async () => {
+    setRestarting(true);
+    try {
+      try {
+        await api.restartServer();
+      } catch (e) {
+        // running missions: ask first, since the restart interrupts them (they resume afterwards)
+        const m = e instanceof Error ? e.message : String(e);
+        if (!m.includes("実行中のミッション")) throw e;
+        if (!window.confirm(`${m}
+
+それでも再起動しますか?`)) return void setRestarting(false);
+        await api.restartServer(true);
+      }
+      // the server is gone for a few seconds; the offline banner covers that. Check until a fresh one answers.
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const v = await api.serverVersion().catch(() => undefined);
+        if (v && !v.stale) {
+          setOutdated(false);
+          break;
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRestarting(false);
+    }
+  };
   usePoll(async () => {
     const v = await api.serverVersion();
     setOutdated(v === null || v.stale);
@@ -200,8 +230,9 @@ export default function V2App() {
       </header>
       <main className="mx-auto max-w-3xl px-4 py-5">
         {outdated && !offline && (
-          <div role="alert" className="mb-3 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
-            サーバーが古いコードのまま動いています(コードが更新されています)。ターミナルで <code className="rounded bg-white/60 px-1">npm run server:restart</code> を実行すると最新になります。実行中のミッションは再起動後に自動で再開します。
+          <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
+            <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中のミッションは再起動後に自動で再開します)。</span>
+            <Button variant="ghost" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "サーバーを再起動"}</Button>
           </div>
         )}
         {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}
