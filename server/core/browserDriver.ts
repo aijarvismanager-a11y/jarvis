@@ -6,7 +6,7 @@ import { killTree } from "./commandRunner.ts";
 import { BLOCK_MESSAGES, classifyBlocker, type BlockReason, type SiteProfile } from "./webAiSites.ts";
 
 // Browser driver for Level 2/3 (spec §10). Talks the Chrome DevTools Protocol to
-// the user's own Edge/Chrome, started with a dedicated profile folder. The user
+// the user's own Edge/Chrome/Brave, started with a dedicated profile folder. The user
 // logs in there themselves, in the normal visible window; this code never reads
 // cookies or passwords, never fills credentials, and stops (rather than tries to
 // get around it) at a login page or a bot check (spec §11).
@@ -50,6 +50,13 @@ export interface WebChatDriver {
 export function findBrowserExecutable(env: NodeJS.ProcessEnv = process.env): string | null {
   const candidates = [
     env.WEB_AI_BROWSER,
+    // Brave first (Chromium based, same DevTools Protocol), then Edge/Chrome.
+    "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+    "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+    env.LOCALAPPDATA ? `${env.LOCALAPPDATA}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe` : undefined,
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/usr/bin/brave-browser",
+    "/usr/bin/brave",
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -287,7 +294,7 @@ export class ChromiumDriver implements WebChatDriver {
 
   private async launch(): Promise<number> {
     const exe = this.opts.executable ?? findBrowserExecutable();
-    if (!exe) throw new Error("EdgeまたはChromeが見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
+    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
     mkdirSync(this.opts.profileDir, { recursive: true });
     const port = await this.freePort();
     const args = [`--remote-debugging-port=${port}`, "--remote-debugging-address=127.0.0.1", `--user-data-dir=${this.opts.profileDir}`, "--no-first-run", "--no-default-browser-check", "about:blank"];

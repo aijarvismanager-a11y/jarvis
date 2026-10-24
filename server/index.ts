@@ -89,7 +89,7 @@ const taskLogs = new TaskLogStore();
 const snapshots = new SnapshotManager(path.join(ROOT, "projects"));
 const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate), logs: taskLogs, snapshots });
 // Web AI automation (Phase 6): off until the user switches it on (PUT /api/v2/web-ai/settings).
-// Level 2/3 drive the user's own Edge/Chrome in a dedicated profile; Level 1 needs no browser.
+// Level 2/3 drive the user's own Edge/Chrome/Brave in a dedicated profile; Level 1 needs no browser.
 const browserExecutable = findBrowserExecutable();
 const webDriver = browserExecutable ? new ChromiumDriver({ executable: browserExecutable, profileDir: path.join(ROOT, "data", "browser-profile") }) : undefined;
 const webHub = new WebHandoffHub(coreStore);

@@ -261,7 +261,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
       const { level } = z.object({ level: z.number().int().min(1).max(3) }).parse(req.body ?? {});
       if (level > 1 && (!svc.url || !resolveSiteProfile(store, aiId))) throw new Error("このAIにはサイト設定(入力欄・回答欄のセレクタ)がないため、Level 2/3にできません。先に /web-ai/sites で設定してください");
-      if (level > 1 && !web.browserAvailable()) throw new Error("EdgeまたはChromeが見つからないため、Level 2/3にできません");
+      if (level > 1 && !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、Level 2/3にできません");
       store.patchAiService(aiId, { automationLevel: level });
       store.appendEvent({ type: "AUTOMATION_LEVEL_SET", payload: { aiId, from: svc.automationLevel, to: level } });
       res.json({ service: store.getAiService(aiId) });

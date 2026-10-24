@@ -153,7 +153,7 @@ export class AppSmokeTester {
     const backend = apps.find((a) => a.kind === "backend");
     if (!frontend) return { status: "skipped", detail: "画面(Vite)のアプリが見つからないため、起動確認は行っていません" };
     const browser = this.opts.browserExecutable === undefined ? findBrowserExecutable() : this.opts.browserExecutable;
-    if (!browser) return { status: "skipped", detail: "EdgeまたはChromeが見つからないため、画面の表示確認は行っていません" };
+    if (!browser) return { status: "skipped", detail: "Edge・Chrome・Braveのいずれも見つからないため、画面の表示確認は行っていません" };
     for (const a of [frontend, backend]) if (a && !existsSync(path.join(a.dir, "node_modules"))) return { status: "skipped", detail: `${path.relative(projectRoot, a.dir) || "."} に node_modules が無く(依存が未インストール)、起動確認は行っていません` };
 
     const started: Started[] = [];

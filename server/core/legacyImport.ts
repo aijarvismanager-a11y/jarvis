@@ -53,7 +53,10 @@ const ROLE_CAPABILITY: [RegExp, string][] = [
   [/設計|architect|要件/i, "architecture"],
   [/実装|develop|coding|code/i, "coding"],
   [/qa|テスト|test|修正|debug/i, "testing"],
-  [/画像|image/i, "image_generation"],
+  [/画像|image|イラスト|ロゴ/i, "image_generation"],
+  [/動画|映像|video|アニメ/i, "video_generation"],
+  [/音楽|楽曲|bgm|music|作曲/i, "music_generation"],
+  [/音声|ナレーション|voice|narrat/i, "voice_generation"],
   [/seo/i, "seo"],
   [/翻訳|translat/i, "translation"],
 ];

@@ -30,7 +30,7 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
               </span>
             </label>
             <p className="mt-2 text-[12px] text-muted">
-              ブラウザ(Edge/Chrome): {web.browserAvailable ? "見つかりました(半自動・全自動に引き上げ可能)" : "見つかりません(手動のみ)"}
+              ブラウザ(Edge/Chrome/Brave): {web.browserAvailable ? "見つかりました(半自動・全自動に引き上げ可能)" : "見つかりません(手動のみ)"}
             </p>
           </>
         )}
