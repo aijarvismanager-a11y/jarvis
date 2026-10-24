@@ -37,7 +37,7 @@ export type MissionReport = {
 
 export function buildMissionReport(store: Store, projectId: string, missionId: string): MissionReport {
   const mission = store.getMission(projectId, missionId);
-  if (!mission) throw new Error("ミッションが見つかりません");
+  if (!mission) throw new Error("依頼が見つかりません");
   const tasks = store.listTasks(projectId).filter((t) => t.missionId === missionId).sort((a, b) => a.position - b.position);
   const ids = new Set(tasks.map((t) => t.id));
   const validations = store.listValidations(projectId).filter((v) => ids.has(String(v.task_id)));
@@ -79,11 +79,11 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
 
   const notes: string[] = [];
   const retried = reportTasks.filter((t) => t.attempts > 1);
-  if (retried.length) notes.push(`${retried.length}個のタスクは複数回実行しています(再試行・やり直し)`);
+  if (retried.length) notes.push(`${retried.length}個の作業は複数回実行しています(再試行・やり直し)`);
   const count = (type: string) => events.filter((e) => e.type === type).length;
-  if (count("AI_FALLBACK")) notes.push(`失敗により別のAIへ切り替えたタスクが${count("AI_FALLBACK")}件あります`);
-  if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直したタスクが${count("TASK_MANUAL_RETRY")}件あります`);
-  if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻したタスクが${count("TASK_ROLLBACK")}件あります`);
+  if (count("AI_FALLBACK")) notes.push(`失敗により別のAIへ切り替えた作業が${count("AI_FALLBACK")}件あります`);
+  if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直した作業が${count("TASK_MANUAL_RETRY")}件あります`);
+  if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻した作業が${count("TASK_ROLLBACK")}件あります`);
   if (count("APPROVAL_DENIED")) notes.push("承認されなかった操作があります");
   for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`「${t.objective.slice(0, 40)}」は完了していません(${t.status})`);
 
@@ -99,7 +99,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     "",
     `判定: **${verdictLabel}**`,
     "",
-    "## タスクごとの結果",
+    "## 作業ごとの結果",
     ...reportTasks.map((t) => `- [${t.status === "completed" ? "x" : " "}] ${t.objective}(${t.status}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
     "",
     "## 確認していないこと",

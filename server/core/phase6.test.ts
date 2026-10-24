@@ -35,7 +35,7 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const mission = () => store.createMission({ projectId: pid, goal: "ミッション目標", status: "running" });
+const mission = () => store.createMission({ projectId: pid, goal: "依頼目標", status: "running" });
 function makeTask(over: Partial<Parameters<Store["createTask"]>[0]> = {}): Task {
   const m = mission();
   return store.createTask({ projectId: pid, missionId: m.id, role: "research", objective: "市場調査", selectedAi: "gemini", status: "running", ...over });
@@ -600,7 +600,7 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     expect(ok).toMatchObject({ ok: true, automationLevel: 3 });
     const saved = readFileSync(path.join(root, pid, "research", "out.md"), "utf8");
     expect(saved).toContain("ECHO: ");
-    expect(saved).toContain("ミッション目標");
+    expect(saved).toContain("依頼目標");
 
     setWebAiSettings(store, { sites: { mock: { ...profileFor, inputSelector: "#nothing-like-this" } } });
     const t2 = makeTask({ selectedAi: "mock" });

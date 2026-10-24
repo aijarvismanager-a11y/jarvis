@@ -9,7 +9,19 @@ export function Button({ variant = "primary", className = "", ...rest }: ButtonH
   return <button {...rest} className={`rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${styles} ${className}`} />;
 }
 
-export function Card({ title, children, className = "" }: { title?: ReactNode; children: ReactNode; className?: string }) {
+/** `fold`: the card is a collapsible section (closed unless `open`), so a long screen shows only what matters first. */
+export function Card({ title, children, className = "", fold = false, open = false }: { title?: ReactNode; children: ReactNode; className?: string; fold?: boolean; open?: boolean }) {
+  if (fold) {
+    return (
+      <details open={open} className={`group rounded-xl border border-border bg-panel ${className}`}>
+        <summary className="flex cursor-pointer select-none items-center gap-2 p-4 text-[13px] font-semibold marker:content-none">
+          <span aria-hidden className="text-muted transition-transform group-open:rotate-90">▸</span>
+          <span className="flex flex-wrap items-center gap-2">{title}</span>
+        </summary>
+        <div className="px-4 pb-4">{children}</div>
+      </details>
+    );
+  }
   return (
     <section className={`rounded-xl border border-border bg-panel p-4 ${className}`}>
       {title && <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>}

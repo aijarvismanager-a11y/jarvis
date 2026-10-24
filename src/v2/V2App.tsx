@@ -10,14 +10,15 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
+import { HelpDialog } from "./HelpDialog";
 import { ImportBar } from "./ImportBar";
 import { Button, ErrorBar } from "./ui";
 
 const SCREENS = [
-  { id: "mission", label: "ミッション" },
-  { id: "development", label: "開発" },
-  { id: "history", label: "履歴" },
-  { id: "artifacts", label: "成果物" },
+  { id: "mission", label: "ホーム" },
+  { id: "development", label: "進み具合" },
+  { id: "history", label: "これまでの記録" },
+  { id: "artifacts", label: "できたもの" },
   { id: "settings", label: "設定" },
 ] as const;
 type ScreenId = (typeof SCREENS)[number]["id"];
@@ -63,6 +64,7 @@ export default function V2App() {
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
   const [offline, setOffline] = useState(false);
+  const [help, setHelp] = useState(false);
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -74,7 +76,7 @@ export default function V2App() {
       } catch (e) {
         // running missions: ask first, since the restart interrupts them (they resume afterwards)
         const m = e instanceof Error ? e.message : String(e);
-        if (!m.includes("実行中のミッション")) throw e;
+        if (!m.includes("実行中の依頼")) throw e;
         if (!window.confirm(`${m}
 
 それでも再起動しますか?`)) return void setRestarting(false);
@@ -160,6 +162,8 @@ export default function V2App() {
     refresh,
     setError,
     ensureProject,
+    openHelp: () => setHelp(true),
+    projectCount: projects.length,
     openArtifact: (a) => {
       setSelectedArtifact(a);
       setScreen("artifacts");
@@ -178,7 +182,8 @@ export default function V2App() {
                 {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
               </Button>
             )}
-            <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }}>＋ 新規</Button>
+            <Button variant="ghost" onClick={() => setHelp(true)}>？ 使い方</Button>
+            <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }}>＋ 新しいプロジェクト</Button>
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -197,16 +202,17 @@ export default function V2App() {
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
               {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
-                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの差分: 取り込み待ち${sync.pull}件・書き込み待ち${sync.push}件`}>⇄ {sync.push + sync.pull}</span>
+                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの差分: 取り込み待ち${sync.pull}件・書き込み待ち${sync.push}件`}>差分 {sync.push + sync.pull}</span>
               )}
             </button>
           ))}
         </nav>
       </header>
+      {help && <HelpDialog onClose={() => setHelp(false)} />}
       <main className="mx-auto max-w-3xl px-4 py-5">
         {outdated && !offline && (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
-            <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中のミッションは再起動後に自動で再開します)。</span>
+            <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中の依頼は再起動後に自動で再開します)。</span>
             <Button variant="ghost" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "サーバーを再起動"}</Button>
           </div>
         )}

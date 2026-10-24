@@ -1,0 +1,66 @@
+import { useState } from "react";
+import { api } from "../api";
+import { usePoll } from "../hooks";
+import type { ClaudeStatus } from "../types";
+import { Badge, Button, Card } from "../ui";
+
+/** Claude Code is the one thing this app cannot work without. Says so, and what to do, before the first request fails. */
+export function ClaudeCheck({ always = false }: { always?: boolean }) {
+  const [status, setStatus] = useState<ClaudeStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  // a problem is re-checked often (the person is probably fixing it); a working setup only now and then
+  const refresh = usePoll(async () => setStatus(await api.systemStatus()), status && status.state === "ready" ? 60000 : 8000, [status?.state]);
+  if (!status) return null;
+  if (status.state === "ready") return always ? <p className="text-[12.5px] text-status-done">✓ 準備OK:Claude Code が使えます(バージョン {status.version})</p> : null;
+  const recheck = async () => {
+    setChecking(true);
+    try {
+      setStatus(await api.systemStatus(true));
+    } finally {
+      setChecking(false);
+    }
+  };
+  void refresh;
+  return (
+    <Card className="border-[#E7C4C4] bg-[#FBEFEF]">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="bad">準備が必要です</Badge>
+        <span className="text-[13px] font-semibold">{status.state === "not_installed" ? "Claude Code が見つかりません" : status.state === "not_logged_in" ? "Claude Code にログインしてください" : "Claude Code の状態を確認できません"}</span>
+      </div>
+      <p className="mt-2 text-[13px]">{status.message}</p>
+      <p className="mt-1 text-[12px] text-muted">このアプリは、あなたのパソコンの Claude Code(AI)に作業を頼んで動きます。準備ができるまで、作業は始められません。</p>
+      <div className="mt-2"><Button variant="ghost" disabled={checking} onClick={() => void recheck()}>{checking ? "確認中…" : "もう一度確認する"}</Button></div>
+    </Card>
+  );
+}
+
+const STEPS = [
+  { n: 1, title: "作りたいものを書く", text: "「商品管理ができるWebアプリ」のように、普通の言葉で書きます。" },
+  { n: 2, title: "計画を確認して承認する", text: "AI が作業の予定を出します。よければ「この計画で開始」を押します。" },
+  { n: 3, title: "できあがりを確かめる", text: "AI が作り終えたら、「動かして確認」で実際に動かして見られます。" },
+];
+
+/** Shown when there is nothing yet: what this app does, in three steps, and the two ways to start. */
+export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: () => void }) {
+  return (
+    <Card>
+      <h2 className="font-serif text-[20px] font-semibold">AIオーケストラへようこそ</h2>
+      <p className="mt-1 text-[13px] text-[#4a473f]">作りたいものを伝えると、AI が計画を立てて、あなたのパソコン上で作ってくれるアプリです。</p>
+      <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+        {STEPS.map((s) => (
+          <li key={s.n} className="rounded-lg border border-borderSoft bg-bg p-3">
+            <p className="text-[12px] font-semibold text-accent">STEP {s.n}</p>
+            <p className="mt-0.5 text-[13px] font-semibold">{s.title}</p>
+            <p className="mt-1 text-[12px] text-muted">{s.text}</p>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+        <span className="text-muted">すでにあるフォルダの続きを作りたいとき:</span>
+        <Button variant="ghost" onClick={onImport}>既存のフォルダを取り込む</Button>
+        <Button variant="ghost" onClick={onHelp}>使い方を見る</Button>
+      </div>
+      <div className="mt-3"><ClaudeCheck always /></div>
+    </Card>
+  );
+}

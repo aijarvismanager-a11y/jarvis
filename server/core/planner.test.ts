@@ -115,7 +115,9 @@ describe("ClaudeCodePlanner", () => {
 
   it("surfaces a non-zero exit code", async () => {
     const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: "", stderr: "not logged in", code: 1 });
-    await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/not logged in/);
+    await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/ログイン/); // recognised problems are explained in plain words
+    const odd: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: "", stderr: "disk exploded", code: 3 });
+    await expect(new ClaudeCodePlanner({ runner: odd }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/code=3.*disk exploded/);
   });
 });
 

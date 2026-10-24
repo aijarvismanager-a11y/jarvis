@@ -71,11 +71,11 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
 export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
   const tasks = ctx.mission ? ctx.overview.tasks.filter((t) => t.missionId === ctx.mission!.id).sort((a, b) => a.position - b.position) : [];
   const names = new Map(tasks.map((t) => [t.id, roleLabel(t.role)]));
-  if (!ctx.mission) return <Card>まだミッションがありません。「ミッション」画面で開発を開始してください。</Card>;
+  if (!ctx.mission) return <Card>まだ依頼がありません。「依頼」画面で開発を開始してください。</Card>;
   return (
     <Card title="開発の進行状況">
       {tasks.length === 0 ? (
-        <p className="text-[13px] text-muted">計画の承認後にタスクが表示されます。</p>
+        <p className="text-[13px] text-muted">計画の承認後に作業が表示されます。</p>
       ) : (
         <ul className="space-y-2">
           {tasks.map((t) => <TaskRow key={t.id} task={t} ctx={ctx} label={(id) => names.get(id) ?? id} />)}

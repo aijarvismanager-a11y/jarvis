@@ -55,7 +55,7 @@ export function canTransitionMission(from: MissionStatus, to: MissionStatus): bo
 export function transitionTask(store: Store, projectId: string, taskId: string, to: TaskStatus, reason?: string): Task {
   return transaction(store.db, () => {
     const task = store.getTask(projectId, taskId);
-    if (!task) throw new Error("タスクが見つかりません");
+    if (!task) throw new Error("作業が見つかりません");
     if (task.status === to) return task;
     if (!canTransitionTask(task.status, to)) throw new IllegalTransitionError("task", task.status, to);
     store.setTaskStatus(projectId, taskId, to);
@@ -67,7 +67,7 @@ export function transitionTask(store: Store, projectId: string, taskId: string, 
 export function transitionMission(store: Store, projectId: string, missionId: string, to: MissionStatus, reason?: string): void {
   transaction(store.db, () => {
     const mission = store.getMission(projectId, missionId);
-    if (!mission) throw new Error("ミッションが見つかりません");
+    if (!mission) throw new Error("依頼が見つかりません");
     if (mission.status === to) return;
     if (!canTransitionMission(mission.status, to)) throw new IllegalTransitionError("mission", mission.status, to);
     store.setMissionStatus(projectId, missionId, to);
@@ -82,7 +82,7 @@ export function transitionMission(store: Store, projectId: string, missionId: st
 export function retryTask(store: Store, projectId: string, taskId: string): Task {
   return transaction(store.db, () => {
     const task = store.getTask(projectId, taskId);
-    if (!task) throw new Error("タスクが見つかりません");
+    if (!task) throw new Error("作業が見つかりません");
     if (task.status !== "failed") throw new IllegalTransitionError("task", task.status, "ready");
     if (task.retryCount >= MAX_RETRIES) throw new Error(`リトライ上限(${MAX_RETRIES}回)に達しています`);
     store.db.prepare("UPDATE tasks SET retry_count = retry_count + 1 WHERE id = ? AND project_id = ?").run(taskId, projectId);

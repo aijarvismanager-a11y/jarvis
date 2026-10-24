@@ -53,7 +53,7 @@ export class ProjectValidator implements TaskValidator {
     }
     if (missing.length) return { passed: false, level: 1, detail: `期待した成果物がありません、または空です: ${missing.join(", ")}` };
     if (isWriteTask(task) && wanted.length === 0 && changed.length === 0) {
-      return { passed: false, level: 1, detail: "コード作業のタスクですが、ファイルが1つも作成・変更されていません" };
+      return { passed: false, level: 1, detail: "コード作業の作業ですが、ファイルが1つも作成・変更されていません" };
     }
 
     // L2: syntax of what was produced

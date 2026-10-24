@@ -13,13 +13,13 @@ describe("diffNotices", () => {
   it("announces only what is new", () => {
     const prev = snapshotOf([], [], [mission("m1", "running")]);
     const n = diffNotices(prev, [approval], [handoff], [mission("m1", "completed")]);
-    expect(n.map((x) => x.title)).toEqual(["承認が必要です", "ChatGPT の回答待ちです", "ミッションが完了しました"]);
+    expect(n.map((x) => x.title)).toEqual(["承認が必要です", "ChatGPT の回答待ちです", "依頼が完了しました"]);
     const again = diffNotices(snapshotOf([approval], [handoff], [mission("m1", "completed")]), [approval], [handoff], [mission("m1", "completed")]);
     expect(again).toEqual([]);
   });
   it("reports failure and a new plan to approve", () => {
     const prev = snapshotOf([], [], [mission("m1", "running")]);
-    expect(diffNotices(prev, [], [], [mission("m1", "failed")])[0]?.title).toBe("ミッションが止まりました");
+    expect(diffNotices(prev, [], [], [mission("m1", "failed")])[0]?.title).toBe("依頼が止まりました");
     expect(diffNotices(prev, [], [], [mission("m1", "running"), mission("m2", "planning")])[0]?.title).toBe("計画ができました");
   });
 });

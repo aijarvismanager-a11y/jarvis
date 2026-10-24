@@ -268,7 +268,7 @@ export function renderReport(plan: LegacyPlan, result?: ApplyResult): string {
   lines.push(`- 生成: ${new Date().toISOString()}`, `- プロジェクト: ${plan.projects.length}件 / AIサービス: ${plan.aiServices.length}件`, "");
   for (const p of plan.projects) {
     lines.push(`## ${p.name} (\`${p.legacyId}\`)`);
-    lines.push(`- タスク ${p.tasks.length}件、成果物登録 ${p.artifactPaths.length}件、ファイル ${p.fileCount}件`);
+    lines.push(`- 作業 ${p.tasks.length}件、成果物登録 ${p.artifactPaths.length}件、ファイル ${p.fileCount}件`);
     for (const t of p.tasks) lines.push(`  - ${t.index}. [${t.status}] ${t.role} → 能力 \`${t.capability}\` / AI: ${t.aiServiceId ?? "(未解決)"}`);
     for (const w of p.warnings) lines.push(`- ⚠ ${w}`);
     lines.push("");
@@ -276,7 +276,7 @@ export function renderReport(plan: LegacyPlan, result?: ApplyResult): string {
   if (plan.warnings.length) lines.push("## 全体の警告", ...plan.warnings.map((w) => `- ⚠ ${w}`), "");
   if (result) {
     lines.push("## 適用結果");
-    for (const r of result.imported) lines.push(`- 取込: ${r.legacyId} (タスク${r.tasks}, 成果物${r.artifacts}, ファイルコピー${r.filesCopied ? "済" : "なし"})`);
+    for (const r of result.imported) lines.push(`- 取込: ${r.legacyId} (作業${r.tasks}, 成果物${r.artifacts}, ファイルコピー${r.filesCopied ? "済" : "なし"})`);
     for (const r of result.skipped) lines.push(`- スキップ: ${r.legacyId} — ${r.reason}`);
     lines.push(`- AIサービス登録: ${result.aiServices}件`);
   }

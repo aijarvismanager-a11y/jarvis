@@ -1,4 +1,5 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
+import { explainClaudeFailure } from "./systemCheck.ts";
 import { planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
 
 // Planner (spec §3: Claude Code is Lead Developer and plans too). The engine
@@ -75,9 +76,9 @@ const PLAN_JSON_SCHEMA = {
 
 export function buildPlannerPrompt(req: PlanRequest): string {
   const lines = [
-    "あなたは開発ミッションのLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
+    "あなたは開発依頼のLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
     "出力形式: {\"summary\": string, \"tasks\": [{\"key\", \"role\", \"objective\", \"inputs\", \"expectedOutputs\", \"constraints\", \"dependsOn\": [key]}]}",
-    "role は research / design / coding / review / test / document など。コードを書くタスクの role は coding にする。タスクは最大50件、循環依存は禁止。",
+    "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。作業は最大50件、循環依存は禁止。",
     "有料APIは使わない。ファイルを実際に変更したり、コマンドを実行したりせず、計画だけを返すこと。",
     "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",
     `ゴール: ${req.goal}`,
@@ -156,7 +157,8 @@ export class ClaudeCodePlanner implements Planner {
     const cwd = request.cwd ?? this.opts.cwd;
     const ask = async (prompt: string) => {
       const res = await this.runner(this.command, args, { input: prompt, cwd, signal, timeoutMs: this.opts.timeoutMs ?? 5 * 60_000 });
-      if (res.code !== 0) throw new Error(`Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 500)}`);
+      if (res.code !== 0) throw new Error(explainClaudeFailure(`${res.stdout}
+${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 500)}`);
       return res.stdout;
     };
     const prompt = buildPlannerPrompt(request);

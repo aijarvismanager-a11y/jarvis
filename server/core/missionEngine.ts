@@ -152,8 +152,8 @@ export class MissionEngine {
    */
   async replan(projectId: string, missionId: string, feedback?: string): Promise<PlanProposal> {
     const mission = this.requireMission(projectId, missionId);
-    if (this.hasInFlight(missionId)) throw new Error("実行中のタスクがあります。先に一時停止してください");
-    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了したミッションは再計画できません");
+    if (this.hasInFlight(missionId)) throw new Error("実行中の作業があります。先に一時停止してください");
+    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了した依頼は再計画できません");
     if (mission.status !== "planning") transitionMission(this.store, projectId, missionId, "planning", "replan");
     try {
       return await this.propose(projectId, missionId, "replan", feedback);
@@ -174,7 +174,7 @@ export class MissionEngine {
     const text = instruction.trim();
     if (!text) throw new Error("新しい方針を入力してください");
     const mission = this.requireMission(projectId, missionId);
-    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了したミッションの方針は変えられません");
+    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了した依頼の方針は変えられません");
     if (mission.status === "planning") throw new Error("計画の承認待ちです。計画に対して修正を依頼してください");
     this.store.appendEvent({ projectId, type: "MISSION_REDIRECTED", payload: { missionId, instruction: text } });
     if (mission.status === "running") await this.pause(projectId, missionId);
@@ -189,10 +189,10 @@ export class MissionEngine {
   retryFailedTask(projectId: string, missionId: string, taskId: string, instruction?: string): Promise<MissionStatus> {
     const mission = this.requireMission(projectId, missionId);
     const task = this.store.getTask(projectId, taskId);
-    if (!task || task.missionId !== missionId) throw new Error("タスクが見つかりません");
-    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了したミッションのタスクはやり直せません");
+    if (!task || task.missionId !== missionId) throw new Error("作業が見つかりません");
+    if (mission.status === "completed" || mission.status === "cancelled") throw new Error("終了した依頼の作業はやり直せません");
     if (mission.status === "planning") throw new Error("計画の承認待ちの間はやり直せません");
-    if (task.status !== "failed") throw new Error("失敗したタスクだけやり直せます");
+    if (task.status !== "failed") throw new Error("失敗した作業だけやり直せます");
     this.noRetry.delete(taskId);
     this.store.resetTaskForManualRetry(projectId, taskId, instruction?.trim() || undefined);
     this.store.appendEvent({ projectId, taskId, type: "TASK_MANUAL_RETRY", payload: { instruction: instruction?.trim() || null } });
@@ -395,7 +395,7 @@ export class MissionEngine {
 
   private requireMission(projectId: string, missionId: string): Mission {
     const m = this.store.getMission(projectId, missionId);
-    if (!m) throw new Error("ミッションが見つかりません");
+    if (!m) throw new Error("依頼が見つかりません");
     return m;
   }
 }

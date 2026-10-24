@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, api } from "./api";
 import { useAction } from "./hooks";
 import { usePoll } from "./hooks";
@@ -28,6 +28,12 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   const [heavy, setHeavy] = useState<TooLarge | null>(null);
   const [leaveOut, setLeaveOut] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState(false);
+  // other screens (the welcome card) can ask for this form to open
+  useEffect(() => {
+    const openIt = () => setOpen(true);
+    window.addEventListener("open-import", openIt);
+    return () => window.removeEventListener("open-import", openIt);
+  }, []);
   const { busy, run } = useAction(setError);
   // The import is one long request; this asks the server how far it has got. Only polls while an import is running.
   const [progress, setProgress] = useState<ImportProgress | null>(null);

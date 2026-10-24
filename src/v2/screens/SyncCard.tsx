@@ -102,7 +102,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button disabled={busy || running || willWrite === 0} onClick={apply}>{t.button(willWrite)}</Button>
-            {running && <span className="text-[12px] text-muted">ミッション実行中は書き込めません(一時停止してください)</span>}
+            {running && <span className="text-[12px] text-muted">依頼実行中は書き込めません(一時停止してください)</span>}
           </div>
         </>
       )}
@@ -141,9 +141,11 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
 
   return (
     <Card
+      fold
+      open={state.pullEntries.length + state.entries.length > 0}
       title={
         <span className="flex flex-wrap items-center gap-2">
-          元のフォルダとの同期
+          取り込んだフォルダとの同期
           {state.pullEntries.length > 0 && <Badge tone="info">取り込み待ち {state.pullEntries.length}</Badge>}
           {state.entries.length > 0 && <Badge tone="warn">書き込み待ち {state.entries.length}</Badge>}
         </span>

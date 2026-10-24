@@ -16,7 +16,7 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
 
   return (
     <div className="space-y-4">
-      <Card title="Web AI(ChatGPT・Gemini などの利用)">
+      <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
         {!web ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
         ) : !web.available ? (
@@ -26,19 +26,19 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
             <label className="flex items-start gap-3 text-[13px]">
               <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
               <span>
-                <span className="font-semibold">Web AI を使う</span>
-                <span className="block text-[12px] text-muted">オフの間は、すべてのタスクを Claude Code が実行します(既定)。オンにすると、調査・文書系のタスクだけ Web AI に回ることがあり、その場合はあなたの操作(コピー&貼り付け)が必要です。コードの編集は常に Claude Code が行います。</span>
+                <span className="font-semibold">ブラウザ上のAI(ChatGPT・Gemini など)も使う</span>
+                <span className="block text-[12px] text-muted">オフの間は、すべての作業を Claude Code が実行します(既定)。オンにすると、調査・文書系の作業だけ Web AI に回ることがあり、その場合はあなたの操作(コピー&貼り付け)が必要です。コードの編集は常に Claude Code が行います。</span>
               </span>
             </label>
             <p className="mt-2 text-[12px] text-muted">
-              ブラウザ(Edge/Chrome/Brave): {web.browserAvailable ? "見つかりました(半自動・全自動に引き上げ可能)" : "見つかりません(手動のみ)"}
+              ブラウザ(Edge/Chrome/Brave): {web.browserAvailable ? "見つかりました(「半自動」「全自動」も選べます)" : "見つかりません(「手動」のみ)"}
             </p>
           </>
         )}
       </Card>
 
-      <Card title="AIの一覧">
-        <p className="mb-3 text-[12px] text-muted">自動化レベルの引き上げはあなたの判断です(自動では上がりません)。多くのWeb AIは利用規約で自動操作を制限している場合があります。半自動・全自動にする前に各サービスの規約を確認してください。</p>
+      <Card title="使えるAIの一覧(ふだんは触らなくて大丈夫です)">
+        <p className="mb-3 text-[12px] text-muted">「操作のしかた」を手動から半自動・全自動に変えるかは、あなたの判断です(自動では変わりません)。多くのブラウザ上のAIは利用規約で自動操作を制限している場合があります。半自動・全自動にする前に各サービスの規約を確認してください。</p>
         <div className="mb-3">
           <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.healthCheck(); done(); })}>{busy ? "確認中…" : "接続状況を確認"}</Button>
         </div>
@@ -53,7 +53,7 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
                 {s.requiresApiKey && <Badge tone="bad">APIキー必須(使用しません)</Badge>}
                 {s.url && web?.available ? (
                   <label className="ml-auto flex items-center gap-1.5 text-[12px] text-muted">
-                    自動化
+                    操作のしかた
                     <select
                       value={s.automationLevel}
                       disabled={busy}

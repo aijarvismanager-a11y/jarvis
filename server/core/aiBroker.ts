@@ -142,7 +142,7 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     const candidate = score(s, capability);
     if (!candidate) continue; // simply not capable: not worth listing
     if (options.excludeAiIds?.includes(s.id)) {
-      excluded.push({ aiId: s.id, name: s.name, reason: "このタスクで失敗したためフォールバックで除外" });
+      excluded.push({ aiId: s.id, name: s.name, reason: "この作業で失敗したためフォールバックで除外" });
       continue;
     }
     if (options.executableAdapters && !options.executableAdapters.includes(s.adapterType)) {

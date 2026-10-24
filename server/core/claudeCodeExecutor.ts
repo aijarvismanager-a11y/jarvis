@@ -1,3 +1,4 @@
+import { explainClaudeFailure } from "./systemCheck.ts";
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
@@ -91,7 +92,7 @@ export function buildTaskPrompt(input: {
 }): string {
   const { task, mission } = input;
   const lines = [
-    `あなたはミッション「${mission.goal}」のLead Developerです。次のタスクを1つだけ実行してください。`,
+    `あなたは依頼「${mission.goal}」のLead Developerです。次の作業を1つだけ実行してください。`,
     `役割: ${task.role}`,
     `目的: ${task.objective}`,
     "作業ディレクトリ(カレント)がこのプロジェクトの全てです。この外のファイルは読み書きしないでください。",
@@ -101,7 +102,7 @@ export function buildTaskPrompt(input: {
   if (task.inputs.length) lines.push(`入力: ${task.inputs.join(" / ")}`);
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
-  if (input.dependencyNotes.length) lines.push("前のタスクの成果:", ...input.dependencyNotes.map((n) => `- ${n}`));
+  if (input.dependencyNotes.length) lines.push("前の作業の成果:", ...input.dependencyNotes.map((n) => `- ${n}`));
   if (input.previousFailure) {
     lines.push(
       "【前回の試行は失敗しました】原因を解析し、同じ失敗を繰り返さないよう根本原因を直してください。失敗内容:",
@@ -199,7 +200,7 @@ export class ClaudeCodeExecutor implements TaskExecutor {
   buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string }, shell: boolean = needsShell(this.command)): string[] {
     if (!caps.print) throw new Error("このClaude Codeは非対話実行(--print)に対応していないため実行できません");
     // Without a way to deny prompts or restrict tools the run could hang or exceed its grants: refuse.
-    if (!caps.acceptEdits) throw new Error("--permission-mode acceptEdits が使えないため、安全にタスクを実行できません");
+    if (!caps.acceptEdits) throw new Error("--permission-mode acceptEdits が使えないため、安全に作業を実行できません");
     if (!caps.disallowedTools) throw new Error("--disallowed-tools が使えないため、権限を制限できず実行できません");
     const q = shell ? quoteForShell : (v: string) => v;
     const args = ["--print"];
@@ -282,7 +283,8 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       return { ok: false, summary: "Claude Codeにログインできていません。ターミナルで claude を起動してログインしてください", artifacts: files, ...metrics };
     }
     if (res.code !== 0 || out.isError) {
-      return { ok: false, summary: `Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
+      const hint = explainClaudeFailure(combined);
+      return { ok: false, summary: `${hint ? hint + " / " : ""}Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
     }
     return { ok: true, summary: out.text.slice(0, 2000), artifacts: files, ...metrics };
   }

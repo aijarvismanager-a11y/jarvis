@@ -31,7 +31,15 @@ export const ROLE_LABEL: Record<string, string> = {
   coding: "実装",
   implementation: "実装",
   testing: "テスト",
+  test: "テスト",
   review: "最終レビュー",
+  analysis: "現状分析",
+  document: "ドキュメント作成",
+  documentation: "ドキュメント作成",
+  debug: "不具合の調査",
+  refactor: "コードの整理",
+  deploy: "公開の準備",
+  security: "安全性の確認",
 };
 export const roleLabel = (role: string) => ROLE_LABEL[role] ?? role;
 

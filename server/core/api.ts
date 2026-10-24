@@ -8,6 +8,7 @@ import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
+import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
@@ -45,6 +46,8 @@ export type OrchestratorApiDeps = {
   snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
+  /** Is Claude Code installed and signed in? (GET /system/status); without it the answer is "unknown". */
+  system?: SystemCheck;
   /** Opens a folder dialog on this PC and returns the chosen path (null = cancelled); without it POST /system/pick-folder answers 501. */
   pickFolder?: () => Promise<string | null>;
   /** Restarts the whole server (Windows launcher script); without it POST /system/restart answers 501. */
@@ -94,7 +97,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     next();
   });
   router.param("missionId", (req, res, next, id: string) => {
-    if (!store.getMission(String(req.params.projectId), id)) return void res.status(404).json({ error: "ミッションが見つかりません" });
+    if (!store.getMission(String(req.params.projectId), id)) return void res.status(404).json({ error: "依頼が見つかりません" });
     next();
   });
 
@@ -120,13 +123,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!deps.restart) return void res.status(501).json({ error: "この環境では画面からの再起動に対応していません。ターミナルで npm run server:restart を実行してください" });
       const { force } = z.object({ force: z.boolean().default(false) }).parse(req.body ?? {});
       const running = store.listProjects().flatMap((p) => store.listMissions(p.id)).filter((m) => m.status === "running").length;
-      if (running > 0 && !force) return void res.status(409).json({ error: `実行中のミッションが${running}件あります。再起動すると作業が一度止まります(再起動後に自動で再開します)`, running });
+      if (running > 0 && !force) return void res.status(409).json({ error: `実行中の依頼が${running}件あります。再起動すると作業が一度止まります(再起動後に自動で再開します)`, running });
       const restart = deps.restart;
       setTimeout(restart, 300); // let this answer go out first
       res.json({ ok: true, running });
     }),
   );
 
+  router.get("/system/status", async (req, res) => {
+    const force = req.query.force === "1";
+    res.json({ claude: deps.system ? await deps.system.claude(force) : { state: "unknown", message: "確認機能が接続されていません" } });
+  });
   router.post(
     "/system/pick-folder",
     guarded(async (_req, res) => {
@@ -267,7 +274,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.post(
     "/projects/:projectId/sync/apply",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
-      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       const opts = z.object({ paths: z.array(z.string().max(1000)).max(20000).optional(), deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       const dir = opts.direction === "pull" ? pullDir(backupDir) : backupDir;
       const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, { ...opts, only: opts.paths }, opts.direction);
@@ -283,7 +290,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects/:projectId/sync/restore",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
       const { backupId, direction } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
-      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       summaryCache.delete(projectId);
       store.setSetting(linkKey(projectId), restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction));
       store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
@@ -428,7 +435,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const projectId = String(req.params.projectId);
     const taskId = String(req.params.taskId);
     const task = store.getTask(projectId, taskId);
-    if (!task) return void res.status(404).json({ error: "タスクが見つかりません" });
+    if (!task) return void res.status(404).json({ error: "作業が見つかりません" });
     const after = Number(req.query.after ?? 0);
     res.json({ status: task.status, entries: deps.logs?.read(taskId, Number.isFinite(after) ? after : 0) ?? [] });
   });
@@ -457,9 +464,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const projectId = String(req.params.projectId);
       const taskId = String(req.params.taskId);
       if (!deps.snapshots) return void res.status(501).json({ error: "ロールバック機能が接続されていません" });
-      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       const name = snapshotName(projectId, taskId);
-      if (!name) throw new Error("このタスクの変更履歴がありません");
+      if (!name) throw new Error("この作業の変更履歴がありません");
       const files = await deps.snapshots.rollback(projectId, `${name}-before`, `${name}-after`);
       store.appendEvent({ projectId, taskId, type: "TASK_ROLLBACK", payload: { files } });
       res.json({ restored: files });

@@ -57,7 +57,7 @@ export function SplitPreview({ ctx }: { ctx: Ctx }) {
   const chosen = snaps.find((s) => s.name === baseline);
 
   return (
-    <Card title="リアルタイムプレビュー(分割表示)">
+    <Card fold title="作る前と今を並べて見る(ビフォー/アフター)">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-border" role="group" aria-label="表示モード">
           {MODES.map((m) => (
@@ -81,7 +81,7 @@ export function SplitPreview({ ctx }: { ctx: Ctx }) {
       </div>
       {preview?.message && !running && state !== "stopped" && <p className="mt-2 text-[12.5px]">{preview.message}</p>}
       <div className={`mt-3 flex gap-3 ${mode === "split" ? "flex-col md:flex-row" : "flex-col"}`}>
-        {mode !== "after" && <Pane title="ビフォー" tone="neutral" src={beforeSrc} frameKey={`b|${baseline}|${reloads}`} empty="タスクが始まると、その直前の状態がここに残ります。" />}
+        {mode !== "after" && <Pane title="ビフォー" tone="neutral" src={beforeSrc} frameKey={`b|${baseline}|${reloads}`} empty="作業が始まると、その直前の状態がここに残ります。" />}
         {mode !== "before" && <Pane title="アフター(ライブ)" tone="ok" src={running ? preview!.url : null} frameKey={`a|${preview?.url}|${liveKey}`} empty={state === "starting" ? "起動しています…" : "「ライブを起動」を押すと、作りかけの画面がここに映ります。"} />}
       </div>
       <p className="mt-2 text-[11.5px] text-muted">

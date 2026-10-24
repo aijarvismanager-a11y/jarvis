@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -55,6 +55,7 @@ export const api = {
     request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[] }>("/projects/import", "POST", { path, name, exclude }),
   importProgress: () => request<{ progress: ImportProgress | null }>("/projects/import/progress").then((r) => r.progress),
   pickFolder: () => request<{ path: string | null }>("/system/pick-folder", "POST", {}).then((r) => r.path),
+  systemStatus: (force = false) => request<{ claude: ClaudeStatus }>(`/system/status${force ? "?force=1" : ""}`).then((r) => r.claude),
   restartServer: (force = false) => request<{ ok: boolean; running: number }>("/system/restart", "POST", { force }),
   deps: (projectId: string) => request<DepsState>(`/projects/${encodeURIComponent(projectId)}/deps`),
   installDeps: (projectId: string) => request<{ install: DepsState["install"] }>(`/projects/${encodeURIComponent(projectId)}/deps/install`, "POST", {}),

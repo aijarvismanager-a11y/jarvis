@@ -1,0 +1,38 @@
+import type { Ctx } from "./context";
+import { roleLabel } from "./labels";
+import type { Task } from "./types";
+
+export type Step = { tone: "go" | "wait" | "bad" | "done"; title: string; detail: string; action?: { label: string; run: () => void } };
+
+/** What the person should do right now, in one sentence. The rest of the screen is detail. */
+export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void): Step {
+  const { project, mission, approvals, handoffs } = ctx;
+  const mine = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project?.id);
+  if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "下の入力欄に、作りたいものを普通の言葉で書いて「開発を開始」を押します。まず AI が計画を立てます(数十秒かかります)。" };
+  if (mine(approvals).length > 0) return { tone: "go", title: "あなたの許可が必要です", detail: "AI が、削除や公開などを伴う作業をしようとしています。内容を読んで「許可して続ける」か「拒否する」を選んでください。" };
+  if (mine(handoffs).length > 0) return { tone: "go", title: "あなたの操作が必要です", detail: "別の AI(ChatGPT など)に、指示文を貼り付けて送り、返ってきた回答をここへ貼り付けてください。下のカードの手順どおりに進めます。" };
+  switch (mission.status) {
+    case "planning":
+      return { tone: "go", title: "計画を確認して、よければ開始してください", detail: "AI が立てた作業の予定です。直したい点があれば書いて「修正して再提案」、これでよければ「この計画で開始」を押します。" };
+    case "running": {
+      const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
+      return { tone: "wait", title: "AI が作業しています", detail: `${doing ? `いまは「${roleLabel(doing.role)}」の作業中です。` : ""}終わるまでこの画面を開いたままで大丈夫です。途中で止めたい・方針を変えたいときは、下のボタンを使います。` };
+    }
+    case "paused":
+      return { tone: "go", title: "一時停止中です", detail: "「再開」を押すと、続きから作業を再開します。やめるときは「中止」を押します。" };
+    case "failed":
+      return { tone: "bad", title: "うまくいかなかった作業があります", detail: "失敗した作業の下の「この作業をやり直す」を押すか、「計画をやり直す」で立て直せます。理由は作業の下に赤字で出ています。" };
+    case "completed":
+      return {
+        tone: "done",
+        title: "できあがりました",
+        detail: "「動かして確認」で実際に動かして見られます。既存のフォルダを取り込んだ場合は、「元のフォルダとの同期」で変更を元のフォルダへ書き込めます。続きを頼むときは「新しい依頼」を押します。",
+        action: { label: "新しい依頼を出す", run: onNewRequest },
+      };
+    case "cancelled":
+      return { tone: "go", title: "中止しました", detail: "新しい依頼を、下の入力欄から出せます。", action: { label: "新しい依頼を出す", run: onNewRequest } };
+    default:
+      return { tone: "go", title: "新しい依頼を出せます", detail: "下の入力欄に、やってほしいことを書いてください。" };
+  }
+}
+

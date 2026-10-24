@@ -6,6 +6,9 @@ import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
 import { DepsCard } from "./DepsCard";
+import { nextStep } from "../nextStep";
+import { NextStepBanner } from "./NextStep";
+import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
 
@@ -126,7 +129,7 @@ function TaskChangesPanel({ task, ctx, canRollback }: { task: Task; ctx: Ctx; ca
   }, [projectId, task.id, task.updatedAt]);
   if (!changes || changes.files.length === 0) return null;
   const rollback = () => {
-    if (!window.confirm(`このタスクが変えた${changes.files.length}個のファイルを、タスク実行前の状態に戻します。後のタスクがこれらのファイルを使っている場合、動かなくなることがあります。よろしいですか?`)) return;
+    if (!window.confirm(`この作業が変えた${changes.files.length}個のファイルを、作業実行前の状態に戻します。後の作業がこれらのファイルを使っている場合、動かなくなることがあります。よろしいですか?`)) return;
     void run(async () => { await api.rollbackTask(projectId, task.id); ctx.refresh(); setChanges(await api.taskChanges(projectId, task.id)); });
   };
   return (
@@ -138,7 +141,7 @@ function TaskChangesPanel({ task, ctx, canRollback }: { task: Task; ctx: Ctx; ca
             {changes.files.map((f) => <li key={f.path} className="font-mono"><span className="mr-2 text-muted">{CHANGE_LABEL[f.status]}</span>{f.path}</li>)}
           </ul>
           <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-[#4a473f]">{changes.patch}{changes.truncated ? "\n…(長いため途中まで)" : ""}</pre>
-          {canRollback && <div className="mt-2"><Button variant="ghost" disabled={busy} onClick={rollback}>このタスクの変更を元に戻す</Button></div>}
+          {canRollback && <div className="mt-2"><Button variant="ghost" disabled={busy} onClick={rollback}>この作業の変更を元に戻す</Button></div>}
         </div>
       )}
     </div>
@@ -155,7 +158,7 @@ function RedirectControls({ mission, ctx }: { mission: { projectId: string; id: 
   return (
     <div className="w-full">
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="例: 検索機能を先に作って、画像アップロードは後回しにしてください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
-      <p className="mt-1 text-[12px] text-muted">実行中の作業はここで止まります。完了済みの作業は残したまま新しい計画を提案するので、内容を確認して承認してください(承認するまで、止まったタスクは置き換わりません)。</p>
+      <p className="mt-1 text-[12px] text-muted">実行中の作業はここで止まります。完了済みの作業は残したまま新しい計画を提案するので、内容を確認して承認してください(承認するまで、止まった作業は置き換わりません)。</p>
       <div className="mt-1 flex gap-2">
         <Button disabled={busy || !text.trim()} onClick={go}>止めて新しい計画を作る</Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
@@ -173,7 +176,7 @@ function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
   return (
     <div className="ml-6 mt-1">
       <div className="flex flex-wrap gap-2">
-        <Button variant="ghost" disabled={busy} onClick={go}>このタスクをやり直す</Button>
+        <Button variant="ghost" disabled={busy} onClick={go}>この作業をやり直す</Button>
         {!open && <Button variant="ghost" disabled={busy} onClick={() => setOpen(true)}>指示を足してやり直す</Button>}
       </div>
       {open && (
@@ -200,7 +203,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
   const state = preview?.state ?? "stopped";
   const active = state === "starting" || state === "running";
   return (
-    <Card title="動かして見る">
+    <Card fold title="動かして確認する(作りかけの画面を実際に試す)">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={state === "running" ? "ok" : state === "error" ? "bad" : state === "starting" ? "info" : "neutral"}>{PREVIEW_LABEL[state]}</Badge>
         {state === "running" && preview?.url && (
@@ -224,7 +227,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
         )
       )}
       {preview?.log && state === "error" && <Details summary="ログを見る"><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{preview.log}</pre></Details>}
-      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。ミッションが作業中のファイルを読むため、動きが不安定なことがあります。</p>
+      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。依頼が作業中のファイルを読むため、動きが不安定なことがあります。</p>
     </Card>
   );
 }
@@ -248,7 +251,7 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
         <span className="text-[13px] font-semibold">{APPROVAL_LEVEL[approval.level]}を伴う作業です</span>
       </div>
       <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
-      <p className="mt-1 text-[12px] text-muted">許可しても、このタスクの間だけ有効です。他のタスクには広がりません。拒否するとこのタスクは失敗として止まります。30分で自動的に拒否されます。</p>
+      <p className="mt-1 text-[12px] text-muted">許可しても、この作業の間だけ有効です。他の作業には広がりません。拒否するとこの作業は失敗として止まります。30分で自動的に拒否されます。</p>
       <div className="mt-3 flex gap-2">
         <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>
         <Button variant="danger" disabled={busy} onClick={() => answer(false)}>拒否する</Button>
@@ -420,8 +423,24 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       ctx.refresh();
     });
 
+  const step = nextStep(ctx, tasks, () => setStarting(true));
+  const pendingPlan = mission?.status === "planning" && view?.mission.id === mission.id;
+
   return (
     <div className="space-y-4">
+      <ClaudeCheck />
+      {ctx.projectCount === 0 && !mission ? (
+        <Welcome onHelp={ctx.openHelp} onImport={() => window.dispatchEvent(new Event("open-import"))} />
+      ) : (
+        <NextStepBanner step={step} />
+      )}
+
+      {/* things that wait for the person come first */}
+      {pendingPlan && <PlanReview view={view} ctx={ctx} />}
+      {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
+      {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
+      {project && <DepsCard ctx={ctx} />}
+
       {mission && !starting && (
         <Card>
           <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -469,7 +488,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </ul>
           )}
           {tasks.length === 0 && mission.status === "draft" && (
-            <p className="mt-3 text-[12.5px] text-muted">このミッションにはまだ計画がありません。下のフォームから新しいミッションを始められます(このミッションは不要なら「中止」してください)。</p>
+            <p className="mt-3 text-[12.5px] text-muted">この依頼にはまだ計画がありません。下のフォームから新しい依頼を始められます(この依頼は不要なら「中止」してください)。</p>
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             {mission.status === "running" && <Button variant="ghost" disabled={busy} onClick={() => act("pause")}>一時停止</Button>}
@@ -477,28 +496,24 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             {mission.status === "failed" && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
             {["running", "paused", "failed"].includes(mission.status) && <RedirectControls mission={mission} ctx={ctx} />}
             {["draft", "planning", "running", "paused"].includes(mission.status) && <Button variant="danger" disabled={busy} onClick={() => act("cancel")}>中止</Button>}
-            {FINISHED.includes(mission.status) && <Button variant="ghost" onClick={() => setStarting(true)}>新しいミッション</Button>}
+            {FINISHED.includes(mission.status) && <Button variant="ghost" onClick={() => setStarting(true)}>新しい依頼</Button>}
           </div>
         </Card>
       )}
 
-      {mission?.status === "planning" && view?.mission.id === mission.id && <PlanReview view={view} ctx={ctx} />}
-      {project && <DepsCard ctx={ctx} />}
-      {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
-      {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
-      {project && <SyncCard ctx={ctx} />}
-      {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
-      {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
-
       {showIntake && (
         <>
-          {starting && <div><Button variant="ghost" onClick={() => setStarting(false)}>← 現在のミッションに戻る</Button></div>}
+          {starting && <div><Button variant="ghost" onClick={() => setStarting(false)}>← 現在の依頼に戻る</Button></div>}
           <Intake ctx={ctx} onStarted={() => { setStarting(false); ctx.refresh(); }} />
         </>
       )}
 
+      {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
+      {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
+      {project && <SyncCard ctx={ctx} />}
+
       {recent.length > 0 && (
-        <Card title="最近の成果物">
+        <Card title="最近できたもの">
           <ul className="space-y-1">
             {recent.map((a) => (
               <li key={a.id}>

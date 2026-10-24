@@ -24,8 +24,8 @@ export function diffNotices(prev: NotifyState | null, approvals: Approval[], han
     if (before === m.status) continue;
     const goal = m.goal.slice(0, 60);
     if (m.status === "planning" && before === undefined) out.push({ tag: `mis-${m.id}-plan`, title: "計画ができました", body: `${goal} — 内容を確認して承認してください` });
-    else if (m.status === "completed") out.push({ tag: `mis-${m.id}-done`, title: "ミッションが完了しました", body: goal });
-    else if (m.status === "failed") out.push({ tag: `mis-${m.id}-fail`, title: "ミッションが止まりました", body: `${goal} — 失敗したタスクを確認してください` });
+    else if (m.status === "completed") out.push({ tag: `mis-${m.id}-done`, title: "依頼が完了しました", body: goal });
+    else if (m.status === "failed") out.push({ tag: `mis-${m.id}-fail`, title: "依頼が止まりました", body: `${goal} — 失敗した作業を確認してください` });
   }
   return out;
 }

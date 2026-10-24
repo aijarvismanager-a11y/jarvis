@@ -12,6 +12,9 @@ export type Ctx = {
   /** Creates the project on demand (the Mission screen can start from nothing). */
   ensureProject: (nameHint: string) => Promise<Project>;
   openArtifact: (a: Artifact) => void;
+  openHelp: () => void;
+  /** How many projects exist (0 = first run). */
+  projectCount: number;
 };
 
 export const aiNameOf = (services: AiService[], id: string | null) => (id ? (services.find((s) => s.id === id)?.name ?? id) : "Claude Code");

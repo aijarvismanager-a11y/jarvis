@@ -61,14 +61,14 @@ export function buildWebPrompt(input: {
 }): string {
   const { task, mission, outputPaths } = input;
   const lines = [
-    `あなたはソフトウェア開発ミッション「${mission.goal}」の次のタスクを担当します。`,
+    `あなたはソフトウェア開発依頼「${mission.goal}」の次の作業を担当します。`,
     `役割: ${task.role}`,
     `目的: ${task.objective}`,
   ];
   if (task.inputs.length) lines.push(`入力: ${task.inputs.join(" / ")}`);
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
-  if (input.context.length) lines.push("", "【前のタスクの成果(抜粋)】", ...input.context);
+  if (input.context.length) lines.push("", "【前の作業の成果(抜粋)】", ...input.context);
   lines.push("", "【回答の形式】");
   if (outputPaths.length === 1) {
     lines.push(`回答の本文がそのまま「${outputPaths[0]}」の内容として保存されます。前置き・あとがき・説明文は付けず、そのファイルの内容だけを返してください。`);
@@ -303,7 +303,7 @@ export class WebAiExecutor implements TaskExecutor {
     this.store.addDecision({
       projectId: task.projectId,
       title: `自動降格: ${svc.name} Level ${current} → ${next}`,
-      reason: `Level ${level}の自動操作が${DOWNGRADE_AFTER_FAILURES}回連続で失敗(${errMsg(err)})。サイトのUI変更の可能性があるため降格。Level 1は常に動作するため、ミッション全体は止めない`,
+      reason: `Level ${level}の自動操作が${DOWNGRADE_AFTER_FAILURES}回連続で失敗(${errMsg(err)})。サイトのUI変更の可能性があるため降格。Level 1は常に動作するため、依頼全体は止めない`,
       isAssumption: true,
     });
   }

@@ -15,7 +15,7 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
   const missions = [...ctx.overview.missions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return (
     <div className="space-y-4">
-      <Card title="ミッション履歴">
+      <Card title="依頼履歴">
         {missions.length === 0 && <p className="text-[13px] text-muted">まだ履歴がありません。</p>}
         <ul className="space-y-2">
           {missions.map((m) => {
@@ -25,7 +25,7 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={m.status === "completed" ? "ok" : m.status === "failed" ? "bad" : "neutral"}>{MISSION_LABEL[m.status]}</Badge>
                   <span className="text-[11px] text-muted">{formatTime(m.createdAt)}</span>
-                  {total > 0 && <span className="text-[11px] text-muted">{done}/{total}タスク完了</span>}
+                  {total > 0 && <span className="text-[11px] text-muted">{done}/{total}作業完了</span>}
                 </div>
                 <p className="mt-1 text-[13px]">{m.goal}</p>
               </li>

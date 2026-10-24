@@ -204,10 +204,10 @@ describe("retry", () => {
     const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
     const mid = await started(engine);
     await engine.run(pid, mid);
-    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "b").id)).toThrow("失敗したタスク");
+    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "b").id)).toThrow("失敗した作業");
     expect(() => engine.retryFailedTask(pid, mid, "nope")).toThrow("見つかりません");
     await engine.cancel(pid, mid);
-    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "a").id)).toThrow("終了したミッション");
+    expect(() => engine.retryFailedTask(pid, mid, byObjective(mid, "a").id)).toThrow("終了した依頼");
   });
 
   it("does not retry a failure the executor marks as unretryable (e.g. a denied approval)", async () => {
