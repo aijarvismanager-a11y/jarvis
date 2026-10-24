@@ -328,6 +328,11 @@ export class RoutingExecutor implements TaskExecutor {
     return getWebAiSettings(this.store).enabled ? [...(this.code.adapterTypes ?? []), ...this.web.adapterTypes] : [...(this.code.adapterTypes ?? [])];
   }
 
+  /** Code-editing tasks only ever run on the code executor, so the Broker must not pick a web AI for them. */
+  adapterTypesFor(task: Task): readonly string[] {
+    return isWriteTask(task) ? [...(this.code.adapterTypes ?? [])] : this.adapterTypes;
+  }
+
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult> {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
     const toWeb = getWebAiSettings(this.store).enabled && svc !== null && this.web.adapterTypes.some((t) => t === svc.adapterType) && !isWriteTask(task);

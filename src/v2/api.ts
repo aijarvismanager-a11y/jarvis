@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, Preview, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -43,6 +43,8 @@ export const api = {
 
   retryTask: (projectId: string, missionId: string, taskId: string, feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/tasks/${encodeURIComponent(taskId)}/retry`, "POST", { feedback }),
+  taskLog: (projectId: string, taskId: string, after = 0) =>
+    request<{ status: string; entries: LogEntry[] }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/log?after=${after}`),
   preview: (projectId: string) => request<{ preview: Preview | null }>(`/projects/${encodeURIComponent(projectId)}/preview`).then((r) => r.preview),
   startPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/start`, "POST", {}).then((r) => r.preview),
   stopPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/stop`, "POST", {}).then((r) => r.preview),

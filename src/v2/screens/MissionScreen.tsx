@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatTime, progressOf, roleLabel } from "../labels";
 import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
-import type { Approval, Handoff, MissionView, Preview, Task } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -11,6 +11,44 @@ function StepMark({ status }: { status: Task["status"] }) {
   if (status === "cancelled") return <span className="text-muted">–</span>;
   if (status === "running" || status === "validation" || status === "waiting") return <span className="text-accent">●</span>;
   return <span className="text-muted">○</span>;
+}
+
+const LOG_MARK: Record<LogEntry["kind"], string> = { text: "💬", tool: "🔧", info: "•", error: "⚠" };
+
+/** What the AI is doing right now in this task: its messages and tool calls, newest at the bottom. */
+function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
+  const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [all, setAll] = useState(false);
+  const cursor = useRef(0);
+  usePoll(
+    async () => {
+      const r = await api.taskLog(projectId, taskId, cursor.current);
+      if (r.entries.length === 0) return;
+      cursor.current = r.entries[r.entries.length - 1]!.seq;
+      setEntries((prev) => [...prev, ...r.entries].slice(-200));
+    },
+    2000,
+    [projectId, taskId],
+  );
+  const shown = all ? entries : entries.slice(-5);
+  return (
+    <div className="ml-6 mt-1 rounded-lg bg-sidebar px-3 py-2">
+      {entries.length === 0 ? (
+        <p className="text-[12px] text-muted">作業の様子を待っています…(ログは Claude Code が動いている間だけ出ます)</p>
+      ) : (
+        <>
+          <ul className="space-y-0.5">
+            {shown.map((e) => (
+              <li key={e.seq} className={`break-words font-mono text-[11.5px] ${e.kind === "error" ? "text-[#9B2C2C]" : "text-[#4a473f]"}`}>
+                <span className="mr-1.5">{LOG_MARK[e.kind]}</span>{e.text}
+              </li>
+            ))}
+          </ul>
+          {entries.length > 5 && <button className="mt-1 text-[11.5px] text-accent hover:underline" onClick={() => setAll(!all)}>{all ? "最新だけ表示" : `すべて表示(${entries.length}件)`}</button>}
+        </>
+      )}
+    </div>
+  );
 }
 
 /** Retry one failed task, optionally telling the AI what to do differently. */
@@ -299,6 +337,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                     {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
+                  {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
                   {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
                 </li>
               ))}

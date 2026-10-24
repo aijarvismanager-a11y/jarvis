@@ -27,6 +27,8 @@ export interface TaskExecutor {
   readonly name: string;
   /** registry adapter_types this executor can run; lets the Broker pick only AIs that can actually execute */
   readonly adapterTypes?: readonly string[];
+  /** Same, for one specific task, when the executor routes some tasks differently (e.g. code edits never go to a web AI). */
+  adapterTypesFor?(task: Task): readonly string[];
   execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult>;
 }
 export interface TaskValidator {
@@ -255,7 +257,7 @@ export class MissionEngine {
     // keep a chosen AI unless it already failed this task: then fall back to the next candidate
     if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
     try {
-      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: failedAis });
+      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: failedAis });
       const payload = { capability: decision.capability, confidence: decision.confidence, needsReview: decision.needsReview, selected: decision.selected?.aiId ?? null, excluded: decision.excluded };
       if (!decision.selected) {
         this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });

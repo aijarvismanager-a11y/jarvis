@@ -9,7 +9,7 @@ export type CommandResult = { stdout: string; stderr: string; code: number | nul
 export type CommandRunner = (
   command: string,
   args: string[],
-  opts: { input?: string; cwd?: string; env?: Record<string, string>; signal?: AbortSignal; timeoutMs?: number },
+  opts: { input?: string; cwd?: string; env?: Record<string, string>; signal?: AbortSignal; timeoutMs?: number; /** called with each stdout chunk as it arrives (for live logs) */ onStdout?: (chunk: string) => void },
 ) => Promise<CommandResult>;
 
 const MAX_OUTPUT_CHARS = 2_000_000;
@@ -58,7 +58,14 @@ export const spawnRunner: CommandRunner = (command, args, opts) =>
       if (timer) clearTimeout(timer);
       opts.signal?.removeEventListener("abort", onAbort);
     };
-    child.stdout.on("data", (d) => (stdout = append(stdout, d)));
+    child.stdout.on("data", (d) => {
+      stdout = append(stdout, d);
+      try {
+        opts.onStdout?.(String(d));
+      } catch {
+        /* a broken observer must not affect the run */
+      }
+    });
     child.stderr.on("data", (d) => (stderr = append(stderr, d)));
     child.on("error", (e) => {
       cleanup();

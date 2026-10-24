@@ -101,7 +101,7 @@ describe("PermissionPolicy", () => {
 
 describe("ClaudeCodeExecutor", () => {
   it("parses only flags that --help lists", () => {
-    expect(parseExecutorCapabilities(HELP)).toEqual({ print: true, outputFormatJson: true, acceptEdits: true, permissionPromptsNone: true, allowedTools: true, disallowedTools: true, noSessionPersistence: true });
+    expect(parseExecutorCapabilities(HELP)).toEqual({ print: true, outputFormatJson: true, acceptEdits: true, permissionPromptsNone: true, allowedTools: true, disallowedTools: true, noSessionPersistence: true, streamJson: false });
     expect(parseExecutorCapabilities("Usage: other").acceptEdits).toBe(false);
   });
 

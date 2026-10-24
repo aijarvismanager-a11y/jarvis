@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
+import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
 import type { Mission, Store, Task } from "./store.ts";
@@ -19,6 +20,7 @@ export type ExecutorCapabilities = {
   allowedTools: boolean;
   disallowedTools: boolean;
   noSessionPersistence: boolean;
+  streamJson: boolean;
 };
 
 export function parseExecutorCapabilities(helpText: string): ExecutorCapabilities {
@@ -32,6 +34,7 @@ export function parseExecutorCapabilities(helpText: string): ExecutorCapabilitie
     allowedTools: has("--allowed-tools") || has("--allowedTools"),
     disallowedTools: has("--disallowed-tools") || has("--disallowedTools"),
     noSessionPersistence: has("--no-session-persistence"),
+    streamJson: has("--output-format") && /"stream-json"/.test(helpText) && has("--verbose"),
   };
 }
 
@@ -104,6 +107,17 @@ export function buildTaskPrompt(input: {
 
 /** Extracts the CLI's JSON envelope; falls back to treating stdout as the answer text. */
 export function parseRunOutput(stdout: string): { text: string; isError: boolean } {
+  // stream-json: one event per line; the verdict is the "result" event
+  if (stdout.includes('"type":"result"')) {
+    for (const line of stdout.trim().split("\n").reverse()) {
+      try {
+        const o = JSON.parse(line) as Record<string, unknown>;
+        if (o.type === "result") return { text: typeof o.result === "string" ? o.result : "", isError: o.is_error === true };
+      } catch {
+        /* not a JSON line */
+      }
+    }
+  }
   try {
     const o = JSON.parse(stdout.trim()) as Record<string, unknown>;
     if (o && typeof o === "object") {
@@ -131,6 +145,8 @@ export class ClaudeCodeExecutor implements TaskExecutor {
       runner?: CommandRunner;
       policy?: PermissionPolicy;
       timeoutMs?: number;
+      /** When set, the run is streamed (stream-json) and what Claude Code does is written here, per task. */
+      logs?: TaskLogStore;
     } = {},
   ) {}
 
@@ -157,7 +173,8 @@ export class ClaudeCodeExecutor implements TaskExecutor {
     if (!caps.disallowedTools) throw new Error("--disallowed-tools が使えないため、権限を制限できず実行できません");
     const q = shell ? quoteForShell : (v: string) => v;
     const args = ["--print"];
-    if (caps.outputFormatJson) args.push("--output-format", "json");
+if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json", "--verbose");
+    else if (caps.outputFormatJson) args.push("--output-format", "json");
     args.push("--permission-mode", "acceptEdits");
     if (caps.permissionPromptsNone) args.push("--permission-prompts", "none"); // anything that would prompt is denied, never hangs
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
@@ -207,7 +224,10 @@ export class ClaudeCodeExecutor implements TaskExecutor {
     const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task) });
 
     const before = snapshotDir(cwd);
-    const res = await this.runner(this.command, args, { input: prompt, cwd, signal: ctx.signal, timeoutMs: this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS });
+    const logs = this.opts.logs;
+    logs?.clear(task.id);
+    const logger = logs ? new StreamJsonLogger(logs, task.id, cwd) : null;
+    const res = await this.runner(this.command, args, { input: prompt, cwd, signal: ctx.signal, timeoutMs: this.opts.timeoutMs ?? DEFAULT_TASK_TIMEOUT_MS, onStdout: logger ? (chunk) => logger.push(chunk) : undefined });
     const afterSnap = snapshotDir(cwd);
     const files = changedFiles(before, afterSnap).slice(0, MAX_ARTIFACTS);
     // Best effort: with parallel tasks a file may be attributed to whichever task finished first.

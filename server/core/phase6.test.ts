@@ -376,6 +376,13 @@ describe("RoutingExecutor", () => {
     expect((await router.execute(task, ctxFor(task))).summary).toBe("code ran");
   });
 
+  it("tells the Broker that only the code executor can take a code-editing task, so a web AI is never recorded as its owner", () => {
+    setWebAiSettings(store, { enabled: true });
+    const router = new RoutingExecutor(store, code, new WebAiExecutor(store, new WebHandoffHub(store)));
+    expect(router.adapterTypesFor(makeTask({ role: "coding" }))).toEqual(["claude-code"]);
+    expect(router.adapterTypesFor(makeTask({ role: "research" }))).toEqual(expect.arrayContaining(["manual", "browser"]));
+  });
+
   it("skipping a handoff runs the task on Claude Code and records that", async () => {
     setWebAiSettings(store, { enabled: true });
     const hub = new WebHandoffHub(store);

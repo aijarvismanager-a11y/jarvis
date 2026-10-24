@@ -17,6 +17,7 @@ import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
 import { AppSmokeTester } from "./core/appSmokeTest.ts";
+import { TaskLogStore } from "./core/taskLog.ts";
 import { PreviewManager } from "./core/previewManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
@@ -81,7 +82,8 @@ const previews = new PreviewManager(path.join(ROOT, "projects"));
 // Preview servers are children of this process: never leave them behind.
 process.once("exit", () => previews.stopAll());
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => process.exit(0));
-const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate) });
+const taskLogs = new TaskLogStore();
+const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate), logs: taskLogs });
 // Web AI automation (Phase 6): off until the user switches it on (PUT /api/v2/web-ai/settings).
 // Level 2/3 drive the user's own Edge/Chrome in a dedicated profile; Level 1 needs no browser.
 const browserExecutable = findBrowserExecutable();
@@ -96,7 +98,7 @@ const engine = new MissionEngine(coreStore, {
 });
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, approvals, previews, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, approvals, previews, logs: taskLogs, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null } }),
 );
 
 app.get("/api/session-token", (_req, res) => {

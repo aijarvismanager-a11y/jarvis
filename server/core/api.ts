@@ -7,6 +7,7 @@ import { PROJECT_ID_RE, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
+import type { TaskLogStore } from "./taskLog.ts";
 import type { PreviewManager } from "./previewManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
@@ -28,6 +29,8 @@ export type OrchestratorApiDeps = {
   discovery?: AiDiscovery;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
   executableAdapters?: string[] | (() => string[]);
+  /** Live log of what the AI does in a task (GET /projects/:id/tasks/:taskId/log). */
+  logs?: TaskLogStore;
   /** Enables the preview endpoints (run the project's app while it is being built). */
   previews?: PreviewManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
@@ -233,6 +236,16 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ service: store.getAiService(aiId) });
     }),
   );
+  // ---- Live log of a running task ---------------------------------------------------------------
+  router.get("/projects/:projectId/tasks/:taskId/log", (req, res) => {
+    const projectId = String(req.params.projectId);
+    const taskId = String(req.params.taskId);
+    const task = store.getTask(projectId, taskId);
+    if (!task) return void res.status(404).json({ error: "タスクが見つかりません" });
+    const after = Number(req.query.after ?? 0);
+    res.json({ status: task.status, entries: deps.logs?.read(taskId, Number.isFinite(after) ? after : 0) ?? [] });
+  });
+
   // ---- Preview: run what has been built so far ----------------------------------------------
   router.get("/projects/:projectId/preview", (req, res) => {
     res.json({ preview: deps.previews?.status(String(req.params.projectId)) ?? null });
