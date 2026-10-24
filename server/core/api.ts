@@ -159,6 +159,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     });
   });
   // ---- Sync with the folder the project was imported from: review the diff, then write it back ----
+  const pullDir = (backupDir: string) => path.join(backupDir, "_pull"); // pull backups live beside the push ones
   const syncGuarded = (handler: (req: Request, res: Response, ctx: { projectId: string; link: SyncLink; backupDir: string }) => Promise<void> | void) =>
     guarded((req, res) => {
       if (!deps.syncBackupsRoot) return void res.status(501).json({ error: "同期機能が接続されていません" });
@@ -173,29 +174,32 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false });
     const backupDir = path.join(deps.syncBackupsRoot, projectId);
     try {
-      res.json({ linked: true, sourcePath: link.sourcePath, entries: computeDiff(link, projectDir(store.projectsRoot, projectId)), backups: listBackups(backupDir) });
+      const root = projectDir(store.projectsRoot, projectId);
+      res.json({ linked: true, sourcePath: link.sourcePath, entries: computeDiff(link, root), pullEntries: computeDiff(link, root, "pull"), backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
-      res.json({ linked: true, sourcePath: link.sourcePath, entries: [], backups: listBackups(backupDir), problem: err instanceof Error ? err.message : String(err) });
+      res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
   });
   router.post(
     "/projects/:projectId/sync/apply",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
-      const opts = z.object({ deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false) }).parse(req.body ?? {});
-      const r = applySync(link, projectDir(store.projectsRoot, projectId), backupDir, opts);
+      const opts = z.object({ deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
+      const dir = opts.direction === "pull" ? pullDir(backupDir) : backupDir;
+      const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, opts, opts.direction);
       store.setSetting(linkKey(projectId), r.link);
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
-      pruneBackups(backupDir, keep);
-      store.appendEvent({ projectId, type: "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
+      pruneBackups(dir, keep);
+      store.appendEvent({ projectId, type: opts.direction === "pull" ? "SYNC_PULLED" : "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
       res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null });
     }),
   );
   router.post(
     "/projects/:projectId/sync/restore",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
-      const { backupId } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/) }).parse(req.body ?? {});
-      store.setSetting(linkKey(projectId), restoreBackup(link, backupDir, backupId));
+      const { backupId, direction } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
+      if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      store.setSetting(linkKey(projectId), restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction));
       store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
       res.json({ ok: true });
     }),

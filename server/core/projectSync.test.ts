@@ -68,11 +68,11 @@ describe("project sync", () => {
     writeFileSync(path.join(proj, "new.txt"), "N");
     const r = applySync(link, proj, backups);
     expect(read(src, "a.txt")).toBe("A2");
-    const back = restoreBackup(r.link, backups, r.backup!.id);
+    const back = restoreBackup(r.link, proj, backups, r.backup!.id);
     expect(read(src, "a.txt")).toBe("A");
     expect(existsSync(path.join(src, "new.txt"))).toBe(false);
     expect(computeDiff(back, proj).map((e) => e.path)).toEqual(["a.txt", "new.txt"]); // the copy's changes show up again
-    expect(() => restoreBackup(r.link, backups, "nope")).toThrow();
+    expect(() => restoreBackup(r.link, proj, backups, "nope")).toThrow();
   });
 
   it("keeps only the newest generations", async () => {
@@ -88,5 +88,31 @@ describe("project sync", () => {
     const left = listBackups(backups);
     expect(left).toHaveLength(2);
     expect(read(backups, left[0]!.id, "files", "a.txt")).toBe("v2"); // newest generation survives
+  });
+
+  it("pulls what the original changed into the copy, protecting the copy's own edits", () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(src, "a.txt"), "A-from-original"); // original changed
+    writeFileSync(path.join(src, "added.txt"), "X"); // original added
+    rmSync(path.join(src, "sub", "b.txt")); // original deleted
+    writeFileSync(path.join(proj, "sub", "b.txt"), "B-copy-edit"); // copy edited the file the original deleted
+    expect(computeDiff(link, proj, "pull")).toEqual([
+      { path: "a.txt", kind: "modified", conflict: false },
+      { path: "added.txt", kind: "added", conflict: false },
+      { path: "sub/b.txt", kind: "deleted", conflict: true },
+    ]);
+    const r = applySync(link, proj, backups, {}, "pull");
+    expect(read(proj, "a.txt")).toBe("A-from-original");
+    expect(read(proj, "added.txt")).toBe("X");
+    expect(read(proj, "sub", "b.txt")).toBe("B-copy-edit"); // conflict + delete: untouched
+    expect(read(backups, r.backup!.id, "files", "a.txt")).toBe("A"); // the copy's old file was saved
+    expect(r.skipped.map((e) => e.path)).toEqual(["sub/b.txt"]);
+    // nothing left to push except the copy's own edit; the pulled files are in step
+    expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["sub/b.txt"]);
+    // and the pull can be undone
+    const back = restoreBackup(r.link, proj, backups, r.backup!.id, "pull");
+    expect(read(proj, "a.txt")).toBe("A");
+    expect(existsSync(path.join(proj, "added.txt"))).toBe(false);
+    expect(computeDiff(back, proj, "pull").map((e) => e.path)).toContain("a.txt");
   });
 });

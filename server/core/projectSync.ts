@@ -36,19 +36,26 @@ export function hashTree(root: string): Record<string, string> {
   return out;
 }
 
-/** What the working copy changed since the link was last in step, and which of those the original also changed. */
-export function computeDiff(link: SyncLink, projectRoot: string): SyncEntry[] {
+export type SyncDirection = "push" | "pull";
+const rootsOf = (link: SyncLink, projectRoot: string, dir: SyncDirection) => (dir === "push" ? { from: projectRoot, to: link.sourcePath } : { from: link.sourcePath, to: projectRoot });
+
+/**
+ * What the `from` side changed since the link was last in step, and which of those the `to` side also changed.
+ * push: working copy -> original. pull: original -> working copy.
+ */
+export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirection = "push"): SyncEntry[] {
   if (!existsSync(link.sourcePath) || !statSync(link.sourcePath).isDirectory()) throw new Error("元のフォルダが見つかりません");
-  const proj = hashTree(projectRoot);
-  const src = hashTree(link.sourcePath);
+  const roots = rootsOf(link, projectRoot, dir);
+  const from = hashTree(roots.from);
+  const to = hashTree(roots.to);
   const entries: SyncEntry[] = [];
-  for (const rel of new Set([...Object.keys(proj), ...Object.keys(link.baseline)])) {
+  for (const rel of new Set([...Object.keys(from), ...Object.keys(link.baseline)])) {
     const b = link.baseline[rel];
-    const p = proj[rel];
-    const s = src[rel];
-    if (p === b) continue; // not changed in the copy
-    if (s === p) continue; // the original already has this exact state
-    entries.push({ path: rel, kind: p === undefined ? "deleted" : b === undefined ? "added" : "modified", conflict: s !== b });
+    const f = from[rel];
+    const t = to[rel];
+    if (f === b) continue; // not changed on the from side
+    if (t === f) continue; // the to side already has this exact state
+    entries.push({ path: rel, kind: f === undefined ? "deleted" : b === undefined ? "added" : "modified", conflict: t !== b });
   }
   return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -58,19 +65,20 @@ export type ApplyOptions = { /** also delete, in the original, files deleted in 
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);
 
 /** Writes the diff into the original, after saving what it replaces. Returns the new link and the backup made. */
-export function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}): { link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] } {
-  const all = computeDiff(link, projectRoot);
+export function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): { link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] } {
+  const roots = rootsOf(link, projectRoot, direction);
+  const all = computeDiff(link, projectRoot, direction);
   const todo = all.filter((e) => (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || !e.conflict));
   const skipped = all.filter((e) => !todo.includes(e));
   if (todo.length === 0) return { link, backup: null, skipped };
 
-  const source = path.resolve(link.sourcePath);
+  const source = path.resolve(roots.to); // the side that gets written
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = path.join(backupDir, stamp);
   const backup: SyncBackup = { id: stamp, createdAt: new Date().toISOString(), files: [] };
   const abs = (rel: string) => {
     const target = path.resolve(source, rel);
-    if (!inside(source, target) || target === source) throw new Error("元のフォルダの外には書き込めません");
+    if (!inside(source, target) || target === source) throw new Error("書き込み先の外には書き込めません");
     return target;
   };
   // 1) save everything that is about to be overwritten or deleted
@@ -88,7 +96,7 @@ export function applySync(link: SyncLink, projectRoot: string, backupDir: string
   writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
   // 2) write
   const baseline = { ...link.baseline };
-  const proj = hashTree(projectRoot);
+  const written = hashTree(roots.from);
   for (const e of todo) {
     const target = abs(e.path);
     if (e.kind === "deleted") {
@@ -96,8 +104,8 @@ export function applySync(link: SyncLink, projectRoot: string, backupDir: string
       delete baseline[e.path];
     } else {
       mkdirSync(path.dirname(target), { recursive: true });
-      cpSync(path.join(projectRoot, e.path), target);
-      baseline[e.path] = proj[e.path]!;
+      cpSync(path.join(roots.from, e.path), target);
+      baseline[e.path] = written[e.path]!;
     }
   }
   return { link: { ...link, baseline }, backup, skipped };
@@ -126,12 +134,12 @@ export function pruneBackups(backupDir: string, keep: number): string[] {
   return removed;
 }
 
-/** Puts the original back as it was before one sync. The working copy is untouched, so the diff shows those changes again. */
-export function restoreBackup(link: SyncLink, backupDir: string, backupId: string): SyncLink {
+/** Puts the written side back as it was before one sync (the original for a push, the working copy for a pull). The other side is untouched, so the diff shows those changes again. */
+export function restoreBackup(link: SyncLink, projectRoot: string, backupDir: string, backupId: string, direction: SyncDirection = "push"): SyncLink {
   const backup = listBackups(backupDir).find((b) => b.id === backupId);
   if (!backup) throw new Error("そのバックアップが見つかりません");
-  const source = path.resolve(link.sourcePath);
-  if (!existsSync(source)) throw new Error("元のフォルダが見つかりません");
+  const source = path.resolve(rootsOf(link, projectRoot, direction).to);
+  if (!existsSync(source)) throw new Error("復元先のフォルダが見つかりません");
   const baseline = { ...link.baseline };
   for (const f of backup.files) {
     const target = path.resolve(source, f.path);
