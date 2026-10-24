@@ -99,14 +99,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     freeStatus: "free_tier",
     limitations: "無料枠に上限あり",
   },
-  huggingchat: {
-    capabilities: { coding: 3, research: 3, documentation: 3 },
-    qualityScore: 3,
-    reliabilityScore: 2.5,
-    automationLevel: 1,
-    freeStatus: "free",
-    limitations: "モデルや混雑により応答が不安定",
-  },
   poe: {
     capabilities: { research: 3, coding: 3, translation: 3, image_generation: 3 },
     qualityScore: 3,
@@ -130,14 +122,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     automationLevel: 1,
     freeStatus: "free",
     limitations: "会話向きで、コード・長い成果物には不向き",
-  },
-  kimi: {
-    capabilities: { research: 3.5, documentation: 3.5, translation: 3.5, coding: 3 },
-    qualityScore: 3.5,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "free_tier",
-    limitations: "ログインが必要",
   },
   notebooklm: {
     capabilities: { research: 4.5, documentation: 4 },
@@ -385,8 +369,11 @@ export function applyGoogleLoginRegistry(store: Store): { removed: string[]; add
   return result;
 }
 
-/** Later retirements, each applied once under its own key (Adobe Firefly: Adobe ID only, no Google sign-in). */
-const LATER_RETIREMENTS: { key: string; ids: string[] }[] = [{ key: "registry.retired.firefly.v1", ids: ["firefly"] }];
+/** Later retirements, each applied once under its own key (Adobe Firefly: Adobe ID only; HuggingChat and Kimi: removed at the user's request). */
+const LATER_RETIREMENTS: { key: string; ids: string[] }[] = [
+  { key: "registry.retired.firefly.v1", ids: ["firefly"] },
+  { key: "registry.retired.huggingchat-kimi.v1", ids: ["huggingchat", "kimi"] },
+];
 
 export function applyLaterRetirements(store: Store): string[] {
   const removed: string[] = [];

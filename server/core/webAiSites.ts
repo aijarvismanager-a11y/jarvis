@@ -42,12 +42,6 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     sendSelector: 'button[aria-label="Submit"]',
     responseSelector: 'div[id^="markdown-content"]',
   },
-  // 入力欄・送信ボタンは2026-10-24にログアウト状態の実画面で確認済み。回答欄(responseSelector)は未確認の仮定。
-  huggingchat: {
-    inputSelector: 'textarea[placeholder="Ask anything"]',
-    // 送信ボタンは文字を入力するまで画面に出ないため指定しない(Enterで送る)
-    responseSelector: '[data-message-role="assistant"], .prose',
-  },
   // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
   copilot: {
     inputSelector: 'textarea#userInput, textarea[placeholder*="Copilot"]',

@@ -50,11 +50,6 @@
     "url": "https://grok.com"
   },
   {
-    "id": "huggingchat",
-    "name": "HuggingChat (Web)",
-    "url": "https://huggingface.co/chat"
-  },
-  {
     "id": "poe",
     "name": "Poe (Web)",
     "url": "https://poe.com"
@@ -68,11 +63,6 @@
     "id": "pi",
     "name": "Pi (Web)",
     "url": "https://pi.ai"
-  },
-  {
-    "id": "kimi",
-    "name": "Kimi (Web)",
-    "url": "https://kimi.com"
   },
   {
     "id": "notebooklm",

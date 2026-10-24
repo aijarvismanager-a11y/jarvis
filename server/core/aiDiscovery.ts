@@ -53,9 +53,7 @@ export interface DiscoverySource {
 export const BUNDLED_CATALOG: RawCandidate[] = [
   { id: "mistral-le-chat", name: "Le Chat (Mistral)", url: "https://chat.mistral.ai", pricingUrl: "https://mistral.ai/pricing", provider: "Mistral AI", capabilities: { coding: 3.5, research: 3, translation: 4, documentation: 3 }, languages: ["en", "fr", "ja"], requiresLogin: true },
   { id: "qwen-chat", name: "Qwen Chat", url: "https://chat.qwen.ai", provider: "Alibaba Cloud", capabilities: { coding: 4, translation: 4, research: 3, documentation: 3 }, languages: ["en", "zh", "ja"], requiresLogin: true },
-  { id: "huggingchat", name: "HuggingChat", url: "https://huggingface.co/chat", pricingUrl: "https://huggingface.co/pricing", provider: "Hugging Face", capabilities: { coding: 3, research: 3, documentation: 3 }, languages: ["en", "ja"] },
   { id: "grok", name: "Grok (xAI)", url: "https://grok.com", provider: "xAI", capabilities: { research: 4, coding: 3, seo: 3 }, languages: ["en", "ja"], requiresLogin: true },
-  { id: "kimi", name: "Kimi", url: "https://www.kimi.com", provider: "Moonshot AI", capabilities: { research: 3.5, documentation: 3.5, translation: 3.5, coding: 3 }, languages: ["en", "zh"], requiresLogin: true },
   { id: "poe", name: "Poe", url: "https://poe.com", provider: "Quora", capabilities: { research: 3, coding: 3, translation: 3, image_generation: 3 }, languages: ["en", "ja"], requiresLogin: true },
 ];
 

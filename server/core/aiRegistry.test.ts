@@ -39,7 +39,7 @@ describe("bundled web AI site profiles", () => {
       expect(ids.has(id), id).toBe(true);
       expect(p.inputSelector && p.responseSelector, id).toBeTruthy();
     }
-    expect(Object.keys(BUNDLED_SITE_PROFILES).length).toBeGreaterThanOrEqual(8);
+    expect(Object.keys(BUNDLED_SITE_PROFILES).length).toBeGreaterThanOrEqual(7);
   });
 });
 
@@ -87,10 +87,11 @@ describe("importEverydaySignIn", () => {
 });
 
 describe("later retirements", () => {
-  it("removes Adobe Firefly once", () => {
+  it("removes Adobe Firefly, HuggingChat and Kimi once", () => {
     const store = new Store(openDatabase(":memory:"), "unused");
+    for (const id of ["huggingchat", "kimi"]) store.upsertAiService({ id, name: id, url: "https://example.com" });
     store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
-    expect(applyLaterRetirements(store)).toEqual(["firefly"]);
+    expect(applyLaterRetirements(store).sort()).toEqual(["firefly", "huggingchat", "kimi"]);
     expect(store.getAiService("firefly")).toBeNull();
     store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
     expect(applyLaterRetirements(store)).toEqual([]);
