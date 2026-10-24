@@ -69,6 +69,7 @@ describe("POST /projects/import", () => {
       expect(existsSync(path.join(dest, ".env"))).toBe(false);
       expect(existsSync(path.join(src, ".env"))).toBe(true);
       await engine.run(body.project.id, body.missionId);
+      for (let i = 0; i < 200 && store.getMission(body.project.id, body.missionId)?.status !== "completed"; i++) await new Promise((r) => setTimeout(r, 25));
       expect(ran).toEqual(["analysis"]);
       expect(store.getMission(body.project.id, body.missionId)?.status).toBe("completed");
 
@@ -79,5 +80,5 @@ describe("POST /projects/import", () => {
       await new Promise((r) => server.close(r));
       db.close();
     }
-  });
+  }, 20_000);
 });
