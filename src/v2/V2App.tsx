@@ -175,7 +175,7 @@ export default function V2App() {
     <div className="min-h-screen bg-bg text-ink">
       <header className="border-b border-border bg-sidebar">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 px-4 py-3">
-          <h1 className="font-serif text-[17px] font-bold">AIオーケストラ</h1>
+          <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ</h1>
           <div className="ml-auto flex items-center gap-2">
             {notifySupported() && (
               <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
