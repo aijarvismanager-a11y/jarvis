@@ -3,12 +3,14 @@ import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
 import { readFile, stat } from "node:fs/promises";
-import { PROJECT_ID_RE, resolveInProject } from "./paths.ts";
+import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import type { PreviewManager } from "./previewManager.ts";
+import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
+import path from "node:path";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
@@ -108,6 +110,28 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     guarded((req, res) => {
       const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(req.body ?? {});
       res.status(201).json({ project: store.createProject({ name }) });
+    }),
+  );
+  // Import an existing folder: copy it (the original is never touched), then analyse it read-only.
+  router.post(
+    "/projects/import",
+    guarded(async (req, res) => {
+      if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
+      const body = z.object({ path: z.string().trim().min(1).max(1000), name: z.string().trim().max(100).optional() }).parse(req.body ?? {});
+      const scan = scanImportSource(body.path, store.projectsRoot);
+      const folderName = path.basename(path.resolve(body.path));
+      const project = store.createProject({ name: body.name || folderName });
+      try {
+        copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan);
+        await deps.snapshots?.capture(project.id, `${project.id}-import-baseline`).catch(() => undefined);
+      } catch (err) {
+        store.deleteProject(project.id);
+        throw err;
+      }
+      store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets } });
+      const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name) });
+      void engine.run(project.id, mission.id).catch(() => undefined);
+      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets });
     }),
   );
   router.get("/projects/:projectId/overview", (req, res) => {

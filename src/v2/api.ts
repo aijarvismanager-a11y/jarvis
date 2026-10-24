@@ -31,6 +31,8 @@ const mission = (projectId: string, missionId: string) => `/projects/${encodeURI
 export const api = {
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
+  importProject: (path: string, name = "") =>
+    request<{ project: Project; missionId: string; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),
   artifactContent: (projectId: string, path: string) => request<{ content: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`).then((r) => r.content),

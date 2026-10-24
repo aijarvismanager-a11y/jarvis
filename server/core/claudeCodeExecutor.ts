@@ -1,10 +1,11 @@
-import { mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
+import { STATUS_REPORT_PATH } from "./projectImport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { Mission, Store, Task } from "./store.ts";
 
@@ -43,6 +44,7 @@ const AUTH_ERROR = /not logged in|\/login|invalid api key|oauth (token|session)|
 const SKIP_DIRS = new Set(["node_modules", ".git"]);
 const MAX_SNAPSHOT_FILES = 20_000;
 const MAX_ARTIFACTS = 200;
+export { STATUS_REPORT_PATH };
 export const DEFAULT_TASK_TIMEOUT_MS = 20 * 60_000; // shorter than the write-lock TTL (30 min)
 
 type Snapshot = Map<string, string>;
@@ -84,6 +86,8 @@ export function buildTaskPrompt(input: {
   mission: Pick<Mission, "goal">;
   dependencyNotes: string[];
   previousFailure?: string;
+  /** The project was imported: its status report describes the existing code. */
+  hasStatusReport?: boolean;
 }): string {
   const { task, mission } = input;
   const lines = [
@@ -93,6 +97,7 @@ export function buildTaskPrompt(input: {
     "作業ディレクトリ(カレント)がこのプロジェクトの全てです。この外のファイルは読み書きしないでください。",
     "成果物はファイルとして保存し(調査はresearch/、設計はdesign/、コードはcode/などサブフォルダ)、最後に何をしたかを短く報告してください。期待する成果物にパスが書かれている場合は、サブフォルダの慣例よりそのパスを優先してください。",
   ];
+  if (input.hasStatusReport && task.role !== "analysis") lines.push(`このプロジェクトは既存のコードを取り込んだものです。作業の前に ${STATUS_REPORT_PATH} を読み、既存の構成・書き方・使っている技術に合わせてください。`);
   if (task.inputs.length) lines.push(`入力: ${task.inputs.join(" / ")}`);
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
@@ -224,7 +229,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const cwd = projectDir(this.store.projectsRoot, projectId);
     mkdirSync(cwd, { recursive: true });
     const args = this.buildArgs(await this.capabilities(), task);
-    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task) });
+    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)) });
 
     const before = snapshotDir(cwd);
     const snaps = this.opts.snapshots;

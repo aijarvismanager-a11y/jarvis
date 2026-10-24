@@ -66,6 +66,19 @@ export class MissionEngine {
     }
   }
 
+  /** Starts a mission from a ready-made plan (no Planner, no approval step), e.g. the analysis of an imported project. */
+  startFixedMission(input: { projectId: string; goal: string; draft: PlanDraft }): Mission {
+    const problems = validatePlan(input.draft);
+    if (problems.length) throw new Error(`計画が不正です: ${problems.join(" / ")}`);
+    const mission = this.store.createMission({ projectId: input.projectId, goal: input.goal, status: "draft" });
+    transaction(this.store.db, () => {
+      transitionMission(this.store, input.projectId, mission.id, "planning", "fixed plan");
+      applyPlan(this.store, input.projectId, mission.id, input.draft, 0);
+      transitionMission(this.store, input.projectId, mission.id, "running", "fixed plan started");
+    });
+    return this.store.getMission(input.projectId, mission.id)!;
+  }
+
   getProposal(missionId: string): PlanProposal | null {
     return this.store.getSetting<PlanProposal | null>(proposalKey(missionId), null);
   }

@@ -8,7 +8,8 @@ export const DEFAULT_MAX_PARALLEL = 2;
 export const DEFAULT_LOCK_TTL_MS = 30 * 60_000;
 
 /** Roles that modify the project's code (everything else is read/review/suggest only). */
-const WRITE_ROLES = new Set(["coding", "code", "implement", "implementation", "refactor", "fix", "bugfix", "integration", "実装", "コーディング", "修正", "リファクタリング", "統合"]);
+// "analysis" (reading an imported project) is listed so it runs only on Claude Code, which can read the folder; a web AI cannot.
+const WRITE_ROLES = new Set(["coding", "code", "implement", "implementation", "refactor", "fix", "bugfix", "integration", "analysis", "実装", "コーディング", "修正", "リファクタリング", "統合"]);
 
 export function isWriteTask(task: Pick<Task, "role">): boolean {
   return WRITE_ROLES.has(task.role.trim().toLowerCase());
