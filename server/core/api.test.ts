@@ -1,7 +1,7 @@
 import express from "express";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -134,6 +134,19 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect(created.project.name).toBe("新規");
     const list = (await (await call("/projects")).json()) as { projects: { id: string }[] };
     expect(list.projects.map((p) => p.id)).toContain(created.project.id);
+  });
+
+  it("deletes a project with its files and history, but only with the token", async () => {
+    mkdirSync(path.join(projectsRoot, "p1"), { recursive: true });
+    writeFileSync(path.join(projectsRoot, "p1", "a.txt"), "x");
+    mkdirSync(path.join(projectsRoot, "p1.git"), { recursive: true });
+    await call("/projects/p1/missions", "POST", { goal: "g" });
+    expect((await call("/projects/p1", "DELETE", undefined, null)).status).toBe(403);
+    expect((await call("/projects/p1", "DELETE")).status).toBe(200);
+    expect(store.getProject("p1")).toBeNull();
+    expect(existsSync(path.join(projectsRoot, "p1"))).toBe(false);
+    expect(existsSync(path.join(projectsRoot, "p1.git"))).toBe(false);
+    expect((await call("/projects/p1", "DELETE")).status).toBe(404);
   });
 
   it("overview bundles missions, tasks, artifacts and runs", async () => {

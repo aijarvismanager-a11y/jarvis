@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
-import { LEVEL_LABEL, TASK_LABEL, formatCost, formatDuration, formatTime, roleLabel } from "../labels";
+import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import type { Task, TaskStatus } from "../types";
 
@@ -26,7 +26,7 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2 text-left">
         <span className="text-muted">{open ? "▾" : "▸"}</span>
         <span className="text-[13px] font-semibold">{roleLabel(task.role)}</span>
-        <Badge tone={TONE[task.status]}>{TASK_LABEL[task.status]}</Badge>
+        <Badge tone={TONE[task.status]}>{TASK_LABEL_PLAIN[task.status]}</Badge>
         {task.retryCount > 0 && <span className="text-[11px] text-muted">再試行 {task.retryCount}回</span>}
         <span className="ml-auto text-[12px] text-muted">{aiNameOf(ctx.services, task.selectedAi)}</span>
       </button>
@@ -44,7 +44,7 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
               ))}
             </ul>
           )}
-          <Details summary="AIの詳細">
+          <Details summary="くわしい情報(ふだんは見なくて大丈夫です)">
             <dl className="grid grid-cols-[6rem_1fr] gap-y-1 text-[12px]">
               <dt className="text-muted">使用AI</dt><dd>{aiNameOf(ctx.services, task.selectedAi)}</dd>
               <dt className="text-muted">自動化レベル</dt><dd>{LEVEL_LABEL[task.automationLevel] ?? task.automationLevel}</dd>
@@ -54,13 +54,13 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
               <ul className="mt-2 space-y-1 text-[12px]">
                 {runs.map((r) => (
                   <li key={r.id} className="text-muted">
-                    {formatTime(r.started_at)} · {r.executor} · Level {r.automation_level} · {r.status}{r.duration_ms != null && ` · ${formatDuration(r.duration_ms)}`}{r.cost_usd != null && ` · ${formatCost(r.cost_usd)}`}
+                    {formatTime(r.started_at)} · {r.executor} · {LEVEL_LABEL[r.automation_level] ?? r.automation_level} · {RUN_STATUS_LABEL[r.status] ?? r.status}{r.duration_ms != null && ` · ${formatDuration(r.duration_ms)}`}{r.cost_usd != null && ` · ${formatCost(r.cost_usd)}`}
                     {r.summary && <span className="block whitespace-pre-wrap text-ink">{r.summary.slice(0, 400)}</span>}
                   </li>
                 ))}
               </ul>
             )}
-            {task.validation != null && <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px]">{JSON.stringify(task.validation, null, 2)}</pre>}
+            {task.validation != null && <pre aria-label="検証結果" className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px]">{JSON.stringify(task.validation, null, 2)}</pre>}
           </Details>
         </div>
       )}
@@ -68,19 +68,48 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
   );
 }
 
+/** One sentence on where the request stands, so the screen can be read without opening any row. */
+function summaryLine(tasks: Task[], ctx: Ctx): string {
+  const by = (st: TaskStatus) => tasks.filter((t) => t.status === st);
+  const failed = [...by("failed"), ...by("blocked")];
+  if (failed.length > 0) return `うまくいかなかった作業が${failed.length}件あります。下の赤い印の作業を開くと理由が見られます(ホームの「次にやること」にも出ます)。`;
+  const waiting = by("waiting");
+  if (waiting.length > 0) return `「${roleLabel(waiting[0].role)}」があなたの操作を待っています。ホームの「次にやること」を見てください。`;
+  const running = by("running");
+  if (running.length > 0) return `いま「${roleLabel(running[0].role)}」を ${aiNameOf(ctx.services, running[0].selectedAi)} が進めています。`;
+  if (tasks.length > 0 && tasks.every((t) => t.status === "completed" || t.status === "cancelled")) return "すべての作業が終わりました。「できたもの」で結果を読めます。";
+  return "次の作業の開始を待っています。";
+}
+
 export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
   const tasks = ctx.mission ? ctx.overview.tasks.filter((t) => t.missionId === ctx.mission!.id).sort((a, b) => a.position - b.position) : [];
   const names = new Map(tasks.map((t) => [t.id, roleLabel(t.role)]));
-  if (!ctx.mission) return <Card>まだ依頼がありません。「依頼」画面で開発を開始してください。</Card>;
+  if (!ctx.mission) return <Card title="進み具合">まだ依頼がありません。「ホーム」で作りたいものを書いて「開発を開始」を押すと、ここに進み具合が出ます。</Card>;
+  const { done, total, percent } = progressOf(tasks);
   return (
-    <Card title="開発の進行状況">
-      {tasks.length === 0 ? (
-        <p className="text-[13px] text-muted">計画の承認後に作業が表示されます。</p>
-      ) : (
-        <ul className="space-y-2">
-          {tasks.map((t) => <TaskRow key={t.id} task={t} ctx={ctx} label={(id) => names.get(id) ?? id} />)}
-        </ul>
-      )}
-    </Card>
+    <div className="space-y-4">
+      <Card title="いまの依頼">
+        <p className="text-[14px] font-semibold">{ctx.mission.goal}</p>
+        <p className="mt-1 text-[12px] text-muted">状態: {MISSION_LABEL[ctx.mission.status]}{total > 0 && ` · ${total}つの作業のうち ${done}つ完了`}</p>
+        {total > 0 && (
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="全体の進み具合">
+            <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
+          </div>
+        )}
+        {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
+      </Card>
+      <Card title="作業の一覧(上から順に進みます)">
+        {tasks.length === 0 ? (
+          <p className="text-[13px] text-muted">{ctx.mission.status === "planning" ? "計画の承認待ちです。ホームで計画を読んで「この計画で開始」を押すと、作業がここに並びます。" : ctx.mission.status === "failed" || ctx.mission.status === "cancelled" ? "この依頼は、作業が始まる前に終わりました。理由は「ホーム」で確認できます。やり直すときは「新しい依頼」を出してください。" : "計画を承認すると、作業がここに並びます。"}</p>
+        ) : (
+          <>
+            <p className="mb-2 text-[12px] text-muted">各行を押すと、その作業の内容と、できたファイルが見られます。</p>
+            <ul className="space-y-2">
+              {tasks.map((t) => <TaskRow key={t.id} task={t} ctx={ctx} label={(id) => names.get(id) ?? id} />)}
+            </ul>
+          </>
+        )}
+      </Card>
+    </div>
   );
 }

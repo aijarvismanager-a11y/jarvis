@@ -43,6 +43,53 @@ export const ROLE_LABEL: Record<string, string> = {
 };
 export const roleLabel = (role: string) => ROLE_LABEL[role] ?? role;
 
+/** "いま何が起きているか" in one phrase per task state, for the progress screen's summary line. */
+export const TASK_LABEL_PLAIN: Record<TaskStatus, string> = { ...TASK_LABEL, pending: "順番待ち", ready: "まもなく開始", validation: "チェック中", blocked: "進めない(前の作業の失敗など)" };
+
+export const RUN_STATUS_LABEL: Record<string, string> = { succeeded: "成功", completed: "成功", success: "成功", failed: "失敗", timed_out: "時間切れ", running: "実行中", cancelled: "中止" };
+
+/** Plain-word names for the history log's event codes; unknown codes fall back to a neutral phrase instead of showing the code. */
+export const EVENT_LABEL: Record<string, string> = {
+  PROJECT_CREATED: "プロジェクトを作成",
+  PROJECT_IMPORTED: "フォルダを取り込み",
+  LEGACY_PROJECT_IMPORTED: "旧アプリのプロジェクトを取り込み",
+  MISSION_CREATED: "依頼を受付",
+  MISSION_STATUS_CHANGED: "依頼の状態が変化",
+  MISSION_REDIRECTED: "方針を変更",
+  PLAN_PROPOSED: "AIが計画を提案",
+  PLAN_APPROVED: "計画を承認",
+  PLAN_REJECTED: "計画の修正を依頼",
+  TASK_CREATED: "作業を追加",
+  TASK_STATUS_CHANGED: "作業の状態が変化",
+  TASK_TRANSITION: "作業の状態が変化",
+  TASK_RETRY: "作業を自動で再試行",
+  TASK_MANUAL_RETRY: "作業をやり直し",
+  TASK_ROLLBACK: "作業の変更を元に戻した",
+  TASK_SNAPSHOT: "変更前の状態を保存",
+  ARTIFACT_CREATED: "ファイルが完成",
+  APPROVAL_REQUESTED: "許可を求めた",
+  APPROVAL_DENIED: "許可しなかった",
+  AI_SELECTED: "担当のAIを決定",
+  AI_REASSIGNED: "担当のAIを変更",
+  AI_FALLBACK: "別のAIに切り替え",
+  AI_SELECTION_NONE: "使えるAIが見つからない",
+  AI_SELECTION_ERROR: "AIの選択でエラー",
+  AI_HEALTH_CHECKED: "AIの動作確認",
+  AI_DISCOVERY_RUN: "使えるAIを探索",
+  AUTOMATION_LEVEL_SET: "自動化レベルを設定",
+  AUTOMATION_DOWNGRADED: "自動化レベルを下げた",
+  WEB_HANDOFF_REQUESTED: "ブラウザAIへ依頼(あなたの操作待ち)",
+  WEB_HANDOFF_SUBMITTED: "ブラウザAIの返事を受取",
+  WEB_AI_SWITCHED: "ブラウザAIの利用を切替",
+  WEB_AI_FALLBACK: "ブラウザAIから切り替え",
+  WEB_AI_AUTOMATION_FAILED: "ブラウザAIの自動操作に失敗",
+  SYNC_RESTORED: "同期の内容を元に戻した",
+  LOCK_ACQUIRED: "作業の排他を確保",
+  LOCK_RELEASED: "作業の排他を解放",
+  ENGINE_ERROR: "内部エラー",
+};
+export const eventLabel = (type: string) => EVENT_LABEL[type] ?? "その他の出来事";
+
 export const FREE_LABEL: Record<string, string> = { free: "無料", free_tier: "無料枠あり", trial: "試用のみ", paid: "有料", unknown: "未確認" };
 export const LEVEL_LABEL: Record<number, string> = { 1: "手動", 2: "半自動", 3: "全自動" };
 

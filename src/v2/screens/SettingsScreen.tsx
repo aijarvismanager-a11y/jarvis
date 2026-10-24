@@ -3,9 +3,32 @@ import { api } from "../api";
 import { FREE_LABEL, LEVEL_LABEL, formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
-import type { AiService, WebAiSettings } from "../types";
+import type { AiService, Project, WebAiSettings } from "../types";
 
-export function SettingsScreen({ services, setError, refresh }: { services: AiService[]; setError: (m: string) => void; refresh: () => void }) {
+function DeleteProjectCard({ project, setError, onDeleted }: { project: Project; setError: (m: string) => void; onDeleted: () => void }) {
+  const { busy, run } = useAction(setError);
+  const remove = () => {
+    if (!window.confirm(`プロジェクト「${project.name}」を削除します。
+
+このアプリの中にある作業用のコピー、依頼の記録、できたもの、変更の履歴がすべて消え、元に戻せません。
+(取り込み元の元のフォルダは消えません)
+
+削除しますか?`)) return;
+    void run(async () => {
+      await api.deleteProject(project.id);
+      onDeleted();
+    });
+  };
+  return (
+    <Card title="このプロジェクトの削除">
+      <p className="text-[13px]">「{project.name}」を、このアプリから消します。試しに取り込んだプロジェクトの片付けに使えます。</p>
+      <p className="mt-1 text-[12px] text-muted">消えるのは、このアプリ内のコピーと記録だけです。取り込み元の元のフォルダには何もしません。実行中の依頼があるときは、先に止めてください。</p>
+      <Button variant="danger" className="mt-3" disabled={busy} onClick={remove}>このプロジェクトを削除</Button>
+    </Card>
+  );
+}
+
+export function SettingsScreen({ services, project, setError, refresh, onProjectDeleted }: { services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
   const [web, setWeb] = useState<WebAiSettings | null>(null);
   const { busy, run } = useAction(setError);
   const reload = usePoll(async () => setWeb(await api.webAiSettings()), 10000, []);
@@ -16,6 +39,7 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
 
   return (
     <div className="space-y-4">
+      {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
       <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
         {!web ? (
           <p className="text-[13px] text-muted">読み込み中…</p>

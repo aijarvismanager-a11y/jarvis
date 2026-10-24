@@ -7,9 +7,9 @@ import { Badge, Card } from "../ui";
 import type { Artifact } from "../types";
 
 const VALIDATION: Record<string, { label: string; tone: "ok" | "bad" | "neutral" }> = {
-  passed: { label: "検証OK", tone: "ok" },
-  failed: { label: "検証NG", tone: "bad" },
-  unvalidated: { label: "未検証", tone: "neutral" },
+  passed: { label: "チェックOK", tone: "ok" },
+  failed: { label: "チェックNG", tone: "bad" },
+  unvalidated: { label: "未チェック", tone: "neutral" },
 };
 
 export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected: Artifact | null; onSelect: (a: Artifact) => void }) {
@@ -44,11 +44,12 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
     };
   }, [projectId, selected?.path, shown?.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (latest.length === 0) return <Card>まだ成果物がありません。開発が進むとここに表示されます。</Card>;
+  if (latest.length === 0) return <Card title="できたもの">まだ何もできていません。AI が作業を進めると、作ったファイル(設計書・コードなど)がここに並びます。</Card>;
   const v = VALIDATION[shown?.validationStatus ?? "unvalidated"] ?? VALIDATION.unvalidated;
   return (
     <div className="grid gap-4 md:grid-cols-[240px_1fr]">
-      <Card title="ファイル" className="self-start">
+      <Card title="できたファイル" className="self-start">
+        <p className="mb-2 text-[12px] text-muted">押すと中身を読めます。</p>
         <ul className="space-y-0.5">
           {latest.map((a) => (
             <li key={a.path}>
@@ -59,15 +60,15 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
       </Card>
       <Card>
         {!shown ? (
-          <p className="text-[13px] text-muted">左のリストからファイルを選んでください。</p>
+          <p className="text-[13px] text-muted">左のリストからファイルを選んでください。AI が作った文書やコードを、ここで読めます(ここでは編集できません)。</p>
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="break-all text-[13px] font-semibold">{shown.path}</span>
               <Badge tone={v.tone}>{v.label}</Badge>
-              <span className="text-[11px] text-muted">v{shown.version} · {formatTime(shown.createdAt)}{shown.sourceAi ? ` · ${shown.sourceAi}` : ""}</span>
-              {shown.sourceUrl && <a href={shown.sourceUrl} target="_blank" rel="noreferrer noopener" className="text-[11px] text-accent hover:underline">取得元</a>}
-              {versions.length > 1 && <span className="text-[11px] text-muted">(全{versions.length}版・表示は最新)</span>}
+              <span className="text-[11px] text-muted">第{shown.version}版 · {formatTime(shown.createdAt)}{shown.sourceAi ? ` · ${shown.sourceAi}` : ""}</span>
+              {shown.sourceUrl && <a href={shown.sourceUrl} target="_blank" rel="noreferrer noopener" className="text-[11px] text-accent hover:underline">情報の出どころ</a>}
+              {versions.length > 1 && <span className="text-[11px] text-muted">(全{versions.length}版あり・最新を表示)</span>}
             </div>
             {failure ? (
               <p className="text-[13px] text-[#9B2C2C]">{failure}</p>

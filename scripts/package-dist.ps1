@@ -24,7 +24,7 @@ $filesToCopy = @(
   "package.json", "package-lock.json",
   "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json", "tsconfig.server.json",
   "vite.config.ts", "postcss.config.js", "tailwind.config.js", "index.html",
-  "start-ai-orchestrator.bat", "MANUAL.html"
+  "start-ai-orchestrator.bat"
 )
 foreach ($f in $filesToCopy) {
   if (Test-Path $f) { Copy-Item $f -Destination $stageDir }

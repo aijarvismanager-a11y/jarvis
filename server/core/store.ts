@@ -549,6 +549,10 @@ export class Store {
       .run(key, JSON.stringify(value), now());
   }
 
+  deleteSetting(key: string): void {
+    this.db.prepare("DELETE FROM settings WHERE key = ?").run(key);
+  }
+
   // ---- locks --------------------------------------------------------------
   /** Atomically takes the lock unless a different owner holds an unexpired one. */
   acquireLock(input: { resource: string; projectId?: string | null; owner: string; ttlMs: number }): boolean {

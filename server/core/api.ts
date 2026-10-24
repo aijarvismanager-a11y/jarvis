@@ -2,6 +2,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
+import { rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
@@ -151,6 +152,22 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     guarded((req, res) => {
       const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(req.body ?? {});
       res.status(201).json({ project: store.createProject({ name }) });
+    }),
+  );
+  // Removes a project for good: its rows, its working copy, the history repository, the sync record and the sync backups.
+  // The folder it was imported from is never touched.
+  router.delete(
+    "/projects/:projectId",
+    guarded((req, res) => {
+      const projectId = String(req.params.projectId);
+      const busy = store.listMissions(projectId).filter((m) => m.status === "running").length;
+      if (busy > 0) return void res.status(409).json({ error: `実行中の依頼が${busy}件あります。止めてから削除してください` });
+      deps.previews?.stop(projectId);
+      store.deleteProject(projectId);
+      store.deleteSetting(linkKey(projectId));
+      rmSync(path.join(store.projectsRoot, `${projectId}.git`), { recursive: true, force: true });
+      if (deps.syncBackupsRoot) rmSync(path.join(deps.syncBackupsRoot, projectId), { recursive: true, force: true });
+      res.json({ ok: true });
     }),
   );
   // What the import that is running right now is doing, so the screen can show progress while its request is still open.

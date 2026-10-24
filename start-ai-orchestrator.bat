@@ -63,8 +63,7 @@ if not exist node_modules (
 )
 
 rem A server left over from an earlier launch would keep running old code (and hold the port): stop it first.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts
-estart-server.ps1" -StopOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\restart-server.ps1" -StopOnly
 
 rem One process, one port: build the screen and let the server serve it.
 start "AI Orchestrator" cmd /k "npm run app"

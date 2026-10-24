@@ -50,6 +50,7 @@ async function serverVersion(): Promise<{ stale: boolean; startedAt: string } | 
 export const api = {
   serverVersion,
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
+  deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, exclude: string[] = [], name = "") =>
     request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[] }>("/projects/import", "POST", { path, name, exclude }),

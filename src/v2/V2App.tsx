@@ -226,7 +226,7 @@ export default function V2App() {
             {screen === "development" && <DevelopmentScreen ctx={ctx} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
-            {screen === "settings" && <SettingsScreen services={services} setError={setError} refresh={() => { pollCount.current = 0; refresh(); }} />}
+            {screen === "settings" && <SettingsScreen services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
           </>
         )}
       </main>

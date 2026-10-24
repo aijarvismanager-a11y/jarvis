@@ -17,6 +17,7 @@ const FAQ: [string, string][] = [
   ["作ったものはどこに保存される?", "「できたもの」タブで、ファイルを読めます。取り込んだフォルダの場合は、「元のフォルダとの同期」から元の場所へ書き込めます。"],
   ["AI が間違えたら?", "作業の下の「変更内容を見る」で、何が変わったかを確認できます。「この作業の変更を元に戻す」で、その作業の前の状態に戻せます。"],
   ["途中でやめたい・方針を変えたい", "実行中は「一時停止」「方針を変える」「中止」が使えます。完了済みの作業は残ります。"],
+  ["試しに取り込んだプロジェクトを消したい", "「設定」タブの一番上の「このプロジェクトを削除」で消せます。消えるのはこのアプリの中のコピーと記録だけで、元のフォルダは残ります。"],
   ["お金はかかる?", "このアプリ自体は無料です。AI の利用は、あなたの Claude Code の契約(利用枠)から使われます。画面に使用量の目安が出ます。"],
 ];
 
@@ -30,7 +31,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="使い方" onClick={onClose}>
       <div className="my-6 w-full max-w-2xl rounded-xl border border-border bg-panel p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
-          <h2 className="font-serif text-[20px] font-semibold">使い方</h2>
+          <h2 className="font-serif text-[20px] font-semibold">使い方 <a href="/MANUAL.html" target="_blank" rel="noreferrer noopener" className="ml-2 text-[12px] font-normal text-accent hover:underline">説明書を別のタブで開く</a></h2>
           <Button variant="ghost" onClick={onClose}>閉じる</Button>
         </div>
 
@@ -45,10 +46,10 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         <h3 className="mt-4 text-[14px] font-semibold">画面の見かた</h3>
         <ul className="mt-1 space-y-1 text-[13px]">
           <li><b>ホーム</b> … 次にやること、いまの依頼、新しい依頼の入力。</li>
-          <li><b>進み具合</b> … 作業ごとの状況と、AI が何をしたかの詳細。</li>
-          <li><b>これまでの記録</b> … 過去の依頼と、操作の履歴。</li>
-          <li><b>できたもの</b> … AI が作ったファイルを読めます。</li>
-          <li><b>設定</b> … 使える AI の一覧など。ふだんは触らなくて大丈夫です。</li>
+          <li><b>進み具合</b> … いまの依頼が全体のどこまで進んだか、作業ごとの状況。</li>
+          <li><b>これまでの記録</b> … 過去の依頼の一覧と、何が起きたかの履歴。</li>
+          <li><b>できたもの</b> … AI が作ったファイルを選んで読めます。</li>
+          <li><b>設定</b> … プロジェクトの削除、使える AI の一覧など。ふだんは触らなくて大丈夫です。</li>
         </ul>
 
         <h3 className="mt-4 text-[14px] font-semibold">用語</h3>
