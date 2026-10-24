@@ -70,6 +70,12 @@ export function SettingsScreen({ services, setError, refresh }: { services: AiSe
                   <span className="ml-auto text-[12px] text-muted">Level {s.automationLevel}: {LEVEL_LABEL[s.automationLevel]}</span>
                 )}
               </div>
+              {s.url && web?.available && web.browserAvailable && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.openLogin(s.id); })}>ログイン用に開く</Button>
+                  <span className="text-[11.5px] text-muted">自動化用の専用ブラウザで開きます。ご自身でログインして、終わったらそのブラウザを閉じてください(次回から自動で使われます)。</span>
+                </div>
+              )}
               <Details summary="詳細">
                 <dl className="grid grid-cols-[7rem_1fr] gap-y-1 text-[12px]">
                   <dt className="text-muted">能力</dt><dd>{s.capabilities.join("、") || "未登録"}</dd>

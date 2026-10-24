@@ -287,6 +287,20 @@ export class ChromiumDriver implements WebChatDriver {
     });
   }
 
+  /**
+   * Opens `url` in the dedicated profile so the user can sign in by hand (the login is kept for later runs).
+   * Starts a plain window without the debugging port; if the automation browser already runs on this profile, the page opens in it.
+   */
+  openForLogin(url: string): void {
+    if (!/^https?:\/\//i.test(url)) throw new Error("開けるのはhttp(s)のページだけです");
+    const exe = this.opts.executable ?? findBrowserExecutable();
+    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
+    mkdirSync(this.opts.profileDir, { recursive: true });
+    const proc = spawn(exe, [`--user-data-dir=${this.opts.profileDir}`, "--no-first-run", "--no-default-browser-check", url], { stdio: "ignore", detached: true });
+    proc.once("error", () => {});
+    proc.unref();
+  }
+
   private ensureBrowser(): Promise<number> {
     if (this.port !== null && this.proc && this.proc.exitCode === null) return Promise.resolve(this.port);
     return (this.starting ??= this.launch().finally(() => (this.starting = null)));

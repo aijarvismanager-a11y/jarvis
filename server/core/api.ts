@@ -42,7 +42,7 @@ export type OrchestratorApiDeps = {
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
-  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean };
+  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void };
 };
 
 const createSchema = z.object({
@@ -250,6 +250,18 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const settings = getWebAiSettings(store);
       setWebAiSettings(store, { sites: { ...settings.sites, [aiId]: site } });
       res.json({ site: resolveSiteProfile(store, aiId) });
+    }),
+  );
+  // Opens the AI's own page (from the registry, never from the request) in the automation profile so the user can sign in by hand.
+  router.post(
+    "/ai-services/:aiId/open-login",
+    webGuarded((req, res, web) => {
+      const svc = store.getAiService(String(req.params.aiId));
+      if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      if (!svc.url) throw new Error("このAIにはページのURLがありません");
+      if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
+      web.openLogin(svc.url);
+      res.json({ ok: true, url: svc.url });
     }),
   );
   // Raising the level is the user's decision (it is never raised automatically); lowering is always allowed.

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_AI_PROFILES } from "./aiRegistry.ts";
+import { BUNDLED_SITE_PROFILES } from "./webAiSites.ts";
 import { findBrowserExecutable } from "./browserDriver.ts";
 import { capabilityForRole } from "./legacyImport.ts";
 
@@ -23,5 +24,16 @@ describe("default AI profiles", () => {
     expect(findBrowserExecutable({})).toMatch(/brave/i);
     const other = process.execPath; // any existing file stands in for a user-chosen browser
     expect(findBrowserExecutable({ WEB_AI_BROWSER: other })).toBe(other);
+  });
+});
+
+describe("bundled web AI site profiles", () => {
+  it("only list registered AIs and always give an input and an answer selector", () => {
+    const ids = new Set((JSON.parse(readFileSync("config/ai_services.json", "utf-8")) as { id: string }[]).map((s) => s.id));
+    for (const [id, p] of Object.entries(BUNDLED_SITE_PROFILES)) {
+      expect(ids.has(id), id).toBe(true);
+      expect(p.inputSelector && p.responseSelector, id).toBeTruthy();
+    }
+    expect(Object.keys(BUNDLED_SITE_PROFILES).length).toBeGreaterThanOrEqual(9);
   });
 });

@@ -42,6 +42,33 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     sendSelector: 'button[aria-label="Submit"]',
     responseSelector: 'div[id^="markdown-content"]',
   },
+  // 入力欄・送信ボタンは2026-10-24にログアウト状態の実画面で確認済み。回答欄(responseSelector)は未確認の仮定。
+  huggingchat: {
+    inputSelector: 'textarea[placeholder="Ask anything"]',
+    // 送信ボタンは文字を入力するまで画面に出ないため指定しない(Enterで送る)
+    responseSelector: '[data-message-role="assistant"], .prose',
+  },
+  "meta-ai": {
+    inputSelector: 'input[type="text"][aria-label*="Meta AI"]',
+    sendSelector: 'button[aria-label="送信"], button[aria-label="Send"]',
+    responseSelector: '[data-testid*="message"], .markdown',
+  },
+  // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
+  copilot: {
+    inputSelector: 'textarea#userInput, textarea[placeholder*="Copilot"]',
+    sendSelector: 'button[data-testid="submit-button"], button[aria-label*="送信"], button[aria-label*="Submit"]',
+    responseSelector: '[data-content="ai-message"], [data-testid="ai-message"]',
+  },
+  deepseek: {
+    inputSelector: "textarea#chat-input, textarea",
+    responseSelector: ".ds-markdown",
+    stopSelector: 'div[role="button"][aria-label*="Stop"]',
+  },
+  grok: {
+    inputSelector: 'textarea[aria-label*="Grok"], textarea',
+    sendSelector: 'button[aria-label="Submit"], button[type="submit"]',
+    responseSelector: ".message-bubble, .response-content-markdown",
+  },
 };
 
 export type WebAiSettings = {

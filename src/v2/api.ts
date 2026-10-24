@@ -66,6 +66,7 @@ export const api = {
   aiServices: () => request<{ services: AiService[] }>("/ai-services").then((r) => r.services),
   healthCheck: () => request<{ services: AiService[] }>("/ai-services/health-check", "POST", {}).then((r) => r.services),
   setAutomationLevel: (aiId: string, level: number) => request<{ service: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/automation-level`, "PUT", { level }),
+  openLogin: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-login`, "POST", {}),
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
 };

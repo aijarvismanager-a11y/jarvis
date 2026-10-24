@@ -433,12 +433,13 @@ describe("web AI API", () => {
   let base: string;
   afterEach(() => new Promise<void>((r) => server.close(() => r())));
 
+  const opened: string[] = [];
   async function boot(browserAvailable = true) {
     const hub = new WebHandoffHub(store);
     const engine = new MissionEngine(store, { planner: { name: "p", plan: async () => ({ summary: "", tasks: [] }) }, executor: { name: "x", execute: async () => ({ ok: true }) } });
     const app = express();
     app.use(express.json());
-    app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute: true, tokenMatches: (c) => c === "tok", webAi: { hub, browserAvailable: () => browserAvailable } }));
+    app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute: true, tokenMatches: (c) => c === "tok", webAi: { hub, browserAvailable: () => browserAvailable, openLogin: (u) => void opened.push(u) } }));
     server = http.createServer(app);
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
@@ -453,6 +454,21 @@ describe("web AI API", () => {
     expect((await send("PUT", "/web-ai/settings", { enabled: true }, null)).status).toBe(403);
     expect((await send("PUT", "/web-ai/settings", { enabled: true })).status).toBe(200);
     expect(((await (await fetch(`${base}/web-ai/settings`)).json()) as { enabled: boolean }).enabled).toBe(true);
+  });
+
+  it("opens the registered page for a manual sign-in, needs the token, and never takes a URL from the request", async () => {
+    await boot();
+    opened.length = 0;
+    store.upsertAiService({ id: "site1", name: "Site1", url: "https://site1.test/chat" });
+    store.upsertAiService({ id: "nourl", name: "NoUrl" });
+    expect((await send("POST", "/ai-services/site1/open-login", {}, null)).status).toBe(403);
+    expect((await send("POST", "/ai-services/site1/open-login", { url: "https://evil.test" })).status).toBe(200);
+    expect(opened).toEqual(["https://site1.test/chat"]);
+    expect((await send("POST", "/ai-services/nourl/open-login", {})).status).toBe(400);
+    expect((await send("POST", "/ai-services/missing/open-login", {})).status).toBe(404);
+    await new Promise<void>((r) => server.close(() => r()));
+    await boot(false);
+    expect((await send("POST", "/ai-services/site1/open-login", {})).status).toBe(400); // no browser
   });
 
   it("the user, not the system, raises the level; it needs a site profile and a browser", async () => {
