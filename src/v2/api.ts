@@ -28,7 +28,16 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
 
 const mission = (projectId: string, missionId: string) => `/projects/${encodeURIComponent(projectId)}/missions/${encodeURIComponent(missionId)}`;
 
+/** null = the server predates /api/version, which itself means it is running old code. */
+async function serverVersion(): Promise<{ stale: boolean; startedAt: string } | null> {
+  const res = await fetch("/api/version");
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("バージョンを確認できませんでした");
+  return (await res.json()) as { stale: boolean; startedAt: string };
+}
+
 export const api = {
+  serverVersion,
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, name = "") =>

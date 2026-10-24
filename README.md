@@ -14,6 +14,14 @@ npm run start
 
 `npm run start` でローカルAPIサーバー（port 4173）とフロントエンド（port 5173）が同時に起動する。ブラウザで `http://localhost:5173` を開く。
 
+コードを変更したあと(`git pull` 含む)は、動いたままのサーバーが古いコードを使い続けます。画面に「サーバーが古いコードのまま動いています」と出たら、次を実行してください。古いサーバーを子プロセスごと止めて、最新のコードで立て直します(実行中のミッションは再起動後に自動で再開します)。
+
+```bash
+npm run server:restart
+```
+
+止めるだけなら `npm run server:restart -- -StopOnly`。`start-ai-orchestrator.bat` も、起動前に古いサーバーを止めます。
+
 個別に起動する場合：
 
 ```bash

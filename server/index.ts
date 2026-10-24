@@ -22,6 +22,7 @@ import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
+import { VersionWatch } from "./core/version.ts";
 
 const ROOT = path.resolve(process.cwd());
 const PORT = Number(process.env.PORT ?? 4173);
@@ -110,6 +111,12 @@ app.use(
   "/api/v2",
   createOrchestratorRouter({ store: coreStore, engine, canExecute: true, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
 );
+
+// Lets the UI tell the user when this process is running older code than what is on disk.
+const versionWatch = new VersionWatch(path.join(ROOT, "server"));
+app.get("/api/version", (_req, res) => {
+  res.json(versionWatch.status());
+});
 
 app.get("/api/session-token", (_req, res) => {
   res.json({ token: SESSION_TOKEN });

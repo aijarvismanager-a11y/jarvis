@@ -88,6 +88,12 @@ export default function V2App() {
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
   const [offline, setOffline] = useState(false);
+  // The server keeps running old code after the source changes; ask for a restart when that is the case.
+  const [outdated, setOutdated] = useState(false);
+  usePoll(async () => {
+    const v = await api.serverVersion();
+    setOutdated(v === null || v.stale);
+  }, 30000, []);
   const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
   const [sync, setSync] = useState<SyncSummary | null>(null);
@@ -193,6 +199,11 @@ export default function V2App() {
         </nav>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-5">
+        {outdated && !offline && (
+          <div role="alert" className="mb-3 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
+            サーバーが古いコードのまま動いています(コードが更新されています)。ターミナルで <code className="rounded bg-white/60 px-1">npm run server:restart</code> を実行すると最新になります。実行中のミッションは再起動後に自動で再開します。
+          </div>
+        )}
         {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}
         <ErrorBar message={error} onClose={() => setError(null)} />
         {!loaded ? (

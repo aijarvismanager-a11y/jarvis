@@ -62,6 +62,9 @@ if not exist node_modules (
   )
 )
 
+rem A server left over from an earlier launch would keep running old code (and hold the port): stop it first.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scriptsestart-server.ps1" -StopOnly
+
 start "AI Orchestrator" cmd /k "npm run start"
 timeout /t 5 /nobreak >nul
 start "" "http://localhost:5173"
