@@ -85,7 +85,7 @@ export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirect
   return entries.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export type ApplyOptions = { /** also delete, in the original, files deleted in the copy */ deletes?: boolean; /** overwrite files the original changed as well */ overwriteConflicts?: boolean };
+export type ApplyOptions = { /** only these project-relative paths (default: every pending change) */ only?: string[]; /** also delete, in the original, files deleted in the copy */ deletes?: boolean; /** overwrite files the original changed as well */ overwriteConflicts?: boolean };
 
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);
 
@@ -93,8 +93,10 @@ const inside = (base: string, target: string) => target === base || target.start
 export function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): { link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] } {
   const roots = rootsOf(link, projectRoot, direction);
   const all = computeDiff(link, projectRoot, direction);
-  const todo = all.filter((e) => (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || !e.conflict));
-  const skipped = all.filter((e) => !todo.includes(e));
+  const only = opts.only ? new Set(opts.only) : null;
+  const todo = all.filter((e) => (!only || only.has(e.path)) && (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || !e.conflict));
+  // not offered to the user (or not chosen) is not "skipped": only what was wanted but held back is reported
+  const skipped = all.filter((e) => !todo.includes(e) && (!only || only.has(e.path)));
   if (todo.length === 0) return { link, backup: null, skipped };
 
   const source = path.resolve(roots.to); // the side that gets written

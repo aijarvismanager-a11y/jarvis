@@ -115,4 +115,18 @@ describe("project sync", () => {
     expect(existsSync(path.join(proj, "added.txt"))).toBe(false);
     expect(computeDiff(back, proj, "pull").map((e) => e.path)).toContain("a.txt");
   });
+
+  it("writes only the chosen paths; the rest stays pending", () => {
+    const { src, proj, backups, link } = setup();
+    mkdirSync(path.join(proj, "docs"), { recursive: true });
+    writeFileSync(path.join(proj, "a.txt"), "A2"); // code
+    writeFileSync(path.join(proj, "docs", "notes.md"), "notes"); // a note the AI wrote
+    const r = applySync(link, proj, backups, { only: ["a.txt"] });
+    expect(read(src, "a.txt")).toBe("A2");
+    expect(existsSync(path.join(src, "docs", "notes.md"))).toBe(false);
+    expect(r.backup?.files.map((f) => f.path)).toEqual(["a.txt"]);
+    expect(r.skipped).toEqual([]); // unchosen is not "skipped"
+    expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["docs/notes.md"]); // still offered next time
+    expect(applySync(r.link, proj, backups, { only: [] }).backup).toBeNull();
+  });
 });

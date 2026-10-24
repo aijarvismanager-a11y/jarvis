@@ -9,6 +9,9 @@ import type { SyncBackup, SyncEntry, SyncState } from "../types";
 const KIND_LABEL: Record<SyncEntry["kind"], string> = { added: "追加", modified: "変更", deleted: "削除" };
 type Direction = "push" | "pull";
 
+// Files the AI wrote about the work (design notes, reviews, reports) rather than part of the app: not ticked by default.
+const isNotes = (p: string) => /^(design|review|reviews|docs|reports?|notes)\//i.test(p);
+
 // What each direction means, in the user's words.
 const TEXT = {
   push: {
@@ -40,13 +43,18 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
   const [deletes, setDeletes] = useState(false);
   const [overwrite, setOverwrite] = useState(false);
   const { busy, run } = useAction(ctx.setError);
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
   const hasDelete = entries.some((e) => e.kind === "deleted");
   const hasConflict = entries.some((e) => e.conflict);
-  const willWrite = entries.filter((e) => (deletes || e.kind !== "deleted") && (overwrite || !e.conflict)).length;
+  const ticked = (e: SyncEntry) => chosen[e.path] ?? !isNotes(e.path);
+  const allowed = (e: SyncEntry) => (deletes || e.kind !== "deleted") && (overwrite || !e.conflict);
+  const picks = entries.filter((e) => allowed(e) && ticked(e));
+  const willWrite = picks.length;
   const apply = () => {
     if (!window.confirm(`${t.target}に ${willWrite} 件の変更を書き込みます。書き換え・削除されるファイルは、先にバックアップへ退避します。よろしいですか?`)) return;
     void run(async () => {
-      const r = await api.applySync(projectId, { deletes, overwriteConflicts: overwrite, direction: dir });
+      const r = await api.applySync(projectId, { deletes, overwriteConflicts: overwrite, direction: dir, paths: picks.map((e) => e.path) });
+      setChosen({});
       setDeletes(false);
       setOverwrite(false);
       ctx.setError(r.applied ? "" : "書き込む変更はありませんでした");
@@ -72,8 +80,10 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
           <ul className="mt-2 max-h-56 overflow-auto text-[12px]">
             {entries.map((e) => (
               <li key={e.path} className="flex items-center gap-2 font-mono">
+                <input type="checkbox" aria-label={`${e.path} を反映する`} checked={ticked(e) && allowed(e)} disabled={!allowed(e)} onChange={(ev) => setChosen((c) => ({ ...c, [e.path]: ev.target.checked }))} />
                 <span className="w-8 shrink-0 text-muted">{KIND_LABEL[e.kind]}</span>
                 <span className="min-w-0 flex-1 break-all">{e.path}</span>
+                {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted">資料</span>}
                 {e.conflict && <Badge tone="warn">{dir === "push" ? "元も変更あり" : "コピーも変更あり"}</Badge>}
               </li>
             ))}

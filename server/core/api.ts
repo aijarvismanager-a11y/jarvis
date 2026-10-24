@@ -268,9 +268,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects/:projectId/sync/apply",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
-      const opts = z.object({ deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
+      const opts = z.object({ paths: z.array(z.string().max(1000)).max(20000).optional(), deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       const dir = opts.direction === "pull" ? pullDir(backupDir) : backupDir;
-      const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, opts, opts.direction);
+      const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, { ...opts, only: opts.paths }, opts.direction);
       store.setSetting(linkKey(projectId), r.link);
       summaryCache.delete(projectId);
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
