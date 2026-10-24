@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./context";
 import { currentMission } from "./labels";
@@ -8,6 +8,7 @@ import { HistoryScreen } from "./screens/HistoryScreen";
 import { MissionScreen } from "./screens/MissionScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project } from "./types";
+import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { Button, ErrorBar, useAction, usePoll } from "./ui";
 
 const SCREENS = [
@@ -67,6 +68,10 @@ export default function V2App() {
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [notifyOn, setNotifyOn] = useState(notifyEnabled);
+  // what the last poll saw, per project: the next poll announces only the difference
+  const seen = useRef<{ projectId: string | null; state: NotifyState | null }>({ projectId: null, state: null });
+
   const choose = useCallback((id: string | null) => {
     setProjectId(id);
     setSelectedArtifact(null);
@@ -91,6 +96,11 @@ export default function V2App() {
       setLoaded(true);
       const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), api.aiServices(), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
       setOverview(ov);
+      const mine = (x: { projectId: string }) => x.projectId === active?.id;
+      const missionsNow = ov.missions;
+      const prev = seen.current.projectId === (active?.id ?? null) ? seen.current.state : null;
+      showNotices(diffNotices(prev, appr.filter(mine), hand.filter(mine), missionsNow));
+      seen.current = { projectId: active?.id ?? null, state: snapshotOf(appr.filter(mine), hand.filter(mine), missionsNow) };
       setServices(svc);
       setHandoffs(hand);
       setApprovals(appr);
@@ -134,6 +144,11 @@ export default function V2App() {
         <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="font-serif text-[17px] font-bold">AIオーケストラ</h1>
           <div className="ml-auto flex items-center gap-2">
+            {notifySupported() && (
+              <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
+                {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
+              </Button>
+            )}
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
