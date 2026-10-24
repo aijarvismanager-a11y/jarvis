@@ -381,6 +381,11 @@ export class Store {
     this.db.prepare("UPDATE tasks SET selected_ai = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(aiId, now(), taskId, projectId);
   }
 
+  /** Removes a service from the registry (its capability scores go with it; past runs keep their record, without the link). */
+  deleteAiService(id: string): boolean {
+    return this.db.prepare("DELETE FROM ai_services WHERE id = ?").run(id).changes > 0;
+  }
+
   getAiService(id: string): AiService | null {
     const r = this.db.prepare("SELECT * FROM ai_services WHERE id = ?").get(id) as Row | undefined;
     return r ? this.toAiService(r) : null;

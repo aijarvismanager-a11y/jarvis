@@ -101,5 +101,6 @@ export const api = {
   setAutomationLevel: (aiId: string, level: number) => request<{ service: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/automation-level`, "PUT", { level }),
   openLogin: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-login`, "POST", {}),
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
+  importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
 };

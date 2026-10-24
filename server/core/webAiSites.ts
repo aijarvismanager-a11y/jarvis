@@ -48,11 +48,6 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     // 送信ボタンは文字を入力するまで画面に出ないため指定しない(Enterで送る)
     responseSelector: '[data-message-role="assistant"], .prose',
   },
-  "meta-ai": {
-    inputSelector: 'input[type="text"][aria-label*="Meta AI"]',
-    sendSelector: 'button[aria-label="送信"], button[aria-label="Send"]',
-    responseSelector: '[data-testid*="message"], .markdown',
-  },
   // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
   copilot: {
     inputSelector: 'textarea#userInput, textarea[placeholder*="Copilot"]',

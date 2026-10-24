@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import net from "node:net";
 import WebSocket from "ws";
 import { killTree } from "./commandRunner.ts";
@@ -68,6 +70,52 @@ export function findBrowserExecutable(env: NodeJS.ProcessEnv = process.env): str
     "/usr/bin/microsoft-edge",
   ];
   return candidates.find((c): c is string => !!c && existsSync(c)) ?? null;
+}
+
+// ---- carrying the user's sign-ins over from their everyday browser -----------------
+// A browser cannot be driven through the debugging port while it uses its normal profile folder (Chromium refuses),
+// so the automation browser keeps its own folder. To save the user from signing in to Google again there, the
+// sign-in state (cookies and site storage) of the everyday profile is copied into it once. Saved passwords,
+// history and extensions are never copied. The everyday browser must be closed: its files are locked while it runs.
+const SIGNIN_ITEMS = ["Network/Cookies", "Network/Cookies-journal", "Preferences", "Local Storage", "IndexedDB"];
+
+export function everydayProfileRoot(exe: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const local = env.LOCALAPPDATA;
+  if (!local) return null;
+  const name = path.basename(exe).toLowerCase();
+  const rel = name.includes("brave") ? ["BraveSoftware", "Brave-Browser"] : name.includes("msedge") ? ["Microsoft", "Edge"] : name.includes("chrome") ? ["Google", "Chrome"] : null;
+  const root = rel ? path.join(local, ...rel, "User Data") : null;
+  return root && existsSync(path.join(root, "Local State")) ? root : null;
+}
+
+function isRunning(exeName: string): boolean {
+  try {
+    return execFileSync("tasklist", ["/FI", `IMAGENAME eq ${exeName}`, "/FO", "CSV", "/NH"], { encoding: "utf8", windowsHide: true }).toLowerCase().includes(exeName.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+export function importEverydaySignIn(exe: string, destRoot: string, env: NodeJS.ProcessEnv = process.env, running: (exeName: string) => boolean = isRunning): { profile: string; copied: string[] } {
+  const src = everydayProfileRoot(exe, env);
+  if (!src) throw new Error("ふだん使っているブラウザのデータが見つかりません");
+  if (running(path.basename(exe))) throw new Error(`${path.basename(exe)} が起動中です。ウィンドウをすべて閉じて(右下の常駐も終了して)、もう一度押してください`);
+  const state = JSON.parse(readFileSync(path.join(src, "Local State"), "utf8")) as { profile?: { last_used?: string } };
+  const profile = state.profile?.last_used || "Default";
+  const from = path.join(src, profile);
+  if (!existsSync(from)) throw new Error(`プロフィール「${profile}」が見つかりません`);
+  const to = path.join(destRoot, "Default");
+  mkdirSync(path.join(to, "Network"), { recursive: true });
+  cpSync(path.join(src, "Local State"), path.join(destRoot, "Local State"));
+  const copied: string[] = [];
+  for (const item of SIGNIN_ITEMS) {
+    const a = path.join(from, item);
+    if (!existsSync(a)) continue;
+    rmSync(path.join(to, item), { recursive: true, force: true });
+    cpSync(a, path.join(to, item), { recursive: true });
+    copied.push(item);
+  }
+  return { profile, copied };
 }
 
 // ---- minimal CDP client -----------------------------------------------------
@@ -299,6 +347,14 @@ export class ChromiumDriver implements WebChatDriver {
     const proc = spawn(exe, [`--user-data-dir=${this.opts.profileDir}`, "--no-first-run", "--no-default-browser-check", url], { stdio: "ignore", detached: true });
     proc.once("error", () => {});
     proc.unref();
+  }
+
+  /** Copies the everyday browser's sign-ins into the automation profile (see importEverydaySignIn). Stops the automation browser first. */
+  async importSignIn(): Promise<{ profile: string; copied: string[] }> {
+    const exe = this.opts.executable ?? findBrowserExecutable();
+    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません");
+    await this.shutdown();
+    return importEverydaySignIn(exe, this.opts.profileDir);
   }
 
   private ensureBrowser(): Promise<number> {

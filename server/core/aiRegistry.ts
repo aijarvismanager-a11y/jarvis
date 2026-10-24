@@ -76,14 +76,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     automationLevel: 1,
     freeStatus: "free_tier",
   },
-  "meta-ai": {
-    capabilities: { research: 4, translation: 4, documentation: 3, image_generation: 3, coding: 3 },
-    qualityScore: 3.5,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "free",
-    limitations: "地域・アカウントにより使えない場合あり",
-  },
   mistral: {
     capabilities: { coding: 3.5, translation: 4, documentation: 3, research: 3 },
     qualityScore: 3.5,
@@ -154,14 +146,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     automationLevel: 1,
     freeStatus: "free_tier",
     limitations: "手元の資料を読み込ませて使う。資料がないと力を発揮しにくい",
-  },
-  "github-copilot": {
-    capabilities: { coding: 4, debugging: 4, testing: 3.5, documentation: 3 },
-    qualityScore: 4,
-    reliabilityScore: 3.5,
-    automationLevel: 1,
-    freeStatus: "free_tier",
-    limitations: "無料枠の利用回数に上限あり。GitHubログインが必要",
   },
   v0: {
     capabilities: { coding: 4, ux_review: 4, architecture: 3 },
@@ -235,14 +219,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     freeStatus: "free_tier",
     limitations: "無料枠に1日の上限あり",
   },
-  "ms-designer": {
-    capabilities: { image_generation: 4, ux_review: 2.5 },
-    qualityScore: 3.5,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "free",
-    limitations: "Microsoftアカウントが必要",
-  },
   craiyon: {
     capabilities: { image_generation: 2.5 },
     qualityScore: 2.5,
@@ -290,6 +266,38 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     automationLevel: 1,
     freeStatus: "free_tier",
     limitations: "無料枠のクレジットに上限あり。地域によっては待ち時間が長い",
+  },
+  "google-ai-studio": {
+    capabilities: { coding: 4, research: 4, documentation: 4, image_generation: 3 },
+    qualityScore: 4,
+    reliabilityScore: 3,
+    automationLevel: 1,
+    freeStatus: "free_tier",
+    limitations: "Googleアカウントでログイン。無料枠に利用上限あり。出力を手動でコピーして使う",
+  },
+  jules: {
+    capabilities: { coding: 4, debugging: 4, testing: 3.5 },
+    qualityScore: 4,
+    reliabilityScore: 3,
+    automationLevel: 1,
+    freeStatus: "free_tier",
+    limitations: "Googleアカウントでログイン。GitHubのリポジトリ連携が前提で、1日の利用回数に上限あり",
+  },
+  stitch: {
+    capabilities: { ux_review: 4, design: 4 },
+    qualityScore: 3.5,
+    reliabilityScore: 3,
+    automationLevel: 1,
+    freeStatus: "free_tier",
+    limitations: "Googleアカウントでログイン。画面デザインの試作向け。実験的な機能で変更が多い",
+  },
+  lovable: {
+    capabilities: { coding: 3.5, ux_review: 3, architecture: 3 },
+    qualityScore: 3.5,
+    reliabilityScore: 3,
+    automationLevel: 1,
+    freeStatus: "free_tier",
+    limitations: "Googleアカウントでもログインできる。無料枠は1日の利用量に上限あり",
   },
   "google-flow": {
     capabilities: { video_generation: 4.5 },
@@ -346,4 +354,41 @@ export function seedRegistryProfiles(store: Store, profiles: Record<string, AiPr
     });
   }
   return seeded;
+}
+
+
+/** Services dropped because they cannot be signed in to with a Google account (GitHub-only, Microsoft-account-only, Meta account). */
+export const RETIRED_AI_IDS = ["meta-ai", "github-copilot", "ms-designer"];
+
+/** Services added because they can be signed in to with a Google account. Level 1 (manual copy & paste) until the user raises it. */
+export const GOOGLE_LOGIN_AIS: { id: string; name: string; url: string; provider: string }[] = [
+  { id: "google-ai-studio", name: "Google AI Studio (Web)", url: "https://aistudio.google.com", provider: "Google" },
+  { id: "jules", name: "Jules (Google・コード作成)", url: "https://jules.google", provider: "Google" },
+  { id: "stitch", name: "Stitch (Google・画面デザイン)", url: "https://stitch.withgoogle.com", provider: "Google" },
+  { id: "lovable", name: "Lovable (Web)", url: "https://lovable.dev", provider: "Lovable" },
+];
+
+/**
+ * One-time registry update (recorded in settings, so a service the user adds back later is left alone):
+ * removes the services that cannot use a Google sign-in, adds the ones that can. Returns what it changed.
+ */
+export function applyGoogleLoginRegistry(store: Store): { removed: string[]; added: string[] } {
+  const KEY = "registry.googleLoginUpdate.v1";
+  const result = { removed: [] as string[], added: [] as string[] };
+  if (store.getSetting<boolean>(KEY, false)) return result;
+  for (const id of RETIRED_AI_IDS) if (store.deleteAiService(id)) result.removed.push(id);
+  for (const ai of GOOGLE_LOGIN_AIS) {
+    if (store.getAiService(ai.id)) continue;
+    store.upsertAiService({ ...ai, accessMode: "web", automationLevel: 1, requiresLogin: true, adapterType: "manual" });
+    result.added.push(ai.id);
+  }
+  store.setSetting(KEY, true);
+  if (result.removed.length || result.added.length) {
+    store.addDecision({
+      title: "AI Registry: Googleアカウントでログインできる構成に整理",
+      reason: `Googleでログインできないため削除: ${result.removed.join(", ") || "なし"} / Googleでログインできるため追加: ${result.added.join(", ") || "なし"}。ログイン方式は各社の公式案内の調べ(2026-10)に基づく。`,
+      isAssumption: true,
+    });
+  }
+  return result;
 }

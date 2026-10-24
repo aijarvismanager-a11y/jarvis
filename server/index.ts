@@ -14,7 +14,7 @@ import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
-import { seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { applyGoogleLoginRegistry, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
@@ -90,6 +90,7 @@ app.use(express.json({ limit: "2mb" }));
 // project's own directory, restricted by the Permission Policy and checked by
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
+applyGoogleLoginRegistry(coreStore);
 seedRegistryProfiles(coreStore);
 const approvals = new ApprovalHub(coreStore);
 const previews = new PreviewManager(path.join(ROOT, "projects"));
@@ -128,7 +129,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url), importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.

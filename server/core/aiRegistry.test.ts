@@ -1,8 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AI_PROFILES } from "./aiRegistry.ts";
+import { DEFAULT_AI_PROFILES, applyGoogleLoginRegistry, seedRegistryProfiles } from "./aiRegistry.ts";
+import { openDatabase } from "./db.ts";
+import { Store } from "./store.ts";
 import { BUNDLED_SITE_PROFILES } from "./webAiSites.ts";
-import { findBrowserExecutable } from "./browserDriver.ts";
+import { findBrowserExecutable, importEverydaySignIn } from "./browserDriver.ts";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { capabilityForRole } from "./legacyImport.ts";
 
 const BRAVE = "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe";
@@ -34,6 +39,49 @@ describe("bundled web AI site profiles", () => {
       expect(ids.has(id), id).toBe(true);
       expect(p.inputSelector && p.responseSelector, id).toBeTruthy();
     }
-    expect(Object.keys(BUNDLED_SITE_PROFILES).length).toBeGreaterThanOrEqual(9);
+    expect(Object.keys(BUNDLED_SITE_PROFILES).length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("Google-login registry update", () => {
+  it("removes the services without Google sign-in, adds those with it, once", () => {
+    const store = new Store(openDatabase(":memory:"), "unused");
+    store.upsertAiService({ id: "meta-ai", name: "Meta AI", url: "https://www.meta.ai" });
+    store.upsertAiService({ id: "gemini", name: "Gemini", url: "https://gemini.google.com" });
+    const r = applyGoogleLoginRegistry(store);
+    expect(r.removed).toEqual(["meta-ai"]);
+    expect(r.added).toContain("google-ai-studio");
+    expect(store.getAiService("meta-ai")).toBeNull();
+    expect(store.getAiService("gemini")).not.toBeNull();
+    seedRegistryProfiles(store);
+    expect(Object.keys(store.getAiService("jules")!.capabilityScores).length).toBeGreaterThan(0);
+    // second run changes nothing, even if the user adds a removed one back
+    store.upsertAiService({ id: "meta-ai", name: "Meta AI", url: "https://www.meta.ai" });
+    expect(applyGoogleLoginRegistry(store)).toEqual({ removed: [], added: [] });
+    expect(store.getAiService("meta-ai")).not.toBeNull();
+  });
+});
+
+describe("importEverydaySignIn", () => {
+  const setup = () => {
+    const local = mkdtempSync(path.join(os.tmpdir(), "signin-"));
+    const root = path.join(local, "BraveSoftware", "Brave-Browser", "User Data");
+    mkdirSync(path.join(root, "Default", "Network"), { recursive: true });
+    mkdirSync(path.join(root, "Default", "Local Storage"), { recursive: true });
+    writeFileSync(path.join(root, "Local State"), JSON.stringify({ profile: { last_used: "Default" } }));
+    writeFileSync(path.join(root, "Default", "Network", "Cookies"), "cookie");
+    writeFileSync(path.join(root, "Default", "Login Data"), "secret-passwords");
+    writeFileSync(path.join(root, "Default", "Local Storage", "a"), "ls");
+    return { env: { LOCALAPPDATA: local }, dest: path.join(local, "dest") };
+  };
+  it("copies sign-in state but never saved passwords, and refuses while the browser runs", () => {
+    const { env, dest } = setup();
+    const exe = "C:/x/brave.exe";
+    expect(() => importEverydaySignIn(exe, dest, env, () => true)).toThrow(/起動中/);
+    const r = importEverydaySignIn(exe, dest, env, () => false);
+    expect(r.copied).toEqual(["Network/Cookies", "Local Storage"]);
+    expect(existsSync(path.join(dest, "Default", "Network", "Cookies"))).toBe(true);
+    expect(existsSync(path.join(dest, "Local State"))).toBe(true);
+    expect(existsSync(path.join(dest, "Default", "Login Data"))).toBe(false);
   });
 });

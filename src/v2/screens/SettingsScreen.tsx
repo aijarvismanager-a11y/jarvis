@@ -57,6 +57,13 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
             <p className="mt-2 text-[12px] text-muted">
               ブラウザ(Edge/Chrome/Brave): {web.browserAvailable ? "見つかりました(「半自動」「全自動」も選べます)" : "見つかりません(「手動」のみ)"}
             </p>
+            {web.browserAvailable && (
+              <div className="mt-3 rounded-lg border border-borderSoft bg-bg p-3">
+                <p className="text-[13px] font-semibold">いつものブラウザのログインを引き継ぐ</p>
+                <p className="mt-1 text-[12px] text-muted">「ログイン用に開く」で開く専用ブラウザは、最初は何もログインしていません。ふだん使っているブラウザ(Braveなど)で Google にログイン済みなら、そのログイン状態をコピーして、再ログインの手間を省けます。コピーするのはログイン状態(Cookie など)だけで、保存したパスワード・履歴・拡張機能は含みません。<b>先に、Brave をすべて閉じてから</b>押してください。</p>
+                <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(プロフィール: ${r.profile})。このあと「ログイン用に開く」を押して、ログイン済みか確認してください。`); })}>ログイン状態を引き継ぐ</Button>
+              </div>
+            )}
           </>
         )}
       </Card>

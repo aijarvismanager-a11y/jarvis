@@ -56,7 +56,7 @@ export type OrchestratorApiDeps = {
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
-  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void };
+  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
 };
 
 const createSchema = z.object({
@@ -430,6 +430,16 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
       web.openLogin(svc.url);
       res.json({ ok: true, url: svc.url });
+    }),
+  );
+  // Carries the Google (etc.) sign-ins of the everyday browser over, so the user does not sign in again in the automation profile.
+  router.post(
+    "/web-ai/import-signin",
+    webGuarded(async (_req, res, web) => {
+      if (!web.importSignIn || !web.browserAvailable()) throw new Error("この環境ではブラウザのログイン状態を引き継げません");
+      const r = await web.importSignIn();
+      store.appendEvent({ type: "WEB_AI_SIGNIN_IMPORTED", payload: { profile: r.profile } });
+      res.json({ ok: true, ...r });
     }),
   );
   // Raising the level is the user's decision (it is never raised automatically); lowering is always allowed.

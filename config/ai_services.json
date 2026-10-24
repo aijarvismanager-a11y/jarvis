@@ -30,11 +30,6 @@
     "url": "https://copilot.microsoft.com"
   },
   {
-    "id": "meta-ai",
-    "name": "Meta AI (Web)",
-    "url": "https://www.meta.ai"
-  },
-  {
     "id": "deepseek",
     "name": "DeepSeek (Web)",
     "url": "https://chat.deepseek.com"
@@ -85,11 +80,6 @@
     "url": "https://notebooklm.google.com"
   },
   {
-    "id": "github-copilot",
-    "name": "GitHub Copilot Chat (Web)",
-    "url": "https://github.com/copilot"
-  },
-  {
     "id": "v0",
     "name": "v0 by Vercel (Web)",
     "url": "https://v0.dev"
@@ -133,11 +123,6 @@
     "id": "playground",
     "name": "Playground（画像生成）",
     "url": "https://playground.com"
-  },
-  {
-    "id": "ms-designer",
-    "name": "Microsoft Designer（画像生成）",
-    "url": "https://designer.microsoft.com"
   },
   {
     "id": "craiyon",
