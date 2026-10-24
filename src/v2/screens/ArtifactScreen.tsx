@@ -13,8 +13,8 @@ const VALIDATION: Record<string, { label: string; tone: "ok" | "bad" | "neutral"
 };
 
 export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected: Artifact | null; onSelect: (a: Artifact) => void }) {
-  const [content, setContent] = useState<string | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  // What was fetched, tagged with what it was fetched for: anything stale is ignored instead of being cleared in an effect.
+  const [loaded, setLoaded] = useState<{ key: string; content: string | null; failure: string | null } | null>(null);
   const projectId = ctx.project?.id;
 
   // Newest version of each path.
@@ -29,12 +29,16 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
   const versions = selected ? ctx.overview.artifacts.filter((a) => a.path === selected.path).sort((a, b) => b.version - a.version) : [];
   const shown = selected ? (latest.find((a) => a.path === selected.path) ?? selected) : null;
 
+  const wantKey = projectId && selected ? `${projectId}|${selected.path}|${shown?.version}` : "";
+  const current = loaded?.key === wantKey ? loaded : null;
+  const content = current?.content ?? null;
+  const failure = current?.failure ?? null;
+
   useEffect(() => {
-    setContent(null);
-    setFailure(null);
     if (!projectId || !selected) return;
+    const key = `${projectId}|${selected.path}|${shown?.version}`;
     let cancelled = false;
-    api.artifactContent(projectId, selected.path).then((c) => !cancelled && setContent(c)).catch((e) => !cancelled && setFailure(e instanceof Error ? e.message : String(e)));
+    api.artifactContent(projectId, selected.path).then((c) => !cancelled && setLoaded({ key, content: c, failure: null })).catch((e) => !cancelled && setLoaded({ key, content: null, failure: e instanceof Error ? e.message : String(e) }));
     return () => {
       cancelled = true;
     };

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
-import { Badge, Button, Card, useAction, usePoll } from "../ui";
+import { Badge, Button, Card } from "../ui";
+import { useAction, usePoll } from "../hooks";
 import type { Preview, SnapshotInfo } from "../types";
 
 type Mode = "split" | "before" | "after";

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { formatTime } from "../labels";
-import { Badge, Button, Card, Details, useAction } from "../ui";
+import { Badge, Button, Card, Details } from "../ui";
+import { useAction } from "../hooks";
 import type { SyncBackup, SyncEntry, SyncState } from "../types";
 
 const KIND_LABEL: Record<SyncEntry["kind"], string> = { added: "追加", modified: "変更", deleted: "削除" };
@@ -117,11 +118,12 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
 /** For a project imported from a folder: review what differs between the copy and the original, in either direction, and apply it after saving what it replaces. */
 export function SyncCard({ ctx }: { ctx: Ctx }) {
   const projectId = ctx.project!.id;
-  const [state, setState] = useState<SyncState | null>(null);
+  // tagged with the project it belongs to, so switching projects never shows the previous one's state
+  const [loaded, setLoaded] = useState<{ projectId: string; state: SyncState | null } | null>(null);
+  const state = loaded?.projectId === projectId ? loaded.state : null;
   const { busy } = useAction(ctx.setError);
-  const load = useCallback(() => api.sync(projectId).then(setState).catch(() => setState(null)), [projectId]);
+  const load = useCallback(() => api.sync(projectId).then((s) => setLoaded({ projectId, state: s })).catch(() => setLoaded({ projectId, state: null })), [projectId]);
   useEffect(() => {
-    setState(null);
     void load();
   }, [load]);
   if (!state || !state.linked) return null;

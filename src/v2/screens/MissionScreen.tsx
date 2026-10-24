@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
-import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
+import { Badge, Button, Card, Details } from "../ui";
+import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
 import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
@@ -392,8 +393,9 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const [starting, setStarting] = useState(false);
 
   // The proposal is not part of /overview, so fetch the full view while a plan awaits approval.
+  // `view` is only used while it matches the current planning mission, so it never needs clearing.
   useEffect(() => {
-    if (!mission || mission.status !== "planning") return void setView(null);
+    if (!mission || mission.status !== "planning") return;
     let cancelled = false;
     api.missionView(mission.projectId, mission.id).then((v) => !cancelled && setView(v)).catch(() => {});
     return () => {
@@ -479,7 +481,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
         </Card>
       )}
 
-      {mission?.status === "planning" && view && <PlanReview view={view} ctx={ctx} />}
+      {mission?.status === "planning" && view?.mission.id === mission.id && <PlanReview view={view} ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
       {project && <SyncCard ctx={ctx} />}

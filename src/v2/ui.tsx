@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Button({ variant = "primary", className = "", ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
   const styles = {
@@ -40,39 +40,4 @@ export function ErrorBar({ message, onClose }: { message: string | null; onClose
       <button onClick={onClose} className="shrink-0 font-semibold" aria-label="閉じる">×</button>
     </div>
   );
-}
-
-/** Runs `load` now and every `ms` while the tab is visible; returns a manual refresh. */
-export function usePoll(load: () => Promise<void>, ms: number, deps: unknown[]): () => void {
-  const loadRef = useRef(load);
-  loadRef.current = load;
-  const refresh = useCallback(() => void loadRef.current().catch(() => {}), []);
-  useEffect(() => {
-    refresh();
-    const id = setInterval(() => {
-      if (!document.hidden) refresh();
-    }, ms);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ms, refresh, ...deps]);
-  return refresh;
-}
-
-/** Wraps an async action: shows errors, blocks double clicks. */
-export function useAction(onError: (message: string) => void) {
-  const [busy, setBusy] = useState(false);
-  const run = useCallback(
-    async (fn: () => Promise<unknown>) => {
-      setBusy(true);
-      try {
-        await fn();
-      } catch (e) {
-        onError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [onError],
-  );
-  return { busy, run };
 }

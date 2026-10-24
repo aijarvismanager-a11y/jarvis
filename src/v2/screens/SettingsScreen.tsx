@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
 import { FREE_LABEL, LEVEL_LABEL, formatTime } from "../labels";
-import { Badge, Button, Card, Details, useAction, usePoll } from "../ui";
+import { Badge, Button, Card, Details } from "../ui";
+import { useAction, usePoll } from "../hooks";
 import type { AiService, WebAiSettings } from "../types";
 
 export function SettingsScreen({ services, setError, refresh }: { services: AiService[]; setError: (m: string) => void; refresh: () => void }) {

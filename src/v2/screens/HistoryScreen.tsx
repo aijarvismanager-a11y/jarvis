@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { MISSION_LABEL, formatTime, progressOf } from "../labels";
-import { Badge, Card, Details, usePoll } from "../ui";
+import { Badge, Card, Details } from "../ui";
+import { usePoll } from "../hooks";
 import type { StoredEvent } from "../types";
 
 export function HistoryScreen({ ctx }: { ctx: Ctx }) {

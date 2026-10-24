@@ -9,7 +9,8 @@ import { MissionScreen } from "./screens/MissionScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
-import { Button, ErrorBar, useAction, usePoll } from "./ui";
+import { useAction, usePoll } from "./hooks";
+import { Button, ErrorBar } from "./ui";
 
 const SCREENS = [
   { id: "mission", label: "ミッション" },
@@ -87,6 +88,7 @@ export default function V2App() {
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
   const [offline, setOffline] = useState(false);
+  const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
   const [sync, setSync] = useState<SyncSummary | null>(null);
   usePoll(async () => setSync(projectId ? await api.syncSummary(projectId) : null), 20000, [projectId]);
@@ -108,14 +110,16 @@ export default function V2App() {
       const active = list.find((p) => p.id === projectId) ?? (!loaded && !list.some((p) => p.id === projectId) ? list[list.length - 1] : undefined);
       if (active && active.id !== projectId) choose(active.id);
       setLoaded(true);
-      const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), api.aiServices(), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
+      // The AI list is ~20KB and rarely changes (Settings refreshes it on demand): fetch it on the first poll and then every 8th.
+      const cycle = pollCount.current++;
+      const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), cycle % 8 === 0 ? api.aiServices() : Promise.resolve(null), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
       setOverview(ov);
       const mine = (x: { projectId: string }) => x.projectId === active?.id;
       const missionsNow = ov.missions;
       const prev = seen.current.projectId === (active?.id ?? null) ? seen.current.state : null;
       showNotices(diffNotices(prev, appr.filter(mine), hand.filter(mine), missionsNow));
       seen.current = { projectId: active?.id ?? null, state: snapshotOf(appr.filter(mine), hand.filter(mine), missionsNow) };
-      setServices(svc);
+      if (svc) setServices(svc);
       setHandoffs(hand);
       setApprovals(appr);
     },
@@ -199,7 +203,7 @@ export default function V2App() {
             {screen === "development" && <DevelopmentScreen ctx={ctx} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
-            {screen === "settings" && <SettingsScreen services={services} setError={setError} refresh={refresh} />}
+            {screen === "settings" && <SettingsScreen services={services} setError={setError} refresh={() => { pollCount.current = 0; refresh(); }} />}
           </>
         )}
       </main>
