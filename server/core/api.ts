@@ -180,6 +180,25 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
   });
+  // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
+  const summaryCache = new Map<string, { at: number; value: { linked: boolean; push: number; pull: number; problem?: string } }>();
+  const SUMMARY_TTL_MS = 15_000;
+  router.get("/projects/:projectId/sync/summary", (req, res) => {
+    const projectId = String(req.params.projectId);
+    const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
+    if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false, push: 0, pull: 0 });
+    const hit = summaryCache.get(projectId);
+    if (hit && Date.now() - hit.at < SUMMARY_TTL_MS) return void res.json(hit.value);
+    let value: { linked: boolean; push: number; pull: number; problem?: string };
+    try {
+      const root = projectDir(store.projectsRoot, projectId);
+      value = { linked: true, push: computeDiff(link, root).length, pull: computeDiff(link, root, "pull").length };
+    } catch (err) {
+      value = { linked: true, push: 0, pull: 0, problem: err instanceof Error ? err.message : String(err) };
+    }
+    summaryCache.set(projectId, { at: Date.now(), value });
+    res.json(value);
+  });
   router.post(
     "/projects/:projectId/sync/apply",
     syncGuarded((req, res, { projectId, link, backupDir }) => {
@@ -188,6 +207,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const dir = opts.direction === "pull" ? pullDir(backupDir) : backupDir;
       const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, opts, opts.direction);
       store.setSetting(linkKey(projectId), r.link);
+      summaryCache.delete(projectId);
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
       pruneBackups(dir, keep);
       store.appendEvent({ projectId, type: opts.direction === "pull" ? "SYNC_PULLED" : "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
@@ -199,6 +219,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     syncGuarded((req, res, { projectId, link, backupDir }) => {
       const { backupId, direction } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中のミッションがあります。先に一時停止してください");
+      summaryCache.delete(projectId);
       store.setSetting(linkKey(projectId), restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction));
       store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
       res.json({ ok: true });

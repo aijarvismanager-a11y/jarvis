@@ -128,7 +128,15 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
   const running = ctx.mission?.status === "running";
 
   return (
-    <Card title="元のフォルダとの同期">
+    <Card
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          元のフォルダとの同期
+          {state.pullEntries.length > 0 && <Badge tone="info">取り込み待ち {state.pullEntries.length}</Badge>}
+          {state.entries.length > 0 && <Badge tone="warn">書き込み待ち {state.entries.length}</Badge>}
+        </span>
+      }
+    >
       <p className="break-all text-[12.5px]"><span className="text-muted">取り込み元: </span>{state.sourcePath}</p>
       <p className="mt-1 text-[12px] text-muted">作業はコピー側で進みます。どちらの向きも、差分を確認してから反映します。</p>
       {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}

@@ -7,7 +7,7 @@ import { DevelopmentScreen } from "./screens/DevelopmentScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MissionScreen } from "./screens/MissionScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import type { AiService, Approval, Artifact, Handoff, Overview, Project } from "./types";
+import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { Button, ErrorBar, useAction, usePoll } from "./ui";
 
@@ -87,6 +87,9 @@ export default function V2App() {
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
   const [offline, setOffline] = useState(false);
+  // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
+  const [sync, setSync] = useState<SyncSummary | null>(null);
+  usePoll(async () => setSync(projectId ? await api.syncSummary(projectId) : null), 20000, [projectId]);
 
   const refresh = usePoll(
     async () => {
@@ -178,6 +181,9 @@ export default function V2App() {
             >
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
+              {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
+                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの差分: 取り込み待ち${sync.pull}件・書き込み待ち${sync.push}件`}>⇄ {sync.push + sync.pull}</span>
+              )}
             </button>
           ))}
         </nav>

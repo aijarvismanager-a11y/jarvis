@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, SyncState, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -34,6 +34,7 @@ export const api = {
   importProject: (path: string, name = "") =>
     request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[] }>("/projects/import", "POST", { path, name }),
   sync: (projectId: string) => request<SyncState>(`/projects/${encodeURIComponent(projectId)}/sync`),
+  syncSummary: (projectId: string) => request<SyncSummary>(`/projects/${encodeURIComponent(projectId)}/sync/summary`),
   applySync: (projectId: string, opts: { deletes: boolean; overwriteConflicts: boolean; direction: "push" | "pull" }) =>
     request<{ applied: number; skipped: unknown[]; backup: string | null }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
   restoreSync: (projectId: string, backupId: string, direction: "push" | "pull") => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId, direction }),

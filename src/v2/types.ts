@@ -105,3 +105,4 @@ export type SnapshotInfo = { name: string; taskId: string; objective: string; at
 export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; conflict: boolean };
 export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean }[] };
 export type SyncState = { linked: false } | { linked: true; sourcePath: string; entries: SyncEntry[]; pullEntries: SyncEntry[]; backups: SyncBackup[]; pullBackups: SyncBackup[]; problem?: string };
+export type SyncSummary = { linked: boolean; push: number; pull: number; problem?: string };

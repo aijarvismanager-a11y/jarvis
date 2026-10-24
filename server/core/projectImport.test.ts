@@ -55,7 +55,7 @@ describe("POST /projects/import", () => {
     });
     const app = express();
     app.use(express.json());
-    app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute: true, tokenMatches: (c) => c === "t" }));
+    app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute: true, syncBackupsRoot: path.join(root, "backups"), tokenMatches: (c) => c === "t" }));
     const server = http.createServer(app);
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
@@ -83,6 +83,11 @@ describe("POST /projects/import", () => {
       expect(again.status).toBe(200);
       expect(((await again.json()) as { existing: boolean; project: { id: string } }).project.id).toBe(body.project.id);
       expect(store.listProjects()).toHaveLength(1);
+
+      // badges: nothing differs right after the import; an edit in the original shows up as one pull
+      const summary = async () => (await (await fetch(`${base}/projects/${body.project.id}/sync/summary`)).json()) as { linked: boolean; push: number; pull: number };
+      expect(await summary()).toMatchObject({ linked: true, push: 0, pull: 0 });
+      expect((await (await fetch(`${base}/projects/p_none/sync/summary`)).json().catch(() => ({}))) as object).not.toHaveProperty("linked", true);
     } finally {
       await new Promise((r) => server.close(r));
       db.close();
