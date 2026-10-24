@@ -23,6 +23,7 @@ import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
+import { pickFolder } from "./core/folderPicker.ts";
 import { DepsInstaller } from "./core/depsInstaller.ts";
 import { VersionWatch } from "./core/version.ts";
 
@@ -120,7 +121,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url) } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.

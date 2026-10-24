@@ -18,13 +18,32 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   const [problem, setProblem] = useState<string | null>(null);
   const [heavy, setHeavy] = useState<TooLarge | null>(null);
   const [leaveOut, setLeaveOut] = useState<Set<string>>(new Set());
+  const [picking, setPicking] = useState(false);
   const { busy, run } = useAction(setError);
 
   if (!open) return <div className="mx-auto max-w-3xl px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
 
+  // The browser cannot read a folder's path, so the server opens the Windows folder dialog and returns it.
+  const pick = async () => {
+    setPicking(true);
+    setProblem(null);
+    try {
+      const chosen = await api.pickFolder();
+      if (chosen) {
+        setFolder(chosen);
+        setHeavy(null);
+      }
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPicking(false);
+    }
+  };
+
   const go = (exclude: string[] = []) =>
     run(async () => {
       setProblem(null);
+      if (!folder.trim()) return void setProblem("取り込むフォルダが選ばれていません。「フォルダを選ぶ…」を押すか、パスを入力してください");
       try {
         const r = await api.importProject(folder.trim(), exclude);
         const left = r.excluded?.length ? `(除外: ${r.excluded.join("、")})` : "";
@@ -55,9 +74,11 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   return (
     <div className="mx-auto max-w-3xl px-4 pb-3">
       <p className="text-[12px] text-muted">フォルダはコピーして取り込みます(元のフォルダは変更しません)。node_modules・.git・.env などは除きます。取り込み後、Claude Code が現状レポートを作ります。</p>
-      <div className="mt-1 flex gap-2">
-        <input value={folder} onChange={(e) => { setFolder(e.target.value); setProblem(null); setHeavy(null); }} placeholder="例: C:\Users\you\my-app" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent" />
-        <Button disabled={busy || !folder.trim()} onClick={() => void go()}>{busy ? "取り込み中…" : "取り込む"}</Button>
+      <label htmlFor="import-folder" className="mt-2 block text-[12.5px] font-semibold">取り込むフォルダ</label>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <Button variant="ghost" disabled={busy || picking} onClick={() => void pick()}>{picking ? "選択中…" : "フォルダを選ぶ…"}</Button>
+        <input id="import-folder" value={folder} onChange={(e) => { setFolder(e.target.value); setProblem(null); setHeavy(null); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void go(); }} placeholder="フォルダのパスをここに入力・貼り付け(例: C:\Users\you\my-app)" className="min-w-[14rem] flex-1 rounded-lg border border-[#8f8a7c] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-accent" />
+        <Button disabled={busy} onClick={() => void go()}>{busy ? "取り込み中…" : "取り込む"}</Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
       </div>
       {busy && <p className="mt-1 text-[12px] text-muted">コピーしています。大きいフォルダは数十秒かかることがあります…</p>}

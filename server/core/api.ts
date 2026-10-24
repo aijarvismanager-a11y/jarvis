@@ -45,6 +45,8 @@ export type OrchestratorApiDeps = {
   snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
   approvals?: ApprovalHub;
+  /** Opens a folder dialog on this PC and returns the chosen path (null = cancelled); without it POST /system/pick-folder answers 501. */
+  pickFolder?: () => Promise<string | null>;
   /** Restarts the whole server (Windows launcher script); without it POST /system/restart answers 501. */
   restart?: () => void;
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
@@ -122,6 +124,14 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const restart = deps.restart;
       setTimeout(restart, 300); // let this answer go out first
       res.json({ ok: true, running });
+    }),
+  );
+
+  router.post(
+    "/system/pick-folder",
+    guarded(async (_req, res) => {
+      if (!deps.pickFolder) return void res.status(501).json({ error: "この環境ではフォルダ選択に対応していません。パスを入力してください" });
+      res.json({ path: await deps.pickFolder() });
     }),
   );
 
