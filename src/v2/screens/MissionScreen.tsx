@@ -5,6 +5,7 @@ import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost,
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
+import { DepsCard } from "./DepsCard";
 import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
 
@@ -482,6 +483,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
 
       {mission?.status === "planning" && view?.mission.id === mission.id && <PlanReview view={view} ctx={ctx} />}
+      {project && <DepsCard ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <PreviewCard ctx={ctx} />}
       {project && overview.artifacts.length > 0 && <SplitPreview ctx={ctx} />}
       {project && <SyncCard ctx={ctx} />}

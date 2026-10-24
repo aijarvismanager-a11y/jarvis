@@ -8,6 +8,7 @@ import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { TaskLogStore } from "./taskLog.ts";
+import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTree, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
@@ -38,6 +39,8 @@ export type OrchestratorApiDeps = {
   logs?: TaskLogStore;
   /** Enables the preview endpoints (run the project's app while it is being built). */
   previews?: PreviewManager;
+  /** Enables installing the dependencies of an imported project (so its preview can start). */
+  deps?: DepsInstaller;
   /** Enables the per-task changes (diff) and rollback endpoints. */
   snapshots?: SnapshotManager;
   /** Enables answering approval requests (POST /approvals/:id/approve|deny). */
@@ -468,6 +471,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!deps.previews) return void res.status(501).json({ error: "プレビュー機能が接続されていません" });
       deps.previews.stop(String(req.params.projectId));
       res.json({ preview: deps.previews.status(String(req.params.projectId)) });
+    }),
+  );
+
+  // ---- Dependencies of an imported project: shown when node_modules is missing; installed only on the user's click ----
+  router.get("/projects/:projectId/deps", (req, res) => {
+    const projectId = String(req.params.projectId);
+    if (!deps.deps) return void res.json({ missing: [], install: { state: "idle", message: "", log: "", startedAt: null } });
+    res.json({ missing: deps.deps.missing(projectId), install: deps.deps.status(projectId) });
+  });
+  router.post(
+    "/projects/:projectId/deps/install",
+    guarded((req, res) => {
+      if (!deps.deps) return void res.status(501).json({ error: "インストール機能が接続されていません" });
+      res.json({ install: deps.deps.start(String(req.params.projectId)) });
     }),
   );
 
