@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { ApiError, api } from "./api";
 import { useAction } from "./hooks";
-import type { Project } from "./types";
+import { usePoll } from "./hooks";
+import type { ImportProgress, Project } from "./types";
 import { Button } from "./ui";
 
 type Heavy = { name: string; files: number; bytes: number };
 type TooLarge = { files: number; bytes: number; folders: Heavy[] };
+
+const PHASE: Record<ImportProgress["phase"], string> = {
+  scanning: "フォルダの中身を調べています…",
+  copying: "ファイルをコピーしています",
+  snapshot: "取り込み直後の状態を保存しています(変更前の基準)…",
+  fingerprint: "元のフォルダとの同期用に、ファイルを記録しています…",
+  starting: "現状分析を開始しています…",
+};
 
 const mb = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)}GB` : `${Math.max(1, Math.round(bytes / 1024 ** 2))}MB`);
 
@@ -20,6 +29,9 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   const [leaveOut, setLeaveOut] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState(false);
   const { busy, run } = useAction(setError);
+  // The import is one long request; this asks the server how far it has got. Only polls while an import is running.
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  usePoll(async () => setProgress(busy ? await api.importProgress() : null), 700, [busy]);
 
   if (!open) return <div className="mx-auto max-w-3xl px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
 
@@ -81,7 +93,20 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
         <Button disabled={busy} onClick={() => void go()}>{busy ? "取り込み中…" : "取り込む"}</Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
       </div>
-      {busy && <p className="mt-1 text-[12px] text-muted">コピーしています。大きいフォルダは数十秒かかることがあります…</p>}
+      {busy && (
+        <div className="mt-2" role="status">
+          <p className="text-[12.5px]">
+            {progress ? PHASE[progress.phase] : "取り込みを始めています…"}
+            {progress?.phase === "copying" && progress.filesTotal > 0 && <span className="ml-1 text-muted">{progress.files.toLocaleString()} / {progress.filesTotal.toLocaleString()} ファイル · {mb(progress.bytes)} / {mb(progress.bytesTotal)}</span>}
+          </p>
+          {progress?.phase === "copying" && progress.bytesTotal > 0 && (
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((progress.bytes / progress.bytesTotal) * 100)}>
+              <div className="h-full bg-accent transition-all" style={{ width: `${Math.min(100, (progress.bytes / progress.bytesTotal) * 100)}%` }} />
+            </div>
+          )}
+          <p className="mt-1 text-[11.5px] text-muted">この画面を閉じずにお待ちください。大きいフォルダは数分かかることがあります。</p>
+        </div>
+      )}
       {problem && !busy && <p role="alert" className="mt-1.5 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-2.5 py-1.5 text-[12.5px] text-[#9B2C2C]">{problem}</p>}
       {heavy && !busy && (
         <div className="mt-2 rounded-lg border border-border bg-panel px-3 py-2">

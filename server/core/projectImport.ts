@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { PlanDraft } from "./taskGraph.ts";
 
@@ -100,12 +100,17 @@ export function scanImportSource(source: string, projectsRoot: string, opts: { e
 }
 
 /** Copies the scanned files into the project folder, one at a time so the server stays responsive meanwhile. */
-export async function copyImport(source: string, dest: string, scan: ImportScan): Promise<void> {
+export async function copyImport(source: string, dest: string, scan: ImportScan, onProgress?: (p: { done: number; bytesDone: number }) => void): Promise<void> {
   await mkdir(dest, { recursive: true });
+  let done = 0;
+  let bytesDone = 0;
   for (const rel of scan.files) {
     const to = path.join(dest, rel);
     await mkdir(path.dirname(to), { recursive: true });
     await copyFile(path.join(source, rel), to);
+    done += 1;
+    bytesDone += (await stat(to)).size;
+    onProgress?.({ done, bytesDone });
   }
 }
 

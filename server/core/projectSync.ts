@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
 
@@ -35,6 +36,28 @@ export function hashTree(root: string, exclude: string[] = []): Record<string, s
     }
   };
   if (existsSync(root)) walk(root, "");
+  return out;
+}
+
+/** Same result as hashTree, but reads without blocking the server (a big project takes seconds); `onFile` is told after each file. */
+export async function hashTreeAsync(root: string, exclude: string[] = [], onFile?: (count: number) => void): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const left = new Set(exclude.map((n) => n.toLowerCase()));
+  const walk = async (dir: string, rel: string): Promise<void> => {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      if (e.isSymbolicLink()) continue;
+      if (rel === "" && e.isDirectory() && left.has(e.name.toLowerCase())) continue;
+      const childRel = rel ? `${rel}/${e.name}` : e.name;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!SKIP_DIRS.has(e.name)) await walk(abs, childRel);
+      } else if (e.isFile() && !SKIP_FILE.test(e.name)) {
+        out[childRel] = createHash("sha1").update(await readFile(abs)).digest("hex");
+        onFile?.(Object.keys(out).length);
+      }
+    }
+  };
+  if (existsSync(root)) await walk(root, "");
   return out;
 }
 

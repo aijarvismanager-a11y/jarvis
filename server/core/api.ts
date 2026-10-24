@@ -11,7 +11,7 @@ import type { TaskLogStore } from "./taskLog.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
-import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTree, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -146,12 +146,30 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.status(201).json({ project: store.createProject({ name }) });
     }),
   );
+  // What the import that is running right now is doing, so the screen can show progress while its request is still open.
+  type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
+  let importProgress: ImportProgress | null = null;
+  router.get("/projects/import/progress", (_req, res) => {
+    res.json({ progress: importProgress });
+  });
   // Import an existing folder: copy it (the original is never touched), then analyse it read-only.
   router.post(
     "/projects/import",
     guarded(async (req, res) => {
       if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
       const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional(), exclude: z.array(z.string().trim().min(1).max(260)).max(100).default([]) }).parse(req.body ?? {});
+      if (importProgress) throw new Error("ほかのフォルダを取り込み中です。終わるまでお待ちください");
+      importProgress = { phase: "scanning", files: 0, filesTotal: 0, bytes: 0, bytesTotal: 0, startedAt: new Date().toISOString() };
+      try {
+        return await runImport(body, res);
+      } finally {
+        importProgress = null;
+      }
+    }),
+  );
+  const runImport = async (body: { path: string; name?: string; exclude: string[] }, res: Response): Promise<void> => {
+    const progress = importProgress!;
+    {
       let scan;
       try {
         scan = scanImportSource(body.path, store.projectsRoot, { exclude: body.exclude });
@@ -167,22 +185,33 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
         return !!link && normalizeSource(link.sourcePath) === wanted;
       });
       if (known) return void res.status(200).json({ project: known, existing: true, missionId: null, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets });
+      progress.filesTotal = scan.files.length;
+      progress.bytesTotal = scan.bytes;
+      progress.phase = "copying";
       const folderName = path.basename(path.resolve(body.path));
       const project = store.createProject({ name: body.name || folderName });
+      let baseline: Record<string, string> = {};
       try {
-        await copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan);
+        await copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan, (p) => {
+          progress.files = p.done;
+          progress.bytes = p.bytesDone;
+        });
+        progress.phase = "snapshot";
         await deps.snapshots?.capture(project.id, `${project.id}-import-baseline`).catch(() => undefined);
+        progress.phase = "fingerprint";
+        baseline = await hashTreeAsync(projectDir(store.projectsRoot, project.id), scan.excluded);
       } catch (err) {
         store.deleteProject(project.id);
         throw err;
       }
-      store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline: hashTree(projectDir(store.projectsRoot, project.id)), exclude: scan.excluded } satisfies SyncLink);
+      store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline, exclude: scan.excluded } satisfies SyncLink);
+      progress.phase = "starting";
       store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded } });
       const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name) });
       void engine.run(project.id, mission.id).catch(() => undefined);
       res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded });
-    }),
-  );
+    }
+  };
   router.get("/projects/:projectId/overview", (req, res) => {
     const projectId = String(req.params.projectId);
     const tasks = store.listTasks(projectId);

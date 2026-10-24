@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, DepsState, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -53,6 +53,7 @@ export const api = {
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, exclude: string[] = [], name = "") =>
     request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[] }>("/projects/import", "POST", { path, name, exclude }),
+  importProgress: () => request<{ progress: ImportProgress | null }>("/projects/import/progress").then((r) => r.progress),
   pickFolder: () => request<{ path: string | null }>("/system/pick-folder", "POST", {}).then((r) => r.path),
   restartServer: (force = false) => request<{ ok: boolean; running: number }>("/system/restart", "POST", { force }),
   deps: (projectId: string) => request<DepsState>(`/projects/${encodeURIComponent(projectId)}/deps`),

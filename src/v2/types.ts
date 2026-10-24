@@ -108,3 +108,4 @@ export type SyncState = { linked: false } | { linked: true; sourcePath: string; 
 export type SyncSummary = { linked: boolean; push: number; pull: number; problem?: string };
 export type DepsInstall = { state: "idle" | "installing" | "done" | "error"; message: string; log: string; startedAt: string | null };
 export type DepsState = { missing: string[]; install: DepsInstall };
+export type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
