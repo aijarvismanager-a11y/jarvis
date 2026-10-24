@@ -67,6 +67,7 @@ export default function V2App() {
   const [help, setHelp] = useState(false);
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
   const [restarting, setRestarting] = useState(false);
   const restartServer = async () => {
     setRestarting(true);
@@ -100,6 +101,7 @@ export default function V2App() {
   usePoll(async () => {
     const v = await api.serverVersion();
     setOutdated(v === null || v.stale);
+    if (v?.version) setAppVersion(v.version);
   }, 30000, []);
   const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
@@ -175,7 +177,7 @@ export default function V2App() {
     <div className="min-h-screen bg-bg text-ink">
       <header className="border-b border-border bg-sidebar">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 px-4 py-3">
-          <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ</h1>
+          <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
           <div className="ml-auto flex items-center gap-2">
             {notifySupported() && (
               <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
@@ -208,7 +210,7 @@ export default function V2App() {
           ))}
         </nav>
       </header>
-      {help && <HelpDialog onClose={() => setHelp(false)} />}
+      {help && <HelpDialog version={appVersion} onClose={() => setHelp(false)} />}
       <main className="mx-auto max-w-3xl px-4 py-5">
         {outdated && !offline && (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">

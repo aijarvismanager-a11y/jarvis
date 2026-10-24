@@ -21,7 +21,7 @@ const FAQ: [string, string][] = [
   ["お金はかかる?", "このアプリ自体は無料です。AI の利用は、あなたの Claude Code の契約(利用枠)から使われます。画面に使用量の目安が出ます。"],
 ];
 
-export function HelpDialog({ onClose }: { onClose: () => void }) {
+export function HelpDialog({ onClose, version }: { onClose: () => void; version: string }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -34,6 +34,8 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <h2 className="font-serif text-[20px] font-semibold">使い方 <a href="/MANUAL.html" target="_blank" rel="noreferrer noopener" className="ml-2 text-[12px] font-normal text-accent hover:underline">説明書を別のタブで開く</a></h2>
           <Button variant="ghost" onClick={onClose}>閉じる</Button>
         </div>
+
+        {version && <p className="mt-1 text-[12px] text-muted">AIオーケストラ バージョン {version}</p>}
 
         <h3 className="mt-4 text-[14px] font-semibold">基本の流れ</h3>
         <ol className="mt-1 list-decimal space-y-1 pl-5 text-[13px]">

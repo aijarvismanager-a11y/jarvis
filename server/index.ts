@@ -1,7 +1,7 @@
 import express from "express";
 import path from "node:path";
 import http from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { openDatabase } from "./core/db.ts";
@@ -134,8 +134,16 @@ app.use(
 
 // Lets the UI tell the user when this process is running older code than what is on disk.
 const versionWatch = new VersionWatch(path.join(APP_DIR, "server"));
+// The app's own version (package.json), shown in the screen.
+const APP_VERSION = (() => {
+  try {
+    return String((JSON.parse(readFileSync(path.join(APP_DIR, "package.json"), "utf8")) as { version?: string }).version ?? "");
+  } catch {
+    return "";
+  }
+})();
 app.get("/api/version", (_req, res) => {
-  res.json(versionWatch.status());
+  res.json({ ...versionWatch.status(), version: APP_VERSION });
 });
 
 app.get("/api/session-token", (_req, res) => {

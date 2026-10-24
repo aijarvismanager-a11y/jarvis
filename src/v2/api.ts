@@ -40,11 +40,11 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
 const mission = (projectId: string, missionId: string) => `/projects/${encodeURIComponent(projectId)}/missions/${encodeURIComponent(missionId)}`;
 
 /** null = the server predates /api/version, which itself means it is running old code. */
-async function serverVersion(): Promise<{ stale: boolean; startedAt: string } | null> {
+async function serverVersion(): Promise<{ stale: boolean; startedAt: string; version?: string } | null> {
   const res = await fetch("/api/version");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("バージョンを確認できませんでした");
-  return (await res.json()) as { stale: boolean; startedAt: string };
+  return (await res.json()) as { stale: boolean; startedAt: string; version?: string };
 }
 
 export const api = {
