@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
 
@@ -124,10 +124,12 @@ export type ApplyOptions = { /** only these project-relative paths (default: eve
 
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);
 
-/** Writes the diff into the original, after saving what it replaces. Returns the new link and the backup made. */
-export function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): { link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] } {
+/** Writes the diff into the original, after saving what it replaces. Returns the new link and the backup made. Never blocks the server: every read and write is asynchronous. */
+export async function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): Promise<{ link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] }> {
   const roots = rootsOf(link, projectRoot, direction);
-  const all = computeDiff(link, projectRoot, direction);
+  assertSourceExists(link);
+  const [fromHashes, toHashes] = await Promise.all([hashTreeAsync(roots.from, link.exclude), hashTreeAsync(roots.to, link.exclude)]);
+  const all = diffOf(link, fromHashes, toHashes);
   const only = opts.only ? new Set(opts.only) : null;
   const todo = all.filter((e) => (!only || only.has(e.path)) && (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || !e.conflict));
   // not offered to the user (or not chosen) is not "skipped": only what was wanted but held back is reported
@@ -146,32 +148,33 @@ export function applySync(link: SyncLink, projectRoot: string, backupDir: string
   // 1) save everything that is about to be overwritten or deleted
   for (const e of todo) {
     const target = abs(e.path);
-    const had = existsSync(target) && statSync(target).isFile();
+    const had = await isFile(target);
     if (had) {
       const saved = path.join(dir, "files", e.path);
-      mkdirSync(path.dirname(saved), { recursive: true });
-      cpSync(target, saved);
+      await mkdir(path.dirname(saved), { recursive: true });
+      await cp(target, saved);
     }
     backup.files.push({ path: e.path, kind: e.kind, hadOriginal: had, prevBaseline: link.baseline[e.path] ?? null });
   }
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
   // 2) write
   const baseline = { ...link.baseline };
-  const written = hashTree(roots.from, link.exclude);
   for (const e of todo) {
     const target = abs(e.path);
     if (e.kind === "deleted") {
-      rmSync(target, { force: true });
+      await rm(target, { force: true });
       delete baseline[e.path];
     } else {
-      mkdirSync(path.dirname(target), { recursive: true });
-      cpSync(path.join(roots.from, e.path), target);
-      baseline[e.path] = written[e.path]!;
+      await mkdir(path.dirname(target), { recursive: true });
+      await cp(path.join(roots.from, e.path), target);
+      baseline[e.path] = fromHashes[e.path]!;
     }
   }
   return { link: { ...link, baseline }, backup, skipped };
 }
+
+const isFile = (p: string) => stat(p).then((st) => st.isFile(), () => false);
 
 export function listBackups(backupDir: string): SyncBackup[] {
   if (!existsSync(backupDir)) return [];
@@ -197,7 +200,7 @@ export function pruneBackups(backupDir: string, keep: number): string[] {
 }
 
 /** Puts the written side back as it was before one sync (the original for a push, the working copy for a pull). The other side is untouched, so the diff shows those changes again. */
-export function restoreBackup(link: SyncLink, projectRoot: string, backupDir: string, backupId: string, direction: SyncDirection = "push"): SyncLink {
+export async function restoreBackup(link: SyncLink, projectRoot: string, backupDir: string, backupId: string, direction: SyncDirection = "push"): Promise<SyncLink> {
   const backup = listBackups(backupDir).find((b) => b.id === backupId);
   if (!backup) throw new Error("そのバックアップが見つかりません");
   const source = path.resolve(rootsOf(link, projectRoot, direction).to);
@@ -207,10 +210,10 @@ export function restoreBackup(link: SyncLink, projectRoot: string, backupDir: st
     const target = path.resolve(source, f.path);
     if (!inside(source, target) || target === source) throw new Error("元のフォルダの外には書き込めません");
     if (f.hadOriginal) {
-      mkdirSync(path.dirname(target), { recursive: true });
-      cpSync(path.join(backupDir, backup.id, "files", f.path), target);
+      await mkdir(path.dirname(target), { recursive: true });
+      await cp(path.join(backupDir, backup.id, "files", f.path), target);
     } else {
-      rmSync(target, { force: true }); // the sync had created it
+      await rm(target, { force: true }); // the sync had created it
     }
     if (f.prevBaseline === null) delete baseline[f.path];
     else baseline[f.path] = f.prevBaseline;

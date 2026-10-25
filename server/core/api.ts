@@ -296,13 +296,24 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     }
     res.json(await run);
   });
+  // Writing is asynchronous now, so two clicks (or an apply and a restore) must not interleave on the same project.
+  const syncBusy = new Set<string>();
+  const withSyncLock = async <T>(projectId: string, fn: () => Promise<T>): Promise<T> => {
+    if (syncBusy.has(projectId)) throw new Error("同期の書き込み中です。終わるまで少し待ってください");
+    syncBusy.add(projectId);
+    try {
+      return await fn();
+    } finally {
+      syncBusy.delete(projectId);
+    }
+  };
   router.post(
     "/projects/:projectId/sync/apply",
-    syncGuarded((req, res, { projectId, link, backupDir }) => {
+    syncGuarded(async (req, res, { projectId, link, backupDir }) => {
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       const opts = z.object({ paths: z.array(z.string().max(1000)).max(20000).optional(), deletes: z.boolean().default(false), overwriteConflicts: z.boolean().default(false), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       const dir = opts.direction === "pull" ? pullDir(backupDir) : backupDir;
-      const r = applySync(link, projectDir(store.projectsRoot, projectId), dir, { ...opts, only: opts.paths }, opts.direction);
+      const r = await withSyncLock(projectId, () => applySync(link, projectDir(store.projectsRoot, projectId), dir, { ...opts, only: opts.paths }, opts.direction));
       store.setSetting(linkKey(projectId), r.link);
       summaryCache.delete(projectId);
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
@@ -313,11 +324,11 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   );
   router.post(
     "/projects/:projectId/sync/restore",
-    syncGuarded((req, res, { projectId, link, backupDir }) => {
+    syncGuarded(async (req, res, { projectId, link, backupDir }) => {
       const { backupId, direction } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       summaryCache.delete(projectId);
-      store.setSetting(linkKey(projectId), restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction));
+      store.setSetting(linkKey(projectId), await withSyncLock(projectId, () => restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction)));
       store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
       res.json({ ok: true });
     }),

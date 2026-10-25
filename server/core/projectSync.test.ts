@@ -26,7 +26,7 @@ function setup() {
 const read = (...p: string[]) => readFileSync(path.join(...p), "utf-8");
 
 describe("project sync", () => {
-  it("diffs only what the copy changed, and flags files the original changed too", () => {
+  it("diffs only what the copy changed, and flags files the original changed too", async () => {
     const { src, proj, link } = setup();
     expect(computeDiff(link, proj)).toEqual([]);
     writeFileSync(path.join(proj, "a.txt"), "A2"); // modified
@@ -40,20 +40,20 @@ describe("project sync", () => {
     ]);
   });
 
-  it("applies after backing up what it replaces; conflicts and deletes need opting in", () => {
+  it("applies after backing up what it replaces; conflicts and deletes need opting in", async () => {
     const { src, proj, backups, link } = setup();
     writeFileSync(path.join(proj, "a.txt"), "A2");
     writeFileSync(path.join(proj, "new.txt"), "N");
     rmSync(path.join(proj, "sub", "b.txt"));
     writeFileSync(path.join(src, "a.txt"), "A-original-edit");
-    const r = applySync(link, proj, backups);
+    const r = await applySync(link, proj, backups);
     expect(r.backup?.files.map((f) => f.path)).toEqual(["new.txt"]); // a.txt conflicts, b.txt is a delete: both skipped
     expect(r.skipped.map((e) => e.path).sort()).toEqual(["a.txt", "sub/b.txt"]);
     expect(read(src, "new.txt")).toBe("N");
     expect(read(src, "a.txt")).toBe("A-original-edit");
     expect(existsSync(path.join(src, "sub", "b.txt"))).toBe(true);
 
-    const full = applySync(r.link, proj, backups, { deletes: true, overwriteConflicts: true });
+    const full = await applySync(r.link, proj, backups, { deletes: true, overwriteConflicts: true });
     expect(read(src, "a.txt")).toBe("A2");
     expect(existsSync(path.join(src, "sub", "b.txt"))).toBe(false);
     expect(computeDiff(full.link, proj)).toEqual([]);
@@ -62,17 +62,17 @@ describe("project sync", () => {
     expect(read(backups, full.backup!.id, "files", "sub", "b.txt")).toBe("B");
   });
 
-  it("restores the original from a backup generation", () => {
+  it("restores the original from a backup generation", async () => {
     const { src, proj, backups, link } = setup();
     writeFileSync(path.join(proj, "a.txt"), "A2");
     writeFileSync(path.join(proj, "new.txt"), "N");
-    const r = applySync(link, proj, backups);
+    const r = await applySync(link, proj, backups);
     expect(read(src, "a.txt")).toBe("A2");
-    const back = restoreBackup(r.link, proj, backups, r.backup!.id);
+    const back = await restoreBackup(r.link, proj, backups, r.backup!.id);
     expect(read(src, "a.txt")).toBe("A");
     expect(existsSync(path.join(src, "new.txt"))).toBe(false);
     expect(computeDiff(back, proj).map((e) => e.path)).toEqual(["a.txt", "new.txt"]); // the copy's changes show up again
-    expect(() => restoreBackup(r.link, proj, backups, "nope")).toThrow();
+    await expect(restoreBackup(r.link, proj, backups, "nope")).rejects.toThrow();
   });
 
   it("keeps only the newest generations", async () => {
@@ -80,7 +80,7 @@ describe("project sync", () => {
     let cur = link;
     for (let i = 0; i < 4; i++) {
       writeFileSync(path.join(proj, "a.txt"), `v${i}`);
-      cur = applySync(cur, proj, backups).link;
+      cur = (await applySync(cur, proj, backups)).link;
       await new Promise((r) => setTimeout(r, 5)); // distinct timestamps
     }
     expect(listBackups(backups)).toHaveLength(4);
@@ -90,7 +90,7 @@ describe("project sync", () => {
     expect(read(backups, left[0]!.id, "files", "a.txt")).toBe("v2"); // newest generation survives
   });
 
-  it("pulls what the original changed into the copy, protecting the copy's own edits", () => {
+  it("pulls what the original changed into the copy, protecting the copy's own edits", async () => {
     const { src, proj, backups, link } = setup();
     writeFileSync(path.join(src, "a.txt"), "A-from-original"); // original changed
     writeFileSync(path.join(src, "added.txt"), "X"); // original added
@@ -101,7 +101,7 @@ describe("project sync", () => {
       { path: "added.txt", kind: "added", conflict: false },
       { path: "sub/b.txt", kind: "deleted", conflict: true },
     ]);
-    const r = applySync(link, proj, backups, {}, "pull");
+    const r = await applySync(link, proj, backups, {}, "pull");
     expect(read(proj, "a.txt")).toBe("A-from-original");
     expect(read(proj, "added.txt")).toBe("X");
     expect(read(proj, "sub", "b.txt")).toBe("B-copy-edit"); // conflict + delete: untouched
@@ -110,24 +110,24 @@ describe("project sync", () => {
     // nothing left to push except the copy's own edit; the pulled files are in step
     expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["sub/b.txt"]);
     // and the pull can be undone
-    const back = restoreBackup(r.link, proj, backups, r.backup!.id, "pull");
+    const back = await restoreBackup(r.link, proj, backups, r.backup!.id, "pull");
     expect(read(proj, "a.txt")).toBe("A");
     expect(existsSync(path.join(proj, "added.txt"))).toBe(false);
     expect(computeDiff(back, proj, "pull").map((e) => e.path)).toContain("a.txt");
   });
 
-  it("writes only the chosen paths; the rest stays pending", () => {
+  it("writes only the chosen paths; the rest stays pending", async () => {
     const { src, proj, backups, link } = setup();
     mkdirSync(path.join(proj, "docs"), { recursive: true });
     writeFileSync(path.join(proj, "a.txt"), "A2"); // code
     writeFileSync(path.join(proj, "docs", "notes.md"), "notes"); // a note the AI wrote
-    const r = applySync(link, proj, backups, { only: ["a.txt"] });
+    const r = await applySync(link, proj, backups, { only: ["a.txt"] });
     expect(read(src, "a.txt")).toBe("A2");
     expect(existsSync(path.join(src, "docs", "notes.md"))).toBe(false);
     expect(r.backup?.files.map((f) => f.path)).toEqual(["a.txt"]);
     expect(r.skipped).toEqual([]); // unchosen is not "skipped"
     expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["docs/notes.md"]); // still offered next time
-    expect(applySync(r.link, proj, backups, { only: [] }).backup).toBeNull();
+    expect((await applySync(r.link, proj, backups, { only: [] })).backup).toBeNull();
   });
 
   it("the async diff gives the same answer as the blocking one, in both directions", async () => {
