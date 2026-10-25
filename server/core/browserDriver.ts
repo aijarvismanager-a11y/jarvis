@@ -213,6 +213,9 @@ export async function waitUntil<T>(probe: () => Promise<T | null | false>, opts:
 
 const q = (s: string) => JSON.stringify(s);
 
+/** Notices a chat page shows in place of an answer (seen once in six runs on ChatGPT, 2026-10-25). */
+const SITE_ERROR_TEXT = /^(この回答を読み込めませんでした|回答を読み込めませんでした|Something went wrong|An error occurred|エラーが発生しました)/i;
+
 /** In-page helpers: first element matching any of the selectors, and the text of the last answer. */
 const firstMatch = (selector: string) => `document.querySelector(${q(selector)})`;
 
@@ -260,6 +263,9 @@ class CdpChatPage implements WebChatPage {
   }
 
   async submit(): Promise<void> {
+    // How much text is still in the prompt box: a send that worked empties it (or leaves the page), one that did nothing does not.
+    const promptLength = () => this.cdp.evaluate<number>(`(() => { const el = ${firstMatch(this.site.inputSelector)}; return el ? String(el.value ?? el.innerText ?? "").trim().length : 0; })()`);
+    const before = await promptLength();
     const sendSelector = this.site.sendSelector;
     if (sendSelector) {
       // a real mouse click at the button's centre: some sites ignore synthetic el.click()
@@ -268,8 +274,11 @@ class CdpChatPage implements WebChatPage {
         this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
         const b = ${firstMatch(sendSelector)};
         if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return null;
+        // a long prompt makes the prompt box grow and can push the button out of the visible area, where a mouse click does nothing
+        b.scrollIntoView({ block: "center", inline: "center" });
         const r = b.getBoundingClientRect();
-        return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+        const inside = r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+        return r.width && r.height && inside ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
       })()`);
       let rect = await findButton();
       for (let i = 0; !rect && i < 20; i++) {
@@ -277,12 +286,18 @@ class CdpChatPage implements WebChatPage {
         rect = await findButton();
       }
       if (rect) {
+        // the page can still be moving after the scroll: look once more just before clicking
+        await new Promise((r) => setTimeout(r, 300));
+        rect = (await findButton()) ?? rect;
         for (const type of ["mousePressed", "mouseReleased"]) {
           await this.cdp.send("Input.dispatchMouseEvent", { type, x: rect.x, y: rect.y, button: "left", clickCount: 1 });
         }
-        return;
+        // a click that did nothing (the button had moved, something covered it) leaves the text in the box: then press Enter instead
+        if (before === 0 || (await waitUntil(async () => (await promptLength()) < Math.max(1, before * 0.3), { timeoutMs: 4000, intervalMs: 250 }))) return;
       }
     }
+    // Enter goes to whatever has the focus: put the focus back in the prompt box first (looking for the button can move it).
+    await this.cdp.evaluate(`(() => { const el = ${firstMatch(this.site.inputSelector)}; if (el) el.focus(); return !!el; })()`);
     for (const type of ["rawKeyDown", "keyUp"]) {
       await this.cdp.send("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: type === "rawKeyDown" ? "\r" : undefined });
     }
@@ -296,7 +311,8 @@ class CdpChatPage implements WebChatPage {
       async () => {
         const s = await this.cdp.evaluate<{ count: number; text: string; busy: boolean }>(pageSnapshotExpr(this.site));
         const fresh = s.count > this.baseline.count || (s.count > 0 && s.text !== this.baseline.text);
-        if (!fresh || !s.text.trim()) return null;
+        // a site's own "could not load this answer" notice is not an answer: keep waiting (the real answer may still appear)
+        if (!fresh || !s.text.trim() || SITE_ERROR_TEXT.test(s.text.trim())) return null;
         if (s.text !== lastText) {
           lastText = s.text;
           since = Date.now();
