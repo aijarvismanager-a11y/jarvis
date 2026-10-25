@@ -51,7 +51,7 @@ export function HelpDialog({ onClose, version }: { onClose: () => void; version:
           <li><b>進み具合</b> … いまの依頼が全体のどこまで進んだか、作業ごとの状況。</li>
           <li><b>これまでの記録</b> … 過去の依頼の一覧と、何が起きたかの履歴。</li>
           <li><b>できたもの</b> … AI が作ったファイルを選んで読めます。</li>
-          <li><b>設定</b> … プロジェクトの削除、使える AI の一覧など。ふだんは触らなくて大丈夫です。</li>
+          <li><b>設定</b> … ブラウザ上の AI の使用切り替え、使える AI の一覧、プロジェクトの削除など。ふだんは触らなくて大丈夫です(削除は一番下)。</li>
         </ul>
 
         <h3 className="mt-4 text-[14px] font-semibold">用語</h3>

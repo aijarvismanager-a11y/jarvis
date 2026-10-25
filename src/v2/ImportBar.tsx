@@ -19,8 +19,7 @@ const PHASE: Record<ImportProgress["phase"], string> = {
 const mb = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)}GB` : `${Math.max(1, Math.round(bytes / 1024 ** 2))}MB`);
 
 /** Brings an existing folder in as a new project; Claude Code then writes a status report about it. */
-export function ImportBar({ onImported, setError }: { onImported: (p: Project) => void; setError: (m: string) => void }) {
-  const [open, setOpen] = useState(false);
+export function ImportBar({ open, setOpen, onImported, setError }: { open: boolean; setOpen: (v: boolean) => void; onImported: (p: Project) => void; setError: (m: string) => void }) {
   const [folder, setFolder] = useState("");
   const [note, setNote] = useState<string | null>(null);
   // Shown right under the field, where the user is looking, not only in the page-wide bar.
@@ -39,7 +38,8 @@ export function ImportBar({ onImported, setError }: { onImported: (p: Project) =
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   usePoll(async () => setProgress(busy ? await api.importProgress() : null), 700, [busy]);
 
-  if (!open) return <div className="mx-auto max-w-[1600px] px-4 pb-2"><Button variant="ghost" onClick={() => setOpen(true)}>既存プロジェクトを取り込む</Button>{note && <span className="ml-2 text-[12px] text-status-done">{note}</span>}</div>;
+  // the button that opens this form lives in the header (V2App); closed, only the result of the last import is shown
+  if (!open) return note ? <div className="mx-auto max-w-[1600px] px-4 pb-2 text-[12px] text-status-done">{note}</div> : null;
 
   // The browser cannot read a folder's path, so the server opens the Windows folder dialog and returns it.
   const pick = async () => {

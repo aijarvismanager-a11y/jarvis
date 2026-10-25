@@ -38,6 +38,7 @@ export default function V2App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string | null>(readStored);
   const [loaded, setLoaded] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [overview, setOverview] = useState<Overview>(EMPTY);
   const [services, setServices] = useState<AiService[]>([]);
   const [handoffs, setHandoffs] = useState<Handoff[]>([]);
@@ -179,7 +180,8 @@ export default function V2App() {
       <header className="border-b border-border bg-sidebar">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
+            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)}>📁 既存プロジェクトを取り込む</Button>
             {notifySupported() && (
               <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
                 {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
@@ -187,13 +189,13 @@ export default function V2App() {
             )}
             <Button variant="ghost" onClick={() => setHelp(true)}>？ 使い方</Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }}>＋ 新しいプロジェクト</Button>
-            <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
+            <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="min-w-0 max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
-        <ImportBar setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
+        <ImportBar open={importOpen} setOpen={setImportOpen} setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
         <nav className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3" aria-label="画面">
           {SCREENS.map((s) => (
             <button
@@ -205,7 +207,7 @@ export default function V2App() {
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
               {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
-                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの差分: 取り込み待ち${sync.pull}件・書き込み待ち${sync.push}件`}>差分 {sync.push + sync.pull}</span>
+                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの差分: 取り込み待ち${sync.pull}件・書き込み待ち${sync.push}件`}>未反映 {sync.push + sync.pull}</span>
               )}
             </button>
           ))}
