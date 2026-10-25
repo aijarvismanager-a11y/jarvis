@@ -260,14 +260,22 @@ class CdpChatPage implements WebChatPage {
   }
 
   async submit(): Promise<void> {
-    if (this.site.sendSelector) {
+    const sendSelector = this.site.sendSelector;
+    if (sendSelector) {
       // a real mouse click at the button's centre: some sites ignore synthetic el.click()
-      const rect = await this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
-        const b = ${firstMatch(this.site.sendSelector)};
+      // Right after typing, the page has not yet enabled (or even drawn) the send button: wait for it instead of giving up at once.
+      const findButton = () =>
+        this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
+        const b = ${firstMatch(sendSelector)};
         if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return null;
         const r = b.getBoundingClientRect();
         return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
       })()`);
+      let rect = await findButton();
+      for (let i = 0; !rect && i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        rect = await findButton();
+      }
       if (rect) {
         for (const type of ["mousePressed", "mouseReleased"]) {
           await this.cdp.send("Input.dispatchMouseEvent", { type, x: rect.x, y: rect.y, button: "left", clickCount: 1 });

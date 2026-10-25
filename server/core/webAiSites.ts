@@ -2,8 +2,9 @@ import type { Store } from "./store.ts";
 
 // Web AI site profiles and settings (spec §10, Phase 6). A profile says where a
 // chat page's prompt box, send button and answer live. The bundled selectors
-// are 【仮定】: they were written from memory of each site's DOM and have NOT
-// been checked against the live sites, which change often. They only matter at
+// were 【仮定】 (written from memory). On 2026-10-25 chatgpt, gemini, claude-web, deepseek, poe, mistral and genspark
+// were checked against the live sites (free accounts, logged in); the others are still unchecked or known not to work
+// (see the notes per site). The sites change often: re-check when a Level 3 run fails. They only matter at
 // Level 2/3 (Level 1 never touches a page), and the user can override any of
 // them per service without a code change.
 
@@ -19,10 +20,12 @@ export type SiteProfile = {
 };
 
 export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
+  // chatgpt: checked against the live site on 2026-10-25 (free plan, logged in): the prompt box is now a ProseMirror
+  // editor and the answer carries data-dil-source-message-id instead of data-message-author-role.
   chatgpt: {
-    inputSelector: "#prompt-textarea",
-    sendSelector: 'button[data-testid="send-button"]',
-    responseSelector: '[data-message-author-role="assistant"]',
+    inputSelector: '#prompt-textarea, div.ProseMirror[contenteditable="true"]',
+    sendSelector: 'button[data-testid="send-button"], button[aria-label*="送信"], button[aria-label*="Send"]',
+    responseSelector: '[data-message-author-role="assistant"], [data-dil-source-message-id]',
     stopSelector: 'button[data-testid="stop-button"]',
   },
   gemini: {
@@ -34,11 +37,27 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   "claude-web": {
     inputSelector: 'div[contenteditable="true"]',
     sendSelector: 'button[aria-label*="Send"], button[aria-label*="送信"]',
-    responseSelector: ".font-claude-response, .font-claude-message",
+    // checked live on 2026-10-25: answers are wrapped in an element with data-perf-reply-text
+    responseSelector: "[data-perf-reply-text], .font-claude-response, .font-claude-message",
     stopSelector: 'button[aria-label*="Stop"], button[aria-label*="停止"]',
   },
-  perplexity: {
+  // poe / mistral / genspark: checked live on 2026-10-25 (free accounts, logged in); the answer is read after the Enter key.
+  poe: {
     inputSelector: "textarea",
+    responseSelector: '[class*="Markdown_markdownContainer"]',
+  },
+  mistral: {
+    inputSelector: 'div[contenteditable="true"], textarea',
+    responseSelector: '[data-testid="text-message-part"][data-message-part-type="answer"]',
+  },
+  genspark: {
+    inputSelector: "textarea",
+    responseSelector: ".answer-markdown",
+  },
+  // perplexity: NOT working yet (2026-10-25). The prompt box is #ask-input and the send button is labelled 送信, but sending
+  // shows a "Computer / Pro upgrade" pop-up instead of the answer, so the mode has to be handled first.
+  perplexity: {
+    inputSelector: "#ask-input, textarea",
     sendSelector: 'button[aria-label="Submit"]',
     responseSelector: 'div[id^="markdown-content"]',
   },
