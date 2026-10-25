@@ -3,6 +3,7 @@
 const { app, BrowserWindow, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
+const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 
@@ -34,10 +35,12 @@ async function ensureServer() {
   if (app.isPackaged) {
     // Installed build: run the bundled server with Electron's own Node, keeping user data outside the install folder.
     const loader = pathToFileURL(path.join(ROOT, "node_modules", "tsx", "dist", "loader.mjs")).href;
+    // the server's output goes to a log file in the data folder, so a failed start can be diagnosed
+    const log = fs.openSync(path.join(app.getPath("userData"), "server.log"), "a");
     child = spawn(process.execPath, ["--import", loader, path.join(ROOT, "server", "index.ts")], {
       cwd: app.getPath("userData"),
       windowsHide: true,
-      stdio: "ignore",
+      stdio: ["ignore", log, log],
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ORCHESTRATOR_APP_DIR: ROOT, PORT: String(PORT) },
     });
     child.on("exit", () => { child = null; });
@@ -90,7 +93,7 @@ async function start() {
   if (await ensureServer()) {
     await win.loadURL(URL_BASE);
   } else {
-    await win.loadURL(splash("サーバーを起動できませんでした。start-ai-orchestrator.bat から起動して、内容を確認してください。"));
+    await win.loadURL(splash(app.isPackaged ? `サーバーを起動できませんでした。ほかのアプリがポート${PORT}を使っていないか確認してください。詳細: ${path.join(app.getPath("userData"), "server.log")}` : "サーバーを起動できませんでした。start-ai-orchestrator.bat から起動して、内容を確認してください。"));
   }
 }
 

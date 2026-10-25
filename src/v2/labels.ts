@@ -107,9 +107,13 @@ export function progressOf(tasks: Task[]): { done: number; total: number; percen
   return { done, total: counted.length, percent: counted.length ? Math.round((done / counted.length) * 100) : 0 };
 }
 
+/** A short project name from the first request: its first phrase (up to the first 、。!?), at most 20 characters. */
 export const deriveProjectName = (goal: string) => {
   const t = goal.trim().replace(/\s+/g, " ");
-  return t.length > 24 ? `${t.slice(0, 24)}…` : t || "新しいプロジェクト";
+  if (!t) return "新しいプロジェクト";
+  const cut = t.search(/[、。!?！？,.]/);
+  const phrase = (cut >= 4 ? t.slice(0, cut) : t).trim();
+  return phrase.length > 20 ? `${phrase.slice(0, 20)}…` : phrase;
 };
 
 /** "3分12秒" style elapsed time since an ISO timestamp. */
