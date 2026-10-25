@@ -328,7 +328,7 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
   const [feedback, setFeedback] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const { mission, proposal } = view;
-  if (!proposal) return <Card title="計画">計画を作成中です…</Card>;
+  if (!proposal) return <Card title="計画">AI が計画を作成中です…(通常 1〜2 分かかります。できあがると、この画面が自動で切り替わります)</Card>;
   const act = (action: "approve" | "reject") =>
     run(async () => {
       if (action === "approve") await api.approveAndRun(mission.projectId, mission.id);
@@ -351,7 +351,7 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
       <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} placeholder="直してほしい点があれば入力(例: テストを厚く)" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
       <div className="flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
-        <Button variant="ghost" disabled={busy || !feedback.trim()} onClick={() => act("reject")}>修正して再提案</Button>
+        <Button variant="ghost" disabled={busy || !feedback.trim()} onClick={() => act("reject")}>{busy ? "作り直し中…(1〜2分)" : "修正して再提案"}</Button>
       </div>
     </Card>
   );
@@ -397,16 +397,14 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
 
-  // The proposal is not part of /overview, so fetch the full view while a plan awaits approval.
-  // `view` is only used while it matches the current planning mission, so it never needs clearing.
-  useEffect(() => {
+  // The proposal is not part of /overview, and it arrives after the mission already says "planning" (without any change to the
+  // mission itself), so keep asking for the full view while a plan awaits approval. `view` is only used while it matches the
+  // current planning mission, so it never needs clearing.
+  usePoll(async () => {
     if (!mission || mission.status !== "planning") return;
-    let cancelled = false;
-    api.missionView(mission.projectId, mission.id).then((v) => !cancelled && setView(v)).catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [mission?.id, mission?.status, mission?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+    const v = await api.missionView(mission.projectId, mission.id);
+    setView((prev) => (prev && JSON.stringify(prev) === JSON.stringify(v) ? prev : v));
+  }, 2500, [mission?.id, mission?.status]);
 
   const tasks = mission ? overview.tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) : [];
   // A draft without a plan (e.g. migrated from the old app) can never run: let the user start a fresh mission right away.
@@ -424,8 +422,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       ctx.refresh();
     });
 
-  const step = nextStep(ctx, tasks, () => setStarting(true));
   const pendingPlan = mission?.status === "planning" && view?.mission.id === mission.id;
+  const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal));
 
   return (
     <div className="space-y-4">
