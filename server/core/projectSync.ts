@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
 
@@ -39,6 +39,25 @@ export function hashTree(root: string, exclude: string[] = []): Record<string, s
   return out;
 }
 
+/**
+ * Hashes remembered by path + size + modified time, so a re-check only reads files that changed.
+ * A file touched within the last 2 seconds is never remembered (same size and time could still hide an edit).
+ */
+const hashMemo = new Map<string, { size: number; mtimeMs: number; hash: string }>();
+const MEMO_LIMIT = 200_000;
+const MEMO_SETTLE_MS = 2000;
+async function fileHash(abs: string): Promise<string> {
+  const st = await stat(abs);
+  const hit = hashMemo.get(abs);
+  if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.hash;
+  const hash = createHash("sha1").update(await readFile(abs)).digest("hex");
+  if (Date.now() - st.mtimeMs > MEMO_SETTLE_MS) {
+    if (hashMemo.size >= MEMO_LIMIT) hashMemo.clear();
+    hashMemo.set(abs, { size: st.size, mtimeMs: st.mtimeMs, hash });
+  }
+  return hash;
+}
+
 /** Same result as hashTree, but reads without blocking the server (a big project takes seconds); `onFile` is told after each file. */
 export async function hashTreeAsync(root: string, exclude: string[] = [], onFile?: (count: number) => void): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -52,7 +71,7 @@ export async function hashTreeAsync(root: string, exclude: string[] = [], onFile
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) await walk(abs, childRel);
       } else if (e.isFile() && !SKIP_FILE.test(e.name)) {
-        out[childRel] = createHash("sha1").update(await readFile(abs)).digest("hex");
+        out[childRel] = await fileHash(abs);
         onFile?.(Object.keys(out).length);
       }
     }

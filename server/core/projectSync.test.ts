@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -140,4 +140,14 @@ describe("project sync", () => {
     expect(both.pull).toEqual(computeDiff(link, proj, "pull"));
     await expect(computeDiffsAsync({ ...link, sourcePath: path.join(src, "missing") }, proj)).rejects.toThrow("元のフォルダ");
   });
+
+  it("a changed file is noticed even when earlier hashes are remembered", async () => {
+    const { proj, link } = setup();
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(path.join(proj, "a.txt"), old, old); // old enough to be remembered
+    expect((await computeDiffsAsync(link, proj)).push).toEqual([]);
+    writeFileSync(path.join(proj, "a.txt"), "A-longer-now");
+    expect((await computeDiffsAsync(link, proj)).push).toEqual([{ path: "a.txt", kind: "modified", conflict: false }]);
+  });
 });
+
