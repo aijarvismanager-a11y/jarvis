@@ -52,6 +52,8 @@ export const RUN_STATUS_LABEL: Record<string, string> = { succeeded: "成功", c
 export const EVENT_LABEL: Record<string, string> = {
   PROJECT_CREATED: "プロジェクトを作成",
   PROJECT_IMPORTED: "フォルダを取り込み",
+  HISTORY_CARRIED: "Claude Code の会話履歴を要約して引き継いだ",
+  HISTORY_CARRY_FAILED: "会話履歴の引き継ぎに失敗",
   LEGACY_PROJECT_IMPORTED: "旧アプリのプロジェクトを取り込み",
   MISSION_CREATED: "依頼を受付",
   MISSION_STATUS_CHANGED: "依頼の状態が変化",

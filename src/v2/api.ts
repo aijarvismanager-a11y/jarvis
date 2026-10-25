@@ -52,8 +52,9 @@ export const api = {
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
-  importProject: (path: string, exclude: string[] = [], name = "") =>
-    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[] }>("/projects/import", "POST", { path, name, exclude }),
+  importProject: (path: string, exclude: string[] = [], carryHistory = false, name = "") =>
+    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[]; history?: { ok: true; sessions: number; turns: number } | { ok: false; error: string } | null }>("/projects/import", "POST", { path, name, exclude, carryHistory }),
+  importHistory: (path: string) => request<{ found: boolean; sessions: number; lastAt: string | null }>(`/projects/import/history?path=${encodeURIComponent(path)}`),
   importProgress: () => request<{ progress: ImportProgress | null }>("/projects/import/progress").then((r) => r.progress),
   pickFolder: () => request<{ path: string | null }>("/system/pick-folder", "POST", {}).then((r) => r.path),
   systemStatus: (force = false) => request<{ claude: ClaudeStatus }>(`/system/status${force ? "?force=1" : ""}`).then((r) => r.claude),

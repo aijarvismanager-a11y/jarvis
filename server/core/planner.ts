@@ -83,7 +83,7 @@ export function buildPlannerPrompt(req: PlanRequest): string {
     "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",
     `ゴール: ${req.goal}`,
   ];
-  if (req.existingProject) lines.push("このフォルダは既存のプロジェクトです。docs/status-report.md があれば先に読み、既存のコードを調べたうえで、既存の構成・見た目・書き方を尊重した計画にすること。作り直しは避ける。");
+  if (req.existingProject) lines.push("このフォルダは既存のプロジェクトです。docs/status-report.md があれば先に読み、既存のコードを調べたうえで、既存の構成・見た目・書き方を尊重した計画にすること。作り直しは避ける。docs/previous-conversation.md があれば、前の Claude Code での作業の経緯(決定事項・未完了のこと)の要約なので、これも先に読んで踏まえること。");
   if (req.constraints.length) lines.push(`制約: ${req.constraints.join(" / ")}`);
   if (req.technologyPreferences.length) lines.push(`技術の希望: ${req.technologyPreferences.join(", ")}`);
   if (req.completed?.length) lines.push(`完了済み(再計画。重複させない): ${req.completed.map((t) => `[${t.role}] ${t.objective}`).join(" ; ")}`);

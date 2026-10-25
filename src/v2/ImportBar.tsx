@@ -13,6 +13,7 @@ const PHASE: Record<ImportProgress["phase"], string> = {
   copying: "ファイルをコピーしています",
   snapshot: "取り込み直後の状態を保存しています(変更前の基準)…",
   fingerprint: "元のフォルダとの同期用に、ファイルを記録しています…",
+  history: "Claude Code の会話履歴を要約しています(1〜2分かかります)…",
   starting: "現状分析を開始しています…",
 };
 
@@ -27,6 +28,22 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
   const [heavy, setHeavy] = useState<TooLarge | null>(null);
   const [leaveOut, setLeaveOut] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState(false);
+  // Claude Code's own record of the talk about this folder, if there is one: offered as a checkbox
+  const [history, setHistory] = useState<{ sessions: number; lastAt: string | null } | null>(null);
+  const [carry, setCarry] = useState(true);
+  useEffect(() => {
+    const f = folder.trim();
+    setHistory(null);
+    if (f.length < 3) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      api.importHistory(f).then((h) => !cancelled && setHistory(h.found ? { sessions: h.sessions, lastAt: h.lastAt } : null)).catch(() => {});
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [folder]);
   // other screens (the welcome card) can ask for this form to open
   useEffect(() => {
     const openIt = () => setOpen(true);
@@ -63,9 +80,9 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
       setProblem(null);
       if (!folder.trim()) return void setProblem("取り込むフォルダが選ばれていません。「フォルダを選ぶ…」を押すか、パスを入力してください");
       try {
-        const r = await api.importProject(folder.trim(), exclude);
+        const r = await api.importProject(folder.trim(), exclude, carry && history !== null);
         const left = r.excluded?.length ? `(除外: ${r.excluded.join("、")})` : "";
-        setNote(r.existing ? `このフォルダは取り込み済みです。「${r.project.name}」を開きました(コピーは増やしません)` : `${r.files}ファイルを取り込みました${left}${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}`);
+        setNote(r.existing ? `このフォルダは取り込み済みです。「${r.project.name}」を開きました(コピーは増やしません)` : `${r.files}ファイルを取り込みました${left}${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}${r.history?.ok ? `。会話履歴(${r.history.sessions}セッション)を要約して引き継ぎました` : ""}${r.history && !r.history.ok ? `。会話履歴の引き継ぎはできませんでした(${r.history.error})` : ""}`);
         setFolder("");
         setHeavy(null);
         setLeaveOut(new Set());
@@ -99,6 +116,16 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
         <Button disabled={busy} onClick={() => void go()}>{busy ? "取り込み中…" : "取り込む"}</Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
       </div>
+      {history && !busy && (
+        <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-panel px-3 py-2 text-[12.5px]">
+          <input type="checkbox" className="mt-0.5" checked={carry} onChange={(e) => setCarry(e.target.checked)} />
+          <span>
+            <span className="font-semibold">このフォルダでの Claude Code との会話履歴を要約して引き継ぐ</span>
+            <span className="ml-1 text-muted">({history.sessions}セッション{history.lastAt ? `・最新 ${history.lastAt.slice(0, 10)}` : ""})</span>
+            <span className="mt-0.5 block text-[11.5px] text-muted">会話の文章だけを読み取り、Claude Code に要約させて「docs/previous-conversation.md」に保存します(取り込みが1〜2分長くなります)。この要約は元のフォルダには書き戻されません。秘密情報は書かないよう指示していますが、念のため保存後に内容を確認してください。</span>
+          </span>
+        </label>
+      )}
       {busy && (
         <div className="mt-2" role="status">
           <p className="text-[12.5px]">

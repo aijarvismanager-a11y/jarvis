@@ -13,6 +13,7 @@ import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
+import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -171,17 +172,23 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     }),
   );
   // What the import that is running right now is doing, so the screen can show progress while its request is still open.
-  type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
+  type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "history" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
   let importProgress: ImportProgress | null = null;
   router.get("/projects/import/progress", (_req, res) => {
     res.json({ progress: importProgress });
+  });
+  // Does Claude Code have a recorded conversation for this folder? (asked by the import form before it offers to carry it over)
+  router.get("/projects/import/history", async (req, res) => {
+    const folder = typeof req.query.path === "string" ? req.query.path.trim().replace(/^["'“”]+|["'“”]+$/g, "").trim() : "";
+    if (!folder || folder.length > 1000) return void res.json({ found: false, sessions: 0, lastAt: null });
+    res.json(await historyInfo(folder));
   });
   // Import an existing folder: copy it (the original is never touched), then analyse it read-only.
   router.post(
     "/projects/import",
     guarded(async (req, res) => {
       if (!deps.canExecute) return void res.status(501).json({ error: "実行基盤が接続されていないため、取り込みの分析ができません" });
-      const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional(), exclude: z.array(z.string().trim().min(1).max(260)).max(100).default([]) }).parse(req.body ?? {});
+      const body = z.object({ path: z.string().trim().transform((s) => s.replace(/^["'“”]+|["'“”]+$/g, "").trim()).pipe(z.string().min(1).max(1000)), name: z.string().trim().max(100).optional(), exclude: z.array(z.string().trim().min(1).max(260)).max(100).default([]), carryHistory: z.boolean().default(false) }).parse(req.body ?? {});
       if (importProgress) throw new Error("ほかのフォルダを取り込み中です。終わるまでお待ちください");
       importProgress = { phase: "scanning", files: 0, filesTotal: 0, bytes: 0, bytesTotal: 0, startedAt: new Date().toISOString() };
       try {
@@ -191,7 +198,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       }
     }),
   );
-  const runImport = async (body: { path: string; name?: string; exclude: string[] }, res: Response): Promise<void> => {
+  const runImport = async (body: { path: string; name?: string; exclude: string[]; carryHistory: boolean }, res: Response): Promise<void> => {
     const progress = importProgress!;
     {
       let scan;
@@ -215,6 +222,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const folderName = path.basename(path.resolve(body.path));
       const project = store.createProject({ name: body.name || folderName });
       let baseline: Record<string, string> = {};
+      let history: Awaited<ReturnType<typeof carryHistory>> | null = null;
       try {
         await copyImport(path.resolve(body.path), projectDir(store.projectsRoot, project.id), scan, (p) => {
           progress.files = p.done;
@@ -224,6 +232,11 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
         await deps.snapshots?.capture(project.id, `${project.id}-import-baseline`).catch(() => undefined);
         progress.phase = "fingerprint";
         baseline = await hashTreeAsync(projectDir(store.projectsRoot, project.id), scan.excluded);
+        if (body.carryHistory) {
+          // never fatal: the import is complete without the summary
+          progress.phase = "history";
+          history = await carryHistory({ sourceFolder: path.resolve(body.path), projectDir: projectDir(store.projectsRoot, project.id) });
+        }
       } catch (err) {
         store.deleteProject(project.id);
         throw err;
@@ -231,9 +244,10 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       store.setSetting(linkKey(project.id), { sourcePath: path.resolve(body.path), importedAt: new Date().toISOString(), baseline, exclude: scan.excluded } satisfies SyncLink);
       progress.phase = "starting";
       store.appendEvent({ projectId: project.id, type: "PROJECT_IMPORTED", payload: { source: path.resolve(body.path), files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded } });
-      const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name) });
+      if (history) store.appendEvent({ projectId: project.id, type: history.ok ? "HISTORY_CARRIED" : "HISTORY_CARRY_FAILED", payload: history.ok ? { sessions: history.sessions, turns: history.turns } : { error: history.error } });
+      const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name, history?.ok === true) });
       void engine.run(project.id, mission.id).catch(() => undefined);
-      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded });
+      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded, history: history ? (history.ok ? { ok: true, sessions: history.sessions, turns: history.turns } : { ok: false, error: history.error }) : null });
     }
   };
   router.get("/projects/:projectId/overview", (req, res) => {

@@ -8,6 +8,8 @@ import type { PlanDraft } from "./taskGraph.ts";
 // task writes a "status report" the following missions build on.
 
 export const STATUS_REPORT_PATH = "docs/status-report.md";
+/** The AI-written summary of the talk with Claude Code in the original folder (see conversationHistory.ts). Never synced back. */
+export const HISTORY_NOTES_PATH = "docs/previous-conversation.md";
 
 export const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "coverage", ".venv", "venv", "__pycache__", ".cache", ".turbo", "target"]);
 export const SKIP_FILE = /^(\.env(\..*)?|.*\.(log|pem|key|pfx|p12)|id_rsa.*|\.npmrc|\.DS_Store|Thumbs\.db)$/i;
@@ -114,7 +116,7 @@ export async function copyImport(source: string, dest: string, scan: ImportScan,
   }
 }
 
-export function analysisPlan(sourceName: string): PlanDraft {
+export function analysisPlan(sourceName: string, hasHistory = false): PlanDraft {
   return {
     summary: "取り込んだプロジェクトの現状を調べる",
     tasks: [
@@ -128,6 +130,7 @@ export function analysisPlan(sourceName: string): PlanDraft {
           "既存ファイルの変更・削除・移動は禁止。新規に作るのはレポートのみ",
           "レポートの項目: 1) 何のアプリか 2) 使っている技術・フォルダ構成 3) 動かし方(起動・テストのコマンド) 4) 完成している機能 5) 未完成・壊れている・TODOの箇所 6) 気になる点(重複・古い依存・テスト不足など)",
           "推測と事実を区別し、推測には「推測」と書く",
+          ...(hasHistory ? [`${HISTORY_NOTES_PATH} は、元のフォルダで行われた Claude Code との会話の要約です。先に読み、レポートに「7) これまでの経緯と引き継ぎ事項」の項目を加えてください(このファイルは変更しない)`] : []),
         ],
         dependsOn: [],
       },

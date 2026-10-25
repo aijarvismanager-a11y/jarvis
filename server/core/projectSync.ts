@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
+import { HISTORY_NOTES_PATH, SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
 
 // Sync between an imported project (the working copy) and the folder it came from.
 // The link remembers what the source looked like at import time (a hash per file), so a
@@ -32,7 +32,7 @@ export function hashTree(root: string, exclude: string[] = []): Record<string, s
       const abs = path.join(dir, e.name);
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) walk(abs, childRel);
-      } else if (e.isFile() && !SKIP_FILE.test(e.name)) out[childRel] = sha1(abs);
+      } else if (e.isFile() && !SKIP_FILE.test(e.name) && childRel !== HISTORY_NOTES_PATH) out[childRel] = sha1(abs);
     }
   };
   if (existsSync(root)) walk(root, "");
@@ -70,7 +70,7 @@ export async function hashTreeAsync(root: string, exclude: string[] = [], onFile
       const abs = path.join(dir, e.name);
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) await walk(abs, childRel);
-      } else if (e.isFile() && !SKIP_FILE.test(e.name)) {
+      } else if (e.isFile() && !SKIP_FILE.test(e.name) && childRel !== HISTORY_NOTES_PATH) {
         out[childRel] = await fileHash(abs);
         onFile?.(Object.keys(out).length);
       }

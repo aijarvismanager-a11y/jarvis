@@ -6,7 +6,7 @@ import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
-import { STATUS_REPORT_PATH } from "./projectImport.ts";
+import { HISTORY_NOTES_PATH, STATUS_REPORT_PATH } from "./projectImport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { Mission, Store, Task } from "./store.ts";
 
@@ -89,6 +89,7 @@ export function buildTaskPrompt(input: {
   previousFailure?: string;
   /** The project was imported: its status report describes the existing code. */
   hasStatusReport?: boolean;
+  hasHistoryNotes?: boolean;
 }): string {
   const { task, mission } = input;
   const lines = [
@@ -99,6 +100,7 @@ export function buildTaskPrompt(input: {
     "成果物はファイルとして保存し(調査はresearch/、設計はdesign/、コードはcode/などサブフォルダ)、最後に何をしたかを短く報告してください。期待する成果物にパスが書かれている場合は、サブフォルダの慣例よりそのパスを優先してください。",
   ];
   if (input.hasStatusReport && task.role !== "analysis") lines.push(`このプロジェクトは既存のコードを取り込んだものです。作業の前に ${STATUS_REPORT_PATH} を読み、既存の構成・書き方・使っている技術に合わせてください。`);
+  if (input.hasHistoryNotes && task.role !== "analysis") lines.push(`${HISTORY_NOTES_PATH} は、このプロジェクトの前の Claude Code での作業(決定事項・未完了のこと・注意点)の要約です。作業の前に読み、その方針を尊重してください。`);
   if (task.inputs.length) lines.push(`入力: ${task.inputs.join(" / ")}`);
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
@@ -252,7 +254,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const cwd = projectDir(this.store.projectsRoot, projectId);
     mkdirSync(cwd, { recursive: true });
     const args = this.buildArgs(await this.capabilities(), task);
-    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)) });
+    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)) });
 
     const before = snapshotDir(cwd);
     const snaps = this.opts.snapshots;
