@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { applySync, computeDiff, hashTree, listBackups, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { applySync, computeDiff, computeDiffsAsync, hashTree, listBackups, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -128,5 +128,16 @@ describe("project sync", () => {
     expect(r.skipped).toEqual([]); // unchosen is not "skipped"
     expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["docs/notes.md"]); // still offered next time
     expect(applySync(r.link, proj, backups, { only: [] }).backup).toBeNull();
+  });
+
+  it("the async diff gives the same answer as the blocking one, in both directions", async () => {
+    const { src, proj, link } = setup();
+    writeFileSync(path.join(proj, "a.txt"), "A2");
+    writeFileSync(path.join(proj, "new.txt"), "N");
+    writeFileSync(path.join(src, "sub", "b.txt"), "B-from-original");
+    const both = await computeDiffsAsync(link, proj);
+    expect(both.push).toEqual(computeDiff(link, proj));
+    expect(both.pull).toEqual(computeDiff(link, proj, "pull"));
+    await expect(computeDiffsAsync({ ...link, sourcePath: path.join(src, "missing") }, proj)).rejects.toThrow("元のフォルダ");
   });
 });

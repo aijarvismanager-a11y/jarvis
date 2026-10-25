@@ -13,7 +13,7 @@ import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
-import { DEFAULT_KEEP_BACKUPS, applySync, computeDiff, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { DEFAULT_KEEP_BACKUPS, applySync, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -257,36 +257,44 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!link) return void res.status(404).json({ error: "このプロジェクトは取り込んだものではありません" });
       return handler(req, res, { projectId, link, backupDir: path.join(deps.syncBackupsRoot, projectId) });
     });
-  router.get("/projects/:projectId/sync", (req, res) => {
+  router.get("/projects/:projectId/sync", async (req, res) => {
     const projectId = String(req.params.projectId);
     const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
     if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false });
     const backupDir = path.join(deps.syncBackupsRoot, projectId);
     try {
       const root = projectDir(store.projectsRoot, projectId);
-      res.json({ linked: true, sourcePath: link.sourcePath, entries: computeDiff(link, root), pullEntries: computeDiff(link, root, "pull"), backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
+      const { push, pull } = await computeDiffsAsync(link, root);
+      res.json({ linked: true, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
       res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
   });
   // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
-  const summaryCache = new Map<string, { at: number; value: { linked: boolean; push: number; pull: number; problem?: string } }>();
+  type SyncSummaryValue = { linked: boolean; push: number; pull: number; problem?: string };
+  const summaryCache = new Map<string, { at: number; value: SyncSummaryValue }>();
   const SUMMARY_TTL_MS = 60_000;
-  router.get("/projects/:projectId/sync/summary", (req, res) => {
+  const summaryRuns = new Map<string, Promise<SyncSummaryValue>>();
+  router.get("/projects/:projectId/sync/summary", async (req, res) => {
     const projectId = String(req.params.projectId);
     const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
     if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false, push: 0, pull: 0 });
     const hit = summaryCache.get(projectId);
     if (hit && Date.now() - hit.at < SUMMARY_TTL_MS) return void res.json(hit.value);
-    let value: { linked: boolean; push: number; pull: number; problem?: string };
-    try {
-      const root = projectDir(store.projectsRoot, projectId);
-      value = { linked: true, push: computeDiff(link, root).length, pull: computeDiff(link, root, "pull").length };
-    } catch (err) {
-      value = { linked: true, push: 0, pull: 0, problem: err instanceof Error ? err.message : String(err) };
+    // several screens may ask at once: share one hashing run
+    let run = summaryRuns.get(projectId);
+    if (!run) {
+      run = computeDiffsAsync(link, projectDir(store.projectsRoot, projectId))
+        .then((d): SyncSummaryValue => ({ linked: true, push: d.push.length, pull: d.pull.length }))
+        .catch((err): SyncSummaryValue => ({ linked: true, push: 0, pull: 0, problem: err instanceof Error ? err.message : String(err) }))
+        .then((value) => {
+          summaryCache.set(projectId, { at: Date.now(), value });
+          summaryRuns.delete(projectId);
+          return value;
+        });
+      summaryRuns.set(projectId, run);
     }
-    summaryCache.set(projectId, { at: Date.now(), value });
-    res.json(value);
+    res.json(await run);
   });
   router.post(
     "/projects/:projectId/sync/apply",

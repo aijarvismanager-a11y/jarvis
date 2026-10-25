@@ -69,10 +69,16 @@ const rootsOf = (link: SyncLink, projectRoot: string, dir: SyncDirection) => (di
  * push: working copy -> original. pull: original -> working copy.
  */
 export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirection = "push"): SyncEntry[] {
-  if (!existsSync(link.sourcePath) || !statSync(link.sourcePath).isDirectory()) throw new Error("元のフォルダが見つかりません");
+  assertSourceExists(link);
   const roots = rootsOf(link, projectRoot, dir);
-  const from = hashTree(roots.from, link.exclude);
-  const to = hashTree(roots.to, link.exclude);
+  return diffOf(link, hashTree(roots.from, link.exclude), hashTree(roots.to, link.exclude));
+}
+
+function assertSourceExists(link: SyncLink) {
+  if (!existsSync(link.sourcePath) || !statSync(link.sourcePath).isDirectory()) throw new Error("元のフォルダが見つかりません");
+}
+
+function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string, string>): SyncEntry[] {
   const entries: SyncEntry[] = [];
   for (const rel of new Set([...Object.keys(from), ...Object.keys(link.baseline)])) {
     const b = link.baseline[rel];
@@ -83,6 +89,16 @@ export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirect
     entries.push({ path: rel, kind: f === undefined ? "deleted" : b === undefined ? "added" : "modified", conflict: t !== b });
   }
   return entries.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Both directions at once without blocking the server: each folder is hashed once (asynchronously, so other requests are
+ * served in between) and the two diffs are derived from the same hashes.
+ */
+export async function computeDiffsAsync(link: SyncLink, projectRoot: string): Promise<{ push: SyncEntry[]; pull: SyncEntry[] }> {
+  assertSourceExists(link);
+  const [copy, source] = await Promise.all([hashTreeAsync(projectRoot, link.exclude), hashTreeAsync(link.sourcePath, link.exclude)]);
+  return { push: diffOf(link, copy, source), pull: diffOf(link, source, copy) };
 }
 
 export type ApplyOptions = { /** only these project-relative paths (default: every pending change) */ only?: string[]; /** also delete, in the original, files deleted in the copy */ deletes?: boolean; /** overwrite files the original changed as well */ overwriteConflicts?: boolean };
