@@ -164,6 +164,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const busy = store.listMissions(projectId).filter((m) => m.status === "running").length;
       if (busy > 0) return void res.status(409).json({ error: `実行中の依頼が${busy}件あります。止めてから削除してください` });
       deps.previews?.stop(projectId);
+      // manual steps waiting for the person (copy & paste, a login...) belong to the project and go with it
+      for (const h of deps.webAi?.hub.list({ projectId, status: "pending" }) ?? []) deps.webAi!.hub.cancel(h.id);
       store.deleteProject(projectId);
       store.deleteSetting(linkKey(projectId));
       rmSync(path.join(store.projectsRoot, `${projectId}.git`), { recursive: true, force: true });
