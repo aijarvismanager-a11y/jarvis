@@ -87,11 +87,11 @@ describe("importEverydaySignIn", () => {
 });
 
 describe("later retirements", () => {
-  it("removes Adobe Firefly, HuggingChat and Kimi once", () => {
+  it("removes the retired services once", () => {
     const store = new Store(openDatabase(":memory:"), "unused");
-    for (const id of ["huggingchat", "kimi"]) store.upsertAiService({ id, name: id, url: "https://example.com" });
+    for (const id of ["huggingchat", "kimi", "midjourney", "v0"]) store.upsertAiService({ id, name: id, url: "https://example.com" });
     store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
-    expect(applyLaterRetirements(store).sort()).toEqual(["firefly", "huggingchat", "kimi"]);
+    expect(applyLaterRetirements(store).sort()).toEqual(["firefly", "huggingchat", "kimi", "midjourney", "v0"]);
     expect(store.getAiService("firefly")).toBeNull();
     store.upsertAiService({ id: "firefly", name: "Adobe Firefly", url: "https://firefly.adobe.com" });
     expect(applyLaterRetirements(store)).toEqual([]);

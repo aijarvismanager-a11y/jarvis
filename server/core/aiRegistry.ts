@@ -131,14 +131,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     freeStatus: "free_tier",
     limitations: "手元の資料を読み込ませて使う。資料がないと力を発揮しにくい",
   },
-  v0: {
-    capabilities: { coding: 4, ux_review: 4, architecture: 3 },
-    qualityScore: 4,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "free_tier",
-    limitations: "主にWeb画面(React/Tailwind)の生成向け。無料枠に上限あり",
-  },
   "bolt-new": {
     capabilities: { coding: 4, architecture: 3, testing: 2.5 },
     qualityScore: 3.5,
@@ -162,14 +154,6 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     automationLevel: 1,
     freeStatus: "free_tier",
     limitations: "招待・無料枠に制限があり、利用できない場合あり",
-  },
-  midjourney: {
-    capabilities: { image_generation: 5 },
-    qualityScore: 5,
-    reliabilityScore: 3,
-    automationLevel: 1,
-    freeStatus: "paid",
-    limitations: "無料枠なし(有料)。無料のみの運用では選ばれない",
   },
   ideogram: {
     capabilities: { image_generation: 4.5 },
@@ -373,6 +357,7 @@ export function applyGoogleLoginRegistry(store: Store): { removed: string[]; add
 const LATER_RETIREMENTS: { key: string; ids: string[] }[] = [
   { key: "registry.retired.firefly.v1", ids: ["firefly"] },
   { key: "registry.retired.huggingchat-kimi.v1", ids: ["huggingchat", "kimi"] },
+  { key: "registry.retired.midjourney-v0.v1", ids: ["midjourney", "v0"] },
 ];
 
 export function applyLaterRetirements(store: Store): string[] {

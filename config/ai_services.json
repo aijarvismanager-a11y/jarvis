@@ -70,11 +70,6 @@
     "url": "https://notebooklm.google.com"
   },
   {
-    "id": "v0",
-    "name": "v0 by Vercel (Web)",
-    "url": "https://v0.dev"
-  },
-  {
     "id": "bolt-new",
     "name": "Bolt.new (Web)",
     "url": "https://bolt.new"
@@ -88,11 +83,6 @@
     "id": "manus",
     "name": "Manus (Web)",
     "url": "https://manus.im"
-  },
-  {
-    "id": "midjourney",
-    "name": "Midjourney（画像生成）",
-    "url": "https://www.midjourney.com"
   },
   {
     "id": "ideogram",

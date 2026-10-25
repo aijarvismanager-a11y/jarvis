@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { FREE_LABEL, LEVEL_LABEL, formatTime } from "../labels";
+import { AI_GROUPS, FREE_LABEL, LEVEL_LABEL, aiGroupOf, formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import type { AiService, Project, WebAiSettings } from "../types";
@@ -74,8 +74,11 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
           <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.healthCheck(); done(); })}>{busy ? "確認中…" : "接続状況を確認"}</Button>
         </div>
         <Details summary={`登録されているAI(${services.length}件)`}>
+        {AI_GROUPS.map((g) => ({ g, items: services.filter((s) => aiGroupOf(s) === g.id).sort((x, y) => x.name.localeCompare(y.name, "ja")) })).filter((x) => x.items.length > 0).map(({ g, items }) => (
+        <div key={g.id} className="mb-4">
+        <h3 className="mb-2 text-[12px] font-semibold text-muted">{g.label}({items.length})</h3>
         <ul className="space-y-2">
-          {services.map((s) => (
+          {items.map((s) => (
             <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[13px] font-semibold">{s.name}</span>
@@ -129,6 +132,8 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
             </li>
           ))}
         </ul>
+        </div>
+        ))}
         </Details>
       </Card>
     </div>

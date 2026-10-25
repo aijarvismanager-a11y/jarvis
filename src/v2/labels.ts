@@ -145,3 +145,28 @@ export function summarizeUsage(runs: { task_id: string | null; status: string; d
   }
   return u;
 }
+
+/** What an AI is for, from its capabilities: used to sort the AI list by purpose. */
+export const AI_GROUPS = [
+  { id: "chat", label: "調べもの・文章・なんでも相談" },
+  { id: "dev", label: "コード・開発" },
+  { id: "design", label: "画面デザイン" },
+  { id: "image", label: "画像づくり" },
+  { id: "video", label: "動画づくり" },
+  { id: "music", label: "音楽づくり" },
+  { id: "voice", label: "音声づくり" },
+] as const;
+export type AiGroupId = (typeof AI_GROUPS)[number]["id"];
+
+export function aiGroupOf(s: { capabilities: string[]; accessMode: string }): AiGroupId {
+  const caps = new Set(s.capabilities);
+  const only = (...allowed: string[]) => caps.size > 0 && [...caps].every((c) => allowed.includes(c));
+  if (only("image_generation")) return "image";
+  if (only("video_generation")) return "video";
+  if (only("music_generation")) return "music";
+  if (only("voice_generation")) return "voice";
+  if (s.accessMode === "cli") return "dev";
+  if (caps.has("design") && only("design", "ux_review")) return "design";
+  if (caps.has("coding") && only("coding", "debugging", "testing", "architecture", "ux_review")) return "dev";
+  return "chat";
+}
