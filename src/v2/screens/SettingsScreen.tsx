@@ -39,7 +39,6 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
 
   return (
     <div className="space-y-4">
-      {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
       <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
         {!web ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
@@ -136,6 +135,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
         ))}
         </Details>
       </Card>
+      {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
     </div>
   );
 }

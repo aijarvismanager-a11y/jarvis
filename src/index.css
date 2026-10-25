@@ -24,6 +24,20 @@ body {
   font-size: 12.5px;
   line-height: 1.7;
   color: #4a473f;
+  overflow-wrap: anywhere;
+}
+.prose-artifact table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 0.9em;
+}
+.prose-artifact th,
+.prose-artifact td {
+  border: 1px solid #e9e4d9;
+  padding: 4px 8px;
+  text-align: left;
 }
 .prose-artifact h1,
 .prose-artifact h2,

@@ -170,3 +170,58 @@ export function aiGroupOf(s: { capabilities: string[]; accessMode: string }): Ai
   if (caps.has("coding") && only("coding", "debugging", "testing", "architecture", "ux_review")) return "dev";
   return "chat";
 }
+
+/** Plain-word version of the engine's English reason strings; unknown reasons are shown as recorded. */
+const REASON_LABEL: Record<string, string> = {
+  "fixed plan": "固定の計画で開始",
+  "fixed plan started": "固定の計画で作業を開始",
+  "planner requested": "AIに計画づくりを依頼",
+  "replan": "計画のやり直しを依頼",
+  "task retried by user": "作業のやり直しを依頼",
+  "all tasks completed": "すべての作業が完了",
+  "dependencies completed": "前の作業が完了",
+  scheduled: "作業を開始",
+  executed: "実行が終わり、検証へ",
+  "write lock unavailable": "ほかの作業がこのフォルダを使用中でした",
+  "no runnable tasks (retries exhausted or blocked)": "再試行しても進められない作業があり、止まりました",
+};
+
+/** One failed mission in plain words: what went wrong and what to do about it. */
+export function explainFailure(reason: string | null): { what: string; hint: string } {
+  const planner = reason?.match(/^(?:planner|replan) error:\s*(.*)$/s);
+  if (planner) {
+    const detail = planner[1].trim();
+    const crashed = /異常終了|code=\d+/.test(detail);
+    return {
+      what: `計画を立てる段階で失敗しました${detail ? `(${detail.replace(/[::\s]+$/, "")})` : ""}`,
+      hint: crashed
+        ? "Claude Code が途中で止まりました。Claude Code にログインできているか・利用上限に達していないかを確認してから、「計画をやり直す」を押してください。"
+        : "少し待ってから「計画をやり直す」を押してください。何度も失敗するときは、依頼の書き方を具体的にしてみてください。",
+    };
+  }
+  if (reason && REASON_LABEL[reason]) return { what: REASON_LABEL[reason], hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
+  if (reason) return { what: reason, hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
+  return { what: "理由の記録が見つかりませんでした", hint: "「計画をやり直す」を押すか、「新しい依頼」を出してください。" };
+}
+
+/** The recorded reason of the newest transition of a mission into "failed". */
+export function missionFailureReason(events: { type: string; payload: unknown }[], missionId: string): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    const p = e.payload as { missionId?: string; to?: string; reason?: string } | null;
+    if (e.type === "MISSION_STATUS_CHANGED" && p?.missionId === missionId && p.to === "failed") return p.reason ?? null;
+  }
+  return null;
+}
+
+/** Events in a mission/task transition, spelled out ("進行中 → 失敗 — 理由"); other events keep their plain label. */
+export function describeEvent(e: { type: string; payload: unknown }): string {
+  const p = e.payload as { from?: string; to?: string; reason?: string } | null;
+  if ((e.type === "MISSION_STATUS_CHANGED" || e.type === "TASK_TRANSITION") && p?.to) {
+    const labels = (e.type === "MISSION_STATUS_CHANGED" ? MISSION_LABEL : TASK_LABEL) as Record<string, string>;
+    const head = e.type === "MISSION_STATUS_CHANGED" ? "依頼" : "作業";
+    const why = p.reason ? ` — ${explainFailure(p.reason).what}` : "";
+    return `${head}: ${p.from ? `${labels[p.from] ?? p.from} → ` : ""}${labels[p.to] ?? p.to}${why}`;
+  }
+  return eventLabel(e.type);
+}

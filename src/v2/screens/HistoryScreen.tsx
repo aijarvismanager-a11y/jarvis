@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
-import { MISSION_LABEL, eventLabel, formatTime, progressOf } from "../labels";
+import { MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import { usePoll } from "../hooks";
 import type { StoredEvent } from "../types";
@@ -28,16 +28,17 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
                   {total > 0 && <span className="text-[11px] text-muted">{done}/{total}作業完了</span>}
                 </div>
                 <p className="mt-1 text-[13px]">{m.goal}</p>
+                {m.status === "failed" && <p className="mt-1 text-[12px] text-[#9B2C2C]">理由: {explainFailure(missionFailureReason(events, m.id)).what}</p>}
               </li>
             );
           })}
         </ul>
       </Card>
-      <Details summary={`何が起きたかの履歴(${events.length}件・困ったときの確認用)`}>
+      <Details summary={`何が起きたかの履歴(${events.filter((e) => e.type !== "TASK_STATUS_CHANGED").length}件・困ったときの確認用)`}>
         {events.length === 0 && <p className="text-[12px] text-muted">まだありません。</p>}
         <ul className="max-h-80 space-y-0.5 overflow-auto text-[12px]">
-          {events.map((e) => (
-            <li key={e.id} className="text-muted"><span>{formatTime(e.createdAt)}</span> <span className="text-ink" title={e.type}>{eventLabel(e.type)}</span></li>
+          {events.filter((e) => e.type !== "TASK_STATUS_CHANGED").map((e) => (
+            <li key={e.id} className="text-muted"><span>{formatTime(e.createdAt)}</span> <span className="text-ink" title={e.type}>{describeEvent(e)}</span></li>
           ))}
         </ul>
       </Details>

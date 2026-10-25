@@ -3,6 +3,7 @@ import { aiNameOf, type Ctx } from "../context";
 import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import type { Task, TaskStatus } from "../types";
+import { FailureReason } from "./FailureReason";
 
 const TONE: Record<TaskStatus, "neutral" | "ok" | "warn" | "bad" | "info"> = {
   pending: "neutral",
@@ -97,10 +98,11 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
           </div>
         )}
         {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
+        <FailureReason projectId={ctx.mission.projectId} missionId={ctx.mission.id} failed={ctx.mission.status === "failed"} className="mt-3" />
       </Card>
       <Card title="作業の一覧(上から順に進みます)">
         {tasks.length === 0 ? (
-          <p className="text-[13px] text-muted">{ctx.mission.status === "planning" ? "計画の承認待ちです。ホームで計画を読んで「この計画で開始」を押すと、作業がここに並びます。" : ctx.mission.status === "failed" || ctx.mission.status === "cancelled" ? "この依頼は、作業が始まる前に終わりました。理由は「ホーム」で確認できます。やり直すときは「新しい依頼」を出してください。" : "計画を承認すると、作業がここに並びます。"}</p>
+          <p className="text-[13px] text-muted">{ctx.mission.status === "planning" ? "計画の承認待ちです。ホームで計画を読んで「この計画で開始」を押すと、作業がここに並びます。" : ctx.mission.status === "failed" || ctx.mission.status === "cancelled" ? "この依頼は、作業が始まる前に終わりました。理由は上の「いまの依頼」に出ています。やり直すときは「ホーム」で「計画をやり直す」か「新しい依頼」を使ってください。" : "計画を承認すると、作業がここに並びます。"}</p>
         ) : (
           <>
             <p className="mb-2 text-[12px] text-muted">各行を押すと、その作業の内容と、できたファイルが見られます。</p>

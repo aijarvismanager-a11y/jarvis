@@ -8,6 +8,7 @@ import { SplitPreview } from "./SplitPreview";
 import { DepsCard } from "./DepsCard";
 import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
+import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
@@ -459,6 +460,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
+          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
           {["completed", "failed"].includes(mission.status) && <ReportPanel projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (
             <p className="mt-2 text-[12px] text-muted">

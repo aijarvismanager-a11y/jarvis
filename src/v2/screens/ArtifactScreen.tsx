@@ -47,7 +47,7 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
   if (latest.length === 0) return <Card title="できたもの">まだ何もできていません。AI が作業を進めると、作ったファイル(設計書・コードなど)がここに並びます。</Card>;
   const v = VALIDATION[shown?.validationStatus ?? "unvalidated"] ?? VALIDATION.unvalidated;
   return (
-    <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
       <Card title="できたファイル" className="self-start">
         <p className="mb-2 text-[12px] text-muted">押すと中身を読めます。</p>
         <ul className="space-y-0.5">
@@ -58,7 +58,7 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
           ))}
         </ul>
       </Card>
-      <Card>
+      <Card className="min-w-0">
         {!shown ? (
           <p className="text-[13px] text-muted">左のリストからファイルを選んでください。AI が作った文書やコードを、ここで読めます(ここでは編集できません)。</p>
         ) : (

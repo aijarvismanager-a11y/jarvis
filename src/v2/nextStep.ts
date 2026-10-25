@@ -21,7 +21,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void): Ste
     case "paused":
       return { tone: "go", title: "一時停止中です", detail: "「再開」を押すと、続きから作業を再開します。やめるときは「中止」を押します。" };
     case "failed":
-      return { tone: "bad", title: "うまくいかなかった作業があります", detail: "失敗した作業の下の「この作業をやり直す」を押すか、「計画をやり直す」で立て直せます。理由は作業の下に赤字で出ています。" };
+      return { tone: "bad", title: "うまくいかなかった作業があります", detail: "失敗した作業の下の「この作業をやり直す」を押すか、「計画をやり直す」で立て直せます。失敗の理由は下の赤い枠に出ています。" };
     case "completed":
       return {
         tone: "done",

@@ -271,7 +271,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   });
   // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
   const summaryCache = new Map<string, { at: number; value: { linked: boolean; push: number; pull: number; problem?: string } }>();
-  const SUMMARY_TTL_MS = 15_000;
+  const SUMMARY_TTL_MS = 60_000;
   router.get("/projects/:projectId/sync/summary", (req, res) => {
     const projectId = String(req.params.projectId);
     const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);

@@ -106,7 +106,8 @@ export default function V2App() {
   const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
   const [sync, setSync] = useState<SyncSummary | null>(null);
-  usePoll(async () => setSync(projectId ? await api.syncSummary(projectId) : null), 20000, [projectId]);
+  // Hashing a big folder blocks the server for seconds, so wait until the first screen has loaded.
+  usePoll(async () => setSync(projectId && loaded ? await api.syncSummary(projectId) : null), 30000, [projectId, loaded]);
 
   const refresh = usePoll(
     async () => {
