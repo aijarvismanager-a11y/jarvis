@@ -114,6 +114,13 @@ export class WebHandoffHub {
     return next;
   }
 
+  /** A fresh automatic run answered the task: handoffs an earlier attempt left waiting for the person are no longer needed. */
+  cancelPendingFor(taskId: string): void {
+    for (const h of this.all()) {
+      if (h.taskId === taskId && h.status === "pending") this.close(h.id, "cancelled", "WEB_HANDOFF_CANCELLED", "自動で回答を取得できたため、手動の操作は不要になりました");
+    }
+  }
+
   markConsumed(id: string): void {
     this.update(id, { consumed: true });
   }

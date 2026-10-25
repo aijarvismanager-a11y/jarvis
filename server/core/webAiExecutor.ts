@@ -122,6 +122,7 @@ export class WebAiExecutor implements TaskExecutor {
           await p.close();
         }
         this.resetFailures(svc);
+        this.hub.cancelPendingFor(task.id); // an earlier attempt of this task may have left a manual step waiting
       } catch (err) {
         if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
         text = null;
