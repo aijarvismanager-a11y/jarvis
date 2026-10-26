@@ -5,6 +5,7 @@ import path from "node:path";
 import net from "node:net";
 import WebSocket from "ws";
 import { killTree } from "./commandRunner.ts";
+import { HTML_TO_MARKDOWN_JS } from "./pageMarkdown.ts";
 import { BLOCK_MESSAGES, classifyBlocker, type BlockReason, type SiteProfile } from "./webAiSites.ts";
 
 // Browser driver for Level 2/3 (spec §10). Talks the Chrome DevTools Protocol to
@@ -40,6 +41,8 @@ export interface WebChatPage {
   submit(): Promise<void>;
   /** Waits for a new answer to appear and stop changing; returns its text. */
   waitForResponse(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<string>;
+  /** The newest answer as Markdown (headings, lists, tables and code blocks kept); null when it cannot be read that way. */
+  readMarkdown?(): Promise<string | null>;
   close(): Promise<void>;
 }
 export interface WebChatDriver {
@@ -214,7 +217,9 @@ export async function waitUntil<T>(probe: () => Promise<T | null | false>, opts:
 const q = (s: string) => JSON.stringify(s);
 
 /** Notices a chat page shows in place of an answer (seen once in six runs on ChatGPT, 2026-10-25). */
-const SITE_ERROR_TEXT = /^(この回答を読み込めませんでした|回答を読み込めませんでした|Something went wrong|An error occurred|エラーが発生しました)/i;
+/** What a page shows while it is still working on the answer (seen on Genspark: "Thinking..." followed by a cursor block). */
+const SITE_PENDING_TEXT = /^(Thinking|Generating|Searching|考え中|思考中|生成中|検索中)[\s.…。·▌█●]*$/i;
+const SITE_ERROR_TEXT =/^(この回答を読み込めませんでした|回答を読み込めませんでした|Something went wrong|An error occurred|エラーが発生しました)/i;
 
 /** In-page helpers: first element matching any of the selectors, and the text of the last answer. */
 const firstMatch = (selector: string) => `document.querySelector(${q(selector)})`;
@@ -312,7 +317,7 @@ class CdpChatPage implements WebChatPage {
         const s = await this.cdp.evaluate<{ count: number; text: string; busy: boolean }>(pageSnapshotExpr(this.site));
         const fresh = s.count > this.baseline.count || (s.count > 0 && s.text !== this.baseline.text);
         // a site's own "could not load this answer" notice is not an answer: keep waiting (the real answer may still appear)
-        if (!fresh || !s.text.trim() || SITE_ERROR_TEXT.test(s.text.trim())) return null;
+        if (!fresh || !s.text.trim() || SITE_ERROR_TEXT.test(s.text.trim()) || SITE_PENDING_TEXT.test(s.text.trim())) return null;
         if (s.text !== lastText) {
           lastText = s.text;
           since = Date.now();
@@ -324,6 +329,14 @@ class CdpChatPage implements WebChatPage {
     );
     if (done === null) throw new WebAiTimeoutError(`回答を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
     return done.trim();
+  }
+
+  async readMarkdown(): Promise<string | null> {
+    return this.cdp.evaluate<string | null>(`(() => {
+      const all = document.querySelectorAll(${q(this.site.responseSelector)});
+      const el = all.length ? all[all.length - 1] : null;
+      return el ? (${HTML_TO_MARKDOWN_JS})(el) : null;
+    })()`);
   }
 
   async close(): Promise<void> {

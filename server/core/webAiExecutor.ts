@@ -117,6 +117,9 @@ export class WebAiExecutor implements TaskExecutor {
           await p.fillPrompt(prompt);
           await p.submit();
           text = await p.waitForResponse({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal: ctx.signal });
+          // the page's plain text has lost the Markdown (headings, lists, tables, code): read the answer back as Markdown for the file
+          const markdown = await p.readMarkdown?.().catch(() => null);
+          if (markdown && markdown.trim().length >= text.trim().length * 0.5) text = markdown;
           usedLevel = 3;
         } finally {
           await p.close();
