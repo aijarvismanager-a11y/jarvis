@@ -8,14 +8,17 @@ import { transitionTask } from "./taskStateMachine.ts";
 
 export const MAX_PLAN_TASKS = 50;
 
+// The planner sometimes writes a single string where a list is expected; read it as a one-item list.
+const lenientList = z.preprocess((v) => (typeof v === "string" ? (v.trim() ? [v] : []) : v), z.array(z.string()).default([]));
+
 export const plannedTaskSchema = z.object({
   key: z.string().min(1).max(64),
   role: z.string().min(1).max(64),
   objective: z.string().max(4000).default(""),
-  inputs: z.array(z.string()).default([]),
-  expectedOutputs: z.array(z.string()).default([]),
-  constraints: z.array(z.string()).default([]),
-  dependsOn: z.array(z.string()).default([]),
+  inputs: lenientList,
+  expectedOutputs: lenientList,
+  constraints: lenientList,
+  dependsOn: lenientList,
 });
 
 export const planDraftSchema = z.object({
