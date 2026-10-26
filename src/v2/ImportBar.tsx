@@ -108,7 +108,15 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 pb-3">
-      <p className="text-[12px] text-muted">フォルダはコピーして取り込みます(元のフォルダは変更しません)。node_modules・.git・.env などは除きます。取り込み後、Claude Code が現状レポートを作ります。</p>
+      <div className="rounded-lg border border-borderSoft bg-bg p-3 text-[12.5px]">
+        <p className="font-semibold">すでにパソコンにある、作りかけのフォルダの続きを作るときに使います</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
+          <li>例: 以前から作っているWebサイトやアプリのフォルダ。選ぶと、このアプリに読み込んで、続きをAIに頼めます。</li>
+          <li>読み込むときは、フォルダを<b>コピー</b>して使います。元のフォルダは、あなたが内容を確認して「反映」を押すまで、変わりません。</li>
+          <li>読み込んだあと、Claude Code がフォルダの中身を調べて、「何が入っているか」のレポートを作ります。</li>
+          <li>node_modules・.git・.env(パスワードなどの秘密情報)は、読み込みません。</li>
+        </ul>
+      </div>
       <label htmlFor="import-folder" className="mt-2 block text-[12.5px] font-semibold">取り込むフォルダ</label>
       <div className="mt-1 flex flex-wrap gap-2">
         <Button variant="ghost" disabled={busy || picking} onClick={() => void pick()}>{picking ? "選択中…" : "フォルダを選ぶ…"}</Button>

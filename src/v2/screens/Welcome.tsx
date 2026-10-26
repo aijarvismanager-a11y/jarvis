@@ -56,8 +56,8 @@ export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: ()
         ))}
       </ol>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
-        <span className="text-muted">すでにあるフォルダの続きを作りたいとき:</span>
-        <Button variant="ghost" onClick={onImport}>既存のフォルダを取り込む</Button>
+        <span className="text-muted">すでにパソコンにある、作りかけのフォルダの続きを作りたいとき:</span>
+        <Button variant="ghost" onClick={onImport}>作りかけのフォルダを読み込む</Button>
         <Button variant="ghost" onClick={onHelp}>使い方を見る</Button>
       </div>
       <div className="mt-3"><ClaudeCheck always /></div>

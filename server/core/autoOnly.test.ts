@@ -27,3 +27,19 @@ describe("text work goes only to AIs the app can operate by itself", () => {
     expect(chooseAi(list, "research", { allowManualText: true }).selected?.aiId).toBe("manual-star");
   });
 });
+
+describe("Claude Code on a fresh install", () => {
+  it("is registered once with its profile", async () => {
+    const { openDatabase } = await import("./db.ts");
+    const { Store } = await import("./store.ts");
+    const { ensureClaudeCode, seedRegistryProfiles } = await import("./aiRegistry.ts");
+    const db = openDatabase(":memory:");
+    const store = new Store(db, "unused");
+    expect(ensureClaudeCode(store)).toBe(true);
+    expect(ensureClaudeCode(store)).toBe(false);
+    seedRegistryProfiles(store);
+    expect(store.getAiService("claude-code")).toMatchObject({ adapterType: "claude-code", automationLevel: 3 });
+    expect(store.getAiService("claude-code")!.capabilityScores.coding).toBe(5);
+    db.close();
+  });
+});

@@ -370,6 +370,13 @@ export const BUILT_IN_WEB_AIS: { id: string; name: string; url: string; freeStat
   { id: "elevenlabs", name: "ElevenLabs（音声生成）", url: "https://elevenlabs.io", freeStatus: "free_tier" },
 ];
 
+/** Claude Code is the main AI: a fresh install must list it, or coding tasks have no AI on record (and no score to learn from). */
+export function ensureClaudeCode(store: Store): boolean {
+  if (store.getAiService("claude-code")) return false;
+  store.upsertAiService({ id: "claude-code", name: "Claude Code (CLI)", accessMode: "cli", adapterType: "claude-code", automationLevel: 3, freeStatus: "free_tier", requiresLogin: true });
+  return true;
+}
+
 /** One-time: registers BUILT_IN_WEB_AIS that are missing, so an installed app (which has no imported config/) is not left with four AIs. Returns the ids it added. */
 export function seedBuiltInWebAis(store: Store): string[] {
   const KEY = "registry.builtInWebAis.v1";

@@ -14,7 +14,7 @@ import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
-import { seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { ensureClaudeCode, seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
@@ -92,6 +92,7 @@ app.use(express.json({ limit: "2mb" }));
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
 // requests migrated from the old app stay "draft" although every task is done: they are finished
 coreStore.db.prepare("UPDATE missions SET status = 'completed' WHERE status = 'draft' AND EXISTS (SELECT 1 FROM tasks WHERE tasks.mission_id = missions.id) AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.mission_id = missions.id AND tasks.status != 'completed')").run();
+ensureClaudeCode(coreStore);
 seedBuiltInWebAis(coreStore);
 applyGoogleLoginRegistry(coreStore);
 applyLaterRetirements(coreStore);
