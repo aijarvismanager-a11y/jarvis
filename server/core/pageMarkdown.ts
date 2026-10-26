@@ -9,9 +9,11 @@ export const HTML_TO_MARKDOWN_JS = String.raw`(root) => {
   const SKIP = new Set(["SCRIPT", "STYLE", "BUTTON", "SVG", "SUP", "NOSCRIPT", "TEXTAREA", "INPUT", "IMG", "MAT-ICON", "SOURCE-FOOTNOTE", "SOURCES-CAROUSEL"]);
   const noisy = (e) => {
     if (SKIP.has(e.tagName.toUpperCase())) return true;
-    if (/citation|source-?chip|footnote|sources/i.test(e.tagName)) return true;
+    // Gemini marks its citations with their own tags (source-footnote, sources-carousel-inline, source-inline-chip); the TEXT they
+    // belong to sits in ordinary elements (some with a class such as "citation-23"), which must stay
+    if (/source-?chip|source-footnote|sources|footnote/i.test(e.tagName)) return true;
     const cls = e.getAttribute("class") || "";
-    return e.getAttribute("aria-hidden") === "true" || /citation|source-?chip|footnote|copy-?button|code-block-decoration/i.test(cls);
+    return e.getAttribute("aria-hidden") === "true" || /source-?chip|footnote|copy-?button|code-block-decoration/i.test(cls);
   };
   const LANGS = /^(javascript|typescript|python|html|css|json|bash|shell|sh|sql|java|c|c\+\+|c#|go|rust|ruby|php|yaml|xml|markdown|text|plaintext|jsx|tsx|powershell)$/i;
   const inline = (n) => {
