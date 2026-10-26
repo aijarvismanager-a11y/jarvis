@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import net from "node:net";
@@ -28,6 +28,13 @@ export class WebAiBrowserError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "WebAiBrowserError";
+  }
+}
+/** Another window (typically the one opened to sign in) is using the dedicated profile: nothing is broken, it only has to be closed. */
+export class WebAiProfileBusyError extends WebAiBrowserError {
+  constructor() {
+    super("ログイン用の窓など、別のブラウザがアプリ用のプロファイルを使っています。その窓を閉じると、自動で続きます");
+    this.name = "WebAiProfileBusyError";
   }
 }
 /** The page is reachable but does not look the way the profile expects (the site's UI changed). */
@@ -60,6 +67,8 @@ export interface WebChatPage {
 export interface WebChatDriver {
   /** Opens the site in a visible tab. Throws WebAiBlockedError / WebAiUiError when the prompt box is not usable. */
   open(req: { url: string; site: SiteProfile; signal?: AbortSignal }): Promise<WebChatPage>;
+  /** True while a browser window that is not this driver's own uses the dedicated profile (a sign-in window left open). Cheap to ask. */
+  profileBusy?(): Promise<boolean>;
   shutdown(): Promise<void>;
 }
 
@@ -428,9 +437,39 @@ export class ChromiumDriver implements WebChatDriver {
     return importEverydaySignIn(exe, this.opts.profileDir);
   }
 
+  /**
+   * Chromium keeps the profile's "lockfile" open while any browser uses the profile (Windows: it cannot be opened then; elsewhere a
+   * SingletonLock link names the owner's pid). Starting a second browser on the profile would only hand the request to that window.
+   */
+  async profileBusy(): Promise<boolean> {
+    if (this.proc && this.proc.exitCode === null) return false; // the profile is this driver's own
+    const dir = this.opts.profileDir;
+    if (process.platform === "win32") {
+      const lock = path.join(dir, "lockfile");
+      if (!existsSync(lock)) return false;
+      try {
+        closeSync(openSync(lock, "r+"));
+        return false; // left behind by a browser that is gone
+      } catch (err) {
+        return (err as NodeJS.ErrnoException).code === "EBUSY";
+      }
+    }
+    try {
+      const pid = Number(readlinkSync(path.join(dir, "SingletonLock")).split("-").pop());
+      if (!pid) return false;
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private ensureBrowser(): Promise<number> {
     if (this.port !== null && this.proc && this.proc.exitCode === null) return Promise.resolve(this.port);
-    return (this.starting ??= this.launch().finally(() => (this.starting = null)));
+    return (this.starting ??= (async () => {
+      if (await this.profileBusy()) throw new WebAiProfileBusyError();
+      return this.launch();
+    })().finally(() => (this.starting = null)));
   }
 
   private async launch(): Promise<number> {

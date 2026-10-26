@@ -132,7 +132,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, openLogin: (url) => webDriver?.openForLogin(url), importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.

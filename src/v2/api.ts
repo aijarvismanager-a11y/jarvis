@@ -102,6 +102,7 @@ export const api = {
   setAutomationLevel: (aiId: string, level: number) => request<{ service: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/automation-level`, "PUT", { level }),
   openLogin: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-login`, "POST", {}),
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
+  browserStatus: () => request<{ loginWindowOpen: boolean; waiting: number }>("/web-ai/browser-status"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
   aiReviewSettings: () => request<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null }>("/ai-review/settings"),

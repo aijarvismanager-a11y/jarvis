@@ -58,7 +58,7 @@ export type OrchestratorApiDeps = {
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
-  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
+  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Is a sign-in window of the person's using the dedicated browser profile, and how many tasks wait for it to be closed. */ status?: () => Promise<{ loginWindowOpen: boolean; waiting: number }>; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
 };
 
 const createSchema = z.object({
@@ -438,6 +438,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ enabled });
     }),
   );
+  router.get("/web-ai/browser-status", async (_req, res) => {
+    res.json((await deps.webAi?.status?.()) ?? { loginWindowOpen: false, waiting: 0 });
+  });
   router.get("/web-ai/settings", (_req, res) => {
     const settings = getWebAiSettings(store);
     res.json({

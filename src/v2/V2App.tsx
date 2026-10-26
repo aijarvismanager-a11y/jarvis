@@ -104,6 +104,9 @@ export default function V2App() {
     setOutdated(v === null || v.stale);
     if (v?.version) setAppVersion(v.version);
   }, 30000, []);
+  // a sign-in window of the dedicated browser profile left open stops the browser AIs: say so, and that closing it continues the work
+  const [browserWindow, setBrowserWindow] = useState<{ loginWindowOpen: boolean; waiting: number } | null>(null);
+  usePoll(async () => setBrowserWindow(await api.browserStatus().catch(() => null)), 4000, []);
   const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
   const [sync, setSync] = useState<SyncSummary | null>(null);
@@ -219,6 +222,16 @@ export default function V2App() {
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
             <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中の依頼は再起動後に自動で再開します)。</span>
             <Button variant="ghost" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "サーバーを再起動"}</Button>
+          </div>
+        )}
+        {browserWindow?.loginWindowOpen && (
+          <div role="status" className="mb-3 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
+            <p className="font-semibold">ログイン用の窓が開いています</p>
+            <p className="mt-0.5">
+              {browserWindow.waiting > 0
+                ? `この窓のため、ブラウザ上のAIの作業${browserWindow.waiting}件が待っています。ログインが終わったら、窓を完全に閉じてください。閉じると、待っている作業が自動で再開します。`
+                : "ログインが終わったら、窓を完全に閉じてください。開いたままだと、ブラウザ上のAIの作業を始められません(始めた作業は、窓が閉じられるまで待ちます)。"}
+            </p>
           </div>
         )}
         {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}

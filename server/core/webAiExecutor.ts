@@ -30,6 +30,7 @@ const MAX_DEP_FILE_CHARS = 6000;
 const MAX_DEP_TOTAL_CHARS = 20_000;
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml"]);
 export const DEFAULT_AUTO_TIMEOUT_MS = 5 * 60_000;
+const DEFAULT_PROFILE_WAIT_MS = 30 * 60_000;
 export const DEFAULT_HANDOFF_TIMEOUT_MS = 12 * 60 * 60_000;
 
 const FILE_MARKER = /^=== FILE: (.+?) ===[ \t]*$/gm;
@@ -93,8 +94,50 @@ export class WebAiExecutor implements TaskExecutor {
   constructor(
     private readonly store: Store,
     private readonly hub: WebHandoffHub,
-    private readonly opts: { driver?: WebChatDriver; autoTimeoutMs?: number; handoffTimeoutMs?: number } = {},
+    private readonly opts: { driver?: WebChatDriver; autoTimeoutMs?: number; handoffTimeoutMs?: number; /** how often a task waiting for a sign-in window to be closed looks again */ profilePollMs?: number; /** how long it waits before giving up on full automation */ profileWaitMs?: number } = {},
   ) {}
+
+  /** Tasks that are waiting because a window of the person's (a sign-in window) uses the browser profile. */
+  private readonly profileWaiters = new Set<string>();
+
+  /** What the screen shows: is such a window open, and how many tasks wait for it to be closed. */
+  async browserStatus(): Promise<{ loginWindowOpen: boolean; waiting: number }> {
+    return { loginWindowOpen: (await this.opts.driver?.profileBusy?.().catch(() => false)) ?? false, waiting: this.profileWaiters.size };
+  }
+
+  /**
+   * While a sign-in window of the person's holds the browser profile, the automation browser cannot start. Nothing is broken and
+   * no other AI is needed: the task waits (visibly), looks again every few seconds, and goes on as soon as the window is closed.
+   * Returns false when it was not freed within the time limit (the normal fallbacks then apply).
+   */
+  private async waitForProfile(task: Task, svc: AiService, signal: AbortSignal): Promise<boolean> {
+    const driver = this.opts.driver;
+    if (!driver?.profileBusy || !(await driver.profileBusy().catch(() => false))) return true;
+    const { projectId } = task;
+    this.profileWaiters.add(task.id);
+    this.store.appendEvent({ projectId, taskId: task.id, type: "WEB_PROFILE_BUSY", payload: { aiId: svc.id } });
+    transitionTask(this.store, projectId, task.id, "waiting", "ログイン用の窓が開いているため、閉じられるのを待っています");
+    try {
+      const deadline = Date.now() + (this.opts.profileWaitMs ?? DEFAULT_PROFILE_WAIT_MS);
+      while (Date.now() < deadline) {
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, this.opts.profilePollMs ?? 3000);
+          signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("aborted")); }, { once: true });
+        });
+        if (!(await driver.profileBusy().catch(() => false))) {
+          this.store.appendEvent({ projectId, taskId: task.id, type: "WEB_PROFILE_FREED", payload: { aiId: svc.id } });
+          transitionTask(this.store, projectId, task.id, "running", "ログイン用の窓が閉じられたため、続けます");
+          return true;
+        }
+      }
+      transitionTask(this.store, projectId, task.id, "running", "ログイン用の窓が閉じられなかったため、待つのをやめました");
+      return false;
+    } catch {
+      return false; // paused or cancelled: the engine settles the task
+    } finally {
+      this.profileWaiters.delete(task.id);
+    }
+  }
 
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<WebExecutionResult> {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
@@ -109,6 +152,8 @@ export class WebAiExecutor implements TaskExecutor {
     let text: string | null = null;
     let usedLevel: 1 | 2 | 3 = 1;
     let page: WebChatPage | null = null;
+
+    if (level >= 2 && driver && site && !(await this.waitForProfile(task, svc, ctx.signal)) && ctx.signal.aborted) return { ok: false, summary: "中断されました" };
 
     if (level === 3 && driver && site) {
       try {
