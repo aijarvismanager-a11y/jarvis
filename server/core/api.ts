@@ -375,6 +375,13 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.get("/projects/:projectId/missions/:missionId/report", (req, res) => {
     res.json({ report: buildMissionReport(store, String(req.params.projectId), String(req.params.missionId)) });
   });
+  // Why each task has the AI it has: the selection events of the whole project (the plain events list only keeps the latest 200).
+  router.get("/projects/:projectId/ai-selections", (req, res) => {
+    const projectId = String(req.params.projectId);
+    const types = ["AI_SELECTED", "AI_SELECTION_NONE", "AI_FALLBACK", "AI_REASSIGNED"];
+    const events = types.flatMap((type) => store.listEvents({ projectId, type, limit: 1000 })).sort((a, b) => a.id - b.id);
+    res.json({ events });
+  });
   router.get("/projects/:projectId/events", (req, res) => {
     res.json({ events: store.listEvents({ projectId: String(req.params.projectId), limit: 200 }) });
   });

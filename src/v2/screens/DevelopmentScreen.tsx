@@ -4,6 +4,10 @@ import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatC
 import { Badge, Card, Details } from "../ui";
 import type { Task, TaskStatus } from "../types";
 import { FailureReason } from "./FailureReason";
+import { api } from "../api";
+import { usePoll } from "../hooks";
+import { explainSelection, type SelectionWhy } from "../selection";
+import type { StoredEvent } from "../types";
 
 const TONE: Record<TaskStatus, "neutral" | "ok" | "warn" | "bad" | "info"> = {
   pending: "neutral",
@@ -18,7 +22,7 @@ const TONE: Record<TaskStatus, "neutral" | "ok" | "warn" | "bad" | "info"> = {
   paused: "warn",
 };
 
-function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: string) => string }) {
+function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: string) => string; why: SelectionWhy | null }) {
   const [open, setOpen] = useState(task.status === "failed" || task.status === "running" || task.status === "waiting");
   const runs = ctx.overview.aiRuns.filter((r) => r.task_id === task.id);
   const outputs = ctx.overview.artifacts.filter((a) => a.taskId === task.id);
@@ -34,6 +38,23 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
       {open && (
         <div className="space-y-2 border-t border-borderSoft px-3 py-2 text-[12.5px]">
           <p>{task.objective}</p>
+          {task.selectedAi && (
+            <div className="rounded-lg border border-borderSoft bg-panel px-2.5 py-1.5">
+              <p className="font-semibold">なぜこのAI?</p>
+              {why ? (
+                <>
+                  <p>{why.headline}</p>
+                  <Details summary="くわしい理由">
+                    <ul className="list-disc space-y-0.5 pl-5 text-[12px] text-muted">
+                      {why.lines.map((l) => <li key={l}>{l}</li>)}
+                    </ul>
+                  </Details>
+                </>
+              ) : (
+                <p className="text-muted">選んだ理由の記録はありません(AIを直接指定した作業や、以前の版で動かした作業です)。</p>
+              )}
+            </div>
+          )}
           {(() => {
             // AI B Review: a second AI of another maker checked this task (see the settings)
             const review = runs.filter((r) => r.executor === "ai-review").pop();
@@ -88,6 +109,10 @@ function summaryLine(tasks: Task[], ctx: Ctx): string {
 }
 
 export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
+  // why each task has its AI: the selection events of the whole request (the history list only keeps the latest ones)
+  const [selections, setSelections] = useState<StoredEvent[]>([]);
+  const missionProject = ctx.mission?.projectId;
+  usePoll(async () => setSelections(missionProject ? await api.aiSelections(missionProject) : []), 6000, [missionProject, ctx.mission?.id]);
   const tasks = ctx.mission ? ctx.overview.tasks.filter((t) => t.missionId === ctx.mission!.id).sort((a, b) => a.position - b.position) : [];
   const names = new Map(tasks.map((t) => [t.id, roleLabel(t.role)]));
   if (!ctx.mission) return <Card title="進み具合">まだ依頼がありません。「ホーム」で作りたいものを書いて「開発を開始」を押すと、ここに進み具合が出ます。</Card>;
@@ -112,7 +137,7 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
           <>
             <p className="mb-2 text-[12px] text-muted">各行を押すと、その作業の内容と、できたファイルが見られます。</p>
             <ul className="space-y-2">
-              {tasks.map((t) => <TaskRow key={t.id} task={t} ctx={ctx} label={(id) => names.get(id) ?? id} />)}
+              {tasks.map((t) => <TaskRow key={t.id} task={t} ctx={ctx} label={(id) => names.get(id) ?? id} why={explainSelection(selections, t.id, ctx.services)} />)}
             </ul>
           </>
         )}

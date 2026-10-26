@@ -301,7 +301,20 @@ export class MissionEngine {
     if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
     try {
       const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: failedAis });
-      const payload = { capability: decision.capability, confidence: decision.confidence, needsReview: decision.needsReview, selected: decision.selected?.aiId ?? null, excluded: decision.excluded };
+      const byId = new Map(decision.ranked.map((c) => [c.aiId, c]));
+      const payload = {
+        capability: decision.capability,
+        confidence: decision.confidence,
+        confidenceLabel: decision.confidenceLabel,
+        needsReview: decision.needsReview,
+        selected: decision.selected?.aiId ?? null,
+        excluded: decision.excluded,
+        // what the screen shows as "why this AI": the score, the other candidates, who was equally good and how much each had been used
+        reason: decision.reason,
+        chosen: decision.selected ? { name: decision.selected.name, score10: decision.selected.score10, ...decision.selected.breakdown } : null,
+        ranked: decision.ranked.slice(0, 6).map((c) => ({ aiId: c.aiId, name: c.name, score10: c.score10 })),
+        shared: decision.shared.map((id) => ({ aiId: id, name: byId.get(id)?.name ?? id, ...(decision.usage[id] ?? { mission: 0, recent: 0 }) })),
+      };
       if (!decision.selected) {
         this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });
         return; // no fallback left: the retry runs on the same AI

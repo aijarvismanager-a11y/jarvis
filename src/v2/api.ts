@@ -67,6 +67,7 @@ export const api = {
     request<{ applied: number; skipped: unknown[]; backup: string | null }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
   restoreSync: (projectId: string, backupId: string, direction: "push" | "pull") => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId, direction }),
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
+  aiSelections: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/ai-selections`).then((r) => r.events),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),
   artifactContent: (projectId: string, path: string) => request<{ content: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`).then((r) => r.content),
 

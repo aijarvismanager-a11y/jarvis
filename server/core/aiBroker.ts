@@ -68,6 +68,10 @@ export type BrokerDecision = {
   /** §19: best candidate per strategy. A quality-first, B automation-first, C free / manual-fallback-first. */
   alternatives: Record<BrokerStrategy, BrokerCandidate | null>;
   reason: string;
+  /** The equally good AIs the choice was made from (ids; just the winner when there was no real choice). */
+  shared: string[];
+  /** How much each of the shared AIs had been used: in this mission and in the last 24 hours. */
+  usage: AiUsage;
 };
 export type BrokerOptions = {
   budgetPolicy?: "free_only" | "allow_paid";
@@ -247,6 +251,8 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     excluded,
     alternatives: { A: pick("A"), B: pick("B"), C: pick("C") },
     reason,
+    shared: balanced.shared.map((c) => c.aiId),
+    usage: Object.fromEntries(balanced.shared.map((c) => [c.aiId, options.usage?.[c.aiId] ?? { mission: 0, recent: 0 }])),
   };
 }
 
