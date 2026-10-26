@@ -338,6 +338,52 @@ export function applyIdeationCapability(store: Store): string[] {
   return changed;
 }
 
+/** The browser AIs a fresh install starts with (the ones people use for free). Level 1 (manual) until the user raises it; the scores come from DEFAULT_AI_PROFILES. */
+export const BUILT_IN_WEB_AIS: { id: string; name: string; url: string; freeStatus: "free" | "free_tier" }[] = [
+  { id: "chatgpt", name: "ChatGPT (Web)", url: "https://chatgpt.com", freeStatus: "free_tier" },
+  { id: "gemini", name: "Gemini (Web)", url: "https://gemini.google.com", freeStatus: "free_tier" },
+  { id: "claude-web", name: "Claude (Web)", url: "https://claude.ai", freeStatus: "free_tier" },
+  { id: "perplexity", name: "Perplexity (Web)", url: "https://www.perplexity.ai", freeStatus: "free_tier" },
+  { id: "copilot", name: "Microsoft Copilot (Web)", url: "https://copilot.microsoft.com", freeStatus: "free" },
+  { id: "deepseek", name: "DeepSeek (Web)", url: "https://chat.deepseek.com", freeStatus: "free_tier" },
+  { id: "mistral", name: "Mistral Le Chat (Web)", url: "https://chat.mistral.ai", freeStatus: "free_tier" },
+  { id: "qwen", name: "Qwen Chat (Web)", url: "https://chat.qwen.ai", freeStatus: "free_tier" },
+  { id: "grok", name: "Grok (Web)", url: "https://grok.com", freeStatus: "free_tier" },
+  { id: "poe", name: "Poe (Web)", url: "https://poe.com", freeStatus: "free_tier" },
+  { id: "you", name: "You.com (Web)", url: "https://you.com", freeStatus: "free_tier" },
+  { id: "pi", name: "Pi (Web)", url: "https://pi.ai", freeStatus: "free" },
+  { id: "notebooklm", name: "NotebookLM (Web)", url: "https://notebooklm.google.com", freeStatus: "free_tier" },
+  { id: "bolt-new", name: "Bolt.new (Web)", url: "https://bolt.new", freeStatus: "free_tier" },
+  { id: "genspark", name: "Genspark (Web)", url: "https://www.genspark.ai", freeStatus: "free_tier" },
+  { id: "manus", name: "Manus (Web)", url: "https://manus.im", freeStatus: "free_tier" },
+  { id: "ideogram", name: "Ideogram（画像生成）", url: "https://ideogram.ai", freeStatus: "free_tier" },
+  { id: "leonardo", name: "Leonardo.Ai（画像生成）", url: "https://leonardo.ai", freeStatus: "free_tier" },
+  { id: "playground", name: "Playground（画像生成）", url: "https://playground.com", freeStatus: "free_tier" },
+  { id: "craiyon", name: "Craiyon（画像生成）", url: "https://www.craiyon.com", freeStatus: "free" },
+  { id: "recraft", name: "Recraft（画像生成）", url: "https://www.recraft.ai", freeStatus: "free_tier" },
+  { id: "runway", name: "Runway（動画生成）", url: "https://runwayml.com", freeStatus: "free_tier" },
+  { id: "pika", name: "Pika（動画生成）", url: "https://pika.art", freeStatus: "free_tier" },
+  { id: "luma", name: "Luma Dream Machine（動画生成）", url: "https://lumalabs.ai/dream-machine", freeStatus: "free_tier" },
+  { id: "kling", name: "Kling AI（動画生成）", url: "https://klingai.com", freeStatus: "free_tier" },
+  { id: "google-flow", name: "Google Flow / Veo（動画生成）", url: "https://labs.google/flow", freeStatus: "free_tier" },
+  { id: "suno", name: "Suno（音楽生成）", url: "https://suno.com", freeStatus: "free_tier" },
+  { id: "elevenlabs", name: "ElevenLabs（音声生成）", url: "https://elevenlabs.io", freeStatus: "free_tier" },
+];
+
+/** One-time: registers BUILT_IN_WEB_AIS that are missing, so an installed app (which has no imported config/) is not left with four AIs. Returns the ids it added. */
+export function seedBuiltInWebAis(store: Store): string[] {
+  const KEY = "registry.builtInWebAis.v1";
+  if (store.getSetting<boolean>(KEY, false)) return [];
+  const added: string[] = [];
+  for (const ai of BUILT_IN_WEB_AIS) {
+    if (store.getAiService(ai.id)) continue;
+    store.upsertAiService({ ...ai, accessMode: "web", automationLevel: 1, requiresLogin: true, adapterType: "manual" });
+    added.push(ai.id);
+  }
+  store.setSetting(KEY, true);
+  return added;
+}
+
 /** Services dropped because they cannot be signed in to with a Google account (GitHub-only, Microsoft-account-only, Meta account). */
 export const RETIRED_AI_IDS = ["meta-ai", "github-copilot", "ms-designer"];
 

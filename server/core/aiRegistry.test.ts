@@ -97,3 +97,22 @@ describe("later retirements", () => {
     expect(applyLaterRetirements(store)).toEqual([]);
   });
 });
+
+describe("built-in web AIs for a fresh install", () => {
+  it("registers the missing ones once, at manual level, and then leaves the registry alone", async () => {
+    const { openDatabase } = await import("./db.ts");
+    const { Store } = await import("./store.ts");
+    const { seedBuiltInWebAis, seedRegistryProfiles, BUILT_IN_WEB_AIS } = await import("./aiRegistry.ts");
+    const db = openDatabase(":memory:");
+    const store = new Store(db, "unused");
+    const added = seedBuiltInWebAis(store);
+    expect(added.length).toBe(BUILT_IN_WEB_AIS.length);
+    expect(store.getAiService("perplexity")).toMatchObject({ accessMode: "web", automationLevel: 1 });
+    seedRegistryProfiles(store);
+    expect(Object.keys(store.getAiService("gemini")!.capabilityScores).length).toBeGreaterThan(0);
+    store.deleteAiService("pi");
+    expect(seedBuiltInWebAis(store)).toEqual([]); // once only: a service the user removed stays removed
+    expect(store.getAiService("pi")).toBeFalsy();
+    db.close();
+  });
+});

@@ -14,7 +14,7 @@ import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
-import { applyGoogleLoginRegistry, applyIdeationCapability, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
@@ -90,6 +90,7 @@ app.use(express.json({ limit: "2mb" }));
 // project's own directory, restricted by the Permission Policy and checked by
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
+seedBuiltInWebAis(coreStore);
 applyGoogleLoginRegistry(coreStore);
 applyLaterRetirements(coreStore);
 seedRegistryProfiles(coreStore);
