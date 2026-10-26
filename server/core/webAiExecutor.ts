@@ -1,7 +1,7 @@
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { WebAiBlockedError, WebAiBrowserError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
+import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
@@ -101,6 +101,28 @@ export class WebAiExecutor implements TaskExecutor {
 
   /** Tasks that are waiting because a window of the person's (a sign-in window) uses the browser profile. */
   private readonly profileWaiters = new Set<string>();
+
+  /** "Can the app use this AI by itself?": one tiny prompt, nothing recorded against the AI. Returns what to tell the person when not. */
+  async probe(svc: AiService): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const site = resolveSiteProfile(this.store, svc.id);
+    const driver = this.opts.driver;
+    if (!driver || !site || !svc.url) return { ok: false, reason: "このAIは、ブラウザの自動操作の準備(サイト設定)がないため、自動にできません" };
+    try {
+      const page = await driver.open({ url: svc.url, site, signal: AbortSignal.timeout(120_000) });
+      try {
+        await page.fillPrompt("「OK」とだけ返信してください。");
+        await page.submit();
+        const text = await page.waitForResponse({ timeoutMs: 90_000 });
+        return text.trim() ? { ok: true } : { ok: false, reason: "返事を読み取れませんでした" };
+      } finally {
+        await page.close();
+      }
+    } catch (err) {
+      if (err instanceof WebAiProfileBusyError) return { ok: false, reason: "ログイン用の窓が開いたままです。その窓を閉じてから、もう一度押してください" };
+      if (err instanceof WebAiBlockedError) return { ok: false, reason: "ログインか、人間確認(年齢確認など)が必要です。「ログイン用に開く」で済ませて、窓を閉じてから、もう一度押してください" };
+      return { ok: false, reason: `自動で操作できませんでした(${errMsg(err)})。ログインが済んでいるか確認してください` };
+    }
+  }
 
   /** What the screen shows: is such a window open, and how many tasks wait for it to be closed. */
   async browserStatus(): Promise<{ loginWindowOpen: boolean; waiting: number }> {

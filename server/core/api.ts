@@ -59,7 +59,7 @@ export type OrchestratorApiDeps = {
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
-  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Is a sign-in window of the person's using the dedicated browser profile, and how many tasks wait for it to be closed. */ status?: () => Promise<{ loginWindowOpen: boolean; waiting: number }>; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
+  webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Is a sign-in window of the person's using the dedicated browser profile, and how many tasks wait for it to be closed. */ status?: () => Promise<{ loginWindowOpen: boolean; waiting: number }>; /** Tries one tiny prompt on the AI in the dedicated browser. */ probe?: (aiId: string) => Promise<{ ok: true } | { ok: false; reason: string }>; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
 };
 
 const createSchema = z.object({
@@ -515,6 +515,24 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
       web.openLogin(svc.url);
       res.json({ ok: true, url: svc.url });
+    }),
+  );
+  // "Try it and make it automatic": one tiny prompt; when the AI answers by itself it is marked signed in and raised to Level 3.
+  router.post(
+    "/ai-services/:aiId/try-automation",
+    webGuarded(async (req, res, web) => {
+      const aiId = String(req.params.aiId);
+      const svc = store.getAiService(aiId);
+      if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      if (!web.probe || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、試せません");
+      const r = await web.probe(aiId);
+      if (!r.ok) return void res.json({ ok: false, reason: r.reason });
+      setWebAiSettings(store, { enabled: true, loggedIn: { ...getWebAiSettings(store).loggedIn, [aiId]: true } }); // an AI that works by itself switches the browser AIs on
+      if (svc.automationLevel < 3) {
+        store.patchAiService(aiId, { automationLevel: 3 });
+        store.appendEvent({ type: "AUTOMATION_LEVEL_SET", payload: { aiId, from: svc.automationLevel, to: 3, reason: "自動の試しに成功" } });
+      }
+      res.json({ ok: true, service: store.getAiService(aiId) });
     }),
   );
   // Carries the Google (etc.) sign-ins of the everyday browser over, so the user does not sign in again in the automation profile.

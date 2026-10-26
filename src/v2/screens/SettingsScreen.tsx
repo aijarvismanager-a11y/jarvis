@@ -39,8 +39,52 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
     refresh();
   };
 
+  const [trying, setTrying] = useState<string | null>(null);
+  const [tried, setTried] = useState<Record<string, string>>({});
+  const tryOne = async (s: AiService) => {
+    setTrying(s.id);
+    try {
+      const r = await api.tryAutomation(s.id);
+      setTried((t) => ({ ...t, [s.id]: r.ok ? "ok" : (r.reason ?? "試せませんでした") }));
+      done();
+    } catch (e) {
+      setTried((t) => ({ ...t, [s.id]: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setTrying(null);
+    }
+  };
+  const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
+  const autoAis = services.filter((s) => s.accessMode === "web" && s.automationLevel >= 3);
+  const notYet = services.filter((s) => canAutomate(s) && s.automationLevel < 3);
+
   return (
     <div className="space-y-4">
+      {web?.available && web.browserAvailable && (
+        <Card title="AIを自動で使えるようにする">
+          <p className="text-[13px]">
+            自動で使えるAI: <b>{autoAis.length}件</b>{autoAis.length > 0 && `(${autoAis.map((s) => s.name.replace(/ ?\(Web\)/, "")).join("、")})`}。文章系の作業は、この自動のAIだけに任せます。
+          </p>
+          {notYet.length > 0 ? (
+            <>
+              <p className="mt-2 text-[12px] text-muted">下のAIは、まだ自動になっていません。使いたいAIだけ、次の順で操作してください(数分): ① 「ログイン用に開く」でご自身のアカウントにログイン → ② そのブラウザを閉じる → ③ 「試して自動にする」を押す。うまくいくと、自動でレベルが上がります。</p>
+              <ul className="mt-3 space-y-2">
+                {notYet.map((s) => (
+                  <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{s.name}</span>
+                      <Button variant="ghost" disabled={busy || trying !== null} onClick={() => run(async () => { await api.openLogin(s.id); })}>① ログイン用に開く</Button>
+                      <Button disabled={busy || trying !== null} onClick={() => void tryOne(s)}>{trying === s.id ? "試しています…(1分ほど)" : "③ 試して自動にする"}</Button>
+                    </div>
+                    {tried[s.id] && <p className={`mt-1 text-[12px] ${tried[s.id] === "ok" ? "text-ok" : "text-danger"}`}>{tried[s.id] === "ok" ? "自動で使えるようになりました" : tried[s.id]}</p>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-2 text-[12px] text-muted">自動にできるAIは、すべて自動になっています。</p>
+          )}
+        </Card>
+      )}
       <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
         {!web ? (
           <p className="text-[13px] text-muted">読み込み中…</p>

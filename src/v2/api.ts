@@ -105,6 +105,7 @@ export const api = {
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
   browserStatus: () => request<{ loginWindowOpen: boolean; waiting: number }>("/web-ai/browser-status"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
+  tryAutomation: (aiId: string) => request<{ ok: boolean; reason?: string; service?: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/try-automation`, "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
   scoreTuning: () => request<TuningReport>("/score-tuning"),
   setScoreTuning: (enabled: boolean) => request<TuningReport>("/score-tuning", "PUT", { enabled }),
