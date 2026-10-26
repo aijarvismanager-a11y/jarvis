@@ -20,6 +20,16 @@ export class WebAiBlockedError extends Error {
     this.name = "WebAiBlockedError";
   }
 }
+/**
+ * The automation browser itself could not be started or reached (no browser installed, the dedicated profile is still used by
+ * another window, ...). This is about the PC, not about the site, so it must not count towards lowering an AI's automation level.
+ */
+export class WebAiBrowserError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebAiBrowserError";
+  }
+}
 /** The page is reachable but does not look the way the profile expects (the site's UI changed). */
 export class WebAiUiError extends Error {
   constructor(message: string) {
@@ -403,7 +413,7 @@ export class ChromiumDriver implements WebChatDriver {
   openForLogin(url: string): void {
     if (!/^https?:\/\//i.test(url)) throw new Error("開けるのはhttp(s)のページだけです");
     const exe = this.opts.executable ?? findBrowserExecutable();
-    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
+    if (!exe) throw new WebAiBrowserError("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
     mkdirSync(this.opts.profileDir, { recursive: true });
     const proc = spawn(exe, [`--user-data-dir=${this.opts.profileDir}`, "--no-first-run", "--no-default-browser-check", url], { stdio: "ignore", detached: true });
     proc.once("error", () => {});
@@ -413,7 +423,7 @@ export class ChromiumDriver implements WebChatDriver {
   /** Copies the everyday browser's sign-ins into the automation profile (see importEverydaySignIn). Stops the automation browser first. */
   async importSignIn(): Promise<{ profile: string; copied: string[] }> {
     const exe = this.opts.executable ?? findBrowserExecutable();
-    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません");
+    if (!exe) throw new WebAiBrowserError("Edge・Chrome・Braveのいずれも見つかりません");
     await this.shutdown();
     return importEverydaySignIn(exe, this.opts.profileDir);
   }
@@ -425,7 +435,7 @@ export class ChromiumDriver implements WebChatDriver {
 
   private async launch(): Promise<number> {
     const exe = this.opts.executable ?? findBrowserExecutable();
-    if (!exe) throw new Error("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
+    if (!exe) throw new WebAiBrowserError("Edge・Chrome・Braveのいずれも見つかりません(環境変数 WEB_AI_BROWSER で実行ファイルを指定できます)");
     mkdirSync(this.opts.profileDir, { recursive: true });
     const port = await this.freePort();
     const args = [`--remote-debugging-port=${port}`, "--remote-debugging-address=127.0.0.1", `--user-data-dir=${this.opts.profileDir}`, "--no-first-run", "--no-default-browser-check", "about:blank"];
@@ -437,7 +447,7 @@ export class ChromiumDriver implements WebChatDriver {
     });
     const up = await waitUntil(
       async () => {
-        if (proc.exitCode !== null) throw new Error("ブラウザが起動直後に終了しました(同じプロファイルが別のブラウザで使用中の可能性があります)");
+        if (proc.exitCode !== null) throw new WebAiBrowserError("ブラウザが起動直後に終了しました(同じプロファイルが別のブラウザで使用中の可能性があります)");
         try {
           const r = await fetch(`http://127.0.0.1:${port}/json/version`);
           return r.ok;
@@ -449,7 +459,7 @@ export class ChromiumDriver implements WebChatDriver {
     );
     if (!up) {
       killTree(proc.pid);
-      throw new Error("ブラウザの操作ポートに接続できませんでした");
+      throw new WebAiBrowserError("ブラウザの操作ポートに接続できませんでした");
     }
     this.port = port;
     return port;

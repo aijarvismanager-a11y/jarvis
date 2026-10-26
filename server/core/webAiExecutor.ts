@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { WebAiBlockedError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
+import { WebAiBlockedError, WebAiBrowserError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
@@ -321,7 +321,7 @@ export class WebAiExecutor implements TaskExecutor {
    */
   private recordFailure(svc: AiService, level: 2 | 3, err: unknown, task: Task): void {
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
-    if (err instanceof WebAiBlockedError) return;
+    if (err instanceof WebAiBlockedError || err instanceof WebAiBrowserError) return; // the person's to clear / the PC's problem: the site did not break
     const count = this.store.getSetting<number>(this.failureKey(svc), 0) + 1;
     if (count < DOWNGRADE_AFTER_FAILURES) {
       this.store.setSetting(this.failureKey(svc), count);
