@@ -16,6 +16,7 @@ let store: Store;
 beforeEach(() => {
   db = openDatabase(":memory:");
   store = new Store(db, "unused");
+  store.setSetting("allowManualTextAis", true); // these tests exercise the manual copy-and-paste path
 });
 afterEach(() => db.close());
 

@@ -15,6 +15,7 @@ let store: Store;
 beforeEach(() => {
   db = openDatabase(":memory:");
   store = new Store(db, "unused");
+  store.setSetting("allowManualTextAis", true); // these tests exercise the manual copy-and-paste path
 });
 afterEach(() => db.close());
 
@@ -148,8 +149,8 @@ describe("AiDiscovery", () => {
 
   it("a saved candidate is usable by the Broker for its capability but never an executable adapter", async () => {
     await make({ "good.example.test": FREE_PAGE }, [cand({ id: "good", capabilities: { ocr: 4 } })]).discover({ requiredCapabilities: ["ocr"], save: true });
-    expect(chooseAi(store.listAiServices(), "ocr").selected?.aiId).toBe("good");
-    const executable = chooseAi(store.listAiServices(), "ocr", { executableAdapters: ["claude-code"] });
+    expect(chooseAi(store.listAiServices(), "ocr", { allowManualText: true }).selected?.aiId).toBe("good");
+    const executable = chooseAi(store.listAiServices(), "ocr", { allowManualText: true, executableAdapters: ["claude-code"] });
     expect(executable.selected).toBeNull();
     expect(executable.excluded.map((e) => e.aiId)).toContain("good");
   });

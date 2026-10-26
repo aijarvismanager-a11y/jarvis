@@ -37,6 +37,7 @@ beforeEach(() => {
   root = mkdtempSync(path.join(os.tmpdir(), "phase8-"));
   db = openDatabase(":memory:");
   store = new Store(db, root);
+  store.setSetting("allowManualTextAis", true); // these tests exercise the manual copy-and-paste path
 });
 afterEach(() => {
   db.close();

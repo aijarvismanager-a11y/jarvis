@@ -21,6 +21,7 @@ beforeEach(() => {
   db = openDatabase(":memory:");
   root = mkdtempSync(path.join(os.tmpdir(), "handoff-reassign-"));
   store = new Store(db, root);
+  store.setSetting("allowManualTextAis", true); // these tests exercise the manual copy-and-paste path
   store.createProject({ id: pid, name: "p" });
   store.upsertAiService({ id: "gemini", name: "Gemini (Web)", url: "https://gemini.test", freeStatus: "free" });
   store.upsertAiService({ id: "chatgpt", name: "ChatGPT (Web)", url: "https://chatgpt.test", freeStatus: "free" });

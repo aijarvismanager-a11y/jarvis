@@ -38,6 +38,11 @@ const ROLE_ALIASES: Record<string, string> = {
   "fact check": "research", "fact-check": "research", factcheck: "research",
 };
 
+/** Work only a person can hand over today (the answer is a picture, a clip, a song or a voice, not text the app can read back): these may go to an AI that is not automatic. */
+export const MEDIA_CAPABILITIES = ["image_generation", "video_generation", "music_generation", "voice_generation"];
+export const MANUAL_TEXT_KEY = "allowManualTextAis";
+export const isMediaCapability = (capability: string): boolean => MEDIA_CAPABILITIES.includes(capability);
+
 /** Maps a Planner role to a registry capability ("unclassified" when it cannot). */
 export function capabilityForTaskRole(role: string): string {
   const key = role.trim().toLowerCase();
@@ -74,6 +79,8 @@ export type BrokerDecision = {
   usage: AiUsage;
 };
 export type BrokerOptions = {
+  /** Hidden switch (setting allowManualTextAis, off by default): let AIs that need a person to copy and paste take text work. */
+  allowManualText?: boolean;
   budgetPolicy?: "free_only" | "allow_paid";
   /** Restrict to services whose adapter_type can actually be run (e.g. ["claude-code"]). */
   executableAdapters?: string[];
@@ -199,6 +206,10 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     }
     const candidate = score(s, capability);
     if (!candidate) continue; // simply not capable: not worth listing
+    if (s.accessMode === "web" && s.automationLevel <= 1 && !isMediaCapability(capability) && !options.allowManualText) {
+      excluded.push({ aiId: s.id, name: s.name, reason: "自動で操作できない(手動)ため、文章系の作業は任せません" });
+      continue;
+    }
     if (options.excludeAiIds?.includes(s.id)) {
       excluded.push({ aiId: s.id, name: s.name, reason: "この作業で失敗したためフォールバックで除外" });
       continue;
@@ -262,6 +273,6 @@ export class AIBroker {
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { ...options, usage, seed: options.seed ?? task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), ...options, usage, seed: options.seed ?? task.id });
   }
 }

@@ -1,3 +1,4 @@
+import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { WebAiBlockedError, WebAiBrowserError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
@@ -193,6 +194,11 @@ export class WebAiExecutor implements TaskExecutor {
         this.recordFailure(svc, 2, err, task);
         level = 1;
       }
+    }
+
+    if (text === null && !isMediaCapability(capabilityForTaskRole(task.role)) && !this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false)) {
+      // text work never waits for a person to copy and paste: report the failure so the engine hands the task to another AI
+      return { ok: false, aiId: svc.id, automationLevel: level, summary: `${svc.name}を自動で操作できませんでした(${note ?? "手動の設定です"})。ほかのAIに回します` };
     }
 
     if (text === null) {

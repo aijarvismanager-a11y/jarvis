@@ -25,6 +25,7 @@ beforeEach(() => {
   db = openDatabase(":memory:");
   root = mkdtempSync(path.join(os.tmpdir(), "web-ai-"));
   store = new Store(db, root);
+  store.setSetting("allowManualTextAis", true); // these tests exercise the manual copy-and-paste path
   store.createProject({ id: pid, name: "p" });
   store.upsertAiService({ id: "claude-code", name: "Claude Code (CLI)", accessMode: "cli", adapterType: "claude-code" });
   store.upsertAiService({ id: "gemini", name: "Gemini (Web)", url: "https://gemini.test" });
