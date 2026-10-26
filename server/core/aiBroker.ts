@@ -8,7 +8,8 @@ import type { AiService, Store, Task } from "./store.ts";
 //
 // Candidates whose totals are within NEAR_BEST (0.4 of 10) of the best are "as good as each other": the scores are initial
 // assumptions, not measurements, so a few hundredths decide nothing. Among them the work is shared: first the AI used least in
-// this mission, then the one used least in the last 24 hours (free tiers have daily limits), then the higher total, then the name.
+// this mission, then the one used least in the last 24 hours (free tiers have daily limits), then the specialist (higher fit for
+// the kind of work), then the higher total, and last a tie broken by the task id, so equals are not always decided by their names.
 // Without usage data the best total (then the name) wins, as before.
 //
 // Cost Guard (§56): a paid or API-key service is BLOCKED unless the mission's
@@ -76,6 +77,8 @@ export type BrokerOptions = {
   excludeAiIds?: string[];
   /** How much each AI was used lately (see aiUsage); lets equally good AIs take turns. */
   usage?: AiUsage;
+  /** Breaks a tie between equals (the task id): the same task decides the same way, different tasks differently. */
+  seed?: string;
 };
 export type AiUsage = Record<string, { mission: number; recent: number }>;
 
@@ -143,17 +146,27 @@ function completeness(s: AiService, capability: string): number {
 
 const byTotal = (a: BrokerCandidate, b: BrokerCandidate) => b.total - a.total || a.name.localeCompare(b.name);
 
+/** A small stable number from a text (FNV-1a): the same task always breaks a tie the same way, different tasks differently. */
+const hashOf = (text: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+};
+
 /**
- * From candidates sorted best first: the best one, or - when usage is known - the least used among those within NEAR_BEST of it.
- * `shared` says that the choice was made among several equally good AIs.
+ * From candidates sorted best first: the best one, or - when usage is known - one of those within NEAR_BEST of it, taking the one
+ *   used least in this mission, then least in the last 24 hours, then the specialist (the higher fit for this kind of work), then
+ *   the higher total, and last a tie broken by the task (`seed`, so equals are not always decided by their names).
+ * `shared` is the set of equally good AIs the choice was made from.
  */
-export function pickBalanced(ranked: BrokerCandidate[], usage?: AiUsage): { pick: BrokerCandidate | null; shared: BrokerCandidate[] } {
+export function pickBalanced(ranked: BrokerCandidate[], usage?: AiUsage, seed?: string): { pick: BrokerCandidate | null; shared: BrokerCandidate[] } {
   const best = ranked[0];
   if (!best) return { pick: null, shared: [] };
   if (!usage) return { pick: best, shared: [best] };
   const near = ranked.filter((c) => best.total - c.total <= NEAR_BEST);
   const used = (c: BrokerCandidate) => usage[c.aiId] ?? { mission: 0, recent: 0 };
-  const pick = [...near].sort((a, b) => used(a).mission - used(b).mission || used(a).recent - used(b).recent || byTotal(a, b))[0]!;
+  const lastResort = (a: BrokerCandidate, b: BrokerCandidate) => (seed ? hashOf(`${seed}:${a.aiId}`) - hashOf(`${seed}:${b.aiId}`) : a.name.localeCompare(b.name));
+  const pick = [...near].sort((a, b) => used(a).mission - used(b).mission || used(a).recent - used(b).recent || b.breakdown.fit - a.breakdown.fit || b.total - a.total || lastResort(a, b))[0]!;
   return { pick, shared: near };
 }
 
@@ -209,7 +222,7 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     return [...pool].map((e) => e.candidate).sort((a, b) => sortKey[strategy](b) - sortKey[strategy](a) || byTotal(a, b))[0] ?? null;
   };
 
-  const balanced = pickBalanced(ranked, options.usage);
+  const balanced = pickBalanced(ranked, options.usage, options.seed);
   const selected = balanced.pick;
   let confidence = 0;
   if (selected) {
@@ -243,6 +256,6 @@ export class AIBroker {
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { ...options, usage });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { ...options, usage, seed: options.seed ?? task.id });
   }
 }

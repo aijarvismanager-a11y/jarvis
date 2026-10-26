@@ -55,8 +55,21 @@ describe("sharing the work among equally good AIs", () => {
     expect(pickBalanced(ranked, usage).pick?.aiId).toBe("a");
   });
 
-  it("falls back to the higher total, then the name, when usage is equal", () => {
+  it("falls back to the higher total, then the name, when usage is equal and fits are equal", () => {
     expect(pickBalanced(ranked, {}).pick?.aiId).toBe("a");
+  });
+
+  it("prefers the specialist (higher fit) among equals when usage is equal", () => {
+    const withFit = (c: BrokerCandidate, fit: number): BrokerCandidate => ({ ...c, breakdown: { ...c.breakdown, fit } });
+    const list = [withFit(cand("big", "Big", 40), 4), withFit(cand("spec", "Spec", 39), 5)];
+    expect(pickBalanced(list, {}).pick?.aiId).toBe("spec");
+  });
+
+  it("breaks a real tie by the task, not always by the name", () => {
+    const tied = [cand("g", "Gemini", 47), cand("p", "Perplexity", 47)];
+    const picks = new Set(Array.from({ length: 30 }, (_, i) => pickBalanced(tied, {}, `task_${i}`).pick?.aiId));
+    expect(picks).toEqual(new Set(["g", "p"])); // both get work
+    expect(pickBalanced(tied, {}, "task_7").pick?.aiId).toBe(pickBalanced(tied, {}, "task_7").pick?.aiId); // the same task always decides the same way
   });
 });
 
@@ -114,10 +127,9 @@ describe("new roles", () => {
     const broker = new AIBroker(store);
     const first = broker.select({ role: "brainstorm" });
     expect(first.ranked.map((c) => c.aiId)).toEqual(expect.arrayContaining(["pi", "chatgpt", "claude-web"]));
-    expect(first.selected?.aiId).toBe("claude-web"); // nothing used yet: the best total
-    run("claude-web", 3);
-    run("chatgpt", 2);
-    expect(broker.select({ role: "brainstorm" }).selected?.aiId).toBe("pi");
+    expect(first.selected?.aiId).toBe("pi"); // nothing used yet: the specialist
+    run("pi", 3);
+    expect(broker.select({ role: "brainstorm" }).selected?.aiId).not.toBe("pi"); // it takes turns once it has been used
   });
 });
 

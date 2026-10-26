@@ -66,7 +66,7 @@ export const reviewCapabilityFor = (role: string): string => (CODE_ROLES.has(rol
  * The AI of ANOTHER maker that reviews: of those that run fully automatically right now, the best ones for this kind of work take
  * turns (the least used lately goes first); null when there is none.
  */
-export function pickReviewer(store: Store, authorAiId: string | null, role: string): { svc: AiService; ranked: string[] } | null {
+export function pickReviewer(store: Store, authorAiId: string | null, role: string, seed?: string): { svc: AiService; ranked: string[] } | null {
   const web = getWebAiSettings(store);
   if (!web.enabled) return null;
   const author = aiFamily(authorAiId ?? "claude-code");
@@ -77,7 +77,7 @@ export function pickReviewer(store: Store, authorAiId: string | null, role: stri
     const s = services.find((x) => x.id === c.aiId);
     return !!s && s.automationLevel >= 3 && web.loggedIn[s.id] === true && !!s.url && resolveSiteProfile(store, s.id) !== null;
   });
-  const { pick } = pickBalanced(usable, aiUsage(store));
+  const { pick } = pickBalanced(usable, aiUsage(store), seed);
   const svc = pick ? services.find((s) => s.id === pick.aiId) : undefined;
   return svc ? { svc, ranked: [svc.id, ...usable.map((c) => c.aiId).filter((id) => id !== svc.id)] } : null;
 }
@@ -163,7 +163,7 @@ export async function reviewTask(input: { store: Store; reviewer: AiReviewer; mi
     store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_SKIPPED", payload: { reason: why } });
     return null;
   };
-  const picked = pickReviewer(store, task.selectedAi, task.role);
+  const picked = pickReviewer(store, task.selectedAi, task.role, task.id);
   if (!picked) return skip("別のメーカーの、全自動で使えるAIがありません");
   const { svc } = picked;
   const author = (task.selectedAi && store.getAiService(task.selectedAi)?.name) || "Claude Code";
