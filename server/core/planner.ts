@@ -78,7 +78,7 @@ export function buildPlannerPrompt(req: PlanRequest): string {
   const lines = [
     "あなたは開発依頼のLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
     "出力形式: {\"summary\": string, \"tasks\": [{\"key\", \"role\", \"objective\", \"inputs\", \"expectedOutputs\", \"constraints\", \"dependsOn\": [key]}]}",
-    "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。作業は最大50件、循環依存は禁止。",
+    "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。アイデア出し・名前案・文面の案を出す作業の role は ideation にする。作業は最大50件、循環依存は禁止。",
     "各 task の expectedOutputs には、成果物の「ファイルパスだけ」を書く(例: design/auth.md、research/tools.md、review/ui.md、src/app.js)。説明文・括弧書き・「〜を含む」のような補足は書かない。文章や調査結果を残す作業にもパスを付け、ファイルを残さない作業だけ空の配列にする。",
     "有料APIは使わない。ファイルを実際に変更したり、コマンドを実行したりせず、計画だけを返すこと。",
     "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",

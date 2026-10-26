@@ -6,6 +6,11 @@ import type { AiService, Store, Task } from "./store.ts";
 //
 //   total = fit*4 + quality*3 + automation*2 + safety*1   (each 0-5, max 50; /5 = 10-point scale)
 //
+// Candidates whose totals are within NEAR_BEST (0.4 of 10) of the best are "as good as each other": the scores are initial
+// assumptions, not measurements, so a few hundredths decide nothing. Among them the work is shared: first the AI used least in
+// this mission, then the one used least in the last 24 hours (free tiers have daily limits), then the higher total, then the name.
+// Without usage data the best total (then the name) wins, as before.
+//
 // Cost Guard (§56): a paid or API-key service is BLOCKED unless the mission's
 // budget policy is allow_paid. Unavailable/retired services are excluded.
 
@@ -15,6 +20,9 @@ const MAX_TOTAL = 5 * (BROKER_WEIGHTS.fit + BROKER_WEIGHTS.quality + BROKER_WEIG
 const UNKNOWN_QUALITY = 2.5;
 const UNCLASSIFIED_FIT = 2;
 const LOW_CONFIDENCE = 0.7;
+/** On the 50-point scale: 2.0 = 0.4 on the 10-point scale. */
+export const NEAR_BEST = 2;
+export const USAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const ROLE_ALIASES: Record<string, string> = {
   code: "coding", coding: "coding", implement: "coding", implementation: "coding", refactor: "coding", integration: "coding", frontend: "coding", backend: "coding", database: "coding",
@@ -25,6 +33,8 @@ const ROLE_ALIASES: Record<string, string> = {
   "ui design": "ux_review", review: "ux_review", "final review": "ux_review",
   docs: "documentation", documentation: "documentation",
   translation: "translation", seo: "seo",
+  ideation: "ideation", brainstorm: "ideation", brainstorming: "ideation", naming: "ideation", copywriting: "ideation", "ux copy": "ideation",
+  "fact check": "research", "fact-check": "research", factcheck: "research",
 };
 
 /** Maps a Planner role to a registry capability ("unclassified" when it cannot). */
@@ -64,7 +74,10 @@ export type BrokerOptions = {
   executableAdapters?: string[];
   /** AIs that already failed this task; skipped so a retry falls back to the next candidate. */
   excludeAiIds?: string[];
+  /** How much each AI was used lately (see aiUsage); lets equally good AIs take turns. */
+  usage?: AiUsage;
 };
+export type AiUsage = Record<string, { mission: number; recent: number }>;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const round = (n: number, digits = 2) => Math.round(n * 10 ** digits) / 10 ** digits;
@@ -130,6 +143,34 @@ function completeness(s: AiService, capability: string): number {
 
 const byTotal = (a: BrokerCandidate, b: BrokerCandidate) => b.total - a.total || a.name.localeCompare(b.name);
 
+/**
+ * From candidates sorted best first: the best one, or - when usage is known - the least used among those within NEAR_BEST of it.
+ * `shared` says that the choice was made among several equally good AIs.
+ */
+export function pickBalanced(ranked: BrokerCandidate[], usage?: AiUsage): { pick: BrokerCandidate | null; shared: BrokerCandidate[] } {
+  const best = ranked[0];
+  if (!best) return { pick: null, shared: [] };
+  if (!usage) return { pick: best, shared: [best] };
+  const near = ranked.filter((c) => best.total - c.total <= NEAR_BEST);
+  const used = (c: BrokerCandidate) => usage[c.aiId] ?? { mission: 0, recent: 0 };
+  const pick = [...near].sort((a, b) => used(a).mission - used(b).mission || used(a).recent - used(b).recent || byTotal(a, b))[0]!;
+  return { pick, shared: near };
+}
+
+/** Runs per AI: in the same mission (other tasks that already have the AI) and in the last 24 hours (runs of any task, reviews included). */
+export function aiUsage(store: Store, scope: { missionId?: string; taskId?: string; now?: number } = {}): AiUsage {
+  const out: AiUsage = {};
+  const add = (id: string | null, key: "mission" | "recent", n: number) => {
+    if (id) (out[id] ??= { mission: 0, recent: 0 })[key] += n;
+  };
+  const since = new Date((scope.now ?? Date.now()) - USAGE_WINDOW_MS).toISOString();
+  for (const r of store.db.prepare("SELECT ai_id, COUNT(*) AS n FROM ai_runs WHERE started_at >= ? AND status IN ('succeeded', 'failed') GROUP BY ai_id").all(since) as { ai_id: string | null; n: number }[]) add(r.ai_id, "recent", r.n);
+  if (scope.missionId) {
+    for (const r of store.db.prepare("SELECT selected_ai AS ai_id, COUNT(*) AS n FROM tasks WHERE mission_id = ? AND id != ? AND selected_ai IS NOT NULL GROUP BY selected_ai").all(scope.missionId, scope.taskId ?? "") as { ai_id: string; n: number }[]) add(r.ai_id, "mission", r.n);
+  }
+  return out;
+}
+
 export function chooseAi(services: AiService[], capability: string, options: BrokerOptions = {}): BrokerDecision {
   const budgetPolicy = options.budgetPolicy ?? "free_only";
   const excluded: BrokerDecision["excluded"] = [];
@@ -168,17 +209,20 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     return [...pool].map((e) => e.candidate).sort((a, b) => sortKey[strategy](b) - sortKey[strategy](a) || byTotal(a, b))[0] ?? null;
   };
 
-  const selected = ranked[0] ?? null;
+  const balanced = pickBalanced(ranked, options.usage);
+  const selected = balanced.pick;
   let confidence = 0;
   if (selected) {
     const service = eligible.find((e) => e.candidate.aiId === selected.aiId)!.service;
-    const margin = ranked[1] ? clamp((selected.total - ranked[1].total) / 5, 0, 1) : 0.5; // a lone candidate cannot be compared
+    const rival = ranked.find((c) => c.aiId !== selected.aiId);
+    const margin = rival ? clamp(Math.abs(selected.total - rival.total) / 5, 0, 1) : 0.5; // a lone candidate cannot be compared
     confidence = round(clamp(0.55 * (selected.total / MAX_TOTAL) + 0.3 * completeness(service, capability) + 0.15 * margin, 0, 1));
     if (capability === "unclassified") confidence = Math.min(confidence, 0.6);
   }
   const confidenceLabel = confidence >= 0.9 ? "high" : confidence >= LOW_CONFIDENCE ? "medium" : "low";
+  const sharedNote = selected && balanced.shared.length > 1 ? `。同程度のAIが${balanced.shared.length}件(${balanced.shared.map((c) => c.name).join("、")})あるため、利用の少ない順に選びました` : "";
   const reason = selected
-    ? `${selected.name}: 能力適合${selected.breakdown.fit}/品質${selected.breakdown.quality}/自動化${selected.breakdown.automation}/安全性${selected.breakdown.safety} → ${selected.score10}/10`
+    ? `${selected.name}: 能力適合${selected.breakdown.fit}/品質${selected.breakdown.quality}/自動化${selected.breakdown.automation}/安全性${selected.breakdown.safety} → ${selected.score10}/10${sharedNote}`
     : `「${capability}」を担当できる利用可能なAIがありません`;
   return {
     capability,
@@ -197,7 +241,8 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
 export class AIBroker {
   constructor(private readonly store: Store) {}
 
-  select(task: Pick<Task, "role">, options: BrokerOptions = {}): BrokerDecision {
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), options);
+  select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
+    const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { ...options, usage });
   }
 }

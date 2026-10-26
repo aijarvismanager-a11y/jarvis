@@ -116,7 +116,7 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     limitations: "無料枠に上限あり",
   },
   pi: {
-    capabilities: { translation: 3, documentation: 3 },
+    capabilities: { translation: 3, documentation: 3, ideation: 5 },
     qualityScore: 3,
     reliabilityScore: 3,
     automationLevel: 1,
@@ -316,6 +316,27 @@ export function seedRegistryProfiles(store: Store, profiles: Record<string, AiPr
   return seeded;
 }
 
+
+/**
+ * One-time registry update (recorded in settings): adds the "ideation" capability (brainstorming, name ideas, wording ideas) to the
+ * services that already have scores, keeping everything else. Pi is built for this kind of conversation; the other scores are
+ * assumptions like all the initial ones. Returns the ids it changed.
+ */
+export const IDEATION_SCORES: Record<string, number> = { pi: 5, chatgpt: 4, "claude-web": 4, gemini: 3.5, qwen: 3, mistral: 3, genspark: 3 };
+export function applyIdeationCapability(store: Store): string[] {
+  const KEY = "registry.ideation.v1";
+  if (store.getSetting<boolean>(KEY, false)) return [];
+  const changed: string[] = [];
+  for (const [id, score] of Object.entries(IDEATION_SCORES)) {
+    const service = store.getAiService(id);
+    if (!service || service.capabilityScores.ideation !== undefined) continue;
+    store.setCapabilities(id, { ...service.capabilityScores, ideation: score });
+    changed.push(id);
+  }
+  store.setSetting(KEY, true);
+  if (changed.length) store.addDecision({ title: "AI Registry: 「アイデア出し(ideation)」の能力を追加", reason: `会話・アイデア出しに向くPiを中心に、初期値(仮定)の点数を追加: ${changed.join(", ")}`, isAssumption: true });
+  return changed;
+}
 
 /** Services dropped because they cannot be signed in to with a Google account (GitHub-only, Microsoft-account-only, Meta account). */
 export const RETIRED_AI_IDS = ["meta-ai", "github-copilot", "ms-designer"];

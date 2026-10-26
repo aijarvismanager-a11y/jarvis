@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { chooseAi } from "./aiBroker.ts";
+import { aiUsage, chooseAi, pickBalanced } from "./aiBroker.ts";
 import type { ExecutionResult } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
 import { isIntegrationTask } from "./taskValidator.ts";
@@ -59,19 +59,27 @@ export function importanceOf(task: Pick<Task, "role" | "objective" | "retryCount
   return null;
 }
 
-/** The best AI of ANOTHER maker that runs fully automatically right now; null when there is none. */
+/** What a reviewer should be good at: code is judged by AIs that are good at code, everything else as a second opinion on a text. */
+export const reviewCapabilityFor = (role: string): string => (CODE_ROLES.has(role.trim().toLowerCase()) ? "coding" : "ux_review");
+
+/**
+ * The AI of ANOTHER maker that reviews: of those that run fully automatically right now, the best ones for this kind of work take
+ * turns (the least used lately goes first); null when there is none.
+ */
 export function pickReviewer(store: Store, authorAiId: string | null, role: string): { svc: AiService; ranked: string[] } | null {
   const web = getWebAiSettings(store);
   if (!web.enabled) return null;
   const author = aiFamily(authorAiId ?? "claude-code");
   const services = store.listAiServices();
   const sameMaker = services.filter((s) => aiFamily(s.id) === author).map((s) => s.id);
-  const decision = chooseAi(services, "ux_review", { budgetPolicy: "free_only", executableAdapters: [...WEB_ADAPTER_TYPES], excludeAiIds: sameMaker });
-  const usable = decision.ranked
-    .map((c) => services.find((s) => s.id === c.aiId)!)
-    .filter((s) => s && s.automationLevel >= 3 && web.loggedIn[s.id] === true && !!s.url && resolveSiteProfile(store, s.id) !== null);
-  void role;
-  return usable[0] ? { svc: usable[0], ranked: usable.map((s) => s.id) } : null;
+  const decision = chooseAi(services, reviewCapabilityFor(role), { budgetPolicy: "free_only", executableAdapters: [...WEB_ADAPTER_TYPES], excludeAiIds: sameMaker });
+  const usable = decision.ranked.filter((c) => {
+    const s = services.find((x) => x.id === c.aiId);
+    return !!s && s.automationLevel >= 3 && web.loggedIn[s.id] === true && !!s.url && resolveSiteProfile(store, s.id) !== null;
+  });
+  const { pick } = pickBalanced(usable, aiUsage(store));
+  const svc = pick ? services.find((s) => s.id === pick.aiId) : undefined;
+  return svc ? { svc, ranked: [svc.id, ...usable.map((c) => c.aiId).filter((id) => id !== svc.id)] } : null;
 }
 
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".py", ".sql", ".sh"]);

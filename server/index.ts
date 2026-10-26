@@ -14,7 +14,7 @@ import { createOrchestratorRouter } from "./core/api.ts";
 import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
-import { applyGoogleLoginRegistry, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { applyGoogleLoginRegistry, applyIdeationCapability, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
 import { WebHandoffHub } from "./core/webHandoff.ts";
@@ -93,6 +93,7 @@ const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.d
 applyGoogleLoginRegistry(coreStore);
 applyLaterRetirements(coreStore);
 seedRegistryProfiles(coreStore);
+applyIdeationCapability(coreStore);
 const approvals = new ApprovalHub(coreStore);
 const previews = new PreviewManager(path.join(ROOT, "projects"));
 // Preview servers are children of this process: never leave them behind.
