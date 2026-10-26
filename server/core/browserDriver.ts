@@ -355,8 +355,24 @@ class CdpChatPage implements WebChatPage {
       },
       { timeoutMs: opts.timeoutMs, intervalMs: 500, signal: opts.signal },
     );
-    if (done === null) throw new WebAiTimeoutError(`回答を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
+    if (done === null) {
+      await this.throwIfBlocked();
+      throw new WebAiTimeoutError(`回答を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
+    }
     return done.trim();
+  }
+
+  /** After a wait that ran out: a bot check or sign-in page on screen is the reason, and it is the person's to clear (never bypassed). */
+  private async throwIfBlocked(): Promise<void> {
+    const snap = await this.cdp
+      .evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(`({
+        url: location.href,
+        text: (document.body && document.body.innerText || "").slice(0, 4000),
+        hasChallengeFrame: !!document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'),
+      })`)
+      .catch(() => null);
+    const blocked = snap ? classifyBlocker(snap) : null;
+    if (blocked === "captcha") throw new WebAiBlockedError(blocked);
   }
 
   async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {

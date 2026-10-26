@@ -89,8 +89,10 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   },
   // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
   copilot: {
-    inputSelector: 'textarea#userInput, textarea[placeholder*="Copilot"]',
-    sendSelector: 'button[data-testid="submit-button"], button[aria-label*="送信"], button[aria-label*="Submit"]',
+    // input and send button checked live on 2026-10-27 (logged in); the answer selector could not be checked: Copilot asked for a
+    // "I am not a robot" check, which is never bypassed
+    inputSelector: '#m365-chat-editor-target-element, [aria-label*="Copilot にメッセージ"], textarea#userInput, textarea[placeholder*="Copilot"]',
+    sendSelector: 'button[aria-label="送信"], button[data-testid="submit-button"], button[aria-label*="Submit"]',
     responseSelector: '[data-content="ai-message"], [data-testid="ai-message"]',
   },
   deepseek: {
@@ -99,7 +101,8 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     stopSelector: 'div[role="button"][aria-label*="Stop"]',
   },
   grok: {
-    inputSelector: 'textarea[aria-label*="Grok"], textarea',
+    // checked live on 2026-10-27 (free account, logged in): the prompt box is a contenteditable div, not a textarea
+    inputSelector: 'div[aria-label*="Grok"][contenteditable="true"], div.tiptap[contenteditable="true"], div[contenteditable="true"], textarea[aria-label*="Grok"]',
     sendSelector: 'button[aria-label="Submit"], button[type="submit"]',
     responseSelector: ".message-bubble, .response-content-markdown",
   },
