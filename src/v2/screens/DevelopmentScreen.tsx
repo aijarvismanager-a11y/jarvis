@@ -34,6 +34,11 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
       {open && (
         <div className="space-y-2 border-t border-borderSoft px-3 py-2 text-[12.5px]">
           <p>{task.objective}</p>
+          {(() => {
+            // AI B Review: a second AI of another maker checked this task (see the settings)
+            const review = runs.filter((r) => r.executor === "ai-review").pop();
+            return review ? <p className="rounded-lg border border-borderSoft bg-panel px-2.5 py-1.5"><span className="mr-1.5 font-semibold">別のAIの追加レビュー</span>{review.summary?.replace(/^追加レビュー/, "")}</p> : null;
+          })()}
           {task.dependsOn.length > 0 && <p className="text-muted">先に必要: {task.dependsOn.map(label).join("、")}</p>}
           {outputs.length > 0 && (
             <ul>
@@ -55,7 +60,7 @@ function TaskRow({ task, ctx, label }: { task: Task; ctx: Ctx; label: (id: strin
               <ul className="mt-2 space-y-1 text-[12px]">
                 {runs.map((r) => (
                   <li key={r.id} className="text-muted">
-                    {formatTime(r.started_at)} · {r.executor} · {LEVEL_LABEL[r.automation_level] ?? r.automation_level} · {RUN_STATUS_LABEL[r.status] ?? r.status}{r.duration_ms != null && ` · ${formatDuration(r.duration_ms)}`}{r.cost_usd != null && ` · ${formatCost(r.cost_usd)}`}
+                    {formatTime(r.started_at)} · {r.executor === "ai-review" ? "追加レビュー" : r.executor} · {LEVEL_LABEL[r.automation_level] ?? r.automation_level} · {RUN_STATUS_LABEL[r.status] ?? r.status}{r.duration_ms != null && ` · ${formatDuration(r.duration_ms)}`}{r.cost_usd != null && ` · ${formatCost(r.cost_usd)}`}
                     {r.summary && <span className="block whitespace-pre-wrap text-ink">{r.summary.slice(0, 400)}</span>}
                   </li>
                 ))}

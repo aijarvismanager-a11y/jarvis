@@ -162,6 +162,33 @@ export class WebAiExecutor implements TaskExecutor {
     return this.save(task, svc, text, outputPaths, usedLevel);
   }
 
+  /**
+   * Puts one prompt to a web AI fully automatically (Level 3 only) and returns the answer; never waits for the person.
+   * Used by the AI B Review. A break of the automation is counted like any other Level 3 failure.
+   */
+  async ask(input: { svc: AiService; prompt: string; task: Task; signal: AbortSignal }): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+    const { svc, prompt, task, signal } = input;
+    const site = resolveSiteProfile(this.store, svc.id);
+    const driver = this.opts.driver;
+    if (!driver || !site || !svc.url) return { ok: false, error: "ブラウザ操作の準備(ブラウザ・サイト設定)がありません" };
+    try {
+      const page = await driver.open({ url: svc.url, site, signal });
+      try {
+        await page.fillPrompt(prompt);
+        await page.submit();
+        const text = await page.waitForResponse({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal });
+        this.resetFailures(svc);
+        return { ok: true, text };
+      } finally {
+        await page.close();
+      }
+    } catch (err) {
+      if (signal.aborted) return { ok: false, error: "中断されました" };
+      this.recordFailure(svc, 3, err, task);
+      return { ok: false, error: errMsg(err) };
+    }
+  }
+
   // ---- Level 1/2: wait for the answer -----------------------------------------
   private async waitForUser(input: {
     task: Task;

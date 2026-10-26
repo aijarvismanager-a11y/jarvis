@@ -104,5 +104,7 @@ export const api = {
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
+  aiReviewSettings: () => request<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null }>("/ai-review/settings"),
+  setAiReview: (enabled: boolean) => request<{ enabled: boolean }>("/ai-review/settings", "PUT", { enabled }),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
 };

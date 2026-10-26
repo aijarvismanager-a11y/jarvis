@@ -106,10 +106,12 @@ const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new Permissio
 const browserExecutable = findBrowserExecutable();
 const webDriver = browserExecutable ? new ChromiumDriver({ executable: browserExecutable, profileDir: path.join(ROOT, "data", "browser-profile") }) : undefined;
 const webHub = new WebHandoffHub(coreStore);
-const executor = new RoutingExecutor(coreStore, claudeExecutor, new WebAiExecutor(coreStore, webHub, { driver: webDriver }));
+const webExecutor = new WebAiExecutor(coreStore, webHub, { driver: webDriver });
+const executor = new RoutingExecutor(coreStore, claudeExecutor, webExecutor);
 const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
+  aiReview: { reviewer: webExecutor },
   validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester() }),
   broker: new AIBroker(coreStore),
 });

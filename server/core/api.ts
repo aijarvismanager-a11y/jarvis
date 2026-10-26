@@ -14,6 +14,7 @@ import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
+import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -423,6 +424,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       await handler(req, res, deps.webAi);
     });
 
+  // AI B Review (spec §57): a second AI of another maker checks important tasks. On by default; it needs the web AIs switched on.
+  router.get("/ai-review/settings", (_req, res) => {
+    const picked = pickReviewer(store, "claude-code", "design");
+    res.json({ enabled: getAiReviewSettings(store).enabled, webAiEnabled: getWebAiSettings(store).enabled, reviewer: picked?.svc.name ?? null });
+  });
+  router.put(
+    "/ai-review/settings",
+    guarded((req, res) => {
+      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body ?? {});
+      setAiReviewSettings(store, { enabled });
+      store.appendEvent({ type: "AI_REVIEW_SWITCHED", payload: { enabled } });
+      res.json({ enabled });
+    }),
+  );
   router.get("/web-ai/settings", (_req, res) => {
     const settings = getWebAiSettings(store);
     res.json({

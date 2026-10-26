@@ -6,6 +6,7 @@ import type { Mission, Store, Task } from "./store.ts";
 import type { MissionStatus } from "./schema.ts";
 import type { PlanRequest, Planner } from "./planner.ts";
 import type { AIBroker } from "./aiBroker.ts";
+import { reviewTask, type AiReviewer } from "./aiReview.ts";
 import { Scheduler } from "./scheduler.ts";
 import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
@@ -56,7 +57,7 @@ export class MissionEngine {
 
   constructor(
     private readonly store: Store,
-    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; maxParallel?: number; lockTtlMs?: number },
+    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; /** AI B Review (spec §57): a second AI checks important tasks */ aiReview?: { reviewer: AiReviewer }; maxParallel?: number; lockTtlMs?: number },
   ) {
     this.scheduler = new Scheduler(store, { maxParallel: deps.maxParallel, lockTtlMs: deps.lockTtlMs });
   }
@@ -353,6 +354,20 @@ export class MissionEngine {
         verdict = await this.deps.validator.validate(this.store.getTask(projectId, task.id)!, result);
       } catch (err) {
         verdict = { passed: false, detail: errMsg(err) };
+      }
+    }
+    // AI B Review: only after the ordinary checks passed, and only for important tasks (decided inside). It never stops the mission.
+    if (verdict.passed && this.deps.aiReview) {
+      try {
+        const review = await reviewTask({ store: this.store, reviewer: this.deps.aiReview.reviewer, mission, task: this.store.getTask(projectId, task.id)!, result, signal: controller.signal });
+        if (review) verdict = review;
+      } catch (err) {
+        this.store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_SKIPPED", payload: { reason: errMsg(err) } });
+      }
+      if (controller.signal.aborted) {
+        const cancelled = this.store.getMission(projectId, mission.id)?.status === "cancelled";
+        transitionTask(this.store, projectId, task.id, cancelled ? "cancelled" : "paused", cancelled ? "mission cancelled" : "mission paused");
+        return;
       }
     }
     this.store.addValidation({ projectId, taskId: task.id, level: verdict.level ?? 1, status: verdict.passed ? "passed" : "failed", detail: verdict.detail });

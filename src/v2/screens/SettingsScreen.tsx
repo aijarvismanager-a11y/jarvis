@@ -31,7 +31,8 @@ function DeleteProjectCard({ project, setError, onDeleted }: { project: Project;
 export function SettingsScreen({ services, project, setError, refresh, onProjectDeleted }: { services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
   const [web, setWeb] = useState<WebAiSettings | null>(null);
   const { busy, run } = useAction(setError);
-  const reload = usePoll(async () => setWeb(await api.webAiSettings()), 10000, []);
+  const [review, setReview] = useState<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null } | null>(null);
+  const reload = usePoll(async () => { setWeb(await api.webAiSettings()); setReview(await api.aiReviewSettings()); }, 10000, []);
   const done = () => {
     reload();
     refresh();
@@ -50,7 +51,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
               <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
               <span>
                 <span className="font-semibold">ブラウザ上のAI(ChatGPT・Gemini など)も使う</span>
-                <span className="block text-[12px] text-muted">オフの間は、すべての作業を Claude Code が実行します(既定)。オンにすると、調査・文書系の作業だけ Web AI に回ることがあり、その場合はあなたの操作(コピー&貼り付け)が必要です。コードの編集は常に Claude Code が行います。</span>
+                <span className="block text-[12px] text-muted">オフの間は、すべての作業を Claude Code が実行します(既定)。オンにすると、調査・設計・文書・レビュー系の作業が Web AI に回ることがあります。全自動のAIは、あなたの操作なしで進みます。手動・半自動のAIだけ、コピー&貼り付けなどの操作が必要です。コードの編集は常に Claude Code が行います。</span>
               </span>
             </label>
             <p className="mt-2 text-[12px] text-muted">
@@ -63,6 +64,25 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
                 <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(プロフィール: ${r.profile})。このあと「ログイン用に開く」を押して、ログイン済みか確認してください。`); })}>ログイン状態を引き継ぐ</Button>
               </div>
             )}
+          </>
+        )}
+      </Card>
+
+      <Card title="重要な作業を、別のAIにもレビューしてもらう">
+        {!review ? (
+          <p className="text-[13px] text-muted">読み込み中…</p>
+        ) : (
+          <>
+            <label className="flex items-start gap-3 text-[13px]">
+              <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
+              <span>
+                <span className="font-semibold">別のAIによる追加レビューを使う</span>
+                <span className="block text-[12px] text-muted">設計・安全性・結合など重要な作業が終わったら、作ったAIとは別のメーカーのAIが成果物を読んで、「承認」か「要修正」かを判定します。要修正のときは、指摘を渡して1回だけ直します。レビューは自動で行われ、あなたの操作は要りません。うまく動かないときは見送って、先に進みます。</span>
+              </span>
+            </label>
+            <p className="mt-2 text-[12px] text-muted">
+              {!review.webAiEnabled ? "「ブラウザ上のAIも使う」がオフのため、いまはレビューされません。" : review.reviewer ? `いま使われるレビュー役(Claude Codeの作業の場合): ${review.reviewer}` : "レビューに使える全自動のAIがありません(別メーカーのAIで、全自動・ログイン済みのものが必要です)。"}
+            </p>
           </>
         )}
       </Card>
