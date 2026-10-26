@@ -85,6 +85,13 @@ export const HTML_TO_MARKDOWN_JS = String.raw`(root) => {
     if (/^h[1-6]$/.test(t)) { const s = inline(n).trim(); return s ? "#".repeat(Number(t[1])) + " " + s + "\n\n" : ""; }
     if (t === "p") { const s = inline(n).trim(); return s ? s + "\n\n" : ""; }
     if (t === "ul" || t === "ol") return list(n, "") + "\n";
+    if (t === "pre" && n.querySelector(".monaco-editor .view-line")) {
+      // a code block drawn by the Monaco editor (Qwen): one element per line, in order of their vertical position; the language is in the header
+      const lines = Array.from(n.querySelectorAll(".view-line")).sort((a, b) => (parseFloat(a.style.top) || 0) - (parseFloat(b.style.top) || 0)).map((l) => (l.textContent || "").replace(/ /g, " "));
+      const header = n.querySelector("[class*='code-header'] > div");
+      const lang = header ? header.textContent.trim().toLowerCase() : "";
+      return FENCE + (/^[a-z0-9+#-]{1,12}$/.test(lang) ? lang : "") + "\n" + lines.join("\n").replace(/\s+$/, "") + "\n" + FENCE + "\n\n";
+    }
     if (t === "pre") {
       const code = n.querySelector("code") || n;
       const m = /language-([A-Za-z0-9+#-]+)/.exec((code.getAttribute("class") || "") + " " + (n.getAttribute("class") || ""));

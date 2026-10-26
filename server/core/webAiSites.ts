@@ -61,6 +61,13 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     inputSelector: "textarea",
     responseSelector: ".answer-markdown",
   },
+  // qwen: checked live on 2026-10-26 (free account, logged in; a logged-out guest page asks for a birth year, which is the
+  // person's to answer, so the page is then reported as a login problem). Answers are .response-message-content.phase-answer.
+  qwen: {
+    inputSelector: "textarea.message-input-textarea, textarea",
+    sendSelector: 'button[aria-label="Send"]',
+    responseSelector: ".response-message-content.phase-answer",
+  },
   // pi: checked live on 2026-10-25 (free account, logged in). A "Group chats" pop-up covers the page: "Not now" closes it.
   // Pi's own messages are the [data-chat-message] boxes with a flex-col layout (the user's carry justify-end); the narrower
   // content column leaves out the "Copy / Read aloud" buttons.
