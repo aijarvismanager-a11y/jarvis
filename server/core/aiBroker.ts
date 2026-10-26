@@ -35,6 +35,7 @@ const ROLE_ALIASES: Record<string, string> = {
   docs: "documentation", documentation: "documentation",
   translation: "translation", seo: "seo",
   ideation: "ideation", brainstorm: "ideation", brainstorming: "ideation", naming: "ideation", copywriting: "ideation", "ux copy": "ideation",
+  illustration: "image_generation", icon: "image_generation", logo: "image_generation", banner: "image_generation", graphic: "image_generation", "image generation": "image_generation",
   "fact check": "research", "fact-check": "research", factcheck: "research",
 };
 

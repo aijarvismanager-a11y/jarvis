@@ -62,6 +62,10 @@ export interface WebChatPage {
   prepare?(): Promise<void>;
   /** The newest answer as Markdown (headings, lists, tables and code blocks kept); null when it cannot be read that way. */
   readMarkdown?(): Promise<string | null>;
+  /** Image work: waits until the newest answer holds a finished picture (no text needed). */
+  waitForImages?(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void>;
+  /** The pictures in the newest answer, read through the page itself (so the signed-in session is used). */
+  readImages?(): Promise<{ mime: string; base64: string }[]>;
   close(): Promise<void>;
 }
 export interface WebChatDriver {
@@ -350,6 +354,48 @@ class CdpChatPage implements WebChatPage {
     );
     if (done === null) throw new WebAiTimeoutError(`回答を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
     return done.trim();
+  }
+
+  async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {
+    let seen = 0;
+    let since = Date.now();
+    const done = await waitUntil(
+      async () => {
+        const s = await this.cdp.evaluate<{ count: number; imgs: number }>(`(() => {
+          const all = document.querySelectorAll(${q(this.site.responseSelector)});
+          const el = all.length ? all[all.length - 1] : null;
+          const imgs = el ? [...el.querySelectorAll('img')].filter((i) => i.complete && i.naturalWidth >= 200 && i.naturalHeight >= 200).length : 0;
+          return { count: all.length, imgs };
+        })()`);
+        if (s.count <= this.baseline.count || s.imgs === 0) return null;
+        if (s.imgs !== seen) {
+          seen = s.imgs;
+          since = Date.now();
+          return null;
+        }
+        return Date.now() - since >= 2500 ? true : null;
+      },
+      { timeoutMs: opts.timeoutMs, intervalMs: 700, signal: opts.signal },
+    );
+    if (done === null) throw new WebAiTimeoutError(`画像を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
+  }
+
+  async readImages(): Promise<{ mime: string; base64: string }[]> {
+    return this.cdp.evaluate<{ mime: string; base64: string }[]>(`(async () => {
+      const all = document.querySelectorAll(${q(this.site.responseSelector)});
+      const el = all.length ? all[all.length - 1] : null;
+      if (!el) return [];
+      const out = [];
+      for (const img of el.querySelectorAll('img')) {
+        if (img.naturalWidth < 200 || img.naturalHeight < 200) continue;
+        try {
+          const blob = await (await fetch(img.src, { credentials: 'include' })).blob();
+          const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+          out.push({ mime: blob.type || 'image/png', base64: data.slice(data.indexOf(',') + 1) });
+        } catch (e) { /* this picture cannot be read: skip it */ }
+      }
+      return out;
+    })()`);
   }
 
   async prepare(): Promise<void> {

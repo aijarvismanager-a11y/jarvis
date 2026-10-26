@@ -157,6 +157,14 @@ export class WebAiExecutor implements TaskExecutor {
 
     if (level >= 2 && driver && site && !(await this.waitForProfile(task, svc, ctx.signal)) && ctx.signal.aborted) return { ok: false, summary: "中断されました" };
 
+    // picture work: the answer is an image, read straight from the page; when that breaks it falls back to the manual hand-over below
+    if (level === 3 && driver && site && capabilityForTaskRole(task.role) === "image_generation") {
+      const made = await this.generateImages({ task, svc, site, driver, outputPaths, ctx });
+      if ("result" in made) return made.result;
+      note = made.note;
+      level = 1;
+    }
+
     if (level === 3 && driver && site) {
       try {
         const p = await driver.open({ url: svc.url!, site, signal: ctx.signal });
@@ -241,6 +249,42 @@ export class WebAiExecutor implements TaskExecutor {
       if (signal.aborted) return { ok: false, error: "中断されました" };
       this.recordFailure(svc, 3, err, task);
       return { ok: false, error: errMsg(err) };
+    }
+  }
+
+  /** Level 3 picture work: asks for the picture, waits for it, saves what the page shows. */
+  private async generateImages(input: { task: Task; svc: AiService; site: NonNullable<ReturnType<typeof resolveSiteProfile>>; driver: WebChatDriver; outputPaths: string[]; ctx: { mission: Mission; signal: AbortSignal } }): Promise<{ result: WebExecutionResult } | { note: string }> {
+    const { task, svc, site, driver, ctx } = input;
+    const prompt = ["次の画像を生成してください。画像だけを出力し、説明や前置きは不要です。", task.objective, ...(task.constraints.length ? [`条件: ${task.constraints.join(" / ")}`] : [])].join("\n");
+    try {
+      const page = await driver.open({ url: svc.url!, site, signal: ctx.signal });
+      try {
+        if (!page.waitForImages || !page.readImages) throw new Error("このブラウザ操作では画像を読み取れません");
+        await page.fillPrompt(prompt);
+        await page.submit();
+        await page.waitForImages({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal: ctx.signal });
+        const images = await page.readImages();
+        if (!images.length) throw new Error("画像を読み取れませんでした");
+        const wanted = input.outputPaths.filter((p) => /\.(png|jpe?g|webp|gif)$/i.test(p));
+        const saved: string[] = [];
+        images.forEach((img, i) => {
+          const ext = img.mime.includes("jpeg") ? "jpg" : img.mime.includes("webp") ? "webp" : img.mime.includes("gif") ? "gif" : "png";
+          const rel = wanted[i] ?? `web-ai/image-${task.id.slice(0, 8)}-${i + 1}.${ext}`;
+          const abs = resolveInProject(this.store.projectsRoot, task.projectId, rel);
+          mkdirSync(path.dirname(abs), { recursive: true });
+          writeFileSync(abs, Buffer.from(img.base64, "base64"));
+          this.store.createArtifact({ projectId: task.projectId, taskId: task.id, path: rel, createdBy: svc.id, sourceAi: svc.id, sourceUrl: svc.url });
+          saved.push(rel);
+        });
+        this.resetFailures(svc);
+        return { result: { ok: true, summary: `${svc.name}(Level 3)が画像を生成して保存しました: ${saved.join(", ")}`, artifacts: saved, aiId: svc.id, automationLevel: 3, executor: this.name } };
+      } finally {
+        await page.close();
+      }
+    } catch (err) {
+      if (ctx.signal.aborted) return { result: { ok: false, summary: "中断されました" } };
+      this.recordFailure(svc, 3, err, task);
+      return { note: `画像の自動生成に失敗したため手動に切り替えます: ${errMsg(err)}` };
     }
   }
 
