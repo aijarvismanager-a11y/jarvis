@@ -27,7 +27,7 @@ type Selected = {
   excluded?: { aiId: string; name: string; reason: string }[];
   chosen?: { name: string; score10: number; fit: number; quality: number; automation: number; safety: number } | null;
   ranked?: { aiId: string; name: string; score10: number }[];
-  shared?: { aiId: string; name: string; mission: number; recent: number }[];
+  shared?: { aiId: string; name: string; mission: number; recent: number; fit?: number; score10?: number }[];
 };
 
 export type SelectionWhy = { headline: string; lines: string[] };
@@ -44,9 +44,19 @@ export function explainSelection(events: StoredEvent[], taskId: string, services
   const name = p.chosen?.name ?? aiNameOf(services, p.selected);
   const shared = p.shared ?? [];
 
+  // what decided it among the equally good ones (the same order the Broker uses)
+  const me = shared.find((x) => x.aiId === p.selected);
+  const others = shared.filter((x) => x.aiId !== p.selected);
+  const decidedBy = !me ? "" :
+    others.some((o) => o.mission > me.mission) ? "この依頼での利用が少ない"
+    : others.some((o) => o.recent > me.recent) ? "直近24時間の利用が少ない"
+    : others.some((o) => (o.fit ?? 0) < (me.fit ?? 0)) ? "この作業の得意分野の点数が一番高い"
+    : others.some((o) => (o.score10 ?? 0) < (me.score10 ?? 0)) ? "総合点が高い"
+    : "点数も利用も同じだったので、作業ごとに決まる順番の";
+
   const headline =
     shared.length > 1
-      ? `${short(name)}が担当: 「${cap}」に同じくらい向いているAIが${shared.length}つ(${shared.map((s) => short(s.name)).join("、")})あったので、この依頼での利用が少ない順に選びました`
+      ? `${short(name)}が担当: 「${cap}」に同じくらい向いているAIが${shared.length}つ(${shared.map((s) => short(s.name)).join("、")})あったので、${decidedBy}${short(name)}を選びました`
       : `${short(name)}が担当: 「${cap}」に最も向いているAIです${p.chosen ? `(点数 ${p.chosen.score10}/10)` : ""}`;
 
   const lines: string[] = [`作業の種類: ${cap}`];

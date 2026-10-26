@@ -313,7 +313,7 @@ export class MissionEngine {
         reason: decision.reason,
         chosen: decision.selected ? { name: decision.selected.name, score10: decision.selected.score10, ...decision.selected.breakdown } : null,
         ranked: decision.ranked.slice(0, 6).map((c) => ({ aiId: c.aiId, name: c.name, score10: c.score10 })),
-        shared: decision.shared.map((id) => ({ aiId: id, name: byId.get(id)?.name ?? id, ...(decision.usage[id] ?? { mission: 0, recent: 0 }) })),
+        shared: decision.shared.map((id) => ({ aiId: id, name: byId.get(id)?.name ?? id, fit: byId.get(id)?.breakdown.fit ?? 0, score10: byId.get(id)?.score10 ?? 0, ...(decision.usage[id] ?? { mission: 0, recent: 0 }) })),
       };
       if (!decision.selected) {
         this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });

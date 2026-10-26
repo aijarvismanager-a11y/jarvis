@@ -22,7 +22,7 @@ describe("why this AI", () => {
     const why = explainSelection([ev(1, "AI_SELECTED", "t1", selected)], "t1", services)!;
     expect(why.headline).toContain("Perplexityが担当");
     expect(why.headline).toContain("同じくらい向いているAIが2つ");
-    expect(why.headline).toContain("利用が少ない順");
+    expect(why.headline).toContain("この依頼での利用が少ないPerplexityを選びました");
     expect(why.lines.join("\n")).toContain("Geminiは、この依頼で1回・直近24時間で3回");
     expect(why.lines.join("\n")).toContain("候補の点数(10点満点): Gemini 9.4 ／ Perplexity 9.4");
     expect(why.lines.join("\n")).toContain("得意分野 5");
@@ -56,5 +56,14 @@ describe("why this AI", () => {
   it("has nothing to say when no selection was recorded", () => {
     expect(explainSelection([], "t1", services)).toBeNull();
     expect(explainSelection([ev(1, "AI_SELECTED", "other", selected)], "t1", services)).toBeNull();
+  });
+
+  it("names what decided it among equals: use, then specialty, then the total", () => {
+    const row = (aiId: string, o: object) => ({ aiId, name: aiId, mission: 0, recent: 0, fit: 4, score10: 9, ...o });
+    const why = (me: object, other: object) => explainSelection([ev(1, "AI_SELECTED", "t1", { ...selected, selected: "perplexity", shared: [row("gemini", other), row("perplexity", me)] })], "t1", services)!.headline;
+    expect(why({}, { recent: 3 })).toContain("直近24時間の利用が少ないPerplexityを選びました");
+    expect(why({ fit: 5 }, {})).toContain("得意分野の点数が一番高いPerplexityを選びました");
+    expect(why({ score10: 9.2 }, {})).toContain("総合点が高いPerplexityを選びました");
+    expect(why({}, {})).toContain("点数も利用も同じだったので");
   });
 });

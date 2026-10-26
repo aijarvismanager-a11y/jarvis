@@ -60,7 +60,7 @@ describe("the record of why an AI was chosen", () => {
     expect(p.chosen.name).toMatch(/Web/);
     expect(p.ranked.map((c) => c.aiId).sort()).toEqual(["gemini", "perplexity"]);
     expect(p.shared).toHaveLength(2);
-    expect(p.shared[0]).toMatchObject({ mission: 0, recent: 0 });
+    expect(p.shared[0]).toMatchObject({ mission: 0, recent: 0, fit: 5 });
   });
 
   it("the API returns every selection of the project, even when there are far more than 200 other events", async () => {
