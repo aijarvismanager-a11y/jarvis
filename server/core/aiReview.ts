@@ -75,8 +75,9 @@ export function pickReviewer(store: Store, authorAiId: string | null, role: stri
 }
 
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".py", ".sql", ".sh"]);
-const MAX_FILE_CHARS = 4000;
-const MAX_TOTAL_CHARS = 12_000;
+// What a chat page takes in one prompt comfortably (the free tiers handle far more, but typing it in takes time).
+const MAX_FILE_CHARS = 10_000;
+const MAX_TOTAL_CHARS = 24_000;
 
 /** The text of the files a task produced, shortened to what a chat page can take. */
 export function readTaskFiles(store: Store, task: Task): { path: string; text: string; cut: boolean }[] {
@@ -112,6 +113,8 @@ export function buildReviewPrompt(input: { task: Task; mission: Mission; author:
   if (task.constraints.length) lines.push(`【守るべき条件】${task.constraints.join(" / ")}`);
   lines.push("", "【成果物】");
   for (const f of files) lines.push(`=== ${f.path} ===`, f.text, f.cut ? "…(長いため、ここまでを載せています)" : "", "");
+  // A file that was cut must not become a finding of its own ("the code is incomplete"): the reviewer judges what it can see.
+  if (files.some((f) => f.cut)) lines.push("【注意】長いファイルは、途中までしか載せていません。省略されていること自体は指摘せず、載っている範囲の内容だけで判断してください。", "");
   lines.push(
     "【お願い】",
     "・1行目に必ず「判定: 承認」または「判定: 要修正」と書いてください。",

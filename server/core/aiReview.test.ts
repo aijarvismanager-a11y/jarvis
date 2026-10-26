@@ -194,4 +194,18 @@ describe("inside the engine", () => {
     await engine.approvePlan(pid, mission.id);
     expect(await engine.run(pid, mission.id)).toBe("completed");
   });
+
+  it("tells the reviewer not to count a cut file as a finding, and takes in much more than before", async () => {
+    const long = "a".repeat(9500);
+    const { task, missionId } = finishedTask("design", { "d.md": long });
+    const calls: { svc: string; prompt: string }[] = [];
+    await run(task, missionId, reviewer(["判定: 承認"], calls));
+    expect(calls[0].prompt).toContain(long); // 9,500 characters used to be cut at 4,000
+    expect(calls[0].prompt).not.toContain("【注意】長いファイル");
+    const cut = finishedTask("design", { "big.md": "b".repeat(30_000) });
+    const calls2: { svc: string; prompt: string }[] = [];
+    await run(cut.task, cut.missionId, reviewer(["判定: 承認"], calls2));
+    expect(calls2[0].prompt).toContain("【注意】長いファイルは、途中までしか載せていません");
+    expect(calls2[0].prompt.length).toBeLessThan(26_000);
+  });
 });
