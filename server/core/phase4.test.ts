@@ -70,8 +70,10 @@ describe("AI Broker", () => {
   it("only considers AIs that have the capability; unscored services never win", () => {
     const d = new AIBroker(store).select({ role: "research" });
     expect(d.ranked.map((c) => c.aiId)).not.toContain("mystery");
-    // automation weight (2) lets the CLI win overall; quality-first strategy A prefers the best researcher
-    expect(d.selected?.aiId).toBe("claude-code");
+    // the CLI has the higher total (automation weight 2) but the two are within the "equally good" band: the specialist, the
+    // better researcher, is taken (before the band existed the CLI won on total alone)
+    expect(d.ranked[0].aiId).toBe("claude-code");
+    expect(d.selected?.aiId).toBe("gemini");
     expect(d.alternatives.A?.aiId).toBe("gemini");
   });
 
