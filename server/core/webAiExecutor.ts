@@ -6,7 +6,7 @@ import { resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { transitionTask } from "./taskStateMachine.ts";
-import { declaredPaths } from "./taskValidator.ts";
+import { cleanFileText, webOutputPaths } from "./webOutputs.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { getWebAiSettings, resolveSiteProfile } from "./webAiSites.ts";
 
@@ -100,7 +100,7 @@ export class WebAiExecutor implements TaskExecutor {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
     if (!svc) return { ok: false, summary: "担当のWeb AIが選ばれていません" };
 
-    const outputPaths = declaredPaths(task.expectedOutputs);
+    const outputPaths = webOutputPaths(task);
     const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), outputPaths, previousFailure: this.previousFailure(task) });
     const site = resolveSiteProfile(this.store, svc.id);
     const driver = this.opts.driver && site && svc.url ? this.opts.driver : null;
@@ -254,12 +254,13 @@ export class WebAiExecutor implements TaskExecutor {
       if (missing.length) return { ok: false, aiId: svc.id, automationLevel: level, summary: `回答にファイル区切り(=== FILE: パス ===)が見つからないか内容が空です: ${missing.join(", ")}` };
       files = outputPaths.map((p) => [p, blocks.get(p)!]);
     } else if (outputPaths.length === 1) {
-      files = [[outputPaths[0]!, path.extname(outputPaths[0]!) === ".md" ? text : unwrapSingleFence(text)]];
+      files = [[outputPaths[0]!, unwrapSingleFence(text)]];
     } else {
       files = [[`web-ai/${slug(task.role)}-${task.id.slice(0, 8)}.md`, text]];
     }
     const saved: string[] = [];
-    for (const [rel, body] of files) {
+    for (const [rel, raw] of files) {
+      const body = cleanFileText(rel, raw);
       const abs = resolveInProject(this.store.projectsRoot, projectId, rel);
       mkdirSync(path.dirname(abs), { recursive: true });
       writeFileSync(abs, body.endsWith("\n") ? body : `${body}\n`, "utf8");
