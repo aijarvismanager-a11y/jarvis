@@ -259,6 +259,8 @@ function pageSnapshotExpr(site: SiteProfile): string {
 
 class CdpChatPage implements WebChatPage {
   private baseline: { count: number; text: string } = { count: 0, text: "" };
+  /** Pictures already on the page before the prompt (a home feed, samples): they are not the answer. */
+  private baselineImgs: string[] = [];
 
   constructor(
     private readonly cdp: CdpClient,
@@ -269,6 +271,7 @@ class CdpChatPage implements WebChatPage {
   async captureBaseline(): Promise<void> {
     const s = await this.cdp.evaluate<{ count: number; text: string }>(pageSnapshotExpr(this.site));
     this.baseline = { count: s.count, text: s.text };
+    this.baselineImgs = await this.cdp.evaluate<string[]>(`[...document.querySelectorAll('img')].filter((i) => i.naturalWidth >= 200 && i.naturalHeight >= 200).map((i) => i.src)`).catch(() => []);
   }
 
   async fillPrompt(text: string): Promise<void> {
@@ -365,7 +368,8 @@ class CdpChatPage implements WebChatPage {
         const s = await this.cdp.evaluate<{ count: number; imgs: number }>(`(() => {
           const all = document.querySelectorAll(${q(this.site.responseSelector)});
           const el = all.length ? all[all.length - 1] : null;
-          const imgs = el ? [...el.querySelectorAll('img')].filter((i) => i.complete && i.naturalWidth >= 200 && i.naturalHeight >= 200).length : 0;
+          const skip = new Set(${JSON.stringify(this.baselineImgs)});
+          const imgs = el ? [...el.querySelectorAll('img')].filter((i) => i.complete && i.naturalWidth >= 200 && i.naturalHeight >= 200 && !skip.has(i.src)).length : 0;
           return { count: all.length, imgs };
         })()`);
         last = `回答${s.count}件・画像${s.imgs}枚(基準${this.baseline.count}件)`;
@@ -387,9 +391,10 @@ class CdpChatPage implements WebChatPage {
       const all = document.querySelectorAll(${q(this.site.responseSelector)});
       const el = all.length ? all[all.length - 1] : null;
       if (!el) return [];
+      const skip = new Set(${JSON.stringify(this.baselineImgs)});
       const out = [];
       for (const img of el.querySelectorAll('img')) {
-        if (img.naturalWidth < 200 || img.naturalHeight < 200) continue;
+        if (img.naturalWidth < 200 || img.naturalHeight < 200 || skip.has(img.src)) continue;
         try {
           // redraw the page's own picture on a canvas (some sites block fetch() of their blob: addresses)
           const c = document.createElement('canvas');
@@ -398,7 +403,14 @@ class CdpChatPage implements WebChatPage {
           c.getContext('2d').drawImage(img, 0, 0);
           const data = c.toDataURL('image/png');
           out.push({ mime: 'image/png', base64: data.slice(data.indexOf(',') + 1) });
-        } catch (e) { /* this picture cannot be read: skip it */ }
+        } catch (e) {
+          // a picture from another address taints the canvas: ask for the file itself (works when the host allows it)
+          try {
+            const blob = await (await fetch(img.src)).blob();
+            const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+            out.push({ mime: blob.type || 'image/png', base64: data.slice(data.indexOf(',') + 1) });
+          } catch (e2) { /* this picture cannot be read: skip it */ }
+        }
       }
       return out;
     })()`);
@@ -423,6 +435,10 @@ class CdpChatPage implements WebChatPage {
       return true;
     };
     for (const text of prep.dismissText ?? []) await clickText(text, false);
+    if (prep.escape) {
+      for (const type of ["keyDown", "keyUp"]) await this.cdp.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await new Promise((r) => setTimeout(r, 600));
+    }
     for (const text of prep.selectText ?? []) await clickText(text, true);
   }
 

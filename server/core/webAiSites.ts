@@ -22,8 +22,9 @@ export type SiteProfile = {
    * - selectText: a mode button to switch on when it is shown as "not pressed" (aria-pressed="false"), e.g. a free "Search"
    *   mode where the page starts in a paid one
    * - dismissText: a button that closes a promotional pop-up ("Not now"); only ever a decline, never an accept
+   * - escape: press Escape once to close a pop-up that has no button text to click
    */
-  prepare?: { selectText?: string[]; dismissText?: string[] };
+  prepare?: { selectText?: string[]; dismissText?: string[]; escape?: boolean };
 };
 
 export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
