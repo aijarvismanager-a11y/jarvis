@@ -359,6 +359,7 @@ class CdpChatPage implements WebChatPage {
   async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {
     let seen = 0;
     let since = Date.now();
+    let last = "";
     const done = await waitUntil(
       async () => {
         const s = await this.cdp.evaluate<{ count: number; imgs: number }>(`(() => {
@@ -367,7 +368,8 @@ class CdpChatPage implements WebChatPage {
           const imgs = el ? [...el.querySelectorAll('img')].filter((i) => i.complete && i.naturalWidth >= 200 && i.naturalHeight >= 200).length : 0;
           return { count: all.length, imgs };
         })()`);
-        if (s.count <= this.baseline.count || s.imgs === 0) return null;
+        last = `回答${s.count}件・画像${s.imgs}枚(基準${this.baseline.count}件)`;
+        if (s.imgs === 0) return null; // the page is opened fresh for each task, so any finished picture in the newest answer is the new one
         if (s.imgs !== seen) {
           seen = s.imgs;
           since = Date.now();
@@ -377,7 +379,7 @@ class CdpChatPage implements WebChatPage {
       },
       { timeoutMs: opts.timeoutMs, intervalMs: 700, signal: opts.signal },
     );
-    if (done === null) throw new WebAiTimeoutError(`画像を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機)`);
+    if (done === null) throw new WebAiTimeoutError(`画像を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機。最後の状態: ${last || "確認できず"})`);
   }
 
   async readImages(): Promise<{ mime: string; base64: string }[]> {
@@ -389,9 +391,13 @@ class CdpChatPage implements WebChatPage {
       for (const img of el.querySelectorAll('img')) {
         if (img.naturalWidth < 200 || img.naturalHeight < 200) continue;
         try {
-          const blob = await (await fetch(img.src, { credentials: 'include' })).blob();
-          const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
-          out.push({ mime: blob.type || 'image/png', base64: data.slice(data.indexOf(',') + 1) });
+          // redraw the page's own picture on a canvas (some sites block fetch() of their blob: addresses)
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          c.getContext('2d').drawImage(img, 0, 0);
+          const data = c.toDataURL('image/png');
+          out.push({ mime: 'image/png', base64: data.slice(data.indexOf(',') + 1) });
         } catch (e) { /* this picture cannot be read: skip it */ }
       }
       return out;
