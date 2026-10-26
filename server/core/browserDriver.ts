@@ -41,6 +41,8 @@ export interface WebChatPage {
   submit(): Promise<void>;
   /** Waits for a new answer to appear and stop changing; returns its text. */
   waitForResponse(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<string>;
+  /** Switches modes / closes promotional pop-ups the site's profile asks for (see SiteProfile.prepare). Safe to call when there is nothing to do. */
+  prepare?(): Promise<void>;
   /** The newest answer as Markdown (headings, lists, tables and code blocks kept); null when it cannot be read that way. */
   readMarkdown?(): Promise<string | null>;
   close(): Promise<void>;
@@ -331,6 +333,28 @@ class CdpChatPage implements WebChatPage {
     return done.trim();
   }
 
+  async prepare(): Promise<void> {
+    const prep = this.site.prepare;
+    if (!prep) return;
+    // a real mouse click on the button whose visible text is exactly `text`; `onlyIfOff` = only a mode button shown as not pressed
+    const clickText = async (text: string, onlyIfOff: boolean): Promise<boolean> => {
+      const rect = await this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
+        const wanted = ${q(text)};
+        const b = [...document.querySelectorAll('button, [role="button"], [role="radio"], [role="tab"]')].find((e) => e.offsetParent !== null && (e.innerText || "").trim() === wanted && (!${onlyIfOff} || e.getAttribute("aria-pressed") === "false"));
+        if (!b) return null;
+        b.scrollIntoView({ block: "center", inline: "center" });
+        const r = b.getBoundingClientRect();
+        return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+      })()`);
+      if (!rect) return false;
+      for (const type of ["mousePressed", "mouseReleased"]) await this.cdp.send("Input.dispatchMouseEvent", { type, x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+      await new Promise((r) => setTimeout(r, 400));
+      return true;
+    };
+    for (const text of prep.dismissText ?? []) await clickText(text, false);
+    for (const text of prep.selectText ?? []) await clickText(text, true);
+  }
+
   async readMarkdown(): Promise<string | null> {
     return this.cdp.evaluate<string | null>(`(() => {
       const all = document.querySelectorAll(${q(this.site.responseSelector)});
@@ -460,6 +484,7 @@ export class ChromiumDriver implements WebChatDriver {
       }
       await cdp.send("Page.bringToFront");
       const page = new CdpChatPage(cdp, req.site, closeTab);
+      await page.prepare();
       await page.captureBaseline();
       return page;
     } catch (err) {

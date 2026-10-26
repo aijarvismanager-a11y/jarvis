@@ -17,6 +17,13 @@ export type SiteProfile = {
   responseSelector: string;
   /** Present while the AI is still writing (a "stop" button). */
   stopSelector?: string;
+  /**
+   * Things to do on the page before typing, by the exact visible text of a button:
+   * - selectText: a mode button to switch on when it is shown as "not pressed" (aria-pressed="false"), e.g. a free "Search"
+   *   mode where the page starts in a paid one
+   * - dismissText: a button that closes a promotional pop-up ("Not now"); only ever a decline, never an accept
+   */
+  prepare?: { selectText?: string[]; dismissText?: string[] };
 };
 
 export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
@@ -54,12 +61,23 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     inputSelector: "textarea",
     responseSelector: ".answer-markdown",
   },
-  // perplexity: NOT working yet (2026-10-25). The prompt box is #ask-input and the send button is labelled 送信, but sending
-  // shows a "Computer / Pro upgrade" pop-up instead of the answer, so the mode has to be handled first.
+  // pi: checked live on 2026-10-25 (free account, logged in). A "Group chats" pop-up covers the page: "Not now" closes it.
+  // Pi's own messages are the [data-chat-message] boxes with a flex-col layout (the user's carry justify-end); the narrower
+  // content column leaves out the "Copy / Read aloud" buttons.
+  pi: {
+    prepare: { dismissText: ["Not now"] },
+    inputSelector: "textarea",
+    sendSelector: 'button[data-testid="chat-composer-submit"], button[aria-label="Submit text"]',
+    responseSelector: "[data-chat-message].flex-col .min-w-0.flex-1",
+  },
+  // perplexity: checked live on 2026-10-25 (free account, logged in). It starts in the paid "コンピューター" mode, whose answer to a
+  // prompt is an upgrade pop-up, so the free "検索" mode is switched on first; answers carry data-renderer="lm".
   perplexity: {
+    // the page starts in the paid "コンピューター" mode, which answers a prompt with an upgrade pop-up: switch to the free "検索" mode
+    prepare: { selectText: ["検索", "Search"] },
     inputSelector: "#ask-input, textarea",
-    sendSelector: 'button[aria-label="Submit"]',
-    responseSelector: 'div[id^="markdown-content"]',
+    sendSelector: 'button[aria-label="Submit"], button[aria-label="送信"], button[aria-label*="Send"]',
+    responseSelector: 'div[data-renderer="lm"], div[id^="markdown-content"]',
   },
   // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
   copilot: {
