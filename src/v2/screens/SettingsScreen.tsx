@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { AI_GROUPS, FREE_LABEL, LEVEL_LABEL, aiGroupOf, formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import type { AiService, Project, TuningReport, WebAiSettings } from "../types";
@@ -76,194 +75,98 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
   const candidates = services.filter(canAutomate);
   const autoCount = candidates.filter((s) => s.automationLevel >= 3).length;
 
+  const claudeCode = services.find((x) => x.id === "claude-code");
+  const others = services.filter((x) => x.id !== "claude-code" && !canAutomate(x));
+  const short = (name: string) => name.replace(/ ?\(Web\)/, "");
+
   return (
     <div className="space-y-4">
-      {web?.available && web.browserAvailable && (
-        <Card title="AIを自動で使えるようにする">
-          <p className="text-[13px]">
-            自動で使えるAI: <b>{autoCount}件</b> / {candidates.length}件
-          </p>
-          <p className="mt-1 text-[12px] text-muted">使いたいAIの「ログインして自動にする」を押して、開いたブラウザでログインし、そのブラウザを閉じてください。あとはアプリが自動で確認します。</p>
-          <ul className="mt-3 space-y-2">
-            {candidates.map((s) => {
-              const auto = s.automationLevel >= 3;
-              const result = tried[s.id];
-              return (
-                <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{s.name}</span>
-                    {auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ自動ではありません</Badge>}
-                    {!auto && trying !== s.id && waitingLogin?.id !== s.id && (
-                      <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして自動にする</Button>
-                    )}
-                  </div>
-                  {waitingLogin?.id === s.id && (
-                    <p className="mt-1 text-[12px] text-[#8A6212]">① 開いたブラウザで {s.name.replace(/ ?\(Web\)/, "")} にログインしてください → ② ログインできたら、そのブラウザを閉じてください。閉じると、自動で確認します。</p>
-                  )}
-                  {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど。ブラウザが一瞬開きます)</p>}
-                  {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。このAIは自動で使えます。</p>}
-                  {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">自動にできませんでした: {result}</p>}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
-      <Details summary="詳細設定(ふだんは触らなくて大丈夫です)">
-      <div className="space-y-4">
-      <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
-        {!web ? (
-          <p className="text-[13px] text-muted">読み込み中…</p>
-        ) : !web.available ? (
-          <p className="text-[13px] text-muted">この環境ではWeb AI機能が接続されていません。</p>
-        ) : (
-          <>
-            <label className="flex items-start gap-3 text-[13px]">
-              <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
-              <span>
-                <span className="font-semibold">ブラウザ上のAI(ChatGPT・Gemini など)も使う</span>
-                <span className="block text-[12px] text-muted">オフの間は、すべての作業を Claude Code が実行します(既定)。オンにすると、調査・設計・文書・レビュー系の作業が Web AI に回ることがあります。全自動のAIは、あなたの操作なしで進みます。手動・半自動のAIだけ、コピー&貼り付けなどの操作が必要です。コードの編集は常に Claude Code が行います。</span>
-              </span>
-            </label>
-            <p className="mt-2 text-[12px] text-muted">
-              ブラウザ(Edge/Chrome/Brave): {web.browserAvailable ? "見つかりました(「半自動」「全自動」も選べます)" : "見つかりません(「手動」のみ)"}
-            </p>
-            {web.browserAvailable && (
-              <div className="mt-3 rounded-lg border border-borderSoft bg-bg p-3">
-                <p className="text-[13px] font-semibold">いつものブラウザのログインを引き継ぐ</p>
-                <p className="mt-1 text-[12px] text-muted">「ログイン用に開く」で開く専用ブラウザは、最初は何もログインしていません。ふだん使っているブラウザ(Braveなど)で Google にログイン済みなら、そのログイン状態をコピーして、再ログインの手間を省けます。コピーするのはログイン状態(Cookie など)だけで、保存したパスワード・履歴・拡張機能は含みません。<b>先に、Brave をすべて閉じてから</b>押してください。</p>
-                <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(プロフィール: ${r.profile})。このあと「ログイン用に開く」を押して、ログイン済みか確認してください。`); })}>ログイン状態を引き継ぐ</Button>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
-
-      <Card title="重要な作業を、別のAIにもレビューしてもらう">
-        {!review ? (
-          <p className="text-[13px] text-muted">読み込み中…</p>
-        ) : (
-          <>
-            <label className="flex items-start gap-3 text-[13px]">
-              <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
-              <span>
-                <span className="font-semibold">別のAIによる追加レビューを使う</span>
-                <span className="block text-[12px] text-muted">設計・安全性・結合など重要な作業が終わったら、作ったAIとは別のメーカーのAIが成果物を読んで、「承認」か「要修正」かを判定します。要修正のときは、指摘を渡して1回だけ直します。レビューは自動で行われ、あなたの操作は要りません。うまく動かないときは見送って、先に進みます。</span>
-              </span>
-            </label>
-            <p className="mt-2 text-[12px] text-muted">
-              {!review.webAiEnabled ? "「ブラウザ上のAIも使う」がオフのため、いまはレビューされません。" : review.reviewer ? `いま使われるレビュー役(Claude Codeの作業の場合): ${review.reviewer}` : "レビューに使える全自動のAIがありません(別メーカーのAIで、全自動・ログイン済みのものが必要です)。"}
-            </p>
-          </>
-        )}
-      </Card>
-
-      <Card title="AIの点数を、実績で自動で調整する">
-        {!tuning ? (
-          <p className="text-[13px] text-muted">読み込み中…</p>
-        ) : (
-          <>
-            <label className="flex items-start gap-3 text-[13px]">
-              <input type="checkbox" className="mt-1" checked={tuning.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setScoreTuning(e.target.checked); done(); })} />
-              <span>
-                <span className="font-semibold">AIの点数を、実績で調整する</span>
-                <span className="block text-[12px] text-muted">AIの選び方に使う点数(品質・信頼性・得意分野)は、はじめは仮の値です。作業の結果(検証に合格したか、別のAIのレビューが「承認」か「要修正」か、実行が失敗しなかったか)をAIごとに数え、良い結果が続けば少し上げ、悪い結果が続けば少し下げます。3回分の実績がたまるまで動かさず、動かす幅は最大±1点です。オフにすると、初期値に戻ります。</span>
-              </span>
-            </label>
-            {tuning.entries.length === 0 ? (
-              <p className="mt-2 text-[12px] text-muted">まだ調整されたAIはありません(作業の結果がたまると、ここに出ます)。</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {tuning.entries.map((e) => (
-                  <li key={e.aiId} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{e.name}</span>
-                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(e.aiId); done(); })}>初期値に戻す</Button>
-                    </div>
-                    <ul className="mt-1 space-y-0.5 text-[12px] text-muted">
-                      {e.items.filter((i) => i.good + i.bad > 0).map((i) => (
-                        <li key={i.key}>{i.label}: 初期値 {i.start ?? "—"} → 今 {i.now ?? "—"}(実績: 良かった {Math.round(i.good * 10) / 10}・悪かった {Math.round(i.bad * 10) / 10}{i.good + i.bad < 3 ? "。実績が少ないため、まだ動かしていません" : ""})</li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {tuning.entries.length > 0 && <div className="mt-3"><Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(); done(); })}>すべて初期値に戻す</Button></div>}
-          </>
-        )}
-      </Card>
-
-      <Card title="使えるAIの一覧(ふだんは触らなくて大丈夫です)">
-        <p className="mb-3 text-[12px] text-muted">「操作のしかた」を手動から半自動・全自動に変えるかは、あなたの判断です(自動では変わりません)。多くのブラウザ上のAIは利用規約で自動操作を制限している場合があります。半自動・全自動にする前に各サービスの規約を確認してください。</p>
-        <div className="mb-3">
-          <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.healthCheck(); done(); })}>{busy ? "確認中…" : "接続状況を確認"}</Button>
-        </div>
-        <Details summary={`登録されているAI(${services.length}件)`}>
-        {AI_GROUPS.map((g) => ({ g, items: services.filter((s) => aiGroupOf(s) === g.id).sort((x, y) => x.name.localeCompare(y.name, "ja")) })).filter((x) => x.items.length > 0).map(({ g, items }) => (
-        <div key={g.id} className="mb-4">
-        <h3 className="mb-2 text-[12px] font-semibold text-muted">{g.label}({items.length})</h3>
-        <ul className="space-y-2">
-          {items.map((s) => (
-            <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[13px] font-semibold">{s.name}</span>
-                <Badge tone={s.freeStatus === "paid" ? "bad" : s.freeStatus === "unknown" ? "neutral" : "ok"}>{FREE_LABEL[s.freeStatus] ?? s.freeStatus}</Badge>
-                {s.status !== "active" && <Badge tone="warn">{s.status === "unavailable" ? "利用不可" : "廃止"}</Badge>}
-                {s.requiresApiKey && <Badge tone="bad">APIキー必須(使用しません)</Badge>}
-                {s.url && web?.available ? (
-                  <label className="ml-auto flex items-center gap-1.5 text-[12px] text-muted">
-                    操作のしかた
-                    <select
-                      value={s.automationLevel}
-                      disabled={busy}
-                      onChange={(e) => run(async () => { await api.setAutomationLevel(s.id, Number(e.target.value)); done(); })}
-                      className="rounded border border-border bg-panel px-1.5 py-1 text-[12px] text-ink"
-                    >
-                      {[1, 2, 3].map((l) => (
-                        <option key={l} value={l} disabled={l > 1 && !web.sites[s.id] && s.automationLevel < l}>
-                          Level {l}: {LEVEL_LABEL[l]}{l > 1 && !web.sites[s.id] ? "(サイト設定なし)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <span className="ml-auto text-[12px] text-muted">Level {s.automationLevel}: {LEVEL_LABEL[s.automationLevel]}</span>
-                )}
-              </div>
-              {s.url && web?.available && web.browserAvailable && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {web.loggedIn[s.id] ? (
-                    <>
-                      <Badge tone="ok">ログイン済み</Badge>
-                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.setLoggedIn(s.id, false); done(); })}>ログイン済みを解除</Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.openLogin(s.id); })}>ログイン用に開く</Button>
-                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.setLoggedIn(s.id, true); done(); })}>ログイン済みにする</Button>
-                      <span className="text-[11.5px] text-muted">専用ブラウザで開きます。ご自身でログインして、終わったらそのブラウザを閉じ、「ログイン済みにする」を押してください(次回から自動で使われます)。</span>
-                    </>
+      <Card title="使うAI">
+        <p className="text-[13px]">
+          自動で使えるAI: <b>{autoCount + (claudeCode ? 1 : 0)}件</b>。調べもの・設計・文章などは、このAIが分担します。
+        </p>
+        <ul className="mt-3 space-y-2">
+          {claudeCode && (
+            <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
+              <span className="font-semibold">Claude Code</span> <Badge tone="ok">自動で使えます</Badge> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
+            </li>
+          )}
+          {web?.available && web.browserAvailable && candidates.map((s) => {
+            const auto = s.automationLevel >= 3;
+            const result = tried[s.id];
+            return (
+              <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">{short(s.name)}</span>
+                  {auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
+                  {!auto && trying !== s.id && waitingLogin?.id !== s.id && (
+                    <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   )}
                 </div>
-              )}
-              <Details summary="詳細">
-                <dl className="grid grid-cols-[7rem_1fr] gap-y-1 text-[12px]">
-                  <dt className="text-muted">能力</dt><dd>{s.capabilities.join("、") || "未登録"}</dd>
-                  <dt className="text-muted">接続方式</dt><dd>{s.accessMode}</dd>
-                  <dt className="text-muted">最終確認</dt><dd>{s.lastVerifiedAt ? formatTime(s.lastVerifiedAt) : "未確認"}</dd>
-                  {s.limitations && (<><dt className="text-muted">制限</dt><dd className="whitespace-pre-wrap">{s.limitations}</dd></>)}
-                </dl>
-              </Details>
-            </li>
-          ))}
+                {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} にログインして、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}
+                {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど)</p>}
+                {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。これで使えます。</p>}
+                {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}
+              </li>
+            );
+          })}
         </ul>
-        </div>
-        ))}
-        </Details>
+        {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
+        {others.length > 0 && (
+          <Details summary={`画像・動画・音楽などのAI(${others.length}件・手動で使います)`}>
+            <p className="text-[12px] text-muted">画像・動画・音楽づくりなどで、AIの画面を開いて操作する必要があるものです。ふだんは何もしなくて大丈夫です。必要になったときに、画面で案内します。</p>
+            <p className="mt-2 text-[12px]">{others.map((x) => short(x.name)).join("、")}</p>
+          </Details>
+        )}
       </Card>
-      </div>
-      </Details>
+
+      <Card title="オプション">
+        <div className="space-y-3 text-[13px]">
+          {web?.available && (
+            <label className="flex items-start gap-3">
+              <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
+              <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">オフにすると、すべて Claude Code がやります。</span></span>
+            </label>
+          )}
+          {review && (
+            <label className="flex items-start gap-3">
+              <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
+              <span><span className="font-semibold">重要な作業を、別のAIにもチェックしてもらう</span><span className="block text-[12px] text-muted">設計やコードなどの大事な作業を、別のメーカーのAIが確認します。{review.reviewer ? `いまの確認役: ${review.reviewer}` : ""}</span></span>
+            </label>
+          )}
+          {tuning && (
+            <div>
+              <label className="flex items-start gap-3">
+                <input type="checkbox" className="mt-1" checked={tuning.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setScoreTuning(e.target.checked); done(); })} />
+                <span><span className="font-semibold">AIの得意・不得意を、結果から学ぶ</span><span className="block text-[12px] text-muted">うまくいったか、失敗したかをもとに、AIの選び方を少しずつ良くします。</span></span>
+              </label>
+              {tuning.entries.length > 0 && (
+                <Details summary="学んだ内容を見る">
+                  <ul className="space-y-2 text-[12px]">
+                    {tuning.entries.map((e) => (
+                      <li key={e.aiId}>
+                        <span className="font-semibold">{short(e.name)}</span>
+                        {e.items.filter((i) => i.good + i.bad > 0).map((i) => (
+                          <div key={i.key} className="text-muted">{i.label}: {i.start ?? "—"} → {i.now ?? "—"}</div>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(); done(); })}>学んだ内容を消す</Button>
+                </Details>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {web?.available && web.browserAvailable && (
+        <Details summary="ログインがうまくいかないとき">
+          <p className="text-[12px] text-muted">ふだん使っているブラウザ(Brave)で Google にログイン済みなら、そのログイン状態をコピーできます(パスワードや履歴は含みません)。先に Brave をすべて閉じてから押してください。</p>
+          <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(${r.profile})。もう一度「ログインして使えるようにする」を押してください。`); })}>ログイン状態をコピーする</Button>
+        </Details>
+      )}
+
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
     </div>
   );

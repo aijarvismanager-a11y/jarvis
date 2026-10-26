@@ -155,7 +155,7 @@ function RedirectControls({ mission, ctx }: { mission: { projectId: string; id: 
   const [text, setText] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const go = () => run(async () => { await api.missionAction(mission.projectId, mission.id, "redirect", text); setText(""); setOpen(false); ctx.refresh(); });
-  if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>方針を変える</Button>;
+  if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>途中で依頼を変える</Button>;
   return (
     <div className="w-full">
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="例: 検索機能を先に作って、画像アップロードは後回しにしてください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />

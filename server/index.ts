@@ -90,6 +90,8 @@ app.use(express.json({ limit: "2mb" }));
 // project's own directory, restricted by the Permission Policy and checked by
 // Validation L1-L3.
 const coreStore = new Store(openDatabase(path.join(ROOT, "data", "orchestrator.db")), path.join(ROOT, "projects"));
+// requests migrated from the old app stay "draft" although every task is done: they are finished
+coreStore.db.prepare("UPDATE missions SET status = 'completed' WHERE status = 'draft' AND EXISTS (SELECT 1 FROM tasks WHERE tasks.mission_id = missions.id) AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.mission_id = missions.id AND tasks.status != 'completed')").run();
 seedBuiltInWebAis(coreStore);
 applyGoogleLoginRegistry(coreStore);
 applyLaterRetirements(coreStore);
