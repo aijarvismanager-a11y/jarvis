@@ -15,6 +15,7 @@ import { MIME, type PreviewManager } from "./previewManager.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
+import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -431,6 +432,28 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       await handler(req, res, deps.webAi);
     });
 
+  // Adjusting the AI scores from what really happened (see scoreTuning.ts): what changed, on/off, and putting the starting values back.
+  router.get("/score-tuning", (_req, res) => {
+    res.json(tuningReport(store));
+  });
+  router.put(
+    "/score-tuning",
+    guarded((req, res) => {
+      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body ?? {});
+      setTuningEnabled(store, enabled);
+      store.appendEvent({ type: "SCORE_TUNING_SWITCHED", payload: { enabled } });
+      res.json(tuningReport(store));
+    }),
+  );
+  router.post(
+    "/score-tuning/reset",
+    guarded((req, res) => {
+      const { aiId } = z.object({ aiId: z.string().max(100).optional() }).parse(req.body ?? {});
+      resetTuning(store, aiId);
+      store.appendEvent({ type: "SCORE_TUNING_RESET", payload: { aiId: aiId ?? "all" } });
+      res.json(tuningReport(store));
+    }),
+  );
   // AI B Review (spec §57): a second AI of another maker checks important tasks. On by default; it needs the web AIs switched on.
   router.get("/ai-review/settings", (_req, res) => {
     const picked = pickReviewer(store, "claude-code", "design");

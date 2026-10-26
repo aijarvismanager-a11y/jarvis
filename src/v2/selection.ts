@@ -25,7 +25,7 @@ type Selected = {
   needsReview?: boolean;
   selected: string | null;
   excluded?: { aiId: string; name: string; reason: string }[];
-  chosen?: { name: string; score10: number; fit: number; quality: number; automation: number; safety: number } | null;
+  chosen?: { name: string; score10: number; fit: number; quality: number; automation: number; safety: number; tuning?: { start: number; now: number; good: number; bad: number } | null } | null;
   ranked?: { aiId: string; name: string; score10: number }[];
   shared?: { aiId: string; name: string; mission: number; recent: number; fit?: number; score10?: number }[];
 };
@@ -63,6 +63,8 @@ export function explainSelection(events: StoredEvent[], taskId: string, services
   if (p.ranked && p.ranked.length > 1) lines.push(`候補の点数(10点満点): ${p.ranked.map((c) => `${short(c.name)} ${c.score10}`).join(" ／ ")}。点数は初期の仮定値で、実際の成否に合わせて調整していきます`);
   if (shared.length > 1) lines.push(`利用の状況: ${shared.map((s) => `${short(s.name)}は、この依頼で${s.mission}回・直近24時間で${s.recent}回`).join(" ／ ")}`);
   if (p.chosen) lines.push(`${short(p.chosen.name)}の内訳(各5点満点): 得意分野 ${p.chosen.fit}・品質 ${p.chosen.quality}・自動で動かせる度合い ${p.chosen.automation}・安全性 ${p.chosen.safety}`);
+  const tuning = p.chosen?.tuning;
+  if (tuning && tuning.good + tuning.bad > 0) lines.push(`点数の調整: この作業の得意分野の点数は、初期値 ${tuning.start} から、実績(良かった ${tuning.good}・悪かった ${tuning.bad})をもとに ${tuning.now} になっています`);
   if (p.confidenceLabel) lines.push(`選んだ自信: ${CONFIDENCE_LABEL[p.confidenceLabel] ?? p.confidenceLabel}${p.needsReview ? "(点数のデータが少ないため、参考程度です)" : ""}`);
   const excluded = p.excluded ?? [];
   if (excluded.length > 0) lines.push(`使えなかったAI: ${excluded.slice(0, 3).map((x) => `${short(x.name)}(${x.reason})`).join("、")}${excluded.length > 3 ? ` ほか${excluded.length - 3}件` : ""}`);

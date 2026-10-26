@@ -3,7 +3,7 @@ import { api } from "../api";
 import { AI_GROUPS, FREE_LABEL, LEVEL_LABEL, aiGroupOf, formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
-import type { AiService, Project, WebAiSettings } from "../types";
+import type { AiService, Project, TuningReport, WebAiSettings } from "../types";
 
 function DeleteProjectCard({ project, setError, onDeleted }: { project: Project; setError: (m: string) => void; onDeleted: () => void }) {
   const { busy, run } = useAction(setError);
@@ -31,8 +31,9 @@ function DeleteProjectCard({ project, setError, onDeleted }: { project: Project;
 export function SettingsScreen({ services, project, setError, refresh, onProjectDeleted }: { services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
   const [web, setWeb] = useState<WebAiSettings | null>(null);
   const { busy, run } = useAction(setError);
+  const [tuning, setTuning] = useState<TuningReport | null>(null);
   const [review, setReview] = useState<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null } | null>(null);
-  const reload = usePoll(async () => { setWeb(await api.webAiSettings()); setReview(await api.aiReviewSettings()); }, 10000, []);
+  const reload = usePoll(async () => { setWeb(await api.webAiSettings()); setReview(await api.aiReviewSettings()); setTuning(await api.scoreTuning().catch(() => null)); }, 10000, []);
   const done = () => {
     reload();
     refresh();
@@ -83,6 +84,42 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
             <p className="mt-2 text-[12px] text-muted">
               {!review.webAiEnabled ? "「ブラウザ上のAIも使う」がオフのため、いまはレビューされません。" : review.reviewer ? `いま使われるレビュー役(Claude Codeの作業の場合): ${review.reviewer}` : "レビューに使える全自動のAIがありません(別メーカーのAIで、全自動・ログイン済みのものが必要です)。"}
             </p>
+          </>
+        )}
+      </Card>
+
+      <Card title="AIの点数を、実績で自動で調整する">
+        {!tuning ? (
+          <p className="text-[13px] text-muted">読み込み中…</p>
+        ) : (
+          <>
+            <label className="flex items-start gap-3 text-[13px]">
+              <input type="checkbox" className="mt-1" checked={tuning.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setScoreTuning(e.target.checked); done(); })} />
+              <span>
+                <span className="font-semibold">AIの点数を、実績で調整する</span>
+                <span className="block text-[12px] text-muted">AIの選び方に使う点数(品質・信頼性・得意分野)は、はじめは仮の値です。作業の結果(検証に合格したか、別のAIのレビューが「承認」か「要修正」か、実行が失敗しなかったか)をAIごとに数え、良い結果が続けば少し上げ、悪い結果が続けば少し下げます。3回分の実績がたまるまで動かさず、動かす幅は最大±1点です。オフにすると、初期値に戻ります。</span>
+              </span>
+            </label>
+            {tuning.entries.length === 0 ? (
+              <p className="mt-2 text-[12px] text-muted">まだ調整されたAIはありません(作業の結果がたまると、ここに出ます)。</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {tuning.entries.map((e) => (
+                  <li key={e.aiId} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{e.name}</span>
+                      <Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(e.aiId); done(); })}>初期値に戻す</Button>
+                    </div>
+                    <ul className="mt-1 space-y-0.5 text-[12px] text-muted">
+                      {e.items.filter((i) => i.good + i.bad > 0).map((i) => (
+                        <li key={i.key}>{i.label}: 初期値 {i.start ?? "—"} → 今 {i.now ?? "—"}(実績: 良かった {Math.round(i.good * 10) / 10}・悪かった {Math.round(i.bad * 10) / 10}{i.good + i.bad < 3 ? "。実績が少ないため、まだ動かしていません" : ""})</li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {tuning.entries.length > 0 && <div className="mt-3"><Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(); done(); })}>すべて初期値に戻す</Button></div>}
           </>
         )}
       </Card>

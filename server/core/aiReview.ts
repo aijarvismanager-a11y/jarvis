@@ -144,7 +144,7 @@ export function parseVerdict(text: string): Verdict {
   return { verdict: "unknown", findings };
 }
 
-type ReviewVerdict = { passed: boolean; detail?: string; level?: number };
+type ReviewVerdict = { passed: boolean; detail?: string; level?: number; /** what the reviewer decided, for the score tally */ outcome?: "approve" | "revise" };
 
 /**
  * The AI B Review of one task that has just passed its ordinary validation.
@@ -190,8 +190,8 @@ export async function reviewTask(input: { store: Store; reviewer: AiReviewer; mi
   store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_DONE", payload: { reviewer: svc.id, verdict, revisions: earlier } });
 
   if (verdict === "revise" && earlier < MAX_REVIEW_REVISIONS) {
-    return { passed: false, level: AI_REVIEW_LEVEL, detail: `別のAI(${svc.name})のレビューで「要修正」と判定されました。次の指摘を反映して直してください:\n${findings}` };
+    return { passed: false, level: AI_REVIEW_LEVEL, outcome: "revise", detail: `別のAI(${svc.name})のレビューで「要修正」と判定されました。次の指摘を反映して直してください:\n${findings}` };
   }
-  if (verdict === "revise") return { passed: true, level: AI_REVIEW_LEVEL, detail: `別のAI(${svc.name})のレビューにまだ指摘がありますが、修正は${MAX_REVIEW_REVISIONS}回までのため、そのまま進めました。内容は ${reviewPath} にあります` };
-  return { passed: true, level: AI_REVIEW_LEVEL, detail: `別のAI(${svc.name})のレビュー: ${label}` };
+  if (verdict === "revise") return { passed: true, level: AI_REVIEW_LEVEL, outcome: "revise", detail: `別のAI(${svc.name})のレビューにまだ指摘がありますが、修正は${MAX_REVIEW_REVISIONS}回までのため、そのまま進めました。内容は ${reviewPath} にあります` };
+  return { passed: true, level: AI_REVIEW_LEVEL, ...(verdict === "approve" ? { outcome: "approve" as const } : {}), detail: `別のAI(${svc.name})のレビュー: ${label}` };
 }

@@ -7,6 +7,7 @@ import { isWriteTask } from "./scheduler.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { transitionTask } from "./taskStateMachine.ts";
 import { cleanFileText, webOutputPaths } from "./webOutputs.ts";
+import { recordOutcome } from "./scoreTuning.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { getWebAiSettings, resolveSiteProfile } from "./webAiSites.ts";
 
@@ -367,6 +368,7 @@ export class WebAiExecutor implements TaskExecutor {
   private recordFailure(svc: AiService, level: 2 | 3, err: unknown, task: Task): void {
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
     if (err instanceof WebAiBlockedError || err instanceof WebAiBrowserError) return; // the person's to clear / the PC's problem: the site did not break
+    recordOutcome(this.store, svc.id, null, "automation_break");
     const count = this.store.getSetting<number>(this.failureKey(svc), 0) + 1;
     if (count < DOWNGRADE_AFTER_FAILURES) {
       this.store.setSetting(this.failureKey(svc), count);

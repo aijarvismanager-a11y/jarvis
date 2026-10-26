@@ -108,5 +108,7 @@ export type SyncState = { linked: false } | { linked: true; sourcePath: string; 
 export type SyncSummary = { linked: boolean; push: number; pull: number; problem?: string };
 export type DepsInstall = { state: "idle" | "installing" | "done" | "error"; message: string; log: string; startedAt: string | null };
 export type DepsState = { missing: string[]; install: DepsInstall };
+export type TuningItem = { key: string; label: string; start: number | null; now: number | null; good: number; bad: number };
+export type TuningReport = { enabled: boolean; entries: { aiId: string; name: string; items: TuningItem[] }[] };
 export type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "history" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
 export type ClaudeStatus = { state: "ready"; version: string } | { state: "not_installed" | "unknown"; message: string } | { state: "not_logged_in"; version: string; message: string };

@@ -5,7 +5,8 @@ import { projectDir } from "./paths.ts";
 import type { Mission, Store, Task } from "./store.ts";
 import type { MissionStatus } from "./schema.ts";
 import type { PlanRequest, Planner } from "./planner.ts";
-import type { AIBroker } from "./aiBroker.ts";
+import { capabilityForTaskRole, type AIBroker } from "./aiBroker.ts";
+import { recordOutcome, tuningOf } from "./scoreTuning.ts";
 import { reviewTask, type AiReviewer } from "./aiReview.ts";
 import { Scheduler } from "./scheduler.ts";
 import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
@@ -311,7 +312,7 @@ export class MissionEngine {
         excluded: decision.excluded,
         // what the screen shows as "why this AI": the score, the other candidates, who was equally good and how much each had been used
         reason: decision.reason,
-        chosen: decision.selected ? { name: decision.selected.name, score10: decision.selected.score10, ...decision.selected.breakdown } : null,
+        chosen: decision.selected ? { name: decision.selected.name, score10: decision.selected.score10, ...decision.selected.breakdown, tuning: tuningOf(this.store, decision.selected.aiId, decision.capability) } : null,
         ranked: decision.ranked.slice(0, 6).map((c) => ({ aiId: c.aiId, name: c.name, score10: c.score10 })),
         shared: decision.shared.map((id) => ({ aiId: id, name: byId.get(id)?.name ?? id, fit: byId.get(id)?.breakdown.fit ?? 0, score10: byId.get(id)?.score10 ?? 0, ...(decision.usage[id] ?? { mission: 0, recent: 0 }) })),
       };
@@ -355,13 +356,17 @@ export class MissionEngine {
       return;
     }
     this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? undefined, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: result.ok ? "succeeded" : "failed", summary: result.summary, ...this.metrics(result, startedMs) });
+    // what happened counts for the AI that did the work: its scores are adjusted from the evidence (scoreTuning.ts)
+    const author = result.aiId ?? this.store.getTask(projectId, task.id)?.selectedAi ?? null;
+    const capability = capabilityForTaskRole(task.role);
+    recordOutcome(this.store, author, capability, result.ok ? "exec_ok" : "exec_fail");
     if (!result.ok) {
       if (result.retryable === false) this.noRetry.add(task.id);
       transitionTask(this.store, projectId, task.id, "failed", result.summary ?? "execution failed");
       return;
     }
     transitionTask(this.store, projectId, task.id, "validation", "executed");
-    let verdict: { passed: boolean; detail?: string; level?: number } = { passed: true };
+    let verdict: { passed: boolean; detail?: string; level?: number; outcome?: "approve" | "revise" } = { passed: true };
     if (this.deps.validator) {
       try {
         verdict = await this.deps.validator.validate(this.store.getTask(projectId, task.id)!, result);
@@ -384,6 +389,8 @@ export class MissionEngine {
       }
     }
     this.store.addValidation({ projectId, taskId: task.id, level: verdict.level ?? 1, status: verdict.passed ? "passed" : "failed", detail: verdict.detail });
+    if (verdict.outcome) recordOutcome(this.store, author, capability, verdict.outcome === "approve" ? "review_approve" : "review_revise");
+    else recordOutcome(this.store, author, capability, verdict.passed ? "validation_pass" : "validation_fail");
     transitionTask(this.store, projectId, task.id, verdict.passed ? "completed" : "failed", verdict.detail);
   }
 

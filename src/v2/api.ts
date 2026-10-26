@@ -1,4 +1,4 @@
-import type { AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -106,6 +106,9 @@ export const api = {
   browserStatus: () => request<{ loginWindowOpen: boolean; waiting: number }>("/web-ai/browser-status"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
+  scoreTuning: () => request<TuningReport>("/score-tuning"),
+  setScoreTuning: (enabled: boolean) => request<TuningReport>("/score-tuning", "PUT", { enabled }),
+  resetScoreTuning: (aiId?: string) => request<TuningReport>("/score-tuning/reset", "POST", aiId ? { aiId } : {}),
   aiReviewSettings: () => request<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null }>("/ai-review/settings"),
   setAiReview: (enabled: boolean) => request<{ enabled: boolean }>("/ai-review/settings", "PUT", { enabled }),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
