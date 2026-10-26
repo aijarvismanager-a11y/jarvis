@@ -27,13 +27,13 @@ export function DepsCard({ ctx }: { ctx: Ctx }) {
   const badge =
     install.state === "installing" ? <Badge tone="info">インストール中</Badge> : install.state === "error" ? <Badge tone="bad">失敗</Badge> : missing.length === 0 ? <Badge tone="ok">完了</Badge> : <Badge tone="warn">未インストール</Badge>;
   return (
-    <Card title="依存パッケージ">
+    <Card title="動かすための部品(依存パッケージ)">
       <div className="flex flex-wrap items-center gap-2">
         {badge}
         {missing.length > 0 && install.state !== "installing" && <Button disabled={busy} onClick={start}>{install.state === "error" ? "もう一度インストール" : "インストールする"}</Button>}
       </div>
       {missing.length > 0 && install.state !== "installing" && (
-        <p className="mt-2 text-[12.5px]">取り込んだプロジェクトには node_modules がないため、このままではプレビューを起動できません。({missing.join("、")})</p>
+        <p className="mt-2 text-[12.5px]">このプロジェクトを動かして確認するには、部品(ライブラリ)のインストールが必要です。「インストールする」を押してください。({missing.join("、")})</p>
       )}
       {install.message && <p className={`mt-2 text-[12.5px] ${install.state === "error" ? "text-[#9B2C2C]" : ""}`}>{install.message}</p>}
       {install.log && install.state === "error" && (

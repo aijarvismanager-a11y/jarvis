@@ -40,6 +40,22 @@ export const ROLE_LABEL: Record<string, string> = {
   refactor: "コードの整理",
   deploy: "公開の準備",
   security: "安全性の確認",
+  architecture: "設計",
+  ideation: "アイデア出し",
+  image: "画像づくり",
+  image_generation: "画像づくり",
+  integration: "つなぎ合わせ",
+  frontend: "画面の実装",
+  backend: "裏側の実装",
+  database: "データの設計・実装",
+  fix: "不具合の修正",
+  bugfix: "不具合の修正",
+  debugging: "不具合の調査",
+  translation: "翻訳",
+  seo: "検索対策(SEO)",
+  qa: "テスト",
+  "final review": "最終レビュー",
+  "ui design": "画面の設計",
 };
 export const roleLabel = (role: string) => ROLE_LABEL[role] ?? role;
 

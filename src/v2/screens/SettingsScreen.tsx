@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { AI_GROUPS, FREE_LABEL, LEVEL_LABEL, aiGroupOf, formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
@@ -41,8 +41,11 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
 
   const [trying, setTrying] = useState<string | null>(null);
   const [tried, setTried] = useState<Record<string, string>>({});
+  // the AI whose sign-in window was opened from the card: when that window is closed the app checks it by itself
+  const [waitingLogin, setWaitingLogin] = useState<{ id: string; seen: boolean } | null>(null);
   const tryOne = async (s: AiService) => {
     setTrying(s.id);
+    setTried((t) => ({ ...t, [s.id]: "" }));
     try {
       const r = await api.tryAutomation(s.id);
       setTried((t) => ({ ...t, [s.id]: r.ok ? "ok" : (r.reason ?? "試せませんでした") }));
@@ -53,38 +56,61 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
       setTrying(null);
     }
   };
+  useEffect(() => {
+    if (!waitingLogin) return;
+    const timer = setInterval(() => {
+      void api.browserStatus().then((st) => {
+        if (st.loginWindowOpen) {
+          if (!waitingLogin.seen) setWaitingLogin({ ...waitingLogin, seen: true });
+        } else if (waitingLogin.seen) {
+          const svc = services.find((x) => x.id === waitingLogin.id);
+          setWaitingLogin(null);
+          if (svc) void tryOne(svc);
+        }
+      }).catch(() => {});
+    }, 2000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingLogin]);
   const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
-  const autoAis = services.filter((s) => s.accessMode === "web" && s.automationLevel >= 3);
-  const notYet = services.filter((s) => canAutomate(s) && s.automationLevel < 3);
+  const candidates = services.filter(canAutomate);
+  const autoCount = candidates.filter((s) => s.automationLevel >= 3).length;
 
   return (
     <div className="space-y-4">
       {web?.available && web.browserAvailable && (
         <Card title="AIを自動で使えるようにする">
           <p className="text-[13px]">
-            自動で使えるAI: <b>{autoAis.length}件</b>{autoAis.length > 0 && `(${autoAis.map((s) => s.name.replace(/ ?\(Web\)/, "")).join("、")})`}。文章系の作業は、この自動のAIだけに任せます。
+            自動で使えるAI: <b>{autoCount}件</b> / {candidates.length}件
           </p>
-          {notYet.length > 0 ? (
-            <>
-              <p className="mt-2 text-[12px] text-muted">下のAIは、まだ自動になっていません。使いたいAIだけ、次の順で操作してください(数分): ① 「ログイン用に開く」でご自身のアカウントにログイン → ② そのブラウザを閉じる → ③ 「試して自動にする」を押す。うまくいくと、自動でレベルが上がります。</p>
-              <ul className="mt-3 space-y-2">
-                {notYet.map((s) => (
-                  <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{s.name}</span>
-                      <Button variant="ghost" disabled={busy || trying !== null} onClick={() => run(async () => { await api.openLogin(s.id); })}>① ログイン用に開く</Button>
-                      <Button disabled={busy || trying !== null} onClick={() => void tryOne(s)}>{trying === s.id ? "試しています…(1分ほど)" : "③ 試して自動にする"}</Button>
-                    </div>
-                    {tried[s.id] && <p className={`mt-1 text-[12px] ${tried[s.id] === "ok" ? "text-ok" : "text-danger"}`}>{tried[s.id] === "ok" ? "自動で使えるようになりました" : tried[s.id]}</p>}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p className="mt-2 text-[12px] text-muted">自動にできるAIは、すべて自動になっています。</p>
-          )}
+          <p className="mt-1 text-[12px] text-muted">使いたいAIの「ログインして自動にする」を押して、開いたブラウザでログインし、そのブラウザを閉じてください。あとはアプリが自動で確認します。</p>
+          <ul className="mt-3 space-y-2">
+            {candidates.map((s) => {
+              const auto = s.automationLevel >= 3;
+              const result = tried[s.id];
+              return (
+                <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12.5px]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{s.name}</span>
+                    {auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ自動ではありません</Badge>}
+                    {!auto && trying !== s.id && waitingLogin?.id !== s.id && (
+                      <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして自動にする</Button>
+                    )}
+                  </div>
+                  {waitingLogin?.id === s.id && (
+                    <p className="mt-1 text-[12px] text-[#8A6212]">① 開いたブラウザで {s.name.replace(/ ?\(Web\)/, "")} にログインしてください → ② ログインできたら、そのブラウザを閉じてください。閉じると、自動で確認します。</p>
+                  )}
+                  {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど。ブラウザが一瞬開きます)</p>}
+                  {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。このAIは自動で使えます。</p>}
+                  {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">自動にできませんでした: {result}</p>}
+                </li>
+              );
+            })}
+          </ul>
         </Card>
       )}
+      <Details summary="詳細設定(ふだんは触らなくて大丈夫です)">
+      <div className="space-y-4">
       <Card title="ブラウザ上のAIも使う(ChatGPT・Gemini など・上級者向け)">
         {!web ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
@@ -236,6 +262,8 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
         ))}
         </Details>
       </Card>
+      </div>
+      </Details>
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
     </div>
   );
