@@ -1,3 +1,4 @@
+import { botCheckExclusions } from "./botCheck.ts";
 import { capabilityForRole } from "./legacyImport.ts";
 import type { AiService, Store, Task } from "./store.ts";
 
@@ -85,6 +86,8 @@ export type BrokerOptions = {
   budgetPolicy?: "free_only" | "allow_paid";
   /** Restrict to services whose adapter_type can actually be run (e.g. ["claude-code"]). */
   executableAdapters?: string[];
+  /** AIs left out for now, with the reason (a bot check that is waiting for the person; see botCheck.ts). */
+  restingAis?: Record<string, string>;
   /** AIs that already failed this task; skipped so a retry falls back to the next candidate. */
   excludeAiIds?: string[];
   /** How much each AI was used lately (see aiUsage); lets equally good AIs take turns. */
@@ -211,6 +214,11 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
       excluded.push({ aiId: s.id, name: s.name, reason: "自動で操作できない(手動)ため、文章系の作業は任せません" });
       continue;
     }
+    const resting = options.restingAis?.[s.id];
+    if (resting) {
+      excluded.push({ aiId: s.id, name: s.name, reason: resting });
+      continue;
+    }
     if (options.excludeAiIds?.includes(s.id)) {
       excluded.push({ aiId: s.id, name: s.name, reason: "この作業で失敗したためフォールバックで除外" });
       continue;
@@ -274,6 +282,6 @@ export class AIBroker {
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), ...options, usage, seed: options.seed ?? task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), restingAis: botCheckExclusions(this.store, this.store.listAiServices().map((x) => x.id)), ...options, usage, seed: options.seed ?? task.id });
   }
 }

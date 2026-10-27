@@ -14,6 +14,28 @@ import { BLOCK_MESSAGES, classifyBlocker, type BlockReason, type SiteProfile } f
 // cookies or passwords, never fills credentials, and stops (rather than tries to
 // get around it) at a login page or a bot check (spec §11).
 
+/**
+ * What the page shows, for classifyBlocker. Bot checks often sit in a dialog or in an iframe inside a shadow root, which innerText
+ * and a plain querySelector do not see: so the dialogs' labels are added to the text and shadow roots are searched for challenge frames.
+ */
+const BLOCKER_SNAPSHOT_EXPR = `(() => {
+  const body = document.body;
+  const dialogs = [...document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog')].map((d) => (d.getAttribute('aria-label') || '') + ' ' + (d.innerText || '')).join(' ');
+  const CHALLENGE = /recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|funcaptcha|arkoselabs|geetest|captcha/i;
+  const frames = (root, depth) => {
+    if (depth > 4) return false;
+    for (const f of root.querySelectorAll('iframe')) if (CHALLENGE.test(f.src || '')) return true;
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot && frames(el.shadowRoot, depth + 1)) return true;
+    return false;
+  };
+  return {
+    url: location.href,
+    text: (dialogs + ' ' + (body && body.innerText || '')).slice(0, 4000),
+    dialogText: dialogs.slice(0, 1000),
+    hasChallengeFrame: frames(document, 0),
+  };
+})()`;
+
 export class WebAiBlockedError extends Error {
   constructor(readonly reason: BlockReason) {
     super(BLOCK_MESSAGES[reason]);
@@ -340,8 +362,11 @@ class CdpChatPage implements WebChatPage {
     const STABLE_MS = 3000;
     let lastText = "";
     let since = Date.now();
+    let ticks = 0;
     const done = await waitUntil(
       async () => {
+        // a bot check that pops up after sending is reported at once (every ~2 s), not after the whole wait has run out
+        if (ticks++ % 4 === 3) await this.throwIfBlocked(true);
         const s = await this.cdp.evaluate<{ count: number; text: string; busy: boolean }>(pageSnapshotExpr(this.site));
         const fresh = s.count > this.baseline.count || (s.count > 0 && s.text !== this.baseline.text);
         // a site's own "could not load this answer" notice is not an answer: keep waiting (the real answer may still appear)
@@ -363,15 +388,12 @@ class CdpChatPage implements WebChatPage {
   }
 
   /** After a wait that ran out: a bot check or sign-in page on screen is the reason, and it is the person's to clear (never bypassed). */
-  private async throwIfBlocked(): Promise<void> {
+  private async throwIfBlocked(live = false): Promise<void> {
     const snap = await this.cdp
-      .evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(`({
-        url: location.href,
-        text: (document.body && document.body.innerText || "").slice(0, 4000),
-        hasChallengeFrame: !!document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'),
-      })`)
+      .evaluate<{ url: string; text: string; dialogText: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR)
       .catch(() => null);
-    const blocked = snap ? classifyBlocker(snap) : null;
+    // while an answer may be streaming in, only a dialog or a challenge frame counts: the answer's own text could mention a "security check"
+    const blocked = snap ? classifyBlocker(live ? { ...snap, text: snap.dialogText } : snap) : null;
     if (blocked === "captcha") throw new WebAiBlockedError(blocked);
   }
 
@@ -606,11 +628,7 @@ export class ChromiumDriver implements WebChatDriver {
       await waitUntil(async () => (await cdp.evaluate<string>("document.readyState")) === "complete", { timeoutMs: 30_000, signal: req.signal });
       const found = await waitUntil(async () => cdp.evaluate<boolean>(`!!${firstMatch(req.site.inputSelector)}`), { timeoutMs: this.opts.inputTimeoutMs ?? 20_000, signal: req.signal });
       if (!found) {
-        const snap = await cdp.evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(`({
-          url: location.href,
-          text: (document.body && document.body.innerText || "").slice(0, 4000),
-          hasChallengeFrame: !!document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare.com"]'),
-        })`);
+        const snap = await cdp.evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR);
         const blocked = classifyBlocker(snap);
         if (blocked) throw new WebAiBlockedError(blocked);
         throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");

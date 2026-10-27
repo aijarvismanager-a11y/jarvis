@@ -102,6 +102,7 @@ export const api = {
   healthCheck: () => request<{ services: AiService[] }>("/ai-services/health-check", "POST", {}).then((r) => r.services),
   setAutomationLevel: (aiId: string, level: number) => request<{ service: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/automation-level`, "PUT", { level }),
   openLogin: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-login`, "POST", {}),
+  openCheck: (aiId: string) => request<{ ok: boolean; url: string }>(`/ai-services/${encodeURIComponent(aiId)}/open-check`, "POST", {}),
   webAiSettings: () => request<WebAiSettings>("/web-ai/settings"),
   browserStatus: () => request<{ loginWindowOpen: boolean; waiting: number }>("/web-ai/browser-status"),
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),

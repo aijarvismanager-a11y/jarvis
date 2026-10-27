@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { botCheckExclusions } from "./botCheck.ts";
 import { aiUsage, chooseAi, pickBalanced } from "./aiBroker.ts";
 import type { ExecutionResult } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
@@ -72,7 +73,7 @@ export function pickReviewer(store: Store, authorAiId: string | null, role: stri
   const author = aiFamily(authorAiId ?? "claude-code");
   const services = store.listAiServices();
   const sameMaker = services.filter((s) => aiFamily(s.id) === author).map((s) => s.id);
-  const decision = chooseAi(services, reviewCapabilityFor(role), { budgetPolicy: "free_only", executableAdapters: [...WEB_ADAPTER_TYPES], excludeAiIds: sameMaker });
+  const decision = chooseAi(services, reviewCapabilityFor(role), { budgetPolicy: "free_only", executableAdapters: [...WEB_ADAPTER_TYPES], excludeAiIds: sameMaker, restingAis: botCheckExclusions(store, services.map((s) => s.id)) });
   const usable = decision.ranked.filter((c) => {
     const s = services.find((x) => x.id === c.aiId);
     return !!s && s.automationLevel >= 3 && web.loggedIn[s.id] === true && !!s.url && resolveSiteProfile(store, s.id) !== null;

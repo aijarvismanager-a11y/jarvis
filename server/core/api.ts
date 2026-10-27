@@ -1,3 +1,4 @@
+import { botCheckState } from "./botCheck.ts";
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
@@ -481,6 +482,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       sites: Object.fromEntries(store.listAiServices().filter((s) => s.url).map((s) => [s.id, resolveSiteProfile(store, s.id)])),
       bundledSites: Object.keys(BUNDLED_SITE_PROFILES),
       loggedIn: settings.loggedIn,
+      /** AIs that asked for a bot check: resting for a while ("rest") or no longer used until cleared ("always") */
+      botChecks: Object.fromEntries(store.listAiServices().flatMap((s) => { const st = botCheckState(store, s.id); return st ? [[s.id, st]] : []; })),
     });
   });
   router.put(
@@ -513,6 +516,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (!svc.url) throw new Error("このAIにはページのURLがありません");
       if (getWebAiSettings(store).loggedIn[svc.id]) return void res.status(409).json({ error: `${svc.name} はログイン済みになっています。ログインし直すときは、先に「ログイン済みを解除」を押してください` });
       if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
+      web.openLogin(svc.url);
+      res.json({ ok: true, url: svc.url });
+    }),
+  );
+  // Opens the AI's page so the person can pass a bot check by hand (never done by the app). Unlike open-login it works for signed-in AIs.
+  router.post(
+    "/ai-services/:aiId/open-check",
+    webGuarded((req, res, web) => {
+      const svc = store.getAiService(String(req.params.aiId));
+      if (!svc?.url) return void res.status(404).json({ error: "AIサービスが見つかりません" });
+      if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ブラウザを開けません");
       web.openLogin(svc.url);
       res.json({ ok: true, url: svc.url });
     }),

@@ -1,3 +1,4 @@
+import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -113,13 +114,18 @@ export class WebAiExecutor implements TaskExecutor {
         await page.fillPrompt("「OK」とだけ返信してください。");
         await page.submit();
         const text = await page.waitForResponse({ timeoutMs: 90_000 });
+        if (text.trim()) clearBotCheck(this.store, svc.id);
         return text.trim() ? { ok: true } : { ok: false, reason: "返事を読み取れませんでした" };
       } finally {
         await page.close();
       }
     } catch (err) {
       if (err instanceof WebAiProfileBusyError) return { ok: false, reason: "ログイン用の窓が開いたままです。その窓を閉じてから、もう一度押してください" };
-      if (err instanceof WebAiBlockedError) return { ok: false, reason: "ログインか、人間確認(年齢確認など)が必要です。「ログイン用に開く」で済ませて、窓を閉じてから、もう一度押してください" };
+      if (err instanceof WebAiBlockedError && err.reason === "captcha") {
+        recordBotCheck(this.store, svc.id);
+        return { ok: false, reason: "ボット確認(「私はロボットではありません」など)が表示されました。「確認を済ませる」で開いたブラウザで、ご自身で済ませてください" };
+      }
+      if (err instanceof WebAiBlockedError) return { ok: false, reason: "ログインが必要です。「ログインして使えるようにする」で済ませて、窓を閉じてから、もう一度押してください" };
       return { ok: false, reason: `自動で操作できませんでした(${errMsg(err)})。ログインが済んでいるか確認してください` };
     }
   }
@@ -202,6 +208,7 @@ export class WebAiExecutor implements TaskExecutor {
           await p.close();
         }
         this.resetFailures(svc);
+        clearBotCheck(this.store, svc.id);
         this.hub.cancelPendingFor(task.id); // an earlier attempt of this task may have left a manual step waiting
       } catch (err) {
         if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
@@ -439,6 +446,7 @@ export class WebAiExecutor implements TaskExecutor {
    */
   private recordFailure(svc: AiService, level: 2 | 3, err: unknown, task: Task): void {
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
+    if (err instanceof WebAiBlockedError && err.reason === "captcha") recordBotCheck(this.store, svc.id); // rested for a while; dropped after repeated checks
     if (err instanceof WebAiBlockedError || err instanceof WebAiBrowserError) return; // the person's to clear / the PC's problem: the site did not break
     recordOutcome(this.store, svc.id, null, "automation_break");
     const count = this.store.getSetting<number>(this.failureKey(svc), 0) + 1;

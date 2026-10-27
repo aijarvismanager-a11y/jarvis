@@ -73,7 +73,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
   }, [waitingLogin]);
   const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
   const candidates = services.filter(canAutomate);
-  const autoCount = candidates.filter((s) => s.automationLevel >= 3).length;
+  const autoCount = candidates.filter((s) => s.automationLevel >= 3 && !web?.botChecks?.[s.id]).length;
 
   const claudeCode = services.find((x) => x.id === "claude-code");
   const others = services.filter((x) => x.id !== "claude-code" && !canAutomate(x));
@@ -94,16 +94,26 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
           {web?.available && web.browserAvailable && candidates.map((s) => {
             const auto = s.automationLevel >= 3;
             const result = tried[s.id];
+            const check = web.botChecks?.[s.id];
             return (
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{short(s.name)}</span>
-                  {auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
-                  {!auto && trying !== s.id && waitingLogin?.id !== s.id && (
+                  {check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
+                  {check && trying !== s.id && waitingLogin?.id !== s.id && (
+                    <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
+                  )}
+                  {!auto && !check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   )}
                 </div>
-                {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} にログインして、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}
+                {check && waitingLogin?.id !== s.id && trying !== s.id && (
+                  <p className="mt-1 text-[12px] text-muted">
+                    {check.kind === "always" ? "毎回「私はロボットではありません」などの確認が出るため、いまは自動で使っていません。" : "確認が出たため、しばらく休ませています。"}
+                    「確認を済ませる」で開くブラウザで、ご自身で確認を通して、ブラウザを閉じてください。
+                  </p>
+                )}
+                {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} {check ? "の確認(ログイン・ロボット確認など)を済ませて" : "にログインして"}、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}
                 {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど)</p>}
                 {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。これで使えます。</p>}
                 {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}

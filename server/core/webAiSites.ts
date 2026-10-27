@@ -142,7 +142,7 @@ export function resolveSiteProfile(store: Store, aiId: string): SiteProfile | nu
 }
 
 // ---- what the automation must never get past (spec §11) ---------------------
-const CAPTCHA_TEXT = /captcha|verify (that )?you are (a )?human|are you (a )?(robot|human)|unusual traffic|human verification|ロボットではありません|人間であることを確認|確認が必要です.*人間/i;
+const CAPTCHA_TEXT = /captcha|verify (that )?you are (a )?human|are you (a )?(robot|human)|unusual traffic|human verification|ロボットではありません|人間であることを確認|セキュリティ ?チェック|security check|確認が必要です.*人間/i;
 const LOGIN_TEXT = /\b(log ?in|sign ?in|sign up)\b|ログイン|サインイン|ログインして/i;
 const LOGIN_PATH = /\/(log-?in|sign-?in|auth|accounts?\/login)(\/|$|\?)/i;
 
