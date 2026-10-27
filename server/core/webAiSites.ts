@@ -89,11 +89,11 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   },
   // 以下は画面に入れず(ログインが必要)、各サイトの画面構成の記憶から書いた未確認の仮定。
   copilot: {
-    // input and send button checked live on 2026-10-27 (logged in); the answer selector could not be checked: Copilot asked for a
-    // "I am not a robot" check, which is never bypassed
+    // input, send button and answer checked live on 2026-10-27 (logged in, after the person passed the
+    // "I am not a robot" check themselves; the check is never bypassed by the app)
     inputSelector: '#m365-chat-editor-target-element, [aria-label*="Copilot にメッセージ"], textarea#userInput, textarea[placeholder*="Copilot"]',
     sendSelector: 'button[aria-label="送信"], button[data-testid="submit-button"], button[aria-label*="Submit"]',
-    responseSelector: '[data-content="ai-message"], [data-testid="ai-message"]',
+    responseSelector: '[data-testid="markdown-reply"], [data-testid="copilot-message-div"]',
   },
   deepseek: {
     inputSelector: "textarea#chat-input, textarea",

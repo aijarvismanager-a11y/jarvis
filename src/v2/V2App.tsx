@@ -184,7 +184,7 @@ export default function V2App() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
-            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)}>📁 作りかけのフォルダを読み込む</Button>
+            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)}>📁 ほかで作っているものを引き継ぐ</Button>
             {notifySupported() && (
               <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
                 {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
