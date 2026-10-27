@@ -1,3 +1,5 @@
+import { projectDir } from "./paths.ts";
+import { referenceContext } from "./projectContext.ts";
 import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -60,6 +62,8 @@ export function buildWebPrompt(input: {
   task: Pick<Task, "role" | "objective" | "inputs" | "expectedOutputs" | "constraints">;
   mission: Pick<Mission, "goal">;
   context: string[];
+  /** The project's file list and the excerpts of the files the task names (see projectContext.ts). */
+  references?: string[];
   outputPaths: string[];
   previousFailure?: string;
 }): string {
@@ -73,6 +77,7 @@ export function buildWebPrompt(input: {
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
   if (input.context.length) lines.push("", "【前の作業の成果(抜粋)】", ...input.context);
+  if (input.references?.length) lines.push(...input.references);
   lines.push("", "【回答の形式】");
   if (outputPaths.length === 1) {
     lines.push(`回答の本文がそのまま「${outputPaths[0]}」の内容として保存されます。前置き・あとがき・説明文は付けず、そのファイルの内容だけを返してください。`);
@@ -174,7 +179,7 @@ export class WebAiExecutor implements TaskExecutor {
     if (!svc) return { ok: false, summary: "担当のWeb AIが選ばれていません" };
 
     const outputPaths = webOutputPaths(task);
-    const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), outputPaths, previousFailure: this.previousFailure(task) });
+    const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), references: this.referenceLines(task), outputPaths, previousFailure: this.previousFailure(task) });
     const site = resolveSiteProfile(this.store, svc.id);
     const driver = this.opts.driver && site && svc.url ? this.opts.driver : null;
     let level: 1 | 2 | 3 = driver ? (Math.min(3, Math.max(1, svc.automationLevel)) as 1 | 2 | 3) : 1;
@@ -400,6 +405,15 @@ export class WebAiExecutor implements TaskExecutor {
 
   // ---- context for the prompt -------------------------------------------------
   /** Web AIs cannot see the project folder, so earlier results are quoted (shortened) into the prompt. */
+  /** The AI cannot open the project's files: its file list and the files the task names go into the prompt. */
+  private referenceLines(task: Task): string[] {
+    try {
+      return referenceContext(projectDir(this.store.projectsRoot, task.projectId), task.inputs, [task.objective, ...task.inputs, ...task.constraints]);
+    } catch {
+      return [];
+    }
+  }
+
   private dependencyContext(task: Task): string[] {
     const out: string[] = [];
     let total = 0;

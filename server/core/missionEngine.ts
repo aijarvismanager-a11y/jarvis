@@ -7,7 +7,7 @@ import type { MissionStatus } from "./schema.ts";
 import type { PlanRequest, Planner } from "./planner.ts";
 import { capabilityForTaskRole, type AIBroker } from "./aiBroker.ts";
 import { recordOutcome, tuningOf } from "./scoreTuning.ts";
-import { reviewTask, type AiReviewer } from "./aiReview.ts";
+import { aiFamily, reviewTask, type AiReviewer } from "./aiReview.ts";
 import { Scheduler } from "./scheduler.ts";
 import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
@@ -301,7 +301,7 @@ export class MissionEngine {
     // keep a chosen AI unless it already failed this task: then fall back to the next candidate
     if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
     try {
-      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: failedAis });
+      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: [...failedAis, ...this.authorsToAvoid(task)] });
       const byId = new Map(decision.ranked.map((c) => [c.aiId, c]));
       const payload = {
         capability: decision.capability,
@@ -333,6 +333,14 @@ export class MissionEngine {
     } catch (err) {
       this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_ERROR", payload: { message: errMsg(err) } });
     }
+  }
+
+  /** A review task is a second opinion: the AIs of the makers that wrote what it reviews (its dependencies) are left out. */
+  private authorsToAvoid(task: Task): string[] {
+    if (!/^(review|qa|test)$/i.test(task.role.trim()) || task.dependsOn.length === 0) return [];
+    const all = this.store.listTasks(task.projectId);
+    const authors = new Set(all.filter((t) => task.dependsOn.includes(t.id) && t.selectedAi).map((t) => aiFamily(t.selectedAi!)));
+    return this.store.listAiServices().filter((s) => authors.has(aiFamily(s.id))).map((s) => s.id);
   }
 
   private failedAis(task: Task): string[] {
