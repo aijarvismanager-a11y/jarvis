@@ -79,6 +79,7 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
 }
 
 const MAX_BLOCK_LINES = 400;
+const MAX_MENTION_BLOCK_LINES = 40;
 
 /**
  * The method/block a line belongs to, found by indentation; 2 lines either side when no block is found or it is over MAX_BLOCK_LINES.
@@ -109,24 +110,37 @@ function enclosingBlock(rows: string[], i: number): [number, number] {
   const head = indent(rows[h]);
   const end = closeFrom(i + 1, head);
   const from = rows[h].trim() === "{" ? Math.max(0, h - 1) : h;
-  if (end - from > MAX_BLOCK_LINES) return fallback;
+  if (end - from > MAX_MENTION_BLOCK_LINES) return fallback; // a mention deep inside a big body: its neighbours, not the whole body
   return [Math.min(from, fallback[0]), Math.max(end, fallback[1])];
 }
 
 /** The lines of `text` that mention a token (lower-cased), with 2 lines of context and line numbers; score = number of hits. */
-function matchSnippet(text: string, lowerTokens: string[], maxChars = Infinity): { score: number; snippet: string[] } {
+function matchSnippet(text: string, allTokens: string[], maxChars = Infinity): { score: number; snippet: string[] } {
   const rows = text.split(/\r?\n/);
   let score = 0;
   let ranges: { from: number; to: number; weight: number }[] = [];
+  let lowerTokens = allTokens;
+  const lowerRows = rows.map((row) => row.toLowerCase());
+  // A word on a large share of the lines (the app's own name) says little; one on a few lines (a method the task names) says a lot.
+  let lines = lowerTokens.map((t) => lowerRows.filter((r) => r.includes(t)).length);
+  // words on a large share of the lines (the app's own name) only blur the picture: leave them out while others remain
+  const specific = lowerTokens.filter((_, k) => lines[k] <= Math.max(30, rows.length * 0.04));
+  if (specific.length > 0 && specific.length < lowerTokens.length) {
+    lowerTokens = specific;
+    lines = lowerTokens.map((t) => lowerRows.filter((r) => r.includes(t)).length);
+  }
+  const rarity = lines.map((n) => Math.min(3, 12 / Math.max(n, 1)));
   rows.forEach((row, i) => {
-    const r = row.toLowerCase();
-    const hits = lowerTokens.filter((t) => r.includes(t)).length;
+    const r = lowerRows[i];
+    const found = lowerTokens.map((t, k) => (r.includes(t) ? k : -1)).filter((k) => k >= 0);
+    const hits = found.length;
     if (hits) {
       score += hits;
       const [from, to] = enclosingBlock(rows, i);
       // the line that declares the thing the task names (a definition, not a mention) is what a question about it needs most
       const declares = /^\s*(public|private|protected|internal|static|async|void|function|def|class|export)\b/.test(row) || /\)\s*\{?\s*$/.test(row.trimEnd());
-      ranges.push({ from, to, weight: hits + (declares ? 5 : 0) });
+      const rare = found.some((k) => lines[k] <= 15);
+      ranges.push({ from, to, weight: found.reduce((n, k) => n + rarity[k], 0) + (declares && rare ? 20 : 0) });
     }
   });
   // overlapping blocks become one, with their weights added
@@ -134,7 +148,8 @@ function matchSnippet(text: string, lowerTokens: string[], maxChars = Infinity):
   const merged: typeof ranges = [];
   for (const g of ranges) {
     const last = merged[merged.length - 1];
-    if (last && g.from <= last.to) {
+    // neighbouring blocks join only while the whole stays a block that can be shown; a chain of them must not become one huge range
+    if (last && g.from <= last.to && (g.to <= last.to || g.to - last.from <= 80)) {
       last.to = Math.max(last.to, g.to);
       last.weight += g.weight;
     } else merged.push({ ...g });
@@ -146,9 +161,19 @@ function matchSnippet(text: string, lowerTokens: string[], maxChars = Infinity):
   if (ranges.reduce((n, g) => n + sizeOf(g), 0) > maxChars) {
     kept = [];
     let used = 0;
-    for (const g of [...ranges].sort((a, b) => b.weight / Math.sqrt(sizeOf(b)) - a.weight / Math.sqrt(sizeOf(a)))) {
+    for (const g of [...ranges].sort((a, b) => b.weight / sizeOf(b) ** 0.8 - a.weight / sizeOf(a) ** 0.8)) {
       const size = sizeOf(g);
-      if (used + size > maxChars) continue;
+      if (used + size > maxChars) {
+        // the definition of something the task names, too long for what is left: its head is worth more than leaving it out
+        if (g.weight >= 20 && maxChars - used >= 1500) {
+          let to = g.from;
+          let sum = 0;
+          while (to < g.to && sum + rows[to].length + 8 <= maxChars - used) sum += rows[to++].length + 8;
+          kept.push({ from: g.from, to, weight: g.weight });
+          used += sum;
+        }
+        continue;
+      }
       kept.push(g);
       used += size;
     }
@@ -164,7 +189,13 @@ function matchSnippet(text: string, lowerTokens: string[], maxChars = Infinity):
   }
   const snippet: string[] = [];
   let prev = -2;
+  const shown: { from: number; to: number }[] = [];
   for (const g of kept) {
+    const last = shown[shown.length - 1];
+    if (last && g.from <= last.to + 1) last.to = Math.max(last.to, g.to);
+    else shown.push({ from: g.from, to: g.to });
+  }
+  for (const g of shown) {
     for (let i = g.from; i <= g.to; i++) {
       if (i !== prev + 1) snippet.push("...");
       snippet.push(`${i + 1}: ${rows[i]}`);

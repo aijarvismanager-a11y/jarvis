@@ -73,6 +73,15 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).not.toContain("void After()");
   });
 
+  it("does not let the app's own name crowd out the method the task names", () => {
+    const root = project();
+    const noise = Array.from({ length: 120 }, (_, i) => `    private void FenceHelper${i}()\n    {\n        FenceLog(${i});\n    }\n`).join("\n");
+    const menu = Array.from({ length: 150 }, (_, i) => `        menu.Items.Add(entry${i});`).join("\n");
+    writeFileSync(path.join(root, "FenceWindow.cs"), `class FenceWindow\n{\n${noise}\n    private void ShowTitleBarMenu()\n    {\n        var rollupItem = new MenuItem();\n${menu}\n    }\n}\n`);
+    const out = referenceContext(root, ["FenceWindow.cs"], ["FenceWindow の ShowTitleBarMenu のロールアップ項目を調べる"], 6000).join("\n");
+    expect(out).toContain("var rollupItem = new MenuItem();");
+  });
+
   it("keeps room for code when earlier reports (named as inputs) repeat the task's words", () => {
     const root = project();
     mkdirSync(path.join(root, "review"));
