@@ -41,7 +41,14 @@ export type MissionReport = {
 const ADMISSION = /未確認|読めて(い)?ない|読めなかった|確認できて(い)?ない|確認できなかった|確認でき(ませ|ま)ん|実ファイルが(ない|存在しな)|見つからなかった/g;
 export const INCONCLUSIVE_AT = 3;
 
+/** A work item's objective shortened to its first sentence (at most 36 characters) for use inside a sentence. */
+export const shortName = (objective: string) => {
+  const first = objective.split(/[。\n]/)[0].trim();
+  return first.length > 36 ? `${first.slice(0, 36)}…` : first;
+};
+
 /** readArtifact returns the text of a deliverable (null when unreadable); without it, deliverable contents are not judged. */
+
 export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null): MissionReport {
   const mission = store.getMission(projectId, missionId);
   if (!mission) throw new Error("依頼が見つかりません");
@@ -85,7 +92,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (code.some((t) => t.level < 3)) notChecked.push("自動テストが走っていないコード作業があります(プロジェクトにテストスクリプトが無い、または検証が構文チェックまでです)");
   if (code.length > 0 && !code.some((t) => t.level >= 4)) notChecked.push("アプリを実際に起動して画面を開く検証(L4)は通っていません。「動かして見る」で実際に動くか確かめてください");
   if (done.some((t) => !t.isCode)) notChecked.push("調査・設計・ドキュメントの内容が正しいかは自動では検証していません(成果物ファイルの存在のみ確認)");
-  for (const t of done.filter((x) => x.inconclusive)) notChecked.unshift(`「${t.objective.slice(0, 40)}」の成果物は、確認できなかったと書いています。聞いたことの答えが出ていません(元のファイルを渡せていない可能性があります)`);
+  for (const t of done.filter((x) => x.inconclusive)) notChecked.unshift(`「${shortName(t.objective)}」の成果物は、確認できなかったと書いています。聞いたことの答えが出ていません(元のファイルを渡せていない可能性があります)`);
   notChecked.push("画面や機能が、あなたの要望どおりかどうかは人の目での確認が必要です");
 
   const notes: string[] = [];
@@ -96,7 +103,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直した作業が${count("TASK_MANUAL_RETRY")}件あります`);
   if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻した作業が${count("TASK_ROLLBACK")}件あります`);
   if (count("APPROVAL_DENIED")) notes.push("承認されなかった操作があります");
-  for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`「${t.objective.slice(0, 40)}」は完了していません(${t.status})`);
+  for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`「${shortName(t.objective)}」は完了していません(${t.status})`);
 
   const verdict: MissionReport["verdict"] = !finished ? "unfinished" : code.length > 0 && code.every((t) => t.level >= 3) && code.some((t) => t.level >= 4) ? "verified" : "partial";
   const inconclusive = done.some((t) => t.inconclusive);

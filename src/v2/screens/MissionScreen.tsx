@@ -99,7 +99,7 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
               {report.tasks.map((t) => (
                 <li key={t.id} className="flex items-start gap-2">
                   <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span>
-                  <span className="min-w-0 flex-1">{t.objective}</span>
+                  <span className="line-clamp-2 min-w-0 flex-1" title={t.objective}>{t.objective}</span>
                   <span className={`shrink-0 text-[11.5px] ${t.inconclusive ? "text-[#9B6A12]" : "text-muted"}`}>
                     {t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}
                   </span>
