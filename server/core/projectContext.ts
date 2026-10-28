@@ -10,7 +10,9 @@ const SECRET_NAME = /(^\.env)|\.(pem|key|pfx|p12)$|secret|credential|id_rsa|pass
 export const MAX_TREE_FILES = 80;
 export const MAX_REF_FILE_CHARS = 12_000;
 export const MAX_REF_TOTAL_CHARS = 30_000;
-const MAX_REF_FILES = 6;
+const MAX_NAMED_FILES = 4;
+const MAX_KEYWORD_FILES = 4;
+const DOC_EXTENSIONS = new Set([".md", ".txt"]);
 
 /** How many characters of project files each site takes in one prompt (its box and context differ a lot; a cautious default for unlisted ones). */
 const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 100_000, gemini: 100_000, chatgpt: 40_000, grok: 40_000, copilot: 6_000 };
@@ -67,8 +69,10 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
       continue;
     }
     const m = matchSnippet(text, lower);
-    const score = m.score + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
-    if (score === 0) continue;
+    // notes and earlier reports repeat the task's words; the code is what a question about the code needs
+    const raw = m.score + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
+    const score = DOC_EXTENSIONS.has(path.extname(rel).toLowerCase()) ? raw * 0.2 : raw;
+    if (raw === 0) continue;
     scored.push({ rel, score, snippet: m.snippet });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, max);
@@ -143,8 +147,8 @@ export function referenceContext(root: string, refs: string[], texts: string[], 
   const files = listProjectFiles(root);
   if (files.length === 0) return [];
   const chosen: string[] = [];
-  const add = (rel: string) => {
-    if (chosen.length < MAX_REF_FILES && !chosen.includes(rel)) chosen.push(rel);
+  const add = (rel: string, cap = MAX_NAMED_FILES) => {
+    if (chosen.length < cap && !chosen.includes(rel)) chosen.push(rel);
   };
   const normalised = (s: string) => s.replace(/\\/g, "/").replace(/^\.\//, "").trim();
   for (const r of refs.map(normalised)) {
@@ -160,10 +164,15 @@ export function referenceContext(root: string, refs: string[], texts: string[], 
   // Files nobody named: pick the ones whose path or content mention the task's identifiers (e.g. "IsRolledUp", "FenceWindow").
   const tokens = identifierTokens(sentence);
   const keywordHits = new Map<string, string[]>();
-  if (tokens.length && chosen.length < MAX_REF_FILES) {
-    for (const f of keywordFiles(root, files, tokens, MAX_REF_FILES - chosen.length)) {
-      add(f.rel);
+  if (tokens.length) {
+    // the slots for these are kept apart from the named ones: earlier reports that mention the same words must not crowd the code out
+    let taken = 0;
+    for (const f of keywordFiles(root, files, tokens, MAX_KEYWORD_FILES + chosen.length)) {
+      if (taken >= MAX_KEYWORD_FILES) break;
+      if (chosen.includes(f.rel)) continue;
+      chosen.push(f.rel);
       keywordHits.set(f.rel, f.snippet);
+      taken++;
     }
   }
   const lines: string[] = ["", `【プロジェクトのファイル一覧(${Math.min(files.length, MAX_TREE_FILES)}件まで)】`, ...files.slice(0, MAX_TREE_FILES)];

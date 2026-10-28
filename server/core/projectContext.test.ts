@@ -73,6 +73,16 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).not.toContain("void After()");
   });
 
+  it("keeps room for code when earlier reports (named as inputs) repeat the task's words", () => {
+    const root = project();
+    mkdirSync(path.join(root, "review"));
+    const names = ["r1.md", "r2.md", "r3.md", "r4.md", "r5.md"].map((n) => `review/${n}`);
+    for (const n of names) writeFileSync(path.join(root, n), "IsRolledUp is discussed here\n".repeat(40));
+    writeFileSync(path.join(root, "Views", "Rollup.cs"), "class R { bool IsRolledUp; }");
+    const lines = referenceContext(root, names, ["IsRolledUp を確認する"]).join("\n");
+    expect(lines).toContain("--- Views/Rollup.cs ---");
+  });
+
   it("never reads a path outside the project", () => {
     expect(referenceContext(project(), ["../../etc/passwd"], []).join("\n")).not.toContain("passwd ---");
   });
