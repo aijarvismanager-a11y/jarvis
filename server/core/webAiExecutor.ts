@@ -87,6 +87,7 @@ export function buildWebPrompt(input: {
     lines.push("Markdownで、結論から先に、簡潔に答えてください。");
   }
   lines.push("あなたはファイルを直接作成できないため、内容は回答の中に全文書いてください。");
+  if (!isWriteTask(task)) lines.push("調査・確認・レビューの成果物は、最後の行に、頼まれたことを確かめられた度合いを次のどれか1つで書いてください: 「確認状況: 確定」「確認状況: 一部未確認」「確認状況: 確認できず」");
   if (input.previousFailure) lines.push("", "【前回の回答は検証に失敗しました】原因を直した回答を返してください。失敗内容:", input.previousFailure);
   return lines.join("\n");
 }

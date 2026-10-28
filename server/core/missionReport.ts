@@ -40,6 +40,14 @@ export type MissionReport = {
 /** Phrases a deliverable uses to admit it did not actually find out what it was asked. */
 const ADMISSION = /未確認|読めて(い)?ない|読めなかった|確認できて(い)?ない|確認できなかった|確認でき(ませ|ま)ん|実ファイルが(ない|存在しな)|見つからなかった/g;
 export const INCONCLUSIVE_AT = 3;
+/** The line a web AI is asked to end a research/review deliverable with. It outranks counting admissions in the text. */
+const STATUS_LINE = /確認状況[:：]\s*(確定|一部未確認|確認できず)/g;
+/** "settled" / "partly" / "none", or null when the deliverable does not say (the last such line counts). */
+export function statedStatus(text: string): "settled" | "partly" | "none" | null {
+  const all = [...text.matchAll(STATUS_LINE)];
+  const last = all[all.length - 1]?.[1];
+  return last === "確定" ? "settled" : last === "一部未確認" ? "partly" : last === "確認できず" ? "none" : null;
+}
 
 /** readArtifact returns the text of a deliverable (null when unreadable); without it, deliverable contents are not judged. */
 
@@ -61,7 +69,12 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     const myRuns = runs.filter((r) => r.task_id === t.id);
     const costs = myRuns.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
     const files = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))];
-    const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => n + ((readArtifact(f) ?? "").match(ADMISSION)?.length ?? 0), 0) : 0;
+    const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => {
+          const text = readArtifact(f) ?? "";
+          const stated = statedStatus(text);
+          if (stated) return n + (stated === "settled" ? 0 : INCONCLUSIVE_AT); // it says how far it got: take its word
+          return n + (text.match(ADMISSION)?.length ?? 0);
+        }, 0) : 0;
     return {
       id: t.id,
       role: t.role,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { openDatabase } from "./db.ts";
 import { Store } from "./store.ts";
 import { MissionEngine } from "./missionEngine.ts";
-import { buildMissionReport } from "./missionReport.ts";
+import { buildMissionReport, statedStatus } from "./missionReport.ts";
 
 const task = (key: string, role: string, dependsOn: string[] = []) => ({ key, role, objective: `${key}を行う`, inputs: [], expectedOutputs: [], constraints: [], dependsOn });
 
@@ -41,6 +41,17 @@ describe("buildMissionReport", () => {
     expect(r.tasks.find((t) => !t.isCode)?.inconclusive).toBe(true);
     expect(r.notChecked.join()).toContain("答えが出ていません");
     expect(buildMissionReport(store, "p", m.id, () => "問題なし").tasks.some((t) => t.inconclusive)).toBe(false);
+    db.close();
+  });
+  it("takes the deliverable's own statement of how far it got over counting phrases", async () => {
+    const { store, db, m } = await runMission(4, "review");
+    const reviewTask = store.listTasks("p").find((t) => t.role === "review")!;
+    store.createArtifact({ projectId: "p", taskId: reviewTask.id, path: "review/y.md", createdBy: "test" });
+    const noisy = "対象外の3ファイルは未確認。読めなかった資料もある。確認できていない箇所は無関係。\n確認状況: 確定";
+    expect(buildMissionReport(store, "p", m.id, () => noisy).tasks.some((t) => t.inconclusive)).toBe(false);
+    expect(buildMissionReport(store, "p", m.id, () => "結論です。\n確認状況：一部未確認").tasks.some((t) => t.inconclusive)).toBe(true);
+    expect(statedStatus("確認状況: 確認できず")).toBe("none");
+    expect(statedStatus("何も書いていない")).toBeNull();
     db.close();
   });
   it("is verified only when code tasks passed tests and the integration gate ran", async () => {
