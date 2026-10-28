@@ -51,6 +51,9 @@ export function cleanFileText(rel: string, text: string): string {
       if (before.length <= 3 && before.every((l) => l.length <= 120 && !/^\s*([-*+>|]|\d+[.)])/.test(l))) lines.splice(0, heading);
     }
   }
+  // the answer ends at its 確認状況 line: whatever follows is the site's chatter ("次は何をしますか?" etc.)
+  const last = lines.map((l) => /^\W*確認状況\s*[:：]/.test(l)).lastIndexOf(true);
+  if (last >= 0 && last < lines.length - 1) lines.length = last + 1;
   t = lines.join("\n");
   return t;
 }

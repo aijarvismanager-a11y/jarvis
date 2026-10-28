@@ -41,6 +41,11 @@ describe("cleaning the text of a saved file", () => {
   it("drops a few short lines of chatter before the first heading", () => {
     expect(cleanFileText("d.md", "📁 LUM のどちらでもない作業なので省略するね。\n\n# 題\n本文")).toBe("# 題\n本文");
   });
+  it("drops what follows the 確認状況 line (a site's follow-up question), and leaves answers without one alone", () => {
+    expect(cleanFileText("d.md", "# 題\n本文\n\n確認状況: 一部未確認\n\n次の作業を選択してください。")).toBe("# 題\n本文\n\n確認状況: 一部未確認");
+    expect(cleanFileText("d.md", "# 題\n本文\n\n**確認状況：確定**\nどうしますか?")).toBe("# 題\n本文\n\n**確認状況：確定**");
+    expect(cleanFileText("d.md", "# 題\n本文\nどうしますか?")).toBe("# 題\n本文\nどうしますか?");
+  });
   it("keeps real content before a heading (lists, long text, many lines) and non-text files", () => {
     expect(cleanFileText("d.md", "- 項目1\n- 項目2\n\n# 題")).toBe("- 項目1\n- 項目2\n\n# 題");
     expect(cleanFileText("d.md", "a\nb\nc\nd\n# 題")).toBe("a\nb\nc\nd\n# 題");
