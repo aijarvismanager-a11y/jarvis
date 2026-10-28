@@ -135,20 +135,20 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
           {web?.available && (
             <label className="flex items-start gap-3">
               <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
-              <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">オフにすると、すべて Claude Code がやります。</span></span>
+              <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">ChatGPT や Gemini など、ブラウザで開くAIにも作業を分けます。AIには、依頼の文と、プロジェクトのファイルの一部(一覧と、関係するファイルの抜粋)を送ります。<b>プロジェクトの中身を外に出したくないときは、オフにしてください。</b>オフにすると、すべて Claude Code がやります。</span></span>
             </label>
           )}
           {review && (
             <label className="flex items-start gap-3">
               <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
-              <span><span className="font-semibold">重要な作業を、別のAIにもチェックしてもらう</span><span className="block text-[12px] text-muted">設計やコードなどの大事な作業を、別のメーカーのAIが確認します。{review.reviewer ? `いまの確認役: ${review.reviewer}` : ""}</span></span>
+              <span><span className="font-semibold">重要な作業を、別のAIにもチェックしてもらう</span><span className="block text-[12px] text-muted">設計やコードなどの大事な作業を、作ったAIとは別のメーカーのAIが確認します。確認できるAI(自動で動かせて、ログイン済みのもの)が、順番に担当します。{review.reviewer ? `次の担当: ${review.reviewer}` : "いまは確認できるAIがないので、確認は行いません。"}</span></span>
             </label>
           )}
           {tuning && (
             <div>
               <label className="flex items-start gap-3">
                 <input type="checkbox" className="mt-1" checked={tuning.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setScoreTuning(e.target.checked); done(); })} />
-                <span><span className="font-semibold">AIの得意・不得意を、結果から学ぶ</span><span className="block text-[12px] text-muted">うまくいったか、失敗したかをもとに、AIの選び方を少しずつ良くします。</span></span>
+                <span><span className="font-semibold">AIの得意・不得意を、結果から学ぶ</span><span className="block text-[12px] text-muted">作業が終わるたびに、うまくいったか、失敗したかを記録して、次からのAIの選び方に使います。同じAIの結果が3件たまるまでは、何も変わりません。変わる幅も小さく、いつでも元に戻せます。</span></span>
               </label>
               {tuning.entries.length > 0 && (
                 <Details summary="学んだ内容を見る">
