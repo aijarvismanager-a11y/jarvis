@@ -63,6 +63,16 @@ describe("what a browser AI is shown of the project", () => {
     expect(referenceContext(root, ["Long.cs"], [], referenceBudget("copilot")).join("\n")).not.toContain("THE END");
   });
 
+  it("takes a long method whole when the task names the method itself", () => {
+    const root = project();
+    const body = Array.from({ length: 150 }, (_, i) => `        item${i}.Click += (_, _) => Run${i}();`).join("\n");
+    writeFileSync(path.join(root, "W.cs"), `class W\n{\n    void Before()\n    {\n        x();\n    }\n\n    private void ShowTitleBarMenu()\n    {\n${body}\n        menu.IsOpen = true;\n    }\n\n    void After()\n    {\n        y();\n    }\n}\n` + "// filler\n".repeat(2000));
+    const lines = referenceContext(root, [], ["ShowTitleBarMenu を調べる"]).join("\n");
+    expect(lines).toContain("item0.Click");
+    expect(lines).toContain("menu.IsOpen = true;");
+    expect(lines).not.toContain("void After()");
+  });
+
   it("never reads a path outside the project", () => {
     expect(referenceContext(project(), ["../../etc/passwd"], []).join("\n")).not.toContain("passwd ---");
   });

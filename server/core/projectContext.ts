@@ -74,21 +74,38 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
   return scored.sort((a, b) => b.score - a.score).slice(0, max);
 }
 
-/** The method/block around line i, found by indentation (header line = nearest line indented less; ends at the next line indented no more than it); 2 lines either side when that is not found or over 60 lines. */
+const MAX_BLOCK_LINES = 400;
+
+/**
+ * The method/block a line belongs to, found by indentation; 2 lines either side when no block is found or it is over MAX_BLOCK_LINES.
+ * A line that opens a block itself (`void Foo()` followed by `{` at the same indent, or ending in `{`) is that block's own header: the
+ * whole body is taken, not the class around it. Any other line takes the block it sits in (header = the nearest line indented less).
+ */
 function enclosingBlock(rows: string[], i: number): [number, number] {
   const fallback: [number, number] = [Math.max(0, i - 2), Math.min(rows.length - 1, i + 2)];
   const indent = (r: string) => r.length - r.trimStart().length;
   if (!rows[i].trim()) return fallback;
   const here = indent(rows[i]);
+  const closeFrom = (start: number, level: number): number => {
+    let end = start;
+    while (end < rows.length && (!rows[end].trim() || indent(rows[end]) > level)) end++;
+    return Math.min(end, rows.length - 1); // the closing line (indent == level) is included
+  };
+  let next = i + 1;
+  while (next < rows.length && !rows[next].trim()) next++;
+  const opensOwn = rows[i].trimEnd().endsWith("{") || (next < rows.length && rows[next].trim() === "{" && indent(rows[next]) === here);
+  if (opensOwn) {
+    const end = closeFrom(next < rows.length && rows[i].trimEnd().endsWith("{") === false ? next + 1 : i + 1, here);
+    if (end - i <= MAX_BLOCK_LINES) return [Math.min(i, fallback[0]), Math.max(end, fallback[1])];
+    return fallback;
+  }
   let h = i - 1;
-  while (h >= 0 && i - h <= 80 && (!rows[h].trim() || indent(rows[h]) >= here)) h--;
-  if (h < 0 || i - h > 80) return fallback;
+  while (h >= 0 && i - h <= MAX_BLOCK_LINES && (!rows[h].trim() || indent(rows[h]) >= here)) h--;
+  if (h < 0 || i - h > MAX_BLOCK_LINES) return fallback;
   const head = indent(rows[h]);
-  let end = i + 1;
-  while (end < rows.length && (!rows[end].trim() || indent(rows[end]) > head)) end++;
-  if (end >= rows.length) end = rows.length - 1;
+  const end = closeFrom(i + 1, head);
   const from = rows[h].trim() === "{" ? Math.max(0, h - 1) : h;
-  if (end - from > 60) return fallback;
+  if (end - from > MAX_BLOCK_LINES) return fallback;
   return [Math.min(from, fallback[0]), Math.max(end, fallback[1])];
 }
 
