@@ -210,7 +210,7 @@ export default function V2App() {
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
               {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
-                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの違い: 元のフォルダ側の変更 ${sync.pull}件・こちら側の変更 ${sync.push}件。ホームの「取り込んだフォルダとの同期」で確認できます`}>元のフォルダと違いあり {sync.push + sync.pull}</span>
+                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの違い: 元のフォルダ側の変更 ${sync.pull}件・このアプリ側の変更 ${sync.push}件。ホームの「元のフォルダに反映する」で確認できます`}>元のフォルダと違いあり {sync.push + sync.pull}</span>
               )}
             </button>
           ))}

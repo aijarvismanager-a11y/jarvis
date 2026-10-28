@@ -15,26 +15,26 @@ const isNotes = (p: string) => /^(design|review|reviews|docs|reports?|notes)\//i
 // What each direction means, in the user's words.
 const TEXT = {
   push: {
-    title: "コピー → 元のフォルダ",
-    intro: "コピー側で変えた内容を、確認のうえ元のフォルダへ書き込みます。",
-    empty: "コピー側で変えた内容はありません(元のフォルダと同じです)。",
-    conflict: "元のフォルダ側でも変更されたファイルを上書きする(既定は上書きしません)",
-    del: "コピー側で消したファイルを、元のフォルダからも削除する(既定は残します)",
-    button: (n: number) => `${n}件を元のフォルダへ書き込む`,
+    title: "① このアプリで変えた分を、元のフォルダへ反映する",
+    intro: "AIが作った・直したファイルです。チェックを入れたものだけが、元のフォルダに入ります。",
+    empty: "このアプリで変えた分はありません。元のフォルダと同じです。",
+    conflict: "元のフォルダ側でも変えられたファイルを、上書きする(チェックしないと、そのファイルは反映しません)",
+    del: "このアプリで消したファイルを、元のフォルダからも消す(チェックしないと、残します)",
+    button: (n: number) => `${n}件を元のフォルダへ反映する`,
     target: "元のフォルダ",
-    back: "この書き込み前に戻す",
-    backupsLabel: "元のフォルダの退避",
+    back: "この反映を取り消す",
+    backupsLabel: "反映する前の元のフォルダ(バックアップ)",
   },
   pull: {
-    title: "元のフォルダ → コピー",
-    intro: "元のフォルダを別のツールで編集したときに、その内容をコピー側へ取り込みます。",
-    empty: "元のフォルダ側で変わった内容はありません。",
-    conflict: "コピー側でも変更されたファイルを上書きする(既定は上書きしません)",
-    del: "元のフォルダで消したファイルを、コピーからも削除する(既定は残します)",
-    button: (n: number) => `${n}件をコピーへ取り込む`,
-    target: "このプロジェクトのコピー",
-    back: "この取り込み前に戻す",
-    backupsLabel: "コピーの退避",
+    title: "② 元のフォルダで変わった分を、このアプリへ取り込む",
+    intro: "元のフォルダを、ほかのツールで編集したときの変更です。取り込むと、このアプリのコピーも同じになります。",
+    empty: "元のフォルダ側で変わった分はありません。",
+    conflict: "このアプリ側でも変えたファイルを、上書きする(チェックしないと、そのファイルは取り込みません)",
+    del: "元のフォルダで消されたファイルを、このアプリからも消す(チェックしないと、残します)",
+    button: (n: number) => `${n}件をこのアプリへ取り込む`,
+    target: "このアプリのコピー",
+    back: "この取り込みを取り消す",
+    backupsLabel: "取り込む前のこのアプリのコピー(バックアップ)",
   },
 } as const;
 
@@ -51,19 +51,19 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
   const picks = entries.filter((e) => allowed(e) && ticked(e));
   const willWrite = picks.length;
   const apply = () => {
-    if (!window.confirm(`${t.target}に ${willWrite} 件の変更を書き込みます。書き換え・削除されるファイルは、先にバックアップへ退避します。よろしいですか?`)) return;
+    if (!window.confirm(`${t.target}に ${willWrite} 件の変更を入れます。変わるファイルは、先にバックアップします(あとから取り消せます)。よろしいですか?`)) return;
     void run(async () => {
       const r = await api.applySync(projectId, { deletes, overwriteConflicts: overwrite, direction: dir, paths: picks.map((e) => e.path) });
       setChosen({});
       setDeletes(false);
       setOverwrite(false);
-      ctx.setError(r.applied ? "" : "書き込む変更はありませんでした");
+      ctx.setError(r.applied ? "" : "入れる変更はありませんでした");
       if (dir === "pull") ctx.refresh();
       await reload();
     });
   };
   const restore = (id: string) => {
-    if (!window.confirm(`${t.target}を、この書き込みの直前の状態に戻します。よろしいですか?`)) return;
+    if (!window.confirm(`${t.target}を、この操作の直前の状態に戻します。よろしいですか?`)) return;
     void run(async () => {
       await api.restoreSync(projectId, id, dir);
       if (dir === "pull") ctx.refresh();
@@ -77,14 +77,15 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
       {entries.length === 0 && <p className="mt-2 text-[13px]">{t.empty}</p>}
       {entries.length > 0 && (
         <>
+          {entries.some((e) => isNotes(e.path)) && <p className="mt-2 text-[11.5px] text-muted">「メモ」は、AIが書いた設計メモやレポートです。アプリ本体ではないので、はじめはチェックが外れています。必要なものだけ、チェックを入れてください。</p>}
           <ul className="mt-2 max-h-56 overflow-auto text-[12px]">
             {entries.map((e) => (
               <li key={e.path} className="flex items-center gap-2 font-mono">
                 <input type="checkbox" aria-label={`${e.path} を反映する`} checked={ticked(e) && allowed(e)} disabled={!allowed(e)} onChange={(ev) => setChosen((c) => ({ ...c, [e.path]: ev.target.checked }))} />
                 <span className="w-8 shrink-0 text-muted">{KIND_LABEL[e.kind]}</span>
                 <span className="min-w-0 flex-1 break-all">{e.path}</span>
-                {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted">資料</span>}
-                {e.conflict && <Badge tone="warn">{dir === "push" ? "元も変更あり" : "コピーも変更あり"}</Badge>}
+                {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted" title="AIが書いたメモやレポートです。はじめはチェックが外れています">メモ</span>}
+                {e.conflict && <Badge tone="warn">{dir === "push" ? "元のフォルダでも変更あり" : "このアプリでも変更あり"}</Badge>}
               </li>
             ))}
           </ul>
@@ -102,7 +103,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button disabled={busy || running || willWrite === 0} onClick={apply}>{t.button(willWrite)}</Button>
-            {running && <span className="text-[12px] text-muted">依頼実行中は書き込めません(一時停止してください)</span>}
+            {running && <span className="text-[12px] text-muted">依頼の実行中は反映できません。一時停止してから押してください</span>}
           </div>
         </>
       )}
@@ -145,14 +146,17 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
       open={state.pullEntries.length + state.entries.length > 0}
       title={
         <span className="flex flex-wrap items-center gap-2">
-          取り込んだフォルダとの同期
-          {state.pullEntries.length > 0 && <Badge tone="info">取り込み待ち {state.pullEntries.length}</Badge>}
-          {state.entries.length > 0 && <Badge tone="warn">書き込み待ち {state.entries.length}</Badge>}
+          元のフォルダに反映する
+          {state.entries.length > 0 && <Badge tone="warn">反映していない変更 {state.entries.length}件</Badge>}
+          {state.pullEntries.length > 0 && <Badge tone="info">元のフォルダ側の変更 {state.pullEntries.length}件</Badge>}
         </span>
       }
     >
-      <p className="break-all text-[12.5px]"><span className="text-muted">取り込み元: </span>{state.sourcePath}</p>
-      <p className="mt-1 text-[12px] text-muted">作業はコピー側で進みます。どちらの向きも、差分を確認してから反映します。</p>
+      <p className="break-all text-[12.5px]"><span className="text-muted">元のフォルダ: </span>{state.sourcePath}</p>
+      <div className="mt-1.5 rounded-md bg-bg px-3 py-2 text-[12px] leading-relaxed text-muted">
+        <p>このアプリは、元のフォルダの<b>コピー</b>で作業しています。AIが変えた内容は、下の「反映する」を押すまで、<b>元のフォルダには入りません</b>。</p>
+        <p className="mt-0.5">反映の前に、変わるファイルは自動でバックアップされます。あとから取り消せます。</p>
+      </div>
       {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}
       <Section dir="pull" projectId={projectId} entries={state.pullEntries} backups={state.pullBackups} running={running} ctx={ctx} reload={load} />
       <Section dir="push" projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />

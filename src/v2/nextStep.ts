@@ -27,7 +27,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
       return {
         tone: "done",
         title: "できあがりました",
-        detail: "「動かして確認」で実際に動かして見られます。既存のフォルダを取り込んだ場合は、「元のフォルダとの同期」で変更を元のフォルダへ書き込めます。続きを頼むときは「新しい依頼」を押します。",
+        detail: "「動かして確認」で実際に動かして見られます。ほかのフォルダを引き継いだ場合は、ホームの「元のフォルダに反映する」を押すと、変更が元のフォルダに入ります(押すまでは入りません)。続きを頼むときは「新しい依頼」を押します。",
         action: { label: "新しい依頼を出す", run: onNewRequest },
       };
     case "cancelled":
