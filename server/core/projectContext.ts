@@ -8,8 +8,8 @@ import { SKIP_DIRS } from "./projectImport.ts";
 const CODE_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".toml", ".cs", ".xaml", ".csproj", ".py", ".go", ".rs", ".java", ".kt", ".swift", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".vue", ".svelte", ".sql"]);
 const SECRET_NAME = /(^\.env)|\.(pem|key|pfx|p12)$|secret|credential|id_rsa|password/i;
 export const MAX_TREE_FILES = 80;
-export const MAX_REF_FILE_CHARS = 5000;
-export const MAX_REF_TOTAL_CHARS = 14_000;
+export const MAX_REF_FILE_CHARS = 12_000;
+export const MAX_REF_TOTAL_CHARS = 30_000;
 const MAX_REF_FILES = 5;
 
 /** Relative paths (forward slashes) of the text files in the project, breadth-first so the top of the tree comes first. */
@@ -70,6 +70,24 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
   return scored.sort((a, b) => b.score - a.score).slice(0, max);
 }
 
+/** The method/block around line i, found by indentation (header line = nearest line indented less; ends at the next line indented no more than it); 2 lines either side when that is not found or over 60 lines. */
+function enclosingBlock(rows: string[], i: number): [number, number] {
+  const fallback: [number, number] = [Math.max(0, i - 2), Math.min(rows.length - 1, i + 2)];
+  const indent = (r: string) => r.length - r.trimStart().length;
+  if (!rows[i].trim()) return fallback;
+  const here = indent(rows[i]);
+  let h = i - 1;
+  while (h >= 0 && i - h <= 80 && (!rows[h].trim() || indent(rows[h]) >= here)) h--;
+  if (h < 0 || i - h > 80) return fallback;
+  const head = indent(rows[h]);
+  let end = i + 1;
+  while (end < rows.length && (!rows[end].trim() || indent(rows[end]) > head)) end++;
+  if (end >= rows.length) end = rows.length - 1;
+  const from = rows[h].trim() === "{" ? Math.max(0, h - 1) : h;
+  if (end - from > 60) return fallback;
+  return [Math.min(from, fallback[0]), Math.max(end, fallback[1])];
+}
+
 /** The lines of `text` that mention a token (lower-cased), with 2 lines of context and line numbers; score = number of hits. */
 function matchSnippet(text: string, lowerTokens: string[]): { score: number; snippet: string[] } {
   const rows = text.split(/\r?\n/);
@@ -80,7 +98,8 @@ function matchSnippet(text: string, lowerTokens: string[]): { score: number; sni
     const hits = lowerTokens.filter((t) => r.includes(t)).length;
     if (hits) {
       score += hits;
-      for (let k = Math.max(0, i - 2); k <= Math.min(rows.length - 1, i + 2); k++) keep.add(k);
+      const [from, to] = enclosingBlock(rows, i);
+      for (let k = from; k <= to; k++) keep.add(k);
     }
   });
   const snippet: string[] = [];

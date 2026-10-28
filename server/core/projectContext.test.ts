@@ -41,9 +41,19 @@ describe("what a browser AI is shown of the project", () => {
 
   it("shows the lines that mention the task's identifiers when a named file is too long to show whole", () => {
     const root = project();
-    writeFileSync(path.join(root, "Big.cs"), "// filler\n".repeat(900) + "void ShowTitleBarMenu() { }\n" + "// filler\n".repeat(50));
+    writeFileSync(path.join(root, "Big.cs"), "// filler\n".repeat(2000) + "void ShowTitleBarMenu() { }\n" + "// filler\n".repeat(50));
     const lines = referenceContext(root, ["Big.cs"], ["ShowTitleBarMenu を確認する"]).join("\n");
-    expect(lines).toContain("901: void ShowTitleBarMenu() { }");
+    expect(lines).toContain("2001: void ShowTitleBarMenu() { }");
+  });
+
+  it("shows the whole method around a mentioned identifier, not just the lines next to it", () => {
+    const root = project();
+    const body = Array.from({ length: 12 }, (_, i) => `        step${i}();`).join("\n");
+    writeFileSync(path.join(root, "M.cs"), `class M\n{\n    void Other()\n    {\n        a();\n    }\n\n    void ShowMenu()\n    {\n${body}\n        ToggleRollup();\n    }\n\n    void After()\n    {\n        b();\n    }\n}\n` + "// filler\n".repeat(2000));
+    const lines = referenceContext(root, ["M.cs"], ["ToggleRollup"]).join("\n");
+    expect(lines).toContain("void ShowMenu()");
+    expect(lines).toContain("step0();");
+    expect(lines).not.toContain("void After()");
   });
 
   it("never reads a path outside the project", () => {
