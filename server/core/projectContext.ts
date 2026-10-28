@@ -37,6 +37,55 @@ export function listProjectFiles(root: string, limit = MAX_TREE_FILES * 4): stri
   return out;
 }
 
+const STOP_TOKENS = new Set(["true", "false", "null", "this", "that", "with", "from", "have", "will", "task", "file", "files", "docs", "review", "markdown", "design", "json", "code", "work", "done", "only", "none"]);
+
+/** Identifier-like words (ASCII, 4+ chars) in the task text, most specific (longest) first. */
+export function identifierTokens(text: string, limit = 8): string[] {
+  const seen = new Set<string>();
+  for (const m of text.matchAll(/[A-Za-z_][A-Za-z0-9_]{3,}/g)) {
+    const t = m[0];
+    if (!STOP_TOKENS.has(t.toLowerCase())) seen.add(t);
+  }
+  return [...seen].sort((a, b) => b.length - a.length).slice(0, limit);
+}
+
+/** Files whose path or content mention the tokens, best first, each with the matching lines (plus 2 lines of context). */
+function keywordFiles(root: string, files: string[], tokens: string[], max: number): { rel: string; snippet: string[] }[] {
+  const lower = tokens.map((t) => t.toLowerCase());
+  const scored: { rel: string; score: number; snippet: string[] }[] = [];
+  for (const rel of files) {
+    let text: string;
+    try {
+      const abs = path.join(root, rel);
+      if (statSync(abs).size > 500_000) continue;
+      text = readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const rows = text.split(/\r?\n/);
+    const keep = new Set<number>();
+    let score = lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
+    rows.forEach((row, i) => {
+      const r = row.toLowerCase();
+      const hits = lower.filter((t) => r.includes(t)).length;
+      if (hits) {
+        score += hits;
+        for (let k = Math.max(0, i - 2); k <= Math.min(rows.length - 1, i + 2); k++) keep.add(k);
+      }
+    });
+    if (score === 0) continue;
+    const snippet: string[] = [];
+    let prev = -2;
+    for (const i of [...keep].sort((a, b) => a - b)) {
+      if (i !== prev + 1) snippet.push("...");
+      snippet.push(`${i + 1}: ${rows[i]}`);
+      prev = i;
+    }
+    scored.push({ rel, score, snippet });
+  }
+  return scored.sort((a, b) => b.score - a.score).slice(0, max);
+}
+
 /**
  * Lines to add to a web AI's prompt: the file list, then the files the task refers to. `refs` are paths the task names (its inputs);
  * `texts` are the task's sentences, searched for the names of files that exist. Never reads outside `root`; empty when there is nothing.
@@ -59,6 +108,16 @@ export function referenceContext(root: string, refs: string[], texts: string[]):
     const base = path.basename(f);
     if (base.length >= 6 && sentence.includes(base)) add(f);
   }
+  const named = new Set(chosen);
+  // Files nobody named: pick the ones whose path or content mention the task's identifiers (e.g. "IsRolledUp", "FenceWindow").
+  const tokens = identifierTokens(sentence);
+  const keywordHits = new Map<string, string[]>();
+  if (tokens.length && chosen.length < MAX_REF_FILES) {
+    for (const f of keywordFiles(root, files, tokens, MAX_REF_FILES - chosen.length)) {
+      add(f.rel);
+      keywordHits.set(f.rel, f.snippet);
+    }
+  }
   const lines: string[] = ["", `【プロジェクトのファイル一覧(${Math.min(files.length, MAX_TREE_FILES)}件まで)】`, ...files.slice(0, MAX_TREE_FILES)];
   let total = 0;
   const excerpts: string[] = [];
@@ -67,7 +126,8 @@ export function referenceContext(root: string, refs: string[], texts: string[]):
     try {
       const abs = path.join(root, rel);
       if (!statSync(abs).isFile() || statSync(abs).size > 2_000_000) continue;
-      const body = readFileSync(abs, "utf8").slice(0, MAX_REF_FILE_CHARS);
+      const snippet = !named.has(rel) ? keywordHits.get(rel) : undefined;
+      const body = snippet ? snippet.join("\n").slice(0, MAX_REF_FILE_CHARS) : readFileSync(abs, "utf8").slice(0, MAX_REF_FILE_CHARS);
       total += body.length;
       excerpts.push(`--- ${rel} ---`, body);
     } catch {

@@ -30,6 +30,15 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).not.toContain("TOKEN");
   });
 
+  it("finds unnamed files by the identifiers in the task text, showing the matching lines", () => {
+    const root = project();
+    writeFileSync(path.join(root, "Vm.cs"), "class Vm {\n  // x\n  public bool IsRolledUp;\n  void ToggleRollup() { }\n}\n" + "// filler\n".repeat(50));
+    const lines = referenceContext(root, [], ["IsRolledUp の扱いを確認する"]).join("\n");
+    expect(lines).toContain("--- Vm.cs ---");
+    expect(lines).toContain("3:   public bool IsRolledUp;");
+    expect(lines).not.toContain("--- Settings.cs ---");
+  });
+
   it("never reads a path outside the project", () => {
     expect(referenceContext(project(), ["../../etc/passwd"], []).join("\n")).not.toContain("passwd ---");
   });
