@@ -66,7 +66,13 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
   );
 }
 
-const VERDICT_TONE = { verified: "ok", partial: "warn", unfinished: "bad" } as const;
+/** A work item's request shortened to its first sentence (about 40 characters) for a list row. */
+const shortTitle = (objective: string) => {
+  const first = objective.split(/[。\n]/)[0].trim();
+  return first.length > 40 ? `${first.slice(0, 40)}…` : first;
+};
+
+const VERDICT_TONE ={ verified: "ok", partial: "warn", unfinished: "bad" } as const;
 const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認" };
 
 /** What was done, how far it was actually checked, and what was not checked. */
@@ -95,16 +101,33 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
         <div className="mt-3 space-y-3.5 text-[12.5px] leading-relaxed">
           <section>
             <p className="mb-1 font-semibold">やったこと</p>
-            <ul className="space-y-1">
-              {report.tasks.map((t) => (
-                <li key={t.id} className="flex items-start gap-2">
-                  <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span>
-                  <span className="line-clamp-2 min-w-0 flex-1" title={t.objective}>{t.objective}</span>
-                  <span className={`shrink-0 text-[11.5px] ${t.inconclusive ? "text-[#9B6A12]" : "text-muted"}`}>
-                    {t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}
-                  </span>
-                </li>
-              ))}
+            <ul className="divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
+              {report.tasks.map((t) => {
+                const ok = t.status === "completed";
+                const short = shortTitle(t.objective);
+                const check = t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし";
+                return (
+                  <li key={t.id} className="px-3 py-2">
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-px ${ok ? "text-status-done" : "text-[#9B2C2C]"}`}>{ok ? "✓" : "✕"}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{short}</p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted">
+                          {t.role && <span>{roleLabel(t.role)}</span>}
+                          <span className={t.inconclusive ? "font-semibold text-[#9B6A12]" : ""}>{check}</span>
+                          {t.attempts > 1 && <span>{t.attempts}回実行</span>}
+                        </p>
+                        {short !== t.objective && (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-[11.5px] text-accent">くわしい依頼内容</summary>
+                            <p className="mt-1 whitespace-pre-wrap text-[12px] text-muted">{t.objective}</p>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </section>
           <section className="rounded-md bg-[#FBF3E0] px-3 py-2">
