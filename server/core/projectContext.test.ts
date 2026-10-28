@@ -83,6 +83,16 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).toContain("--- Views/Rollup.cs ---");
   });
 
+  it("when the blocks do not all fit, keeps the one that declares the named method over many that only mention it", () => {
+    const root = project();
+    const mention = (i: number) => `    void User${i}()\n    {\n${"        // filler filler filler filler filler filler\n".repeat(20)}        ToggleRollup();\n    }\n`;
+    const many = Array.from({ length: 12 }, (_, i) => mention(i)).join("\n");
+    const decl = `    void ToggleRollup()\n    {\n        // THE REAL BODY\n    }\n`;
+    writeFileSync(path.join(root, "Many.cs"), `class M\n{\n${many}\n${decl}}\n` + "// filler\n".repeat(200));
+    const lines = referenceContext(root, ["Many.cs"], ["ToggleRollup を調べる"], 8_000).join("\n");
+    expect(lines).toContain("THE REAL BODY");
+  });
+
   it("never reads a path outside the project", () => {
     expect(referenceContext(project(), ["../../etc/passwd"], []).join("\n")).not.toContain("passwd ---");
   });

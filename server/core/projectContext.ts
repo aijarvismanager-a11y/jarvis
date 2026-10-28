@@ -114,25 +114,62 @@ function enclosingBlock(rows: string[], i: number): [number, number] {
 }
 
 /** The lines of `text` that mention a token (lower-cased), with 2 lines of context and line numbers; score = number of hits. */
-function matchSnippet(text: string, lowerTokens: string[]): { score: number; snippet: string[] } {
+function matchSnippet(text: string, lowerTokens: string[], maxChars = Infinity): { score: number; snippet: string[] } {
   const rows = text.split(/\r?\n/);
-  const keep = new Set<number>();
   let score = 0;
+  let ranges: { from: number; to: number; weight: number }[] = [];
   rows.forEach((row, i) => {
     const r = row.toLowerCase();
     const hits = lowerTokens.filter((t) => r.includes(t)).length;
     if (hits) {
       score += hits;
       const [from, to] = enclosingBlock(rows, i);
-      for (let k = from; k <= to; k++) keep.add(k);
+      // the line that declares the thing the task names (a definition, not a mention) is what a question about it needs most
+      const declares = /^\s*(public|private|protected|internal|static|async|void|function|def|class|export)\b/.test(row) || /\)\s*\{?\s*$/.test(row.trimEnd());
+      ranges.push({ from, to, weight: hits + (declares ? 5 : 0) });
     }
   });
+  // overlapping blocks become one, with their weights added
+  ranges.sort((a, b) => a.from - b.from);
+  const merged: typeof ranges = [];
+  for (const g of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && g.from <= last.to) {
+      last.to = Math.max(last.to, g.to);
+      last.weight += g.weight;
+    } else merged.push({ ...g });
+  }
+  ranges = merged;
+  // too much for the box: keep the heaviest blocks that fit, whole (never a block cut in half), and show them in file order
+  const sizeOf = (g: { from: number; to: number }) => rows.slice(g.from, g.to + 1).reduce((n, row) => n + row.length + 8, 0);
+  let kept = ranges;
+  if (ranges.reduce((n, g) => n + sizeOf(g), 0) > maxChars) {
+    kept = [];
+    let used = 0;
+    for (const g of [...ranges].sort((a, b) => b.weight / Math.sqrt(sizeOf(b)) - a.weight / Math.sqrt(sizeOf(a)))) {
+      const size = sizeOf(g);
+      if (used + size > maxChars) continue;
+      kept.push(g);
+      used += size;
+    }
+    if (kept.length === 0 && ranges.length > 0) {
+      // one block alone is bigger than the box: its start is better than nothing
+      const top = [...ranges].sort((a, b) => b.weight - a.weight)[0];
+      let to = top.from;
+      let used = 0;
+      while (to <= top.to && used + rows[to].length + 8 <= maxChars) used += rows[to++].length + 8;
+      kept = [{ from: top.from, to: Math.max(top.from, to - 1), weight: top.weight }];
+    }
+    kept.sort((a, b) => a.from - b.from);
+  }
   const snippet: string[] = [];
   let prev = -2;
-  for (const i of [...keep].sort((a, b) => a - b)) {
-    if (i !== prev + 1) snippet.push("...");
-    snippet.push(`${i + 1}: ${rows[i]}`);
-    prev = i;
+  for (const g of kept) {
+    for (let i = g.from; i <= g.to; i++) {
+      if (i !== prev + 1) snippet.push("...");
+      snippet.push(`${i + 1}: ${rows[i]}`);
+      prev = i;
+    }
   }
   return { score, snippet };
 }
@@ -186,8 +223,9 @@ export function referenceContext(root: string, refs: string[], texts: string[], 
       const whole = readFileSync(abs, "utf8");
       // A file too long to show whole: show the lines that mention the task's identifiers instead of its first screenful.
       let snippet = !named.has(rel) ? keywordHits.get(rel) : undefined;
-      if (!snippet && whole.length > perFile && tokens.length) {
-        const m = matchSnippet(whole, tokens.map((t) => t.toLowerCase()));
+      if (whole.length > perFile && tokens.length) {
+        // a long file: the blocks that matter most, whole, within what this site takes (not the first screenful, not blocks cut in half)
+        const m = matchSnippet(whole, tokens.map((t) => t.toLowerCase()), perFile);
         if (m.score > 0) snippet = m.snippet;
       }
       const body = snippet ? snippet.join("\n").slice(0, perFile) : whole.slice(0, perFile);
