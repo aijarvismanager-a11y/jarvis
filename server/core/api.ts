@@ -17,7 +17,7 @@ import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from 
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
 import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
-import { DEFAULT_KEEP_BACKUPS, applySync, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -341,6 +341,35 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null });
     }),
   );
+  // The original changed in another tool: bring in what the copy never touched, but only while no request is running (a request may be
+  // reading those files). Changed-on-both-sides files and deletions stay for the user to decide. Setting autoPullSync = false turns it off.
+  const AUTO_PULL_EVERY_MS = 60_000;
+  let autoPulling = false;
+  const autoPullTimer = setInterval(() => {
+    if (autoPulling || !deps.syncBackupsRoot || store.getSetting<boolean>("autoPullSync", true) === false) return;
+    autoPulling = true;
+    void (async () => {
+      for (const project of store.listProjects()) {
+        const projectId = project.id;
+        const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
+        if (!link || syncBusy.has(projectId) || store.listMissions(projectId).some((m) => m.status === "running")) continue;
+        try {
+          const root = projectDir(store.projectsRoot, projectId);
+          const paths = autoPullPaths((await computeDiffsAsync(link, root)).pull);
+          if (paths.length === 0) continue;
+          const dir = pullDir(path.join(deps.syncBackupsRoot!, projectId));
+          const r = await withSyncLock(projectId, () => applySync(link, root, dir, { only: paths }, "pull"));
+          store.setSetting(linkKey(projectId), r.link);
+          summaryCache.delete(projectId);
+          pruneBackups(dir, store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS));
+          store.appendEvent({ projectId, type: "SYNC_AUTO_PULLED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, backup: r.backup?.id ?? null } });
+        } catch {
+          /* the original is gone or busy: try again next round */
+        }
+      }
+    })().finally(() => { autoPulling = false; });
+  }, AUTO_PULL_EVERY_MS);
+  autoPullTimer.unref();
   router.post(
     "/projects/:projectId/sync/restore",
     syncGuarded(async (req, res, { projectId, link, backupDir }) => {

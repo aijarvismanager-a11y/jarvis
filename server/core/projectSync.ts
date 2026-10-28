@@ -120,6 +120,9 @@ export async function computeDiffsAsync(link: SyncLink, projectRoot: string): Pr
   return { push: diffOf(link, copy, source), pull: diffOf(link, source, copy) };
 }
 
+/** What may be taken over from the original without asking: changed or added there, and not touched in the copy. Deletions always wait for the user. */
+export const autoPullPaths = (pull: SyncEntry[]): string[] => pull.filter((e) => !e.conflict && e.kind !== "deleted").map((e) => e.path);
+
 export type ApplyOptions = { /** only these project-relative paths (default: every pending change) */ only?: string[]; /** also delete, in the original, files deleted in the copy */ deletes?: boolean; /** overwrite files the original changed as well */ overwriteConflicts?: boolean };
 
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, w
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { applySync, computeDiff, computeDiffsAsync, hashTree, listBackups, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { applySync, autoPullPaths, computeDiff, computeDiffsAsync, hashTree, listBackups, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -151,3 +151,10 @@ describe("project sync", () => {
   });
 });
 
+
+describe("what is taken over from the original automatically", () => {
+  it("only files the copy never touched, and never deletions", () => {
+    const entry = (p: string, kind: "added" | "modified" | "deleted", conflict: boolean) => ({ path: p, kind, conflict });
+    expect(autoPullPaths([entry("a", "modified", false), entry("b", "added", false), entry("c", "modified", true), entry("d", "deleted", false)])).toEqual(["a", "b"]);
+  });
+});

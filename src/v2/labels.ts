@@ -105,6 +105,7 @@ export const EVENT_LABEL: Record<string, string> = {
   WEB_AI_SWITCHED: "ブラウザAIの利用を切替",
   WEB_AI_FALLBACK: "ブラウザAIから切り替え",
   WEB_AI_AUTOMATION_FAILED: "ブラウザAIの自動操作に失敗",
+  SYNC_AUTO_PULLED: "元のフォルダの変更を自動で取り込んだ",
   SYNC_RESTORED: "同期の内容を元に戻した",
   LOCK_ACQUIRED: "作業の排他を確保",
   LOCK_RELEASED: "作業の排他を解放",

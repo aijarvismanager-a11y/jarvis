@@ -66,11 +66,13 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
   );
 }
 
-/** A work item's request shortened to its first sentence (about 40 characters) for a list row. */
-const shortTitle = (objective: string) => {
-  const first = objective.split(/[。\n]/)[0].trim();
-  return first.length > 40 ? `${first.slice(0, 40)}…` : first;
-};
+/** A request as bullet points: one per numbered item "(1) ..." and per sentence, nothing cut. */
+const toBullets = (text: string): string[] =>
+  text
+    .split(/(?=[(（]\d+[)）])/)
+    .flatMap((part) => part.replace(/^[(（]\d+[)）]\s*/, "").split(/(?<=。)|\n/))
+    .map((s) => s.trim().replace(/[。\s]+$/, ""))
+    .filter(Boolean);
 
 const VERDICT_TONE ={ verified: "ok", partial: "warn", unfinished: "bad" } as const;
 const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認" };
@@ -102,27 +104,22 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
           <section>
             <p className="mb-1 font-semibold">やったこと</p>
             <ul className="divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
-              {report.tasks.map((t) => {
+              {report.tasks.map((t, i) => {
                 const ok = t.status === "completed";
-                const short = shortTitle(t.objective);
                 const check = t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし";
                 return (
                   <li key={t.id} className="px-3 py-2">
                     <div className="flex items-start gap-2">
                       <span className={`mt-px ${ok ? "text-status-done" : "text-[#9B2C2C]"}`}>{ok ? "✓" : "✕"}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium">{short}</p>
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted">
-                          {t.role && <span>{roleLabel(t.role)}</span>}
-                          <span className={t.inconclusive ? "font-semibold text-[#9B6A12]" : ""}>{check}</span>
-                          {t.attempts > 1 && <span>{t.attempts}回実行</span>}
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="font-semibold">作業{i + 1}{t.role ? `:${roleLabel(t.role)}` : ""}</span>
+                          <span className={`text-[11.5px] ${t.inconclusive ? "font-semibold text-[#9B6A12]" : "text-muted"}`}>{check}</span>
+                          {t.attempts > 1 && <span className="text-[11.5px] text-muted">{t.attempts}回実行</span>}
                         </p>
-                        {short !== t.objective && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-[11.5px] text-accent">くわしい依頼内容</summary>
-                            <p className="mt-1 whitespace-pre-wrap text-[12px] text-muted">{t.objective}</p>
-                          </details>
-                        )}
+                        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12px] text-muted">
+                          {toBullets(t.objective).map((b, j) => <li key={j}>{b}</li>)}
+                        </ul>
                       </div>
                     </div>
                   </li>
