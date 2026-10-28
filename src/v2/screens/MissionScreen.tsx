@@ -72,7 +72,7 @@ const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テ�
 /** What was done, how far it was actually checked, and what was not checked. */
 function ReportPanel({ projectId, missionId, status }: { projectId: string; missionId: string; status: string }) {
   const [report, setReport] = useState<MissionReport | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<boolean | null>(null); // null = default: open unless everything was verified
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -81,32 +81,41 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
   }, [projectId, missionId, status]);
   if (!report) return null;
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
+  const isOpen = open ?? report.verdict !== "verified";
+  const done = report.tasks.filter((t) => t.status === "completed").length;
   return (
-    <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3 py-2">
+    <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[13px] font-semibold">完了検証レポート</span>
         <Badge tone={VERDICT_TONE[report.verdict]}>{report.verdictLabel}</Badge>
-        <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "詳しく見る"}</button>
+        <span className="text-[12px] text-muted">{report.tasks.length}件の作業のうち、{done}件が終わりました</span>
+        <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!isOpen)}>{isOpen ? "閉じる" : "詳しく見る"}</button>
       </div>
-      {open && (
-        <div className="mt-2 space-y-2 text-[12.5px]">
-          <ul className="space-y-0.5">
-            {report.tasks.map((t) => (
-              <li key={t.id}>
-                <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span> {t.objective}
-                <span className="ml-2 text-muted">{t.inconclusive ? "結論が出ていない · " : ""}{t.level ? `検証: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "検証なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}</span>
-              </li>
-            ))}
-          </ul>
-          <div>
-            <p className="font-semibold">確認していないこと</p>
-            <ul className="list-disc pl-5 text-muted">{report.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
-          </div>
+      {isOpen && (
+        <div className="mt-3 space-y-3.5 text-[12.5px] leading-relaxed">
+          <section>
+            <p className="mb-1 font-semibold">やったこと</p>
+            <ul className="space-y-1">
+              {report.tasks.map((t) => (
+                <li key={t.id} className="flex items-start gap-2">
+                  <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span>
+                  <span className="min-w-0 flex-1">{t.objective}</span>
+                  <span className={`shrink-0 text-[11.5px] ${t.inconclusive ? "text-[#9B6A12]" : "text-muted"}`}>
+                    {t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="rounded-md bg-[#FBF3E0] px-3 py-2">
+            <p className="mb-1 font-semibold text-[#7A5410]">まだ確認できていないこと</p>
+            <ul className="list-disc space-y-0.5 pl-5 text-[#5A4A2A]">{report.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
+          </section>
           {report.notes.length > 0 && (
-            <div>
-              <p className="font-semibold">注意点</p>
-              <ul className="list-disc pl-5 text-muted">{report.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-            </div>
+            <section>
+              <p className="mb-1 font-semibold">気をつけること</p>
+              <ul className="list-disc space-y-0.5 pl-5 text-muted">{report.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+            </section>
           )}
           <Button variant="ghost" onClick={copy}>{copied ? "コピーしました" : "Markdownでコピー"}</Button>
         </div>

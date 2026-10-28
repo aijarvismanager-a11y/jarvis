@@ -1,5 +1,5 @@
 import { projectDir } from "./paths.ts";
-import { referenceContext } from "./projectContext.ts";
+import { referenceBudget, referenceContext } from "./projectContext.ts";
 import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -179,7 +179,7 @@ export class WebAiExecutor implements TaskExecutor {
     if (!svc) return { ok: false, summary: "担当のWeb AIが選ばれていません" };
 
     const outputPaths = webOutputPaths(task);
-    const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), references: this.referenceLines(task, ctx.mission.goal), outputPaths, previousFailure: this.previousFailure(task) });
+    const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), references: this.referenceLines(task, ctx.mission.goal, svc.id), outputPaths, previousFailure: this.previousFailure(task) });
     const site = resolveSiteProfile(this.store, svc.id);
     const driver = this.opts.driver && site && svc.url ? this.opts.driver : null;
     let level: 1 | 2 | 3 = driver ? (Math.min(3, Math.max(1, svc.automationLevel)) as 1 | 2 | 3) : 1;
@@ -406,9 +406,9 @@ export class WebAiExecutor implements TaskExecutor {
   // ---- context for the prompt -------------------------------------------------
   /** Web AIs cannot see the project folder, so earlier results are quoted (shortened) into the prompt. */
   /** The AI cannot open the project's files: its file list and the files the task names go into the prompt. */
-  private referenceLines(task: Task, goal = ""): string[] {
+  private referenceLines(task: Task, goal = "", aiId?: string): string[] {
     try {
-      return referenceContext(projectDir(this.store.projectsRoot, task.projectId), task.inputs, [task.objective, ...task.inputs, ...task.constraints, goal]);
+      return referenceContext(projectDir(this.store.projectsRoot, task.projectId), task.inputs, [task.objective, ...task.inputs, ...task.constraints, goal], referenceBudget(aiId));
     } catch {
       return [];
     }

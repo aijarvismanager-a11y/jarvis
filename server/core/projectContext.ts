@@ -10,7 +10,11 @@ const SECRET_NAME = /(^\.env)|\.(pem|key|pfx|p12)$|secret|credential|id_rsa|pass
 export const MAX_TREE_FILES = 80;
 export const MAX_REF_FILE_CHARS = 12_000;
 export const MAX_REF_TOTAL_CHARS = 30_000;
-const MAX_REF_FILES = 5;
+const MAX_REF_FILES = 6;
+
+/** How many characters of project files each site takes in one prompt (its box and context differ a lot; a cautious default for unlisted ones). */
+const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 100_000, gemini: 100_000, chatgpt: 40_000, grok: 40_000, copilot: 6_000 };
+export const referenceBudget = (aiId?: string | null) => (aiId && REFERENCE_BUDGET[aiId]) || MAX_REF_TOTAL_CHARS;
 
 /** Relative paths (forward slashes) of the text files in the project, breadth-first so the top of the tree comes first. */
 export function listProjectFiles(root: string, limit = MAX_TREE_FILES * 4): string[] {
@@ -116,7 +120,8 @@ function matchSnippet(text: string, lowerTokens: string[]): { score: number; sni
  * Lines to add to a web AI's prompt: the file list, then the files the task refers to. `refs` are paths the task names (its inputs);
  * `texts` are the task's sentences, searched for the names of files that exist. Never reads outside `root`; empty when there is nothing.
  */
-export function referenceContext(root: string, refs: string[], texts: string[]): string[] {
+export function referenceContext(root: string, refs: string[], texts: string[], budget = MAX_REF_TOTAL_CHARS): string[] {
+  const perFile = Math.min(budget, Math.max(MAX_REF_FILE_CHARS, Math.floor(budget / 2)));
   if (!existsSync(root)) return [];
   const files = listProjectFiles(root);
   if (files.length === 0) return [];
@@ -148,18 +153,18 @@ export function referenceContext(root: string, refs: string[], texts: string[]):
   let total = 0;
   const excerpts: string[] = [];
   for (const rel of chosen) {
-    if (total >= MAX_REF_TOTAL_CHARS) break;
+    if (total >= budget) break;
     try {
       const abs = path.join(root, rel);
       if (!statSync(abs).isFile() || statSync(abs).size > 2_000_000) continue;
       const whole = readFileSync(abs, "utf8");
       // A file too long to show whole: show the lines that mention the task's identifiers instead of its first screenful.
       let snippet = !named.has(rel) ? keywordHits.get(rel) : undefined;
-      if (!snippet && whole.length > MAX_REF_FILE_CHARS && tokens.length) {
+      if (!snippet && whole.length > perFile && tokens.length) {
         const m = matchSnippet(whole, tokens.map((t) => t.toLowerCase()));
         if (m.score > 0) snippet = m.snippet;
       }
-      const body = snippet ? snippet.join("\n").slice(0, MAX_REF_FILE_CHARS) : whole.slice(0, MAX_REF_FILE_CHARS);
+      const body = snippet ? snippet.join("\n").slice(0, perFile) : whole.slice(0, perFile);
       total += body.length;
       excerpts.push(`--- ${rel} ---`, body);
     } catch {

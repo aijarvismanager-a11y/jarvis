@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildWebPrompt } from "./webAiExecutor.ts";
-import { listProjectFiles, referenceContext } from "./projectContext.ts";
+import { listProjectFiles, referenceBudget, referenceContext } from "./projectContext.ts";
 
 const project = () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "ctx-"));
@@ -54,6 +54,13 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).toContain("void ShowMenu()");
     expect(lines).toContain("step0();");
     expect(lines).not.toContain("void After()");
+  });
+
+  it("shows a long file whole when the site takes more (budget), and cuts it for a small box", () => {
+    const root = project();
+    writeFileSync(path.join(root, "Long.cs"), "// filler\n".repeat(3000) + "// THE END\n");
+    expect(referenceContext(root, ["Long.cs"], [], referenceBudget("claude-web")).join("\n")).toContain("THE END");
+    expect(referenceContext(root, ["Long.cs"], [], referenceBudget("copilot")).join("\n")).not.toContain("THE END");
   });
 
   it("never reads a path outside the project", () => {

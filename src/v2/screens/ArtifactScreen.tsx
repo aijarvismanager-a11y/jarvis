@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { formatTime } from "../labels";
@@ -75,7 +76,7 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
             ) : content === null ? (
               <p className="text-[13px] text-muted">読み込み中…</p>
             ) : shown.path.endsWith(".md") ? (
-              <div className="prose-artifact"><ReactMarkdown>{content}</ReactMarkdown></div>
+              <div className="prose-artifact"><ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown></div>
             ) : (
               <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink p-3.5 font-mono text-[12px] leading-relaxed text-[#E9E4D9]">{content}</pre>
             )}
