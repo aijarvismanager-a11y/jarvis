@@ -39,6 +39,13 @@ describe("what a browser AI is shown of the project", () => {
     expect(lines).not.toContain("--- Settings.cs ---");
   });
 
+  it("shows the lines that mention the task's identifiers when a named file is too long to show whole", () => {
+    const root = project();
+    writeFileSync(path.join(root, "Big.cs"), "// filler\n".repeat(900) + "void ShowTitleBarMenu() { }\n" + "// filler\n".repeat(50));
+    const lines = referenceContext(root, ["Big.cs"], ["ShowTitleBarMenu を確認する"]).join("\n");
+    expect(lines).toContain("901: void ShowTitleBarMenu() { }");
+  });
+
   it("never reads a path outside the project", () => {
     expect(referenceContext(project(), ["../../etc/passwd"], []).join("\n")).not.toContain("passwd ---");
   });

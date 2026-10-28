@@ -62,28 +62,35 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
     } catch {
       continue;
     }
-    const rows = text.split(/\r?\n/);
-    const keep = new Set<number>();
-    let score = lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
-    rows.forEach((row, i) => {
-      const r = row.toLowerCase();
-      const hits = lower.filter((t) => r.includes(t)).length;
-      if (hits) {
-        score += hits;
-        for (let k = Math.max(0, i - 2); k <= Math.min(rows.length - 1, i + 2); k++) keep.add(k);
-      }
-    });
+    const m = matchSnippet(text, lower);
+    const score = m.score + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
     if (score === 0) continue;
-    const snippet: string[] = [];
-    let prev = -2;
-    for (const i of [...keep].sort((a, b) => a - b)) {
-      if (i !== prev + 1) snippet.push("...");
-      snippet.push(`${i + 1}: ${rows[i]}`);
-      prev = i;
-    }
-    scored.push({ rel, score, snippet });
+    scored.push({ rel, score, snippet: m.snippet });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, max);
+}
+
+/** The lines of `text` that mention a token (lower-cased), with 2 lines of context and line numbers; score = number of hits. */
+function matchSnippet(text: string, lowerTokens: string[]): { score: number; snippet: string[] } {
+  const rows = text.split(/\r?\n/);
+  const keep = new Set<number>();
+  let score = 0;
+  rows.forEach((row, i) => {
+    const r = row.toLowerCase();
+    const hits = lowerTokens.filter((t) => r.includes(t)).length;
+    if (hits) {
+      score += hits;
+      for (let k = Math.max(0, i - 2); k <= Math.min(rows.length - 1, i + 2); k++) keep.add(k);
+    }
+  });
+  const snippet: string[] = [];
+  let prev = -2;
+  for (const i of [...keep].sort((a, b) => a - b)) {
+    if (i !== prev + 1) snippet.push("...");
+    snippet.push(`${i + 1}: ${rows[i]}`);
+    prev = i;
+  }
+  return { score, snippet };
 }
 
 /**
@@ -126,8 +133,14 @@ export function referenceContext(root: string, refs: string[], texts: string[]):
     try {
       const abs = path.join(root, rel);
       if (!statSync(abs).isFile() || statSync(abs).size > 2_000_000) continue;
-      const snippet = !named.has(rel) ? keywordHits.get(rel) : undefined;
-      const body = snippet ? snippet.join("\n").slice(0, MAX_REF_FILE_CHARS) : readFileSync(abs, "utf8").slice(0, MAX_REF_FILE_CHARS);
+      const whole = readFileSync(abs, "utf8");
+      // A file too long to show whole: show the lines that mention the task's identifiers instead of its first screenful.
+      let snippet = !named.has(rel) ? keywordHits.get(rel) : undefined;
+      if (!snippet && whole.length > MAX_REF_FILE_CHARS && tokens.length) {
+        const m = matchSnippet(whole, tokens.map((t) => t.toLowerCase()));
+        if (m.score > 0) snippet = m.snippet;
+      }
+      const body = snippet ? snippet.join("\n").slice(0, MAX_REF_FILE_CHARS) : whole.slice(0, MAX_REF_FILE_CHARS);
       total += body.length;
       excerpts.push(`--- ${rel} ---`, body);
     } catch {
