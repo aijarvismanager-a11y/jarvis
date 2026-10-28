@@ -58,7 +58,7 @@ describe("what a browser AI is shown of the project", () => {
 
   it("shows a long file whole when the site takes more (budget), and cuts it for a small box", () => {
     const root = project();
-    writeFileSync(path.join(root, "Long.cs"), "// filler\n".repeat(3000) + "// THE END\n");
+    writeFileSync(path.join(root, "Long.cs"), "// filler\n".repeat(2500) + "// THE END\n");
     expect(referenceContext(root, ["Long.cs"], [], referenceBudget("claude-web")).join("\n")).toContain("THE END");
     expect(referenceContext(root, ["Long.cs"], [], referenceBudget("copilot")).join("\n")).not.toContain("THE END");
   });

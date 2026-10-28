@@ -14,8 +14,8 @@ const MAX_NAMED_FILES = 4;
 const MAX_KEYWORD_FILES = 4;
 const DOC_EXTENSIONS = new Set([".md", ".txt"]);
 
-/** How many characters of project files each site takes in one prompt (its box and context differ a lot; a cautious default for unlisted ones). */
-const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 100_000, gemini: 100_000, chatgpt: 40_000, grok: 40_000, copilot: 6_000 };
+/** How many characters of project files each site takes in one prompt (measured 2026-10-28 by sending a prompt whose last line held the answer: Gemini read 30k in ~45 s, Grok 40k in ~70 s, ChatGPT refused 40k as too long after ~6 min of typing it in; Claude is set below what it took; unlisted sites get a cautious default). */
+const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 60_000, gemini: 30_000, chatgpt: 10_000, grok: 40_000, copilot: 6_000 };
 export const referenceBudget = (aiId?: string | null) => (aiId && REFERENCE_BUDGET[aiId]) || MAX_REF_TOTAL_CHARS;
 
 /** Relative paths (forward slashes) of the text files in the project, breadth-first so the top of the tree comes first. */

@@ -4,6 +4,7 @@ import { botCheckExclusions } from "./botCheck.ts";
 import { aiUsage, chooseAi, pickBalanced } from "./aiBroker.ts";
 import type { ExecutionResult } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
+import { referenceBudget } from "./projectContext.ts";
 import { isIntegrationTask } from "./taskValidator.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { WEB_ADAPTER_TYPES } from "./webHandoff.ts";
@@ -167,11 +168,20 @@ export async function reviewTask(input: { store: Store; reviewer: AiReviewer; mi
   const picked = pickReviewer(store, task.selectedAi, task.role, task.id);
   if (!picked) return skip("別のメーカーの、全自動で使えるAIがありません");
   const { svc } = picked;
+  // what this site takes in one prompt (ChatGPT refuses a long one): the files are cut to fit before they are sent
+  let room = Math.min(MAX_TOTAL_CHARS, referenceBudget(svc.id));
+  const fitted = files
+    .map((f) => {
+      const text = f.text.slice(0, Math.max(0, room));
+      room -= text.length;
+      return { ...f, text, cut: f.cut || text.length < f.text.length };
+    })
+    .filter((f) => f.text.length > 0);
   const author = (task.selectedAi && store.getAiService(task.selectedAi)?.name) || "Claude Code";
 
   store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_REQUESTED", payload: { reviewer: svc.id, why: reason } });
   const started = Date.now();
-  const answer = await reviewer.ask({ svc, prompt: buildReviewPrompt({ task, mission, author, files }), task, signal });
+  const answer = await reviewer.ask({ svc, prompt: buildReviewPrompt({ task, mission, author, files: fitted }), task, signal });
   if (signal.aborted) return null;
   if (!answer.ok) {
     store.recordAiRun({ projectId, taskId: task.id, aiId: svc.id, executor: "ai-review", automationLevel: 3, status: "failed", summary: `追加レビューに失敗: ${answer.error}`, durationMs: Date.now() - started });
