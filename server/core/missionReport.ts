@@ -21,6 +21,8 @@ export type ReportTask = {
   durationMs: number;
   costUsd: number | null;
   files: string[];
+  /** the deliverable itself says it could not check / could not read what it was asked about */
+  inconclusive: boolean;
 };
 export type MissionReport = {
   missionId: string;
@@ -35,7 +37,12 @@ export type MissionReport = {
   markdown: string;
 };
 
-export function buildMissionReport(store: Store, projectId: string, missionId: string): MissionReport {
+/** Phrases a deliverable uses to admit it did not actually find out what it was asked. */
+const ADMISSION = /未確認|読めて(い)?ない|読めなかった|確認できて(い)?ない|確認できなかった|確認でき(ませ|ま)ん|実ファイルが(ない|存在しな)|見つからなかった/g;
+export const INCONCLUSIVE_AT = 3;
+
+/** readArtifact returns the text of a deliverable (null when unreadable); without it, deliverable contents are not judged. */
+export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null): MissionReport {
   const mission = store.getMission(projectId, missionId);
   if (!mission) throw new Error("依頼が見つかりません");
   const tasks = store.listTasks(projectId).filter((t) => t.missionId === missionId).sort((a, b) => a.position - b.position);
@@ -52,6 +59,8 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     const last = passed[passed.length - 1];
     const myRuns = runs.filter((r) => r.task_id === t.id);
     const costs = myRuns.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
+    const files = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))];
+    const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => n + ((readArtifact(f) ?? "").match(ADMISSION)?.length ?? 0), 0) : 0;
     return {
       id: t.id,
       role: t.role,
@@ -64,7 +73,8 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       attempts: myRuns.length,
       durationMs: myRuns.reduce((s, r) => s + (Number(r.duration_ms) || 0), 0),
       costUsd: costs.length ? costs.reduce((s, c) => s + c, 0) : null,
-      files: [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))],
+      files,
+      inconclusive: admissions >= INCONCLUSIVE_AT,
     };
   });
 
@@ -75,6 +85,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (code.some((t) => t.level < 3)) notChecked.push("自動テストが走っていないコード作業があります(プロジェクトにテストスクリプトが無い、または検証が構文チェックまでです)");
   if (code.length > 0 && !code.some((t) => t.level >= 4)) notChecked.push("アプリを実際に起動して画面を開く検証(L4)は通っていません。「動かして見る」で実際に動くか確かめてください");
   if (done.some((t) => !t.isCode)) notChecked.push("調査・設計・ドキュメントの内容が正しいかは自動では検証していません(成果物ファイルの存在のみ確認)");
+  for (const t of done.filter((x) => x.inconclusive)) notChecked.unshift(`「${t.objective.slice(0, 40)}」の成果物は、確認できなかったと書いています。聞いたことの答えが出ていません(元のファイルを渡せていない可能性があります)`);
   notChecked.push("画面や機能が、あなたの要望どおりかどうかは人の目での確認が必要です");
 
   const notes: string[] = [];
@@ -88,7 +99,8 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`「${t.objective.slice(0, 40)}」は完了していません(${t.status})`);
 
   const verdict: MissionReport["verdict"] = !finished ? "unfinished" : code.length > 0 && code.every((t) => t.level >= 3) && code.some((t) => t.level >= 4) ? "verified" : "partial";
-  const verdictLabel = verdict === "verified" ? "検証済み(自動テストと起動確認まで通過)" : verdict === "partial" ? "完了(ただし検証は一部のみ)" : "未完了";
+  const inconclusive = done.some((t) => t.inconclusive);
+  const verdictLabel = verdict === "verified" ? "検証済み(自動テストと起動確認まで通過)" : verdict === "partial" ? (inconclusive ? "作業は終わったが、結論が出ていない" : "完了(ただし検証は一部のみ)") : "未完了";
 
   const durationMs = runs.reduce((s, r) => s + (Number(r.duration_ms) || 0), 0);
   const costs = runs.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
@@ -100,7 +112,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     `判定: **${verdictLabel}**`,
     "",
     "## 作業ごとの結果",
-    ...reportTasks.map((t) => `- [${t.status === "completed" ? "x" : " "}] ${t.objective}(${t.status}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
+    ...reportTasks.map((t) => `- [${t.status === "completed" ? "x" : " "}] ${t.objective}(${t.status}${t.inconclusive ? " / 結論が出ていない" : ""}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
     "",
     "## 確認していないこと",
     ...notChecked.map((n) => `- ${n}`),

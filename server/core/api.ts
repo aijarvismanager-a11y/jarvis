@@ -3,7 +3,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
@@ -375,7 +375,13 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     res.json(view(String(req.params.projectId), String(req.params.missionId)));
   });
   router.get("/projects/:projectId/missions/:missionId/report", (req, res) => {
-    res.json({ report: buildMissionReport(store, String(req.params.projectId), String(req.params.missionId)) });
+    res.json({ report: buildMissionReport(store, String(req.params.projectId), String(req.params.missionId), (rel) => {
+      try {
+        return readFileSync(resolveInProject(store.projectsRoot, String(req.params.projectId), rel), "utf-8").slice(0, MAX_ARTIFACT_BYTES);
+      } catch {
+        return null;
+      }
+    }) });
   });
   // Why each task has the AI it has: the selection events of the whole project (the plain events list only keeps the latest 200).
   router.get("/projects/:projectId/ai-selections", (req, res) => {

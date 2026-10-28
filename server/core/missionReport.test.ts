@@ -6,7 +6,7 @@ import { buildMissionReport } from "./missionReport.ts";
 
 const task = (key: string, role: string, dependsOn: string[] = []) => ({ key, role, objective: `${key}を行う`, inputs: [], expectedOutputs: [], constraints: [], dependsOn });
 
-async function runMission(level: number | null) {
+async function runMission(level: number | null, docRole = "documentation") {
   const db = openDatabase(":memory:");
   const store = new Store(db, "unused");
   store.createProject({ id: "p", name: "p" });
@@ -15,7 +15,7 @@ async function runMission(level: number | null) {
     executor: { name: "e", execute: async () => ({ ok: true, artifacts: ["a.js"] }) },
     validator: { validate: async () => ({ passed: true, level: level ?? 1 }) },
   });
-  const m = engine.startFixedMission({ projectId: "p", goal: "アプリ", draft: { summary: "", tasks: [task("doc", "documentation"), task("impl", "coding", ["doc"])] } });
+  const m = engine.startFixedMission({ projectId: "p", goal: "アプリ", draft: { summary: "", tasks: [task("doc", docRole), task("impl", "coding", ["doc"])] } });
   await engine.run("p", m.id);
   return { store, db, m };
 }
@@ -30,6 +30,17 @@ describe("buildMissionReport", () => {
     expect(r.notChecked.join()).toContain("起動して画面を開く");
     expect(r.tasks.find((t) => t.isCode)?.level).toBe(2);
     expect(r.markdown).toContain("確認していないこと");
+    db.close();
+  });
+  it("says so when a research deliverable admits it could not check what it was asked", async () => {
+    const { store, db, m } = await runMission(4, "review");
+    const admits = "結論: 未確認。実ファイルが読めなかった。行番号は確認できていない。";
+    const reviewTask = store.listTasks("p").find((t) => t.role === "review")!;
+    store.createArtifact({ projectId: "p", taskId: reviewTask.id, path: "review/x.md", createdBy: "test" });
+    const r = buildMissionReport(store, "p", m.id, () => admits);
+    expect(r.tasks.find((t) => !t.isCode)?.inconclusive).toBe(true);
+    expect(r.notChecked.join()).toContain("答えが出ていません");
+    expect(buildMissionReport(store, "p", m.id, () => "問題なし").tasks.some((t) => t.inconclusive)).toBe(false);
     db.close();
   });
   it("is verified only when code tasks passed tests and the integration gate ran", async () => {

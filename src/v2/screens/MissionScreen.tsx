@@ -94,7 +94,7 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
             {report.tasks.map((t) => (
               <li key={t.id}>
                 <span className={t.status === "completed" ? "text-status-done" : "text-[#9B2C2C]"}>{t.status === "completed" ? "✓" : "✕"}</span> {t.objective}
-                <span className="ml-2 text-muted">{t.level ? `検証: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "検証なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}</span>
+                <span className="ml-2 text-muted">{t.inconclusive ? "結論が出ていない · " : ""}{t.level ? `検証: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "検証なし"}{t.attempts > 1 ? ` · ${t.attempts}回実行` : ""}</span>
               </li>
             ))}
           </ul>
