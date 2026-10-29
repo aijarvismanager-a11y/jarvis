@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.47",
+    date: "2026-10-29",
+    items: ["別のプロジェクトに切り替えたとき、前のプロジェクトの「元のフォルダと違いあり」の印が、残って見えることがあったのを直しました。"],
+  },
+  {
     version: "1.5.46",
     date: "2026-10-29",
     items: ["「使うAI」に「半自動で使えるAI」の見出しを足しました。依頼の文はアプリが入れ、送信ボタンとロボット確認は、あなたが操作するAIです(Copilot など)。半自動のAIは、ロボット確認が出ても、自動の選択から外しません(その場に、あなたがいるため)。"],

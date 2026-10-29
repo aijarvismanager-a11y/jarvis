@@ -120,9 +120,15 @@ export default function V2App() {
   usePoll(async () => setBrowserWindow(await api.browserStatus().catch(() => null)), 4000, []);
   const pollCount = useRef(0);
   // Differences between the working copy and the folder it was imported from (cheap on the server, so polled slowly).
-  const [sync, setSync] = useState<SyncSummary | null>(null);
+  const [syncOf, setSyncOf] = useState<{ projectId: string; summary: SyncSummary } | null>(null);
+  // A slow answer for the project that was open before must not show on the one open now (a big folder takes seconds to compare).
+  const sync = syncOf && syncOf.projectId === projectId ? syncOf.summary : null;
   // Hashing a big folder blocks the server for seconds, so wait until the first screen has loaded.
-  usePoll(async () => setSync(projectId && loaded ? await api.syncSummary(projectId) : null), 30000, [projectId, loaded]);
+  usePoll(async () => {
+    if (!projectId || !loaded) return void setSyncOf(null);
+    const asked = projectId;
+    setSyncOf({ projectId: asked, summary: await api.syncSummary(asked) });
+  }, 30000, [projectId, loaded]);
 
   const refresh = usePoll(
     async () => {
