@@ -222,28 +222,28 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         {web?.available && web.browserAvailable && ready.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">ブラウザ上の自動で使えるAI({ready.length}件)</h3>
-            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
+            <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
           </>
         )}
         {web?.available && web.browserAvailable && semi.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">半自動で使えるAI({semi.length}件)</h3>
             <p className="text-[12px] text-muted">アプリが依頼の文を入力欄に入れます。<b>送信ボタンは、あなたが押します</b>。ロボット確認が出たときも、ご自身で通してください。返事はアプリが読み取ります。作業が回ってきたときは、画面で知らせます。</p>
-            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{semi.map(renderRow)}</ul>
+            <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{semi.map(renderRow)}</ul>
           </>
         )}
         {web?.available && web.browserAvailable && resting.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">いま休んでいるAI({resting.length}件)</h3>
             <p className="text-[12px] text-muted">サイトの利用上限に達したAIです。時間がたつと自動で戻ります。その間は、ほかのAIが引き受けます。</p>
-            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{resting.map(renderRow)}</ul>
+            <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{resting.map(renderRow)}</ul>
           </>
         )}
         {web?.available && web.browserAvailable && notReady.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">まだ使えないAI({notReady.length}件)</h3>
             <p className="text-[12px] text-muted">使いたいAIだけ、「ログインして使えるようにする」を押してください。使わないAIは、そのままで大丈夫です。</p>
-            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{notReady.map(renderRow)}</ul>
+            <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{notReady.map(renderRow)}</ul>
           </>
         )}
         <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>

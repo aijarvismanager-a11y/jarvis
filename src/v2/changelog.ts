@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.50",
+    date: "2026-10-30",
+    items: ["「使うAI」の2列の一覧で、使った回数の行がある隣のAIにつられて、行が空白で縦に伸びていたのを直しました。"],
+  },
+  {
     version: "1.5.49",
     date: "2026-10-30",
     items: ["「できたもの」のファイル一覧を、ファイル名を大きく、場所(フォルダ)をその下に小さく出すようにしました。長い名前が、単語の途中で折れなくなりました。"],
