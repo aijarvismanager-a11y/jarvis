@@ -219,7 +219,10 @@ export function referenceContext(root: string, refs: string[], texts: string[], 
     if (chosen.length < cap && !chosen.includes(rel)) chosen.push(rel);
   };
   const normalised = (s: string) => s.replace(/\\/g, "/").replace(/^\.\//, "").trim();
-  for (const r of refs.map(normalised)) {
+  // Only a few named files fit: source code goes first, notes and reports after (they are listed first as often as not).
+  const isNote = (r: string) => DOC_EXTENSIONS.has(path.extname(r).toLowerCase());
+  const orderedRefs = refs.map(normalised).sort((a, b) => Number(isNote(a)) - Number(isNote(b)));
+  for (const r of orderedRefs) {
     if (files.includes(r)) add(r);
     else for (const f of files.filter((x) => x.startsWith(r.endsWith("/") ? r : `${r}/`)).slice(0, 2)) add(f); // a folder: its first files
   }

@@ -82,6 +82,16 @@ describe("what a browser AI is shown of the project", () => {
     expect(out).toContain("var rollupItem = new MenuItem();");
   });
 
+  it("lets source files named as inputs outrank notes when more files are named than fit", () => {
+    const root = project();
+    mkdirSync(path.join(root, "docs"));
+    const notes = ["a.md", "b.md", "c.md", "d.md"].map((n) => `docs/${n}`);
+    for (const n of notes) writeFileSync(path.join(root, n), "notes about the window\n");
+    writeFileSync(path.join(root, "Win.xaml"), "<Window>marker-in-xaml</Window>\n");
+    const out = referenceContext(root, [...notes, "Win.xaml"], []).join("\n");
+    expect(out).toContain("marker-in-xaml");
+  });
+
   it("keeps room for code when earlier reports (named as inputs) repeat the task's words", () => {
     const root = project();
     mkdirSync(path.join(root, "review"));
