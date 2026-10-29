@@ -228,7 +228,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         {web?.available && web.browserAvailable && semi.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">半自動で使えるAI({semi.length}件)</h3>
-            <p className="text-[12px] text-muted">アプリが依頼の文を入力欄に入れます。<b>送信ボタンは、あなたが押します</b>。ロボット確認が出たときも、ご自身で通してください。返事はアプリが読み取ります。作業が回ってきたときは、画面で知らせます。</p>
+            <p className="text-[12px] text-muted">アプリが依頼の文を入力欄に入れ、<b>送信ボタンはあなたが押す</b>AIです(ロボット確認が出たときも、ご自身で通します)。返事はアプリが読み取ります。<b>文章の作業は、人の操作を待たずに進めるため、このAIには回りません</b>。画像・動画づくりなど、人が操作する作業で使います。</p>
             <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{semi.map(renderRow)}</ul>
           </>
         )}

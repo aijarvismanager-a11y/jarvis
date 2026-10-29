@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.54",
+    date: "2026-10-30",
+    items: ["「半自動で使えるAI」の説明を正しくしました。文章の作業は、人の操作を待たずに進めるため、半自動のAI(Copilot など)には回りません。画像・動画づくりなど、人が操作する作業で使います(1.5.46 の説明は、この点が不正確でした)。"],
+  },
+  {
     version: "1.5.53",
     date: "2026-10-30",
     items: ["「サーバーを再起動」が、画面の作成が少し遅いときの警告だけで途中で止まり、古いサーバーのまま残ることがあったのを直しました(失敗の判断は、作成の結果だけで行います)。"],
