@@ -121,4 +121,16 @@ describe("what a browser AI is shown of the project", () => {
     const prompt = buildWebPrompt({ task: { role: "design", objective: "x", inputs: [], expectedOutputs: [], constraints: [] }, mission: { goal: "g" }, context: [], references: refs, outputPaths: [] });
     expect(prompt).toContain("【参照ファイル(抜粋)】");
   });
+
+  it("on a small budget, code the task names by identifier is not crowded out by a long note, and its definition beats its callers", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "ctx-"));
+    mkdirSync(path.join(root, "src"));
+    writeFileSync(path.join(root, "SPEC.md"), "仕様\n".repeat(5000));
+    writeFileSync(path.join(root, "src", "lib.rs"), "register(cmd_apply_batch);\n".repeat(3));
+    writeFileSync(path.join(root, "src", "tag.rs"), "pub fn cmd_apply_batch(x: i32) -> i32 {\n    x + 1\n}\n");
+    const out = referenceContext(root, ["SPEC.md"], ["cmd_apply_batch を確認する"], referenceBudget("chatgpt")).join("\n");
+    expect(out).toContain("--- src/tag.rs ---");
+    expect(out).toContain("pub fn cmd_apply_batch");
+    expect(out.length).toBeLessThan(referenceBudget("chatgpt") + 3000);
+  });
 });

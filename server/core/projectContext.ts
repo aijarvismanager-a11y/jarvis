@@ -70,7 +70,10 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
     }
     const m = matchSnippet(text, lower);
     // notes and earlier reports repeat the task's words; the code is what a question about the code needs
-    const raw = m.score + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
+    // the place a name is defined says more than the places that call it or register it
+    const lowerText = text.toLowerCase();
+    const defined = lower.filter((t) => new RegExp(`\b(?:fn|def|func|function|class|struct|enum|trait|interface|type|const|let|var|void|task|sub)\s+${t.replace(/[^a-z0-9_]/g, "")}\b`).test(lowerText)).length * 8;
+    const raw = m.score + defined + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
     const score = DOC_EXTENSIONS.has(path.extname(rel).toLowerCase()) ? raw * 0.2 : raw;
     if (raw === 0) continue;
     scored.push({ rel, score, snippet: m.snippet });
@@ -249,7 +252,12 @@ export function referenceContext(root: string, refs: string[], texts: string[], 
   const lines: string[] = ["", `【プロジェクトのファイル一覧(${Math.min(files.length, MAX_TREE_FILES)}件まで)】`, ...files.slice(0, MAX_TREE_FILES)];
   let total = 0;
   const excerpts: string[] = [];
-  for (const rel of chosen) {
+  // When the task names code by its identifiers, that code is what the AI needs: it goes before the named notes and reports,
+  // and a note may take only part of a small budget (a long spec must not use up all of ChatGPT's 10k).
+  const isNoteFile = (r: string) => named.has(r) && DOC_EXTENSIONS.has(path.extname(r).toLowerCase());
+  const hasCodeHits = keywordHits.size > 0;
+  const shown = hasCodeHits ? [...chosen.filter((r) => !isNoteFile(r)), ...chosen.filter(isNoteFile)] : chosen;
+  for (const rel of shown) {
     if (total >= budget) break;
     try {
       const abs = path.join(root, rel);

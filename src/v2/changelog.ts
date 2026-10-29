@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.33",
+    date: "2026-10-29",
+    items: [
+      "ブラウザ上のAIに渡す資料の選び方を、Gage以外の3つのプロジェクト(Rust+TypeScript、Python、Next.js)で確かめました。課題で名指しした関数が、容量の小さいAI(ChatGPTなど)でも見つかるようにしました。",
+      "長い仕様書・メモが先に容量を使い切らないよう、関数名で指した本体のコードを先に渡し、メモは容量の3割までにしました。関数の呼び出し側より、定義のある側を優先します。",
+    ],
+  },
+  {
     version: "1.5.32",
     date: "2026-10-29",
     items: [
