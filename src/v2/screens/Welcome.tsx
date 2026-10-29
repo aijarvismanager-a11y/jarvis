@@ -45,7 +45,8 @@ export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: ()
   return (
     <Card>
       <h2 className="font-serif text-[20px] font-semibold">AIオーケストラへようこそ</h2>
-      <p className="mt-1 text-[13px] text-[#4a473f]">作りたいものを伝えると、AI が計画を立てて、あなたのパソコン上で作ってくれるアプリです。</p>
+      <p className="mt-1 text-[13px] text-[#4a473f]">作りたいものを伝えると、AI が計画を立てて、あなたのパソコン上で作ってくれるアプリです。はじめ方は2つあります。</p>
+      <h3 className="mt-3 text-[13px] font-semibold">A. 新しく作る(下の「何を作りますか?」に書く)</h3>
       <ol className="mt-3 grid gap-2 sm:grid-cols-3">
         {STEPS.map((s) => (
           <li key={s.n} className="rounded-lg border border-borderSoft bg-bg p-3">
@@ -55,8 +56,9 @@ export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: ()
           </li>
         ))}
       </ol>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
-        <span className="text-muted">Claude Code や Codex など、ほかのツールで作っている途中のフォルダを、ここで続けたいとき:</span>
+      <h3 className="mt-3 text-[13px] font-semibold">B. 作りかけのフォルダを続ける</h3>
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px]">
+        <span className="text-muted">Claude Code や Codex などで作っている途中のフォルダを、ここで続けたいとき:</span>
         <Button variant="ghost" onClick={onImport}>ほかで作っているものを引き継ぐ</Button>
         <Button variant="ghost" onClick={onHelp}>使い方を見る</Button>
       </div>

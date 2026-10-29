@@ -3,7 +3,7 @@ import { ApiError, api } from "./api";
 import { useAction } from "./hooks";
 import { usePoll } from "./hooks";
 import type { ImportProgress, Project } from "./types";
-import { Button } from "./ui";
+import { Button, Details } from "./ui";
 
 type Heavy = { name: string; files: number; bytes: number };
 type TooLarge = { files: number; bytes: number; folders: Heavy[] };
@@ -109,13 +109,14 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
   return (
     <div className="mx-auto max-w-[1600px] px-4 pb-3">
       <div className="rounded-lg border border-borderSoft bg-bg p-3 text-[12.5px]">
-        <p className="font-semibold">Claude Code や Codex など、ほかのツールで作っている途中のフォルダを選んで、ここで続きを作るときに使います</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
-          <li>例: 以前から作っているWebサイトやアプリのフォルダ。選ぶと、このアプリに読み込んで、続きをAIに頼めます。</li>
-          <li>取り込むときは、フォルダを<b>コピー</b>して使います。元のフォルダは、あなたが内容を確認して「反映」を押すまで、変わりません。</li>
-          <li>読み込んだあと、Claude Code がフォルダの中身を調べて、「何が入っているか」のレポートを作ります。</li>
-          <li>node_modules・.git・.env(パスワードなどの秘密情報)は、読み込みません。</li>
-        </ul>
+        <h2 className="text-[13.5px] font-semibold">ほかで作っているものを引き継ぐ</h2>
+        <p className="mt-0.5">Claude Code や Codex などで作っている途中のフォルダを選ぶと、ここで続きをAIに頼めます。フォルダは<b>コピー</b>して使うので、元のフォルダは、あなたが「反映」を押すまで変わりません。</p>
+        <Details summary="くわしく(読み込むもの・読み込まないもの)">
+          <ul className="list-disc space-y-0.5 pl-5 text-muted">
+            <li>読み込んだあと、Claude Code がフォルダの中身を調べて、「何が入っているか」のレポートを作ります。</li>
+            <li>node_modules・.git・.env(パスワードなどの秘密情報)は、読み込みません。</li>
+          </ul>
+        </Details>
       </div>
       <label htmlFor="import-folder" className="mt-2 block text-[12.5px] font-semibold">取り込むフォルダ</label>
       <div className="mt-1 flex flex-wrap gap-2">
