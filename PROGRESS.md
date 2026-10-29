@@ -982,3 +982,22 @@ Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補
 - [優先度: 中] Copilot 半自動の実作業(入力欄への入力と返事の読み取り)
 - [優先度: 低] テスト `phase6.test.ts` が、まれに「bad port」(fetch の禁止ポート)で落ちる(Copilot などとは無関係の揺らぎ)
 - [優先度: 低] `browserDriver.ts` のテンプレート文字列内の `\.` が `.` になる(確認用の枠のURL判定が少しゆるい)
+
+---
+
+## 2026-10-30: 1.5.57 — Gage の調査・設計、運用の整理、インストーラ
+
+### 完了(済)
+- Gage(`projects/gage_df3cd6e6`)の調査・比較・設計を18作業で完了(調査14・設計3・レビュー1)。成果は `research/` `design/` `review/`。結論: ファイル移動は**案B(管理情報のみ変更・実ファイルは動かさない)**を採用、Portal境界をまたぐ移動はブロック。Z-order・自動整理の再設計は《暫定方針》(実機検証が前提)。サムネイルは1本化設計で合格
+- 案Bの最初の1作業(FenceItem に安定ID `Id`(Guid)を追加し、`FenceManagerService.LoadAll` で旧データに自動で付与・冪等・バックアップ前)を6作業で実行中/完了(コード変更は `FenceItem.cs` と `FenceManagerService.cs` の2か所のみ)
+- Perplexity: 「クエリが上限を○文字超えています」は**文字数の上限**。超過の文字数から上限を覚え、抜粋を削って送り直す(`WebAiPromptTooLongError`、`web_prompt_cap:<aiId>`)。画面のお知らせ(ダイアログ・トースト・バナー)の「上限」文言は即座に検知(`usageLimit.ts` と `noticeText`)
+- 完了検証レポート: 「一部未確認」と「答えが出ていない(確認できず)」を区別し、「次にすること」を追加。「未確認事項一覧」を作る作業は、「未確認」の言葉の数で判定しない
+- デスクトップ版の窓: 先に動いている別版のサーバーを、実行中でなければ自動で止めて同データで自版を起動、実行中なら終わってから自動で切り替え。窓の版を画面に出す(`AIOrchestratorDesktop/<版>`)。新しいサーバーは古い版に戻さない。疑似サーバーで確認済み
+- `scripts/restart-server.ps1`: vite の遅いビルドの警告(stderr)で再起動が中断し、古いサーバーが残る不具合を修正
+- 運用: **版は、リリース(インストーラを作るとき)にだけ上げる。画面の版 = 最新インストーラの版**(今は 1.5.57)。インストーラは `npm run dist:win`(約5分・約128MB)
+- 文書: `docs/gage-manual-verification.md`(実機検証の手順書)、`docs/pending-real-checks.md`(本物のサイトでの確認待ち)
+
+### 要確認
+- [優先度: 高] Gage の実機検証(Z-order など)。`docs/gage-manual-verification.md` の A を最優先で
+- [優先度: 中] `docs/pending-real-checks.md` の7項目
+- [優先度: 低] テスト `phase6.test.ts` が、まれに「bad port」で落ちる(無関係の揺らぎ)
