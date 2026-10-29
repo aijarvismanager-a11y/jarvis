@@ -34,7 +34,7 @@ export function botCheckExclusions(store: Store, aiIds: string[], now = Date.now
   const out: Record<string, string> = {};
   for (const id of aiIds) {
     const st = botCheckState(store, id, now);
-    if (st?.kind === "always") out[id] = "毎回ボット確認が出るため、自動では使えません(設定で確認を済ませると戻ります)";
+    if (st?.kind === "always") out[id] = "毎回ボット確認が出るため、自動では使えません(「使うAI」で確認を済ませると戻ります)";
     else if (st) out[id] = "ボット確認が出たため、しばらく休ませています(10分ほど)";
   }
   return out;

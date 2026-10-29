@@ -28,6 +28,7 @@ const SCREENS = [
   { id: "history", label: "これまでの記録" },
   { id: "artifacts", label: "できたもの" },
   { id: "projects", label: "プロジェクト一覧" },
+  { id: "ais", label: "使うAI" },
   { id: "settings", label: "設定" },
 ] as const;
 type ScreenId = (typeof SCREENS)[number]["id"];
@@ -203,7 +204,7 @@ export default function V2App() {
             <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴" aria-label="更新履歴">🆕<Label>更新履歴</Label></Button>
             <Button variant="ghost" onClick={() => setHelp(true)} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
-            <QuotaChip onOpen={() => setScreen("settings")} />
+            <QuotaChip onOpen={() => setScreen("ais")} />
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="min-w-0 max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -260,7 +261,7 @@ export default function V2App() {
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
             {screen === "projects" && <ProjectsScreen currentId={projectId} onOpen={(id, to) => { choose(id); setScreen(to); }} />}
-            {screen === "settings" && <SettingsScreen services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
+            {(screen === "ais" || screen === "settings") && <SettingsScreen section={screen === "ais" ? "ai" : "app"} services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
           </>
         )}
       </main>

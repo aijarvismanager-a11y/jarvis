@@ -159,7 +159,7 @@ export class ClaudeCodePlanner implements Planner {
     const ask = async (prompt: string) => {
       const res = await this.runner(this.command, args, { input: prompt, cwd, signal, timeoutMs: this.opts.timeoutMs ?? 5 * 60_000 });
       if (res.code !== 0) throw new Error(explainClaudeFailure(`${res.stdout}
-${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 500)}`);
+${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code}): ${(res.stderr.trim() || res.stdout.trim()).slice(-500)}`);
       return res.stdout;
     };
     const prompt = buildPlannerPrompt(request);

@@ -3,6 +3,16 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.37",
+    date: "2026-10-29",
+    items: ["依頼が失敗したとき、理由の文に合わせて次の操作を変えて出します(利用上限なら「待つか回すかを選ぶ」、ログイン切れならログインの手順、時間切れなら「依頼を小さく分ける」)。計画づくりで止まったときも、Claude Code が出した最後のメッセージを理由に添えます。"],
+  },
+  {
+    version: "1.5.36",
+    date: "2026-10-29",
+    items: ["「設定」を2つに分けました。AIの状態(自動で使える・休んでいる・確認が必要、Claude の使用量)は新しい「使うAI」タブに、動き方のオプション・フォルダの場所・プロジェクトの削除は「設定」タブにあります。"],
+  },
+  {
     version: "1.5.35",
     date: "2026-10-29",
     items: ["計画の段階で止まった依頼に、中身のない「完了検証レポート」が出ないようにしました。止まった理由だけが赤い枠に出ます。"],

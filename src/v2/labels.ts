@@ -213,21 +213,31 @@ const REASON_LABEL: Record<string, string> = {
   "no runnable tasks (retries exhausted or blocked)": "再試行しても進められない作業があり、止まりました",
 };
 
+/** The cause, when the reason's own words give it away: what to do differs a lot (wait, sign in, shorten the request). */
+function causeHint(reason: string): string | null {
+  if (/利用上限|上限に達|rate limit|usage limit|quota|overloaded|429/i.test(reason)) return "Claude の利用上限が原因のようです。画面の上の赤い枠で「リセットまで待つ」か「ほかのAIに回す」を選んでから、「やり直す」を押してください。";
+  if (/ログイン|not logged in|authentication|unauthorized|401/i.test(reason)) return "Claude Code のログインが切れているようです。「使うAI」タブで状態を確認し、ターミナルで claude と入力してログインし直してから、「やり直す」を押してください。";
+  if (/タイムアウト|timed? ?out/i.test(reason)) return "時間がかかりすぎて止まりました。依頼を小さく分けて(例: 画面ごとに)出し直すと、うまくいきやすくなります。";
+  if (/見つかりません|not recognized|enoent/i.test(reason)) return "Claude Code が見つかりません。インストールされているか、ホームの「準備」の表示を確認してください。";
+  return null;
+}
+
 /** One failed mission in plain words: what went wrong and what to do about it. */
 export function explainFailure(reason: string | null): { what: string; hint: string } {
+  const cause = reason ? causeHint(reason) : null;
   const planner = reason?.match(/^(?:planner|replan) error:\s*(.*)$/s);
   if (planner) {
     const detail = planner[1].trim();
     const crashed = /異常終了|code=\d+/.test(detail);
     return {
       what: `計画を立てる段階で失敗しました${detail ? `(${detail.replace(/[::\s]+$/, "")})` : ""}`,
-      hint: crashed
+      hint: cause ?? (crashed
         ? "Claude Code が途中で止まりました。Claude Code にログインできているか・利用上限に達していないかを確認してから、「計画をやり直す」を押してください。"
-        : "少し待ってから「計画をやり直す」を押してください。何度も失敗するときは、依頼の書き方を具体的にしてみてください。",
+        : "少し待ってから「計画をやり直す」を押してください。何度も失敗するときは、依頼の書き方を具体的にしてみてください。"),
     };
   }
   if (reason && REASON_LABEL[reason]) return { what: REASON_LABEL[reason], hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
-  if (reason) return { what: reason, hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
+  if (reason) return { what: reason, hint: cause ?? "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
   return { what: "理由の記録が見つかりませんでした", hint: "「計画をやり直す」を押すか、「新しい依頼」を出してください。" };
 }
 

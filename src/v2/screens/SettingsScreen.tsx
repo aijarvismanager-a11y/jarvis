@@ -99,7 +99,7 @@ function EnvironmentCard({ project }: { project: Project | null }) {
   );
 }
 
-export function SettingsScreen({ services, project, setError, refresh, onProjectDeleted }: { services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
+export function SettingsScreen({ section, services, project, setError, refresh, onProjectDeleted }: { section: "ai" | "app"; services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
   const [web, setWeb] = useState<WebAiSettings | null>(null);
   const { busy, run } = useAction(setError);
   const [tuning, setTuning] = useState<TuningReport | null>(null);
@@ -197,6 +197,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
 
   return (
     <div className="space-y-4">
+      {section === "ai" && (<>
       <Card title="使うAI">
         <p className="text-[13px]">
           自動で使えるAI: <b>{autoCount + (claudeCode ? 1 : 0)}件</b>。調べもの・設計・文章などは、このAIが分担します。
@@ -225,7 +226,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
             <ul className="mt-2 grid gap-2 lg:grid-cols-2">{notReady.map(renderRow)}</ul>
           </>
         )}
-        <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。上限に達して確認が出たAIは、上の「人間確認が必要」と表示され、しばらく休みます。</p>
+        <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>
         {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
         {others.length > 0 && (
           <Details summary={`画像・動画・音楽などのAI(${others.length}件・手動で使います)`}>
@@ -235,7 +236,16 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
         )}
       </Card>
 
-      <Card title="オプション">
+      {web?.available && web.browserAvailable && (
+        <Details summary="ログインがうまくいかないとき">
+          <p className="text-[12px] text-muted">ふだん使っているブラウザ(Brave)で Google にログイン済みなら、そのログイン状態をコピーできます(パスワードや履歴は含みません)。先に Brave をすべて閉じてから押してください。</p>
+          <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(${r.profile})。もう一度「ログインして使えるようにする」を押してください。`); })}>ログイン状態をコピーする</Button>
+        </Details>
+      )}
+
+      </>)}
+      {section === "app" && (<>
+      <Card title="動き方の設定">
         <div className="space-y-3 text-[13px]">
           {web?.available && (
             <label className="flex items-start gap-3">
@@ -275,15 +285,9 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
         </div>
       </Card>
 
-      {web?.available && web.browserAvailable && (
-        <Details summary="ログインがうまくいかないとき">
-          <p className="text-[12px] text-muted">ふだん使っているブラウザ(Brave)で Google にログイン済みなら、そのログイン状態をコピーできます(パスワードや履歴は含みません)。先に Brave をすべて閉じてから押してください。</p>
-          <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { const r = await api.importSignIn(); window.alert(`引き継ぎました(${r.profile})。もう一度「ログインして使えるようにする」を押してください。`); })}>ログイン状態をコピーする</Button>
-        </Details>
-      )}
-
       <Card title="フォルダと環境"><EnvironmentCard project={project} /></Card>
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
+      </>)}
     </div>
   );
 }
