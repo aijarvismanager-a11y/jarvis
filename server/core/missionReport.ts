@@ -21,8 +21,10 @@ export type ReportTask = {
   durationMs: number;
   costUsd: number | null;
   files: string[];
-  /** the deliverable itself says it could not check / could not read what it was asked about */
+  /** the deliverable itself says it could not check / could not read what it was asked about (the question is unanswered) */
   inconclusive: boolean;
+  /** the deliverable answers, but says some points are still unconfirmed ("確認状況: 一部未確認") */
+  partly: boolean;
 };
 export type MissionReport = {
   missionId: string;
@@ -32,6 +34,8 @@ export type MissionReport = {
   verdictLabel: string;
   tasks: ReportTask[];
   notChecked: string[];
+  /** what the person can do about it, in plain words */
+  nextSteps: string[];
   notes: string[];
   usage: { durationMs: number; costUsd: number | null; runs: number };
   markdown: string;
@@ -72,9 +76,13 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => {
           const text = readArtifact(f) ?? "";
           const stated = statedStatus(text);
-          if (stated) return n + (stated === "settled" ? 0 : INCONCLUSIVE_AT); // it says how far it got: take its word
+          if (stated) return n + (stated === "none" ? INCONCLUSIVE_AT : 0); // it says how far it got: take its word
+          // a deliverable whose job is to LIST the unconfirmed points ("未確認事項一覧") says "未確認" all the time: that is its content, not an admission
+          if (/未確認事項/.test(t.objective)) return n;
           return n + (text.match(ADMISSION)?.length ?? 0);
         }, 0) : 0;
+    // "一部未確認": it answered, and says which points are still open (not the same as having no answer)
+    const partly = !!readArtifact && t.status === "completed" && !isWriteTask(t) && files.some((f) => statedStatus(readArtifact(f) ?? "") === "partly");
     return {
       id: t.id,
       role: t.role,
@@ -89,6 +97,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       costUsd: costs.length ? costs.reduce((s, c) => s + c, 0) : null,
       files,
       inconclusive: admissions >= INCONCLUSIVE_AT,
+      partly,
     };
   });
 
@@ -100,7 +109,15 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (code.length > 0 && !code.some((t) => t.level >= 4)) notChecked.push("アプリを実際に起動して画面を開く検証(L4)は通っていません。「動かして見る」で実際に動くか確かめてください");
   if (done.some((t) => !t.isCode)) notChecked.push("調査・設計・ドキュメントの内容が正しいかは自動では検証していません(成果物ファイルの存在のみ確認)");
   for (const t of done.filter((x) => x.inconclusive)) notChecked.unshift(`作業${reportTasks.indexOf(t) + 1}の成果物は、確認できなかったと書いています。聞いたことの答えが出ていません(元のファイルを渡せていない可能性があります)`);
+  const partlyTasks = done.filter((x) => x.partly && !x.inconclusive);
+  if (partlyTasks.length) notChecked.unshift(`作業${partlyTasks.map((t) => reportTasks.indexOf(t) + 1).join("・")}の成果物は、答えは出していますが、「確認できていない点が残っている」と書いています。残っている点は、成果物の中の「未確認」の項に出ています`);
   notChecked.push("画面や機能が、あなたの要望どおりかどうかは人の目での確認が必要です");
+
+  const nextSteps: string[] = [];
+  const unanswered = done.filter((x) => x.inconclusive);
+  if (unanswered.length) nextSteps.push(`作業${unanswered.map((t) => reportTasks.indexOf(t) + 1).join("・")}は、聞いたことの答えが出ていません。その作業の「この作業をやり直す」を押すと、別のAIに頼み直せます。くり返すときは、依頼の範囲を絞って(対象のファイルや関数を名指しして)出し直してください`);
+  if (partlyTasks.length) nextSteps.push("「一部未確認」は、失敗ではありません。成果物の「未確認」の項を読んで、結論を変えそうな点だけ、確かめる依頼を別に出してください。変えそうにない点なら、そのまま次に進んで大丈夫です");
+  if (done.length && !unanswered.length && !partlyTasks.length && done.some((x) => !x.isCode)) nextSteps.push("調査・設計の成果物は、「できたもの」で内容を読んで、おかしな点がないか確かめてください");
 
   const notes: string[] = [];
   const retried = reportTasks.filter((t) => t.attempts > 1);
@@ -114,7 +131,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
 
   const verdict: MissionReport["verdict"] = !finished ? "unfinished" : code.length > 0 && code.every((t) => t.level >= 3) && code.some((t) => t.level >= 4) ? "verified" : "partial";
   const inconclusive = done.some((t) => t.inconclusive);
-  const verdictLabel = verdict === "verified" ? "検証済み(自動テストと起動確認まで通過)" : verdict === "partial" ? (inconclusive ? "作業は終わったが、結論が出ていない" : "完了(ただし検証は一部のみ)") : "未完了";
+  const verdictLabel = verdict === "verified" ? "検証済み(自動テストと起動確認まで通過)" : verdict === "partial" ? (inconclusive ? "作業は終わったが、答えが出ていない作業がある" : done.some((t) => t.partly) ? "完了(確認できていない点が残っています)" : "完了(ただし検証は一部のみ)") : "未完了";
 
   const durationMs = runs.reduce((s, r) => s + (Number(r.duration_ms) || 0), 0);
   const costs = runs.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
@@ -126,13 +143,14 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     `判定: **${verdictLabel}**`,
     "",
     "## 作業ごとの結果",
-    ...reportTasks.map((t, i) => `- [${t.status === "completed" ? "x" : " "}] 作業${i + 1}: ${t.objective}(${t.status}${t.inconclusive ? " / 結論が出ていない" : ""}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
+    ...reportTasks.map((t, i) => `- [${t.status === "completed" ? "x" : " "}] 作業${i + 1}: ${t.objective}(${t.status}${t.inconclusive ? " / 答えが出ていない" : t.partly ? " / 一部未確認" : ""}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
     "",
     "## 確認していないこと",
     ...notChecked.map((n) => `- ${n}`),
   ];
+  if (nextSteps.length) lines.push("", "## 次にすること", ...nextSteps.map((n) => `- ${n}`));
   if (notes.length) lines.push("", "## 注意点", ...notes.map((n) => `- ${n}`));
   lines.push("", `作業時間 ${Math.round(durationMs / 1000)}秒 / 実行${usage.runs}回${usage.costUsd != null ? ` / API換算 $${usage.costUsd.toFixed(2)}` : ""}`);
 
-  return { missionId, goal: mission.goal, status: mission.status, verdict, verdictLabel, tasks: reportTasks, notChecked, notes, usage, markdown: lines.join("\n") };
+  return { missionId, goal: mission.goal, status: mission.status, verdict, verdictLabel, tasks: reportTasks, notChecked, nextSteps, notes, usage, markdown: lines.join("\n") };
 }

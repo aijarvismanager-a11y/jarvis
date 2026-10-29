@@ -109,7 +109,7 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
             <ul className="divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
               {report.tasks.map((t, i) => {
                 const ok = t.status === "completed";
-                const check = t.inconclusive ? "結論が出ていない" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし";
+                const check = t.inconclusive ? "答えが出ていない" : t.partly ? "一部未確認" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし";
                 return (
                   <li key={t.id} className="px-3 py-2">
                     <div className="flex items-start gap-2">
@@ -117,7 +117,7 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="font-semibold">作業{i + 1}{t.role ? `:${roleLabel(t.role)}` : ""}</span>
-                          <span className={`text-[11.5px] ${t.inconclusive ? "font-semibold text-[#9B6A12]" : "text-muted"}`}>{check}</span>
+                          <span className={`text-[11.5px] ${t.inconclusive || t.partly ? "font-semibold text-[#9B6A12]" : "text-muted"}`}>{check}</span>
                           {t.attempts > 1 && <span className="text-[11.5px] text-muted">{t.attempts}回実行</span>}
                         </p>
                         <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12px] text-muted">
@@ -134,6 +134,12 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
             <p className="mb-1 font-semibold text-[#7A5410]">まだ確認できていないこと</p>
             <ul className="list-disc space-y-0.5 pl-5 text-[#5A4A2A]">{report.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
           </section>
+          {report.nextSteps && report.nextSteps.length > 0 && (
+            <section className="rounded-md bg-[#EAF0F8] px-3 py-2">
+              <p className="mb-1 font-semibold text-[#2F5A8A]">次にすること</p>
+              <ul className="list-disc space-y-0.5 pl-5 text-[#2F3F55]">{report.nextSteps.map((n) => <li key={n}>{n}</li>)}</ul>
+            </section>
+          )}
           {report.notes.length > 0 && (
             <section>
               <p className="mb-1 font-semibold">気をつけること</p>

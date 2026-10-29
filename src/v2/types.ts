@@ -94,8 +94,9 @@ export type MissionReport = {
   missionId: string;
   verdict: "verified" | "partial" | "unfinished";
   verdictLabel: string;
-  tasks: { id: string; objective: string; status: string; level: number; attempts: number; isCode: boolean; role?: string; inconclusive?: boolean }[];
+  tasks: { id: string; objective: string; status: string; level: number; attempts: number; isCode: boolean; role?: string; inconclusive?: boolean; partly?: boolean }[];
   notChecked: string[];
+  nextSteps?: string[];
   notes: string[];
   markdown: string;
 };

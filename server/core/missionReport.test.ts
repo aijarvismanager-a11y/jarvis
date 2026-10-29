@@ -49,7 +49,15 @@ describe("buildMissionReport", () => {
     store.createArtifact({ projectId: "p", taskId: reviewTask.id, path: "review/y.md", createdBy: "test" });
     const noisy = "対象外の3ファイルは未確認。読めなかった資料もある。確認できていない箇所は無関係。\n確認状況: 確定";
     expect(buildMissionReport(store, "p", m.id, () => noisy).tasks.some((t) => t.inconclusive)).toBe(false);
-    expect(buildMissionReport(store, "p", m.id, () => "結論です。\n確認状況：一部未確認").tasks.some((t) => t.inconclusive)).toBe(true);
+    // "partly confirmed" answers the question and names what is still open: not the same as "no answer"
+    const partly = buildMissionReport(store, "p", m.id, () => "結論です。\n確認状況：一部未確認");
+    expect(partly.tasks.some((t) => t.inconclusive)).toBe(false);
+    expect(partly.tasks.some((t) => t.partly)).toBe(true);
+    expect(partly.notChecked.join()).toContain("確認できていない点が残っている");
+    expect(partly.nextSteps.join("\n")).toContain("失敗ではありません");
+    const none = buildMissionReport(store, "p", m.id, () => "分かりません。\n確認状況：確認できず");
+    expect(none.tasks.some((t) => t.inconclusive)).toBe(true);
+    expect(none.nextSteps.join("\n")).toContain("この作業をやり直す");
     expect(statedStatus("確認状況: 確認できず")).toBe("none");
     expect(statedStatus("何も書いていない")).toBeNull();
     db.close();
@@ -66,5 +74,16 @@ describe("buildMissionReport", () => {
     const mission = store.createMission({ projectId: "p", goal: "g", status: "running" });
     expect(buildMissionReport(store, "p", mission.id).verdict).toBe("unfinished");
     db.close();
+  });
+
+  it("a task whose job is to list the unconfirmed points is not 'inconclusive' for saying 未確認 many times", () => {
+    const store = new Store(openDatabase(":memory:"), "unused");
+    store.createProject({ id: "p", name: "p" });
+    const m = store.createMission({ projectId: "p", goal: "g", status: "completed" });
+    const t = store.createTask({ projectId: "p", missionId: m.id, role: "review", objective: "最終の未確認事項一覧を作成する", expectedOutputs: ["review/list.md"] } as never);
+    store.setTaskStatus("p", t.id, "completed");
+    store.createArtifact({ projectId: "p", taskId: t.id, path: "review/list.md", createdBy: "x" });
+    const text = "未確認: A\n未確認: B\n未確認: C\n未確認: D";
+    expect(buildMissionReport(store, "p", m.id, () => text).tasks[0]!.inconclusive).toBe(false);
   });
 });

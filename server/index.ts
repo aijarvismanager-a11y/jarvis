@@ -151,7 +151,15 @@ const APP_VERSION = (() => {
   }
 })();
 app.get("/api/version", (_req, res) => {
-  res.json({ ...versionWatch.status(), version: APP_VERSION });
+  // `root`: where this server keeps the person's data; `busy`: a request is being worked on right now. The desktop window uses both when it
+  // has to replace a server of another version (it must not stop work in progress, and the new server has to open the same data).
+  let busy = false;
+  try {
+    busy = coreStore.db.prepare("SELECT 1 FROM missions WHERE status = 'running' LIMIT 1").get() !== undefined;
+  } catch {
+    busy = true; // cannot tell: assume work is going on
+  }
+  res.json({ ...versionWatch.status(), version: APP_VERSION, root: ROOT, busy });
 });
 
 app.get("/api/session-token", (_req, res) => {

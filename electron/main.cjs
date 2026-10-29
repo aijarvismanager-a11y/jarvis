@@ -1,6 +1,6 @@
 // Desktop shell: a window around the same server the browser version uses (http://127.0.0.1:4173).
 // If no server is running it starts one (npm run app = build the screen + serve it) and stops it again on quit.
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, dialog, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const fs = require("node:fs");
@@ -29,21 +29,47 @@ const isUp = () =>
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** What the server on the port says about itself ({version, pid, root, busy}); null when it does not answer. */
+const serverInfo = () =>
+  new Promise((resolve) => {
+    const req = http.get(`${URL_BASE}/api/version`, { timeout: 2000 }, (res) => {
+      let body = "";
+      res.on("data", (c) => (body += c));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+
+/** Installed build: run the bundled server with Electron's own Node. `dataDir` = where the person's data lives (data/, projects/). */
+function startBundledServer(dataDir) {
+  const loader = pathToFileURL(path.join(ROOT, "node_modules", "tsx", "dist", "loader.mjs")).href;
+  // the server's output goes to a log file in the data folder, so a failed start can be diagnosed
+  const log = fs.openSync(path.join(app.getPath("userData"), "server.log"), "a");
+  child = spawn(process.execPath, ["--import", loader, path.join(ROOT, "server", "index.ts")], {
+    cwd: dataDir,
+    windowsHide: true,
+    stdio: ["ignore", log, log],
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ORCHESTRATOR_APP_DIR: ROOT, PORT: String(PORT) },
+  });
+  child.on("exit", () => { child = null; });
+  spawned = true;
+}
+
 async function ensureServer() {
   if (await isUp()) return true;
   spawned = true;
   if (app.isPackaged) {
-    // Installed build: run the bundled server with Electron's own Node, keeping user data outside the install folder.
-    const loader = pathToFileURL(path.join(ROOT, "node_modules", "tsx", "dist", "loader.mjs")).href;
-    // the server's output goes to a log file in the data folder, so a failed start can be diagnosed
-    const log = fs.openSync(path.join(app.getPath("userData"), "server.log"), "a");
-    child = spawn(process.execPath, ["--import", loader, path.join(ROOT, "server", "index.ts")], {
-      cwd: app.getPath("userData"),
-      windowsHide: true,
-      stdio: ["ignore", log, log],
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ORCHESTRATOR_APP_DIR: ROOT, PORT: String(PORT) },
-    });
-    child.on("exit", () => { child = null; });
+    startBundledServer(app.getPath("userData"));
   } else {
     spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
   }
@@ -64,6 +90,56 @@ function stopOwnServer() {
     return;
   }
   spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(ROOT, "scripts", "restart-server.ps1"), "-Port", String(PORT), "-StopOnly"], { cwd: ROOT, windowsHide: true, timeout: 30000 });
+}
+
+/**
+ * The server on the port is of another version than this app (e.g. one started from the project folder before the installer was run).
+ * Nothing for the person to press: when no request is being worked on, the old server is stopped and this app's own server is started on
+ * the SAME data; when one is running, the window stays on the old server and says plainly that the switch has to wait for it to finish
+ * (and checks again by itself).
+ */
+async function switchToOwnServer() {
+  const info = await serverInfo();
+  if (!info || !info.version || info.version === app.getVersion()) return;
+  if (!info.root) {
+    // an older server does not tell where its data is or whether it is working: stopping it blind could lose work or open the wrong data
+    await dialog.showMessageBox(win, {
+      type: "info",
+      title: "AIオーケストラ",
+      message: `先に動いていたサーバー(v${info.version})の画面を開いています`,
+      detail: `このアプリは v${app.getVersion()} ですが、古い版のサーバーのため、実行中の依頼があるかどうかを確かめられず、自動では切り替えられません。
+実行中の依頼がないことを確かめて、そのサーバーを止めてから、このアプリを開き直してください。`,
+      buttons: ["OK"],
+    });
+    return;
+  }
+  if (info.busy !== false) {
+    await dialog.showMessageBox(win, {
+      type: "info",
+      title: "AIオーケストラ",
+      message: `いま依頼を実行中のため、v${app.getVersion()} への切り替えを待っています`,
+      detail: `先に動いていたサーバー(v${info.version})の画面を開いています。実行中の依頼が終わると、自動で、このアプリ(v${app.getVersion()})に切り替えます(途中で止めると、作業が失われるため)。\nこの案内を閉じても、そのまま使えます。`,
+      buttons: ["OK"],
+    });
+    // look again until the work is done, then switch without asking
+    for (;;) {
+      await sleep(15000);
+      if (!win || win.isDestroyed()) return;
+      const now = await serverInfo();
+      if (!now || now.version === app.getVersion()) return;
+      if (now.busy === false) return switchToOwnServer();
+    }
+  }
+  await win.loadURL(splash(`v${app.getVersion()} に切り替えています…(データはそのままです)`));
+  if (info.pid) spawnSync("taskkill", ["/PID", String(info.pid), "/T", "/F"], { windowsHide: true });
+  for (let i = 0; i < 30 && (await isUp()); i++) await sleep(500);
+  if (await isUp()) {
+    await win.loadURL(splash("古いサーバーを止められませんでした。手動で止めてから、このアプリを開き直してください。"));
+    return;
+  }
+  startBundledServer(info.root && fs.existsSync(info.root) ? info.root : app.getPath("userData"));
+  for (let i = 0; i < 120 && !(await isUp()); i++) await sleep(1000);
+  await win.loadURL(URL_BASE);
 }
 
 async function start() {
@@ -90,8 +166,12 @@ async function start() {
     }
   });
   await win.loadURL(splash("起動しています…(初回は画面の準備に少し時間がかかります)"));
+  const alreadyRunning = await isUp();
   if (await ensureServer()) {
     await win.loadURL(URL_BASE);
+    // This window only shows a server. If another server (for example one started from the project folder) was already on the port, its
+    // version is what the screen shows, not this installer's: it is replaced by this app's own server when nothing is running, else after the work is done.
+    if (app.isPackaged && alreadyRunning) void switchToOwnServer();
   } else {
     await win.loadURL(splash(app.isPackaged ? `サーバーを起動できませんでした。ほかのアプリがポート${PORT}を使っていないか確認してください。詳細: ${path.join(app.getPath("userData"), "server.log")}` : "サーバーを起動できませんでした。start-ai-orchestrator.bat から起動して、内容を確認してください。"));
   }
