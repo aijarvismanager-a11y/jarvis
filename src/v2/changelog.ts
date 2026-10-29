@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.35",
+    date: "2026-10-29",
+    items: ["計画の段階で止まった依頼に、中身のない「完了検証レポート」が出ないようにしました。止まった理由だけが赤い枠に出ます。"],
+  },
+  {
     version: "1.5.34",
     date: "2026-10-29",
     items: ["Microsoft Copilot などで、確認画面が出ても数十秒で自分で消えるときは、最大45秒待って、そのまま続けるようにしました。消えない確認(ご自身のクリックが必要なもの)だけを「人間確認が必要」とし、休ませる時間も30分から10分に短くしました。"],

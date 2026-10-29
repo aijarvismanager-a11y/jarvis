@@ -92,6 +92,8 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
   const isOpen = open ?? report.verdict !== "verified";
   const done = report.tasks.filter((t) => t.status === "completed").length;
+  // a request that stopped while it was still being planned has nothing to report: its reason is already shown above
+  if (report.tasks.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
       <div className="flex flex-wrap items-center gap-2">
