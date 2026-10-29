@@ -106,7 +106,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
   const [review, setReview] = useState<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null } | null>(null);
   const [usage, setUsage] = useState<Record<string, { last3h: number; last24h: number; lastAt: string | null }>>({});
   usePoll(async () => setUsage(await api.aiUsage().catch(() => ({}))), 15000, []);
-  const useLine = (id: string) => {
+  const usageLine = (id: string) => {
     const u = usage[id];
     return u ? `使った回数: 直近3時間 ${u.last3h}回 · 直近24時間 ${u.last24h}回` : "使った回数: 直近24時間 0回";
   };
@@ -187,7 +187,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   ))}
                 </div>
-                {usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
+                {usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{usageLine(s.id)}</p>}
                 {limitUntil && <p className="mt-1 text-[12px] text-muted">このAIは「利用上限に達した」と答えたため、{formatTime(limitUntil)}ごろまで休ませています。その間は、ほかのAIが引き受けます。</p>}
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
@@ -214,7 +214,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
           {claudeCode && (
             <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
               <span className="font-semibold">Claude Code</span> <Badge tone="ok">自動で使えます</Badge> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
-              <p className="mt-0.5 text-[12px] text-muted">{useLine("claude-code")}</p>
+              <p className="mt-0.5 text-[12px] text-muted">{usageLine("claude-code")}</p>
               <ClaudeQuotaView setError={setError} />
             </li>
           )}
