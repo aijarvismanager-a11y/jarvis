@@ -48,11 +48,13 @@ export class SystemCheck {
   }
 }
 
+export const CLAUDE_LIMIT_TEXT = /rate limit|usage limit|limit reached|quota|429|overloaded/;
+
 /** Turns what the Claude Code command printed into a sentence that says what to do (null = nothing recognised). */
 export function explainClaudeFailure(text: string): string | null {
   const t = text.toLowerCase();
   if (/not logged in|please run \/login|invalid api key|authentication|unauthorized|401/.test(t)) return "Claude Code にログインしていません(または期限切れです)。ターミナルで claude と入力して、ログインし直してください。";
-  if (/rate limit|usage limit|quota|429|overloaded/.test(t)) return "Claude Code の利用上限に達したようです。しばらく待ってからやり直してください。";
+  if (CLAUDE_LIMIT_TEXT.test(t)) return "Claude Code の利用上限に達したようです。しばらく待ってからやり直してください。";
   if (/enoent|not recognized|command not found/.test(t)) return "Claude Code が見つかりません。インストールされているか確認してください。";
   return null;
 }

@@ -1,4 +1,6 @@
 import { botCheckExclusions } from "./botCheck.ts";
+import { claudeLimitExclusions } from "./claudeQuota.ts";
+import { usageLimitExclusions } from "./usageLimit.ts";
 import { capabilityForRole } from "./legacyImport.ts";
 import type { AiService, Store, Task } from "./store.ts";
 
@@ -280,8 +282,14 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
 export class AIBroker {
   constructor(private readonly store: Store) {}
 
+  /** AIs left out for now: a bot check waiting for the person, a site limit, or the Claude plan used up (and the person chose to hand the work on). */
+  private restingAis(): Record<string, string> {
+    const ids = this.store.listAiServices().map((x) => x.id);
+    return { ...botCheckExclusions(this.store, ids), ...usageLimitExclusions(this.store, ids), ...claudeLimitExclusions(this.store, ids) };
+  }
+
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), restingAis: botCheckExclusions(this.store, this.store.listAiServices().map((x) => x.id)), ...options, usage, seed: options.seed ?? task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
   }
 }

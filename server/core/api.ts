@@ -1,4 +1,5 @@
-import { probeClaudeQuota, readClaudeQuota } from "./claudeQuota.ts";
+import { CLAUDE_WARN_AT, claudeLimitUntil, probeClaudeQuota, readClaudeLimitPolicy, readClaudeQuota, saveClaudeLimitPolicy } from "./claudeQuota.ts";
+import { usageLimitUntil } from "./usageLimit.ts";
 import { botCheckState } from "./botCheck.ts";
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
@@ -444,6 +445,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.get("/claude-quota", (_req, res) => {
     res.json({ quota: readClaudeQuota(store) });
   });
+  // The plan is nearly used up (warn) or used up (limit): what the home screen shows, and the person's choice for that case.
+  router.get("/claude-limit", (_req, res) => {
+    const used = readClaudeQuota(store)?.fiveHour?.utilization ?? null;
+    res.json({ warn: used !== null && used >= CLAUDE_WARN_AT, utilization: used, resetsAt: readClaudeQuota(store)?.fiveHour?.resetsAt ?? null, until: claudeLimitUntil(store), policy: readClaudeLimitPolicy(store) });
+  });
+  router.put(
+    "/claude-limit",
+    guarded((req, res) => {
+      const { policy } = z.object({ policy: z.enum(["wait", "reroute"]).nullable() }).parse(req.body ?? {});
+      saveClaudeLimitPolicy(store, policy);
+      store.appendEvent({ type: "CLAUDE_LIMIT_POLICY", payload: { policy } });
+      res.json({ policy });
+    }),
+  );
   router.post(
     "/claude-quota/refresh",
     guarded(async (_req, res) => {
@@ -563,6 +578,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       bundledSites: Object.keys(BUNDLED_SITE_PROFILES),
       loggedIn: settings.loggedIn,
       /** AIs that asked for a bot check: resting for a while ("rest") or no longer used until cleared ("always") */
+      /** AIs that said they reached the site's limit, with when they are used again */
+      usageLimits: Object.fromEntries(store.listAiServices().flatMap((s) => { const u = usageLimitUntil(store, s.id); return u ? [[s.id, u]] : []; })),
       botChecks: Object.fromEntries(store.listAiServices().flatMap((s) => { const st = botCheckState(store, s.id); return st ? [[s.id, st]] : []; })),
     });
   });

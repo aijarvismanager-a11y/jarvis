@@ -51,3 +51,40 @@ export async function probeClaudeQuota(store: Store, run: CommandRunner = spawnR
   if (q) saveClaudeQuota(store, q);
   return q;
 }
+
+// ---- reaching the limit ----------------------------------------------------------------------------------------------
+// When the plan is used up the person decides: wait for the reset, or let other AIs take the work meanwhile.
+
+export type ClaudeLimitPolicy = "wait" | "reroute";
+const POLICY_KEY = "claude_limit_policy";
+/** At or above this share of the 5-hour window the home screen warns. */
+export const CLAUDE_WARN_AT = 0.9;
+
+export const readClaudeLimitPolicy = (store: Store): ClaudeLimitPolicy | null => store.getSetting<ClaudeLimitPolicy | null>(POLICY_KEY, null);
+export const saveClaudeLimitPolicy = (store: Store, p: ClaudeLimitPolicy | null) => store.setSetting(POLICY_KEY, p);
+
+/** Until when Claude Code cannot be used, when the last report says the plan is exhausted and the reset is still ahead. */
+export function claudeLimitUntil(store: Store, now = Date.now()): string | null {
+  const q = readClaudeQuota(store);
+  if (!q || q.status !== "rejected") return null;
+  const full = [q.fiveHour, q.sevenDay].filter((w): w is QuotaWindow => !!w && (w.utilization ?? 0) >= 1 && !!w.resetsAt);
+  const pool = full.length ? full : [q.fiveHour, q.sevenDay].filter((w): w is QuotaWindow => !!w?.resetsAt);
+  const until = pool.map((w) => w.resetsAt!).sort().pop();
+  return until && Date.parse(until) > now ? until : null;
+}
+
+/** Claude Code failed with a usage-limit message but reported no window: assume the 5-hour window, about an hour out. */
+export function noteClaudeLimitHit(store: Store, now = Date.now()): void {
+  if (claudeLimitUntil(store, now)) return;
+  const prev = readClaudeQuota(store);
+  const resetsAt = new Date(now + 60 * 60 * 1000).toISOString();
+  saveClaudeQuota(store, { fiveHour: { utilization: 1, resetsAt }, sevenDay: prev?.sevenDay ?? null, status: "rejected", checkedAt: new Date(now).toISOString() });
+}
+
+/** The Claude AIs that share the plan (Claude Code and claude.ai chat), with why they rest, while the person chose to hand the work on. */
+export function claudeLimitExclusions(store: Store, aiIds: string[], now = Date.now()): Record<string, string> {
+  const until = claudeLimitUntil(store, now);
+  if (!until || readClaudeLimitPolicy(store) !== "reroute") return {};
+  const at = new Date(until).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  return Object.fromEntries(aiIds.filter((id) => id.startsWith("claude")).map((id) => [id, `Claude の利用上限に達したため、${at}のリセットまで、ほかのAIに回しています`]));
+}

@@ -151,10 +151,12 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
   }, [waitingLogin]);
   const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
   const candidates = services.filter(canAutomate);
-  const autoCount = candidates.filter((s) => s.automationLevel >= 3 && !web?.botChecks?.[s.id]).length;
-  const isReady = (s: AiService) => s.automationLevel >= 3 && !web?.botChecks?.[s.id];
+  const isReady = (s: AiService) => s.automationLevel >= 3 && !web?.botChecks?.[s.id] && !web?.usageLimits?.[s.id];
+  const autoCount = candidates.filter(isReady).length;
+  const isResting = (s: AiService) => !!web?.usageLimits?.[s.id];
   const ready = candidates.filter(isReady);
-  const notReady = candidates.filter((s) => !isReady(s));
+  const resting = candidates.filter(isResting);
+  const notReady = candidates.filter((s) => !isReady(s) && !isResting(s));
 
   const claudeCode = services.find((x) => x.id === "claude-code");
   const others = services.filter((x) => x.id !== "claude-code" && !canAutomate(x));
@@ -164,19 +166,21 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
             const auto = s.automationLevel >= 3;
             const result = tried[s.id];
             const check = web?.botChecks?.[s.id];
+            const limitUntil = web?.usageLimits?.[s.id];
             return (
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{short(s.name)}</span>
-                  {check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
+                  {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
                   )}
-                  {!auto && !check && trying !== s.id && waitingLogin?.id !== s.id && (
+                  {!auto && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   )}
                 </div>
                 {(auto || usage[s.id]) && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
+                {limitUntil && <p className="mt-1 text-[12px] text-muted">このAIは「利用上限に達した」と答えたため、{formatTime(limitUntil)}ごろまで休ませています。その間は、ほかのAIが引き受けます。</p>}
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
                     {check.kind === "always" ? "毎回「私はロボットではありません」などの確認が出るため、いまは自動で使っていません。" : "確認が出たため、しばらく休ませています。"}
@@ -207,6 +211,13 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
           )}
           {web?.available && web.browserAvailable && ready.map(renderRow)}
         </ul>
+        {web?.available && web.browserAvailable && resting.length > 0 && (
+          <>
+            <h3 className="mt-4 text-[13px] font-semibold">いま休んでいるAI({resting.length}件)</h3>
+            <p className="text-[12px] text-muted">サイトの利用上限に達したAIです。時間がたつと自動で戻ります。その間は、ほかのAIが引き受けます。</p>
+            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{resting.map(renderRow)}</ul>
+          </>
+        )}
         {web?.available && web.browserAvailable && notReady.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">まだ使えないAI({notReady.length}件)</h3>

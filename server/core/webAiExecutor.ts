@@ -11,6 +11,7 @@ import { isWriteTask } from "./scheduler.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { transitionTask } from "./taskStateMachine.ts";
 import { cleanFileText, webOutputPaths } from "./webOutputs.ts";
+import { clearUsageLimit, looksLikeUsageLimit, recordUsageLimit } from "./usageLimit.ts";
 import { recordOutcome } from "./scoreTuning.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
 import { getWebAiSettings, resolveSiteProfile } from "./webAiSites.ts";
@@ -257,6 +258,13 @@ export class WebAiExecutor implements TaskExecutor {
       usedLevel = level === 2 ? 2 : 1;
     }
 
+    if (looksLikeUsageLimit(text)) {
+      // the site answered with "you have reached the limit": not a deliverable. Rest this AI and let the engine hand the task to another one.
+      const until = recordUsageLimit(this.store, svc.id, text);
+      this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_USAGE_LIMIT", payload: { aiId: svc.id, until, text: text.slice(0, 300) } });
+      return { ok: false, aiId: svc.id, automationLevel: usedLevel, summary: `${svc.name}が利用上限に達したと答えました。しばらく休ませて、ほかのAIに回します` };
+    }
+    clearUsageLimit(this.store, svc.id);
     return this.save(task, svc, text, outputPaths, usedLevel);
   }
 
@@ -275,6 +283,10 @@ export class WebAiExecutor implements TaskExecutor {
         await page.fillPrompt(prompt);
         await page.submit();
         const text = await page.waitForResponse({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal });
+        if (looksLikeUsageLimit(text)) {
+          recordUsageLimit(this.store, svc.id, text);
+          return { ok: false, error: `${svc.name}が利用上限に達したと答えました` };
+        }
         this.resetFailures(svc);
         return { ok: true, text };
       } finally {

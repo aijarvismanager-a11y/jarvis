@@ -1,9 +1,10 @@
-import { explainClaudeFailure } from "./systemCheck.ts";
+import { CLAUDE_LIMIT_TEXT, explainClaudeFailure } from "./systemCheck.ts";
+import { transitionTask } from "./taskStateMachine.ts";
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
-import { parseRateLimit, saveClaudeQuota } from "./claudeQuota.ts";
+import { claudeLimitUntil, noteClaudeLimitHit, parseRateLimit, readClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
@@ -177,6 +178,8 @@ export class ClaudeCodeExecutor implements TaskExecutor {
       runner?: CommandRunner;
       policy?: PermissionPolicy;
       timeoutMs?: number;
+      /** how often a task waiting for the plan to reset looks again */
+      limitPollMs?: number;
       /** When set, the run is streamed (stream-json) and what Claude Code does is written here, per task. */
       logs?: TaskLogStore;
       /** When set, the folder is snapshotted before and after each run so the task's changes can be viewed and rolled back. */
@@ -242,8 +245,39 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     return notes;
   }
 
+  /**
+   * The plan is used up (as Claude Code last reported). What happens is the person's choice, made on the home screen:
+   * wait for the reset (the task waits, visibly, and goes on by itself), or give the work to other AIs. Without a choice the task stops
+   * with a sentence that says so, instead of failing at the limit again.
+   */
+  private async atLimit(task: Task, signal: AbortSignal): Promise<ExecutionResult | null> {
+    const until = claudeLimitUntil(this.store);
+    if (!until) return null;
+    const at = new Date(until).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    const policy = readClaudeLimitPolicy(this.store);
+    if (policy === "reroute") return { ok: false, summary: `Claude の利用上限に達しているため(${at}にリセット)、ほかのAIに回します` };
+    if (policy !== "wait") return { ok: false, summary: `Claude の利用上限に達しています(${at}にリセット)。ホームで「リセットまで待つ」か「ほかのAIに回す」を選んでから、やり直してください` };
+    const { projectId } = task;
+    transitionTask(this.store, projectId, task.id, "waiting", `Claude の利用上限のため、${at}のリセットまで待っています`);
+    try {
+      while (claudeLimitUntil(this.store) && readClaudeLimitPolicy(this.store) === "wait") {
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, this.opts.limitPollMs ?? 15_000);
+          signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("aborted")); }, { once: true });
+        });
+      }
+    } catch {
+      return { ok: false, summary: "中断されました" };
+    }
+    if (readClaudeLimitPolicy(this.store) === "reroute") return { ok: false, summary: "ほかのAIに回します" };
+    transitionTask(this.store, projectId, task.id, "running", "リセットされたため、続けます");
+    return null;
+  }
+
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult> {
     const { projectId } = task;
+    const limited = await this.atLimit(task, ctx.signal);
+    if (limited) return limited;
     for (const level of requestedElevatedLevels(task)) {
       const approved = await this.policy.ensure({ projectId, taskId: task.id, level, reason: task.objective, signal: ctx.signal });
       if (!approved) {
@@ -288,6 +322,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       return { ok: false, summary: "Claude Codeにログインできていません。ターミナルで claude を起動してログインしてください", artifacts: files, ...metrics };
     }
     if (res.code !== 0 || out.isError) {
+      if (CLAUDE_LIMIT_TEXT.test(combined.toLowerCase())) noteClaudeLimitHit(this.store);
       const hint = explainClaudeFailure(combined);
       return { ok: false, summary: `${hint ? hint + " / " : ""}Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
     }

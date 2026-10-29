@@ -87,7 +87,7 @@ export type Handoff = {
   /** Other web AIs this task could be handed to instead. */
   alternatives?: { id: string; name: string; freeStatus: string }[];
 };
-export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[]; loggedIn: Record<string, boolean>; botChecks?: Record<string, { kind: "rest"; until: string } | { kind: "always" }> };
+export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[]; loggedIn: Record<string, boolean>; usageLimits?: Record<string, string>; botChecks?: Record<string, { kind: "rest"; until: string } | { kind: "always" }> };
 export type StoredEvent = { id: number; type: string; taskId: string | null; payload: unknown; createdAt: string };
 
 export type MissionReport = {
@@ -116,3 +116,5 @@ export type ClaudeStatus = { state: "ready"; version: string } | { state: "not_i
 export type ProjectSummary = { project: Project; latestMission: { id: string; goal: string; status: MissionStatus } | null; missionCount: number; artifactCount: number; lastActivityAt: string };
 export type ClaudeQuota = { fiveHour: { utilization: number | null; resetsAt: string | null } | null; sevenDay: { utilization: number | null; resetsAt: string | null } | null; status: string; checkedAt: string };
 export type Environment = { root: string; dataDir: string; projectsDir: string; backupsDir: string; snapshotsDir: string; browserProfileDir: string; project: { id: string; workDir: string; sourcePath: string | null } | null; node: string; platform: string };
+
+export type ClaudeLimit = { warn: boolean; utilization: number | null; resetsAt: string | null; until: string | null; policy: "wait" | "reroute" | null };

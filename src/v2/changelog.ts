@@ -3,6 +3,15 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.32",
+    date: "2026-10-29",
+    items: [
+      "Claude の5時間枠が90%を超えると、画面の上に警告を出します。",
+      "Claude が利用上限に達したら、「リセットまで待つ」か「ほかのAIに回す」かを画面の上で選べます。待つ場合は、リセット後に作業が自動で続きます。",
+      "ChatGPT・Gemini などが「上限に達しました」と答えたら、そのAIを数時間休ませ、ほかのAIに回します。設定の「いま休んでいるAI」に出ます。",
+    ],
+  },
+  {
     version: "1.5.31",
     date: "2026-10-29",
     items: [
