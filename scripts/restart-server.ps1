@@ -13,11 +13,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
+# (vite's slow-build warning goes to stderr: that alone must not stop the restart, only the exit code does)
 # Build first, while the old server is still up: a failed build must not leave the app down.
 if (-not $StopOnly -and -not $NoBuild -and $Port -eq 4173) {
   Write-Host 'Building the screen...'
   Push-Location $root
-  try { & npm run build 2>&1 | Out-Host; if ($LASTEXITCODE -ne 0) { throw 'The build failed; the running server was not touched. Fix the errors and run it again.' } } finally { Pop-Location }
+  try { $ErrorActionPreference = 'Continue'; & npm run build 2>&1 | Out-Host; $ErrorActionPreference = 'Stop'; if ($LASTEXITCODE -ne 0) { throw 'The build failed; the running server was not touched. Fix the errors and run it again.' } } finally { Pop-Location }
 }
 
 $owners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)

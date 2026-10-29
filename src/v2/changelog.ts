@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.53",
+    date: "2026-10-30",
+    items: ["「サーバーを再起動」が、画面の作成が少し遅いときの警告だけで途中で止まり、古いサーバーのまま残ることがあったのを直しました(失敗の判断は、作成の結果だけで行います)。"],
+  },
+  {
     version: "1.5.52",
     date: "2026-10-30",
     items: ["Perplexity の「クエリが上限を○文字超えています。送信するには短くしてください」(文字数の上限)に対応しました。これは利用回数の上限ではなく、1回に送れる文字数の上限です。画面に出た超過の文字数から、そのAIの上限を覚え、プロジェクトの抜粋と前の作業の結果を削って、収まる長さで送り直します。自動操作の失敗とは数えません。"],
