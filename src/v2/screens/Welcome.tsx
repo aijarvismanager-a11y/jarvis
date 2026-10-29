@@ -35,9 +35,9 @@ export function ClaudeCheck({ always = false }: { always?: boolean }) {
 }
 
 const STEPS = [
-  { n: 1, title: "作りたいものを書く", text: "「商品管理ができるWebアプリ」のように、普通の言葉で書きます。" },
-  { n: 2, title: "計画を確認して承認する", text: "AI が作業の予定を出します。よければ「この計画で開始」を押します。" },
-  { n: 3, title: "できあがりを確かめる", text: "AI が作り終えたら、「動かして確認」で実際に動かして見られます。" },
+  { n: 1, title: "作りたいものを書く", text: "「商品管理ができるWebアプリ」のように、普通の言葉で。" },
+  { n: 2, title: "計画を確認して承認する", text: "よければ「この計画で開始」を押します。" },
+  { n: 3, title: "できあがりを確かめる", text: "「動かして確認」で、実際に動かして見られます。" },
 ];
 
 /** Shown when there is nothing yet: what this app does, in three steps, and the two ways to start. */
@@ -47,12 +47,11 @@ export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: ()
       <h2 className="font-serif text-[20px] font-semibold">AIオーケストラへようこそ</h2>
       <p className="mt-1 text-[13px] text-[#4a473f]">作りたいものを伝えると、AI が計画を立てて、あなたのパソコン上で作ってくれるアプリです。はじめ方は2つあります。</p>
       <h3 className="mt-3 text-[13px] font-semibold">A. 新しく作る(下の「何を作りますか?」に書く)</h3>
-      <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+      <ol className="mt-1.5 grid gap-x-4 gap-y-1 text-[12.5px] sm:grid-cols-3">
         {STEPS.map((s) => (
-          <li key={s.n} className="rounded-lg border border-borderSoft bg-bg p-3">
-            <p className="text-[12px] font-semibold text-accent">STEP {s.n}</p>
-            <p className="mt-0.5 text-[13px] font-semibold">{s.title}</p>
-            <p className="mt-1 text-[12px] text-muted">{s.text}</p>
+          <li key={s.n}>
+            <span className="font-semibold text-accent">{s.n}. {s.title}</span>
+            <span className="block text-[12px] text-muted">{s.text}</span>
           </li>
         ))}
       </ol>

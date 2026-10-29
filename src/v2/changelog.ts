@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.43",
+    date: "2026-10-29",
+    items: ["はじめて開いたときの画面を、縦に短くしました。3つの手順を横に並べ、「何を作りますか?」の入力欄が、スクロールしなくても見えます。"],
+  },
+  {
     version: "1.5.42",
     date: "2026-10-29",
     items: ["Gage のような大きな既存プロジェクトの計画づくりが、5分で打ち切られていました(実際には約11分かかります)。既存プロジェクトの計画づくりは、20分まで待つようにし、待ち時間の目安を画面に出します。"],
