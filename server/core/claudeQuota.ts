@@ -88,3 +88,18 @@ export function claudeLimitExclusions(store: Store, aiIds: string[], now = Date.
   const at = new Date(until).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
   return Object.fromEntries(aiIds.filter((id) => id.startsWith("claude")).map((id) => [id, `Claude の利用上限に達したため、${at}のリセットまで、ほかのAIに回しています`]));
 }
+
+/** The words a task's failure carries when it stopped because the Claude plan was used up (see claudeCodeExecutor and explainClaudeFailure). */
+export const CLAUDE_LIMIT_SUMMARY = /Claude( Code)? の利用上限/;
+
+/** Failed tasks whose newest run failed on the plan limit: what to start again once the person has chosen to wait or to hand on. */
+export function limitStoppedTasks(store: Store): { projectId: string; missionId: string; taskId: string }[] {
+  const rows = store.db
+    .prepare(
+      `SELECT t.id AS taskId, t.project_id AS projectId, t.mission_id AS missionId,
+              (SELECT r.summary FROM ai_runs r WHERE r.task_id = t.id AND r.project_id = t.project_id ORDER BY r.started_at DESC, r.id DESC LIMIT 1) AS summary
+       FROM tasks t WHERE t.status = 'failed'`,
+    )
+    .all() as { taskId: string; projectId: string; missionId: string; summary: string | null }[];
+  return rows.filter((r) => r.summary && CLAUDE_LIMIT_SUMMARY.test(r.summary)).map(({ taskId, projectId, missionId }) => ({ taskId, projectId, missionId }));
+}

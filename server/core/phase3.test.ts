@@ -6,7 +6,7 @@ import { ClaudeCodeExecutor, buildTaskPrompt, changedFiles, parseExecutorCapabil
 import type { CommandRunner } from "./commandRunner.ts";
 import { spawnRunner } from "./commandRunner.ts";
 import { openDatabase, type Db } from "./db.ts";
-import { saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
+import { limitStoppedTasks, saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { MissionEngine } from "./missionEngine.ts";
 import { PermissionPolicy, classifyCommand, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { Store, type Task } from "./store.ts";
@@ -143,7 +143,8 @@ describe("ClaudeCodeExecutor", () => {
       const f = ok();
       const r = await new ClaudeCodeExecutor(store, { runner: f.runner }).execute(task, ctx(task));
       expect(r.ok).toBe(false);
-      expect(r.summary).toContain("選んでから");
+      expect(r.summary).toContain("選んでください");
+      expect(r.retryable).toBe(false); // the engine must not burn its automatic retries on a task that cannot run yet
       expect(f.calls.some((c) => c.args[0] !== "--help")).toBe(false);
     });
 
@@ -179,6 +180,18 @@ describe("ClaudeCodeExecutor", () => {
       const res = await new ClaudeCodeExecutor(store, { runner: f.runner, limitPollMs: 100 }).execute(task, ctx(task));
       expect(res.ok).toBe(false);
       expect(res.summary).toContain("ほかのAIに回します");
+    });
+
+    it("finds the failed tasks that stopped on the limit (and only those) so that choosing can start them again", () => {
+      const onLimit = makeTask();
+      const other = makeTask();
+      const fixed = makeTask();
+      for (const [t, summary] of [[onLimit, "Claude の利用上限に達しています(23:29にリセット)。画面の上で選んでください"], [other, "Claude Codeが失敗しました(code=2): boom"], [fixed, "Claude の利用上限に達しているため、ほかのAIに回します"]] as const) {
+        store.setTaskStatus(pid, t.id, "failed");
+        store.recordAiRun({ projectId: pid, taskId: t.id, executor: "claude-code", status: "failed", summary });
+      }
+      store.setTaskStatus(pid, fixed.id, "completed"); // it was retried and finished since
+      expect(limitStoppedTasks(store).map((x) => x.taskId)).toEqual([onLimit.id]);
     });
 
     it("notes a limit hit from the failure text alone, so the banner can appear", async () => {

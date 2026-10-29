@@ -31,8 +31,8 @@ export function LimitBanner({ setError }: { setError: (m: string) => void }) {
     <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">
       <p className="font-semibold">Claude が利用上限に達しました({at}にリセット。{resetIn(limit.until)})</p>
       {limit.policy === "wait" && <p className="mt-0.5">リセットまで待つ設定です。Claude Code の作業は待機し、リセット後に自動で続きます。</p>}
-      {limit.policy === "reroute" && <p className="mt-0.5">ほかのAIに回す設定です。止まった作業は、「やり直す」を押すとほかのAIが引き受けます。</p>}
-      {!limit.policy && <p className="mt-0.5">どうしますか? 選ぶと、止まった作業は「やり直す」で続けられます。</p>}
+      {limit.policy === "reroute" && <p className="mt-0.5">ほかのAIに回す設定です。止まっていた作業は、自動でほかのAIが引き受けます。</p>}
+      {!limit.policy && <p className="mt-0.5">どうしますか? 選ぶと、止まっていた作業が自動で続きます。</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         <Button variant={limit.policy === "wait" ? "primary" : "ghost"} disabled={busy} onClick={() => void pick("wait")}>リセットまで待つ</Button>
         <Button variant={limit.policy === "reroute" ? "primary" : "ghost"} disabled={busy} onClick={() => void pick("reroute")}>ほかのAIに回す</Button>

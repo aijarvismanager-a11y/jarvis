@@ -1,4 +1,4 @@
-import { CLAUDE_WARN_AT, claudeLimitUntil, probeClaudeQuota, readClaudeLimitPolicy, readClaudeQuota, saveClaudeLimitPolicy } from "./claudeQuota.ts";
+import { CLAUDE_WARN_AT, claudeLimitUntil, limitStoppedTasks, probeClaudeQuota, readClaudeLimitPolicy, readClaudeQuota, saveClaudeLimitPolicy } from "./claudeQuota.ts";
 import { usageLimitUntil } from "./usageLimit.ts";
 import { botCheckState } from "./botCheck.ts";
 import express, { type Request, type Response, type Router } from "express";
@@ -456,7 +456,10 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const { policy } = z.object({ policy: z.enum(["wait", "reroute"]).nullable() }).parse(req.body ?? {});
       saveClaudeLimitPolicy(store, policy);
       store.appendEvent({ type: "CLAUDE_LIMIT_POLICY", payload: { policy } });
-      res.json({ policy });
+      // the work that stopped on the limit goes on by itself now (waits for the reset, or goes to another AI)
+      const resumed = policy && deps.canExecute ? limitStoppedTasks(store) : [];
+      for (const t of resumed) void engine.retryFailedTask(t.projectId, t.missionId, t.taskId).catch(() => {});
+      res.json({ policy, resumed: resumed.length });
     }),
   );
   router.post(
