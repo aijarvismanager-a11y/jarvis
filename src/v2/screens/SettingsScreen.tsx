@@ -179,7 +179,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   )}
                 </div>
-                {(auto || usage[s.id]) && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
+                {usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
                 {limitUntil && <p className="mt-1 text-[12px] text-muted">このAIは「利用上限に達した」と答えたため、{formatTime(limitUntil)}ごろまで休ませています。その間は、ほかのAIが引き受けます。</p>}
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
@@ -210,8 +210,13 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
               <ClaudeQuotaView setError={setError} />
             </li>
           )}
-          {web?.available && web.browserAvailable && ready.map(renderRow)}
         </ul>
+        {web?.available && web.browserAvailable && ready.length > 0 && (
+          <>
+            <h3 className="mt-4 text-[13px] font-semibold">ブラウザ上の自動で使えるAI({ready.length}件)</h3>
+            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
+          </>
+        )}
         {web?.available && web.browserAvailable && resting.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">いま休んでいるAI({resting.length}件)</h3>
