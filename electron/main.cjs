@@ -29,6 +29,14 @@ const isUp = () =>
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** > 0 when version a is newer than b ("1.5.57" vs "1.5.56"). */
+const versionCompare = (a, b) => {
+  const x = String(a).split(".").map(Number);
+  const y = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+  return 0;
+};
+
 /** What the server on the port says about itself ({version, pid, root, busy}); null when it does not answer. */
 const serverInfo = () =>
   new Promise((resolve) => {
@@ -101,6 +109,11 @@ function stopOwnServer() {
 async function switchToOwnServer() {
   const info = await serverInfo();
   if (!info || !info.version || info.version === app.getVersion()) return;
+  if (versionCompare(info.version, app.getVersion()) > 0) {
+    // the server is NEWER than this installer (a build made after it): never go back to the older version, just say the installer is behind
+    void dialog.showMessageBox(win, { type: "info", title: "AIオーケストラ", message: `このインストーラ(v${app.getVersion()})より新しい版(v${info.version})で動いています`, detail: "そのまま使えます。インストーラは、新しい版のものに作り直したら入れ替えてください。", buttons: ["OK"] });
+    return;
+  }
   if (!info.root) {
     // an older server does not tell where its data is or whether it is working: stopping it blind could lose work or open the wrong data
     await dialog.showMessageBox(win, {
@@ -156,6 +169,8 @@ async function start() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   // Anything that is not the app itself (previews, source links, the manual) opens in the normal browser.
+  // the screen can tell which installer's window it is shown in (and say so when the server it talks to is of another version)
+  win.webContents.setUserAgent(`${win.webContents.getUserAgent()} AIOrchestratorDesktop/${app.getVersion()}`);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
     return { action: "deny" };

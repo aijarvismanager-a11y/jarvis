@@ -79,6 +79,8 @@ export default function V2App() {
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
   const [appVersion, setAppVersion] = useState("");
+  // the desktop window adds its own version to the browser's user agent (see electron/main.cjs); the plain browser has none
+  const windowVersion = typeof navigator !== "undefined" ? /AIOrchestratorDesktop\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? "" : "";
   const [changelog, setChangelog] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const restartServer = async () => {
@@ -199,7 +201,7 @@ export default function V2App() {
     <div className="min-h-screen bg-bg text-ink">
       <header className="border-b border-border bg-sidebar">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
-          <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
+          <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}{windowVersion && appVersion && windowVersion !== appVersion && <span className="rounded border border-[#EBD9A8] bg-[#FBF1DC] px-1.5 py-0.5 text-[11px] font-normal text-[#8A6212]" title="この窓(インストーラ)の版と、画面を出しているサーバーの版が違います。窓を開き直すと、自動で揃います">窓は v{windowVersion}</span>}</h1>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
             <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ" aria-label="ほかで作っているものを引き継ぐ">📁<Label>ほかで作っているものを引き継ぐ</Label></Button>
             {notifySupported() && (
