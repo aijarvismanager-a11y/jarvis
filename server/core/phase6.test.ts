@@ -11,7 +11,7 @@ import { MissionEngine, type TaskExecutor } from "./missionEngine.ts";
 import { createOrchestratorRouter } from "./api.ts";
 import { AIBroker } from "./aiBroker.ts";
 import { seedRegistryProfiles } from "./aiRegistry.ts";
-import { ChromiumDriver, findBrowserExecutable, WebAiBlockedError, WebAiUiError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
+import { ChromiumDriver, findBrowserExecutable, WebAiBlockedError, WebAiPromptTooLongError, WebAiUiError, parseOverLimit, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor, buildWebPrompt, parseFileBlocks, unwrapSingleFence } from "./webAiExecutor.ts";
 import { WebHandoffHub } from "./webHandoff.ts";
 import { classifyBlocker, setWebAiSettings } from "./webAiSites.ts";
@@ -257,6 +257,41 @@ describe("Level 3 / Level 2 and automatic downgrade", () => {
     expect(driver.closed).toBe(1);
     expect(hub.list()).toHaveLength(0);
     expect(store.getTask(pid, task.id)!.status).toBe("running"); // never went to waiting
+  });
+
+  it("a site that says the prompt is too long: the cap is learned, a shorter prompt is sent at once, no downgrade", async () => {
+    const driver = new FakeDriver();
+    const real = driver.open.bind(driver);
+    let first = true;
+    driver.open = async () => {
+      const page = await real();
+      const fill = page.fillPrompt;
+      page.fillPrompt = async (t) => {
+        if (first) {
+          first = false;
+          throw new WebAiPromptTooLongError(1_346, t.length); // "クエリが上限を1,346文字超えています"
+        }
+        await fill(t);
+      };
+      return page;
+    };
+    const hub = new WebHandoffHub(store);
+    const task = makeTask();
+    const res = await new WebAiExecutor(store, hub, { driver }).execute(task, ctxFor(task));
+    expect(res).toMatchObject({ ok: true, automationLevel: 3 });
+    expect(driver.opens).toBe(2);
+    expect(driver.filled).toHaveLength(1);
+    const cap = store.getSetting<number | null>("web_prompt_cap:gemini", null);
+    expect(cap).not.toBeNull();
+    expect(driver.filled[0]!.length).toBeLessThanOrEqual(cap!);
+    expect(store.getAiService("gemini")!.automationLevel).toBe(3); // not counted as a break of the automation
+  });
+
+  it("reads how far over the limit a site says the prompt is", () => {
+    expect(parseOverLimit("クエリが上限を4,997文字超えています。送信するには短くしてください。")).toBe(4997);
+    expect(parseOverLimit("クエリが上限を1,346文字超えています")).toBe(1346);
+    expect(parseOverLimit("Your message exceeds the limit by 2,100 characters")).toBe(2100);
+    expect(parseOverLimit("上限に達しました")).toBeNull();
   });
 
   it("a broken Level 3 falls to Level 2 for that run: the prompt is typed, the user sends, the answer is read from the page", async () => {

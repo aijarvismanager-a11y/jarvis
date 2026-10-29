@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.52",
+    date: "2026-10-30",
+    items: ["Perplexity の「クエリが上限を○文字超えています。送信するには短くしてください」(文字数の上限)に対応しました。これは利用回数の上限ではなく、1回に送れる文字数の上限です。画面に出た超過の文字数から、そのAIの上限を覚え、プロジェクトの抜粋と前の作業の結果を削って、収まる長さで送り直します。自動操作の失敗とは数えません。"],
+  },
+  {
     version: "1.5.51",
     date: "2026-10-30",
     items: ["Perplexity のように、検索の回数が上限になると、答えが出ないまま5分待っていたのを直しました。画面にそのお知らせ(「Pro検索が0回」「無料クエリの上限」など)が出たら、すぐに「上限」と判断して、そのAIを数時間休ませ、ほかのAIに回します。自動操作の失敗とは数えないので、自動のレベルも下がりません。"],

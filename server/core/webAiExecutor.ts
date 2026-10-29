@@ -4,7 +4,7 @@ import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
+import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, WebAiPromptTooLongError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
@@ -185,7 +185,7 @@ export class WebAiExecutor implements TaskExecutor {
     if (!svc) return { ok: false, summary: "担当のWeb AIが選ばれていません" };
 
     const outputPaths = webOutputPaths(task);
-    const prompt = buildWebPrompt({ task, mission: ctx.mission, context: this.dependencyContext(task), references: this.referenceLines(task, ctx.mission.goal, svc.id), outputPaths, previousFailure: this.previousFailure(task) });
+    let prompt = this.fittedPrompt(task, ctx.mission, svc, outputPaths);
     const site = resolveSiteProfile(this.store, svc.id);
     const driver = this.opts.driver && site && svc.url ? this.opts.driver : null;
     let level: 1 | 2 | 3 = driver ? (Math.min(3, Math.max(1, svc.automationLevel)) as 1 | 2 | 3) : 1;
@@ -205,6 +205,7 @@ export class WebAiExecutor implements TaskExecutor {
     }
 
     if (level === 3 && driver && site) {
+     for (let tries = 0; ; tries++) {
       try {
         const p = await driver.open({ url: svc.url!, site, signal: ctx.signal });
         try {
@@ -221,13 +222,22 @@ export class WebAiExecutor implements TaskExecutor {
         this.resetFailures(svc);
         clearBotCheck(this.store, svc.id);
         this.hub.cancelPendingFor(task.id); // an earlier attempt of this task may have left a manual step waiting
+        break;
       } catch (err) {
         if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
+        if (err instanceof WebAiPromptTooLongError && tries < 2) {
+          // the site told how much it takes: remember it, send a shorter prompt (less project excerpt first) instead of falling back
+          this.learnPromptCap(svc, err);
+          prompt = this.fittedPrompt(task, ctx.mission, svc, outputPaths);
+          continue;
+        }
         text = null;
         note = `自動操作(Level 3)に失敗したためLevel ${err instanceof WebAiBlockedError ? 1 : 2}に切り替えました: ${errMsg(err)}`;
         this.recordFailure(svc, 3, err, task);
         level = err instanceof WebAiBlockedError ? 1 : 2; // a login / bot check is the user's to clear: no point typing into that page
+        break;
       }
+     }
     }
 
     if (text === null && level === 2 && driver && site) {
@@ -238,6 +248,7 @@ export class WebAiExecutor implements TaskExecutor {
         await page?.close().catch(() => {});
         page = null;
         if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
+        if (err instanceof WebAiPromptTooLongError) this.learnPromptCap(svc, err);
         note = `${note ? `${note} / ` : ""}半自動(Level 2)に失敗したためLevel 1に切り替えました: ${errMsg(err)}`;
         this.recordFailure(svc, 2, err, task);
         level = 1;
@@ -421,11 +432,45 @@ export class WebAiExecutor implements TaskExecutor {
   }
 
   // ---- context for the prompt -------------------------------------------------
+  /** How many characters this site takes in one prompt, as it once told us ("クエリが上限を…文字超えています"); null = not known. */
+  private promptCap(aiId: string): number | null {
+    return this.store.getSetting<number | null>(`web_prompt_cap:${aiId}`, null);
+  }
+
+  private learnPromptCap(svc: AiService, err: WebAiPromptTooLongError): void {
+    const cap = Math.max(1500, err.cap - 200);
+    const known = this.promptCap(svc.id);
+    this.store.setSetting(`web_prompt_cap:${svc.id}`, known ? Math.min(known, cap) : cap);
+    this.store.appendEvent({ type: "WEB_AI_PROMPT_CAP", payload: { aiId: svc.id, cap, overBy: err.overBy, length: err.length } });
+  }
+
+  /** The prompt for `svc`; when its character limit is known, earlier results and project excerpts are cut until the whole text fits. */
+  private fittedPrompt(task: Task, mission: Mission, svc: AiService, outputPaths: string[]): string {
+    const make = (context: string[], references: string[]) => buildWebPrompt({ task, mission, context, references, outputPaths, previousFailure: this.previousFailure(task) });
+    const cap = this.promptCap(svc.id);
+    const context = this.dependencyContext(task);
+    if (!cap) return make(context, this.referenceLines(task, mission.goal, svc.id));
+    let ctx = context;
+    let base = make(ctx, []);
+    for (let i = 0; i < 8 && base.length > cap - 300 && ctx.length; i++) {
+      ctx = i === 7 ? [] : ctx.map((l) => l.slice(0, Math.floor(l.length / 2)));
+      base = make(ctx, []);
+    }
+    let room = cap - base.length - 300;
+    let out = base;
+    for (let i = 0; i < 4 && room >= 1500; i++) {
+      out = make(ctx, this.referenceLines(task, mission.goal, svc.id, Math.min(room, referenceBudget(svc.id))));
+      if (out.length <= cap - 200) return out;
+      room -= out.length - (cap - 200) + 200; // the file list and headings are not part of the excerpt budget
+    }
+    return out.length <= cap ? out : base;
+  }
+
   /** Web AIs cannot see the project folder, so earlier results are quoted (shortened) into the prompt. */
   /** The AI cannot open the project's files: its file list and the files the task names go into the prompt. */
-  private referenceLines(task: Task, goal = "", aiId?: string): string[] {
+  private referenceLines(task: Task, goal = "", aiId?: string, budget = referenceBudget(aiId)): string[] {
     try {
-      return referenceContext(projectDir(this.store.projectsRoot, task.projectId), task.inputs, [task.objective, ...task.inputs, ...task.constraints, goal], referenceBudget(aiId));
+      return referenceContext(projectDir(this.store.projectsRoot, task.projectId), task.inputs, [task.objective, ...task.inputs, ...task.constraints, goal], budget);
     } catch {
       return [];
     }

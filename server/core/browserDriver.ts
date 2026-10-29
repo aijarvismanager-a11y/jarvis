@@ -42,6 +42,25 @@ const BLOCKER_SNAPSHOT_EXPR = `(() => {
   };
 })()`;
 
+/** The site's prompt box says the text is over its character limit ("クエリが上限を4,997文字超えています"): how far over, and how long the text was. */
+export class WebAiPromptTooLongError extends Error {
+  constructor(readonly overBy: number, readonly length: number) {
+    super(`プロンプトがこのAIの文字数の上限を${overBy.toLocaleString("ja-JP")}文字超えています(送った文字数: ${length.toLocaleString("ja-JP")})`);
+    this.name = "WebAiPromptTooLongError";
+  }
+  /** The most this site takes in one prompt. */
+  get cap() {
+    return Math.max(0, this.length - this.overBy);
+  }
+}
+
+/** "クエリが上限を4,997文字超えています" / "exceeds the limit by 4,997 characters": how far over the site says the text is. */
+export function parseOverLimit(text: string): number | null {
+  const m = /(?:上限を|(?:exceeds?|over)[^.\n]{0,40}?\bby\s+)\s*([\d,]+)\s*(?:文字|characters?|chars)/i.exec(text);
+  const n = m ? Number(m[1]!.replace(/,/g, "")) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export class WebAiBlockedError extends Error {
   /** `detail`: what the page said (for a "limit": the notice, which may name the time the allowance returns) */
   constructor(readonly reason: BlockReason, readonly detail?: string) {
@@ -315,6 +334,10 @@ class CdpChatPage implements WebChatPage {
     })()`);
     if (!focused) throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
     await this.cdp.send("Input.insertText", { text });
+    // a site with a character limit says so next to the box once the text is in (and then refuses to send): do not go on to a send that cannot work
+    await new Promise((r) => setTimeout(r, 700));
+    const over = parseOverLimit(await this.cdp.evaluate<string>(`(document.body && document.body.innerText || "").slice(-6000)`).catch(() => ""));
+    if (over) throw new WebAiPromptTooLongError(over, text.length);
     const probe = text.slice(0, 20);
     const ok = await this.cdp.evaluate<boolean>(`(() => {
       const el = ${firstMatch(this.site.inputSelector)};
