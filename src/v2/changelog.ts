@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.51",
+    date: "2026-10-30",
+    items: ["Perplexity のように、検索の回数が上限になると、答えが出ないまま5分待っていたのを直しました。画面にそのお知らせ(「Pro検索が0回」「無料クエリの上限」など)が出たら、すぐに「上限」と判断して、そのAIを数時間休ませ、ほかのAIに回します。自動操作の失敗とは数えないので、自動のレベルも下がりません。"],
+  },
+  {
     version: "1.5.50",
     date: "2026-10-30",
     items: ["「使うAI」の2列の一覧で、使った回数の行がある隣のAIにつられて、行が空白で縦に伸びていたのを直しました。"],

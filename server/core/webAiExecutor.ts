@@ -132,6 +132,10 @@ export class WebAiExecutor implements TaskExecutor {
         recordBotCheck(this.store, svc.id);
         return { ok: false, reason: "ボット確認(「私はロボットではありません」など)が表示されました。「確認を済ませる」で開いたブラウザで、そのAIに1通メッセージを送って、出た確認をご自身で済ませてください(確認は、送信したときに出ることがあります)" };
       }
+      if (err instanceof WebAiBlockedError && err.reason === "limit") {
+        recordUsageLimit(this.store, svc.id, err.detail ?? "");
+        return { ok: false, reason: "このAIは、いま利用上限に達しているようです。時間をおいてから、もう一度確認してください" };
+      }
       if (err instanceof WebAiBlockedError) return { ok: false, reason: "ログインが必要です。「ログインして使えるようにする」で済ませて、窓を閉じてから、もう一度押してください" };
       return { ok: false, reason: `自動で操作できませんでした(${errMsg(err)})。ログインが済んでいるか確認してください` };
     }
@@ -474,6 +478,7 @@ export class WebAiExecutor implements TaskExecutor {
   private recordFailure(svc: AiService, level: 2 | 3, err: unknown, task: Task): void {
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
     if (err instanceof WebAiBlockedError && err.reason === "captcha") recordBotCheck(this.store, svc.id); // rested for a while; dropped after repeated checks
+    if (err instanceof WebAiBlockedError && err.reason === "limit") recordUsageLimit(this.store, svc.id, err.detail ?? ""); // the site says its allowance is used up
     if (err instanceof WebAiBlockedError || err instanceof WebAiBrowserError) return; // the person's to clear / the PC's problem: the site did not break
     recordOutcome(this.store, svc.id, null, "automation_break");
     const count = this.store.getSetting<number>(this.failureKey(svc), 0) + 1;

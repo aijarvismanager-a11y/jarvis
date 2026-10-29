@@ -36,12 +36,15 @@ const BLOCKER_SNAPSHOT_EXPR = `(() => {
     url: location.href,
     text: (dialogs + ' ' + (body && body.innerText || '')).slice(0, 4000),
     dialogText: dialogs.slice(0, 1000),
+    // toasts and banners (not dialogs) that are on screen: where a site often says its allowance is used up
+    noticeText: [...document.querySelectorAll('[role="alert"], [role="status"], [class*="toast" i], [class*="banner" i], [class*="snackbar" i]')].filter(onScreen).map((e) => (e.innerText || '').trim()).filter(Boolean).join(' / ').slice(0, 600),
     hasChallengeFrame: frames(document, 0),
   };
 })()`;
 
 export class WebAiBlockedError extends Error {
-  constructor(readonly reason: BlockReason) {
+  /** `detail`: what the page said (for a "limit": the notice, which may name the time the allowance returns) */
+  constructor(readonly reason: BlockReason, readonly detail?: string) {
     super(BLOCK_MESSAGES[reason]);
     this.name = "WebAiBlockedError";
   }
@@ -394,11 +397,13 @@ class CdpChatPage implements WebChatPage {
   /** After a wait that ran out: a bot check or sign-in page on screen is the reason, and it is the person's to clear (never bypassed). */
   private async throwIfBlocked(live = false): Promise<void> {
     const snap = await this.cdp
-      .evaluate<{ url: string; text: string; dialogText: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR)
+      .evaluate<{ url: string; text: string; dialogText: string; noticeText?: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR)
       .catch(() => null);
     // while an answer may be streaming in, only a dialog or a challenge frame counts: the answer's own text could mention a "security check"
     const blocked = snap ? classifyBlocker(live ? { ...snap, text: snap.dialogText } : snap) : null;
     if (blocked === "captcha") throw new WebAiBlockedError(blocked);
+    const notice = snap ? `${snap.dialogText} ${snap.noticeText ?? ""}`.trim() : "";
+    if (blocked === "limit" || (snap && classifyBlocker({ url: snap.url, text: "", hasChallengeFrame: false, dialogText: notice }) === "limit")) throw new WebAiBlockedError("limit", notice);
   }
 
   async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {
@@ -634,7 +639,7 @@ export class ChromiumDriver implements WebChatDriver {
       await waitUntil(async () => (await cdp.evaluate<string>("document.readyState")) === "complete", { timeoutMs: 30_000, signal: req.signal });
       const found = await waitUntil(async () => cdp.evaluate<boolean>(`!!${firstMatch(req.site.inputSelector)}`), { timeoutMs: this.opts.inputTimeoutMs ?? 20_000, signal: req.signal });
       if (!found) {
-        const snap = await cdp.evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR);
+        const snap = await cdp.evaluate<{ url: string; text: string; dialogText: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR);
         const blocked = classifyBlocker(snap);
         // many "checking your browser" screens clear themselves within seconds (Copilot's does, some of the time): give it time before giving up
         // on it. A check that needs the person's click never clears, and then it is reported as before (never bypassed).
@@ -642,7 +647,7 @@ export class ChromiumDriver implements WebChatDriver {
         if (cleared) {
           /* the page went on by itself: carry on below */
         } else {
-          if (blocked) throw new WebAiBlockedError(blocked);
+          if (blocked) throw new WebAiBlockedError(blocked, snap.dialogText);
           throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
         }
       }

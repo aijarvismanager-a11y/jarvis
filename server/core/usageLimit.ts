@@ -18,6 +18,10 @@ const LIMIT_PATTERNS: RegExp[] = [
   /(usage|message|daily|rate|request) (limit|cap|quota)[^\n.]{0,20}(reached|exceeded|hit)/i,
   /you(?:'|’)ve (run out|used up)[^\n.]{0,30}(messages|requests|free)/i,
   /(too many requests|rate limit(ed)?)/i,
+  // Perplexity-style: free queries / Pro searches used up
+  /(pro|free|daily|無料|クエリ|検索)[^\n.。]{0,25}(searches|queries|クエリ|検索|回数)[^\n.。]{0,30}(limit|left|remaining|reached|used|上限|制限|使い切|なくなり|残り\s*0)/i,
+  /(0|no) (pro )?(searches|queries) (left|remaining)/i,
+  /(クエリ|検索)[^\n。]{0,12}(上限|制限|使い切)/,
   /(come back|try again|resets?|available again)[^\n.]{0,25}(later|tomorrow|in \d+|at \d)/i,
 ];
 

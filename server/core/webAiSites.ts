@@ -1,3 +1,4 @@
+import { looksLikeUsageLimit } from "./usageLimit.ts";
 import type { Store } from "./store.ts";
 
 // Web AI site profiles and settings (spec §10, Phase 6). A profile says where a
@@ -146,11 +147,13 @@ const CAPTCHA_TEXT = /captcha|verify (that )?you are (a )?human|are you (a )?(ro
 const LOGIN_TEXT = /\b(log ?in|sign ?in|sign up)\b|ログイン|サインイン|ログインして/i;
 const LOGIN_PATH = /\/(log-?in|sign-?in|auth|accounts?\/login)(\/|$|\?)/i;
 
-export type BlockReason = "captcha" | "login";
+export type BlockReason = "captcha" | "login" | "limit";
 
 /** Looks at what a page shows when its prompt box could not be found. Never tries to get past either condition. */
-export function classifyBlocker(page: { url: string; text: string; hasChallengeFrame: boolean }): BlockReason | null {
+export function classifyBlocker(page: { url: string; text: string; hasChallengeFrame: boolean; dialogText?: string }): BlockReason | null {
   if (page.hasChallengeFrame || CAPTCHA_TEXT.test(page.text)) return "captcha";
+  // a notice on screen (a dialog) that says the site's allowance is used up: an answer will not come, so nothing is waited for
+  if (page.dialogText && looksLikeUsageLimit(page.dialogText)) return "limit";
   let path = "";
   try {
     path = new URL(page.url).pathname + new URL(page.url).search;
@@ -163,5 +166,6 @@ export function classifyBlocker(page: { url: string; text: string; hasChallengeF
 
 export const BLOCK_MESSAGES: Record<BlockReason, string> = {
   captcha: "ボット確認(CAPTCHA等)が表示されています。自動では突破しません。開いたブラウザで、ご自身で操作してください",
+  limit: "このAIの利用上限に達したと表示されています。時間がたつまで、ほかのAIに回します",
   login: "ログインが必要です。開いたブラウザで、ご自身で通常どおりログインしてください(パスワードは扱いません)",
 };

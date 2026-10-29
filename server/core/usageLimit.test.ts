@@ -3,6 +3,7 @@ import { chooseAi } from "./aiBroker.ts";
 import { claudeLimitExclusions, claudeLimitUntil, noteClaudeLimitHit, saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { openDatabase } from "./db.ts";
 import { Store } from "./store.ts";
+import { classifyBlocker } from "./webAiSites.ts";
 import { USAGE_LIMIT_REST_MS, looksLikeUsageLimit, recordUsageLimit, restFromText, usageLimitExclusions, usageLimitUntil } from "./usageLimit.ts";
 
 const store = () => new Store(openDatabase(":memory:"), "unused");
@@ -15,6 +16,18 @@ describe("web AI usage limit", () => {
     expect(looksLikeUsageLimit("# 設計書\nレート制限の設計方針を述べる。")).toBe(false);
     expect(looksLikeUsageLimit("上限に達しました。" + "あ".repeat(800))).toBe(false);
     expect(looksLikeUsageLimit("")).toBe(false);
+  });
+
+  it("recognises a Perplexity-style 'queries used up' notice", () => {
+    for (const t of ["You have 0 Pro searches left today.", "You've used all of your free queries. Upgrade or try again in 3 hours.", "無料クエリの上限に達しました", "1日の検索回数の上限に達しました。", "No queries remaining"]) expect(looksLikeUsageLimit(t), t).toBe(true);
+    expect(looksLikeUsageLimit("検索エンジンの設計方針をまとめる")).toBe(false);
+  });
+
+  it("a limit notice in a dialog is a 'limit' blocker (nothing to wait for); on the page body it is not", () => {
+    const base = { url: "https://www.perplexity.ai/", text: "", hasChallengeFrame: false };
+    expect(classifyBlocker({ ...base, dialogText: "You have 0 Pro searches left today." })).toBe("limit");
+    expect(classifyBlocker({ ...base, text: "無料クエリの上限に達しました" })).toBeNull();
+    expect(classifyBlocker({ ...base, dialogText: "I am not a robot captcha", text: "I am not a robot captcha" })).toBe("captcha");
   });
 
   it("reads the wait from the text, else three hours", () => {
