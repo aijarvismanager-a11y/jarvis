@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.48",
+    date: "2026-10-30",
+    items: ["「進み具合」で、まだ始まっていない作業の担当AIが、すべて「Claude Code」に見えていたのを直しました。担当は、始めるときに決まるので、「担当は始めるときに決まります」と出します。"],
+  },
+  {
     version: "1.5.47",
     date: "2026-10-29",
     items: ["別のプロジェクトに切り替えたとき、前のプロジェクトの「元のフォルダと違いあり」の印が、残って見えることがあったのを直しました。"],

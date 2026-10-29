@@ -33,7 +33,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
         <span className="text-[13px] font-semibold">{roleLabel(task.role)}</span>
         <Badge tone={TONE[task.status]}>{TASK_LABEL_PLAIN[task.status]}</Badge>
         {task.retryCount > 0 && <span className="text-[11px] text-muted">再試行 {task.retryCount}回</span>}
-        <span className="ml-auto text-[12px] text-muted">{aiNameOf(ctx.services, task.selectedAi)}</span>
+        <span className="ml-auto text-[12px] text-muted">{task.selectedAi || !["pending", "ready", "blocked"].includes(task.status) ? aiNameOf(ctx.services, task.selectedAi) : "担当は始めるときに決まります"}</span>
       </button>
       {open && (
         <div className="space-y-2 border-t border-borderSoft px-3 py-2 text-[12.5px]">
