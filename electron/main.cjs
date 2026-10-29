@@ -114,7 +114,8 @@ async function switchToOwnServer() {
     return;
   }
   if (info.busy !== false) {
-    await dialog.showMessageBox(win, {
+    // not awaited: the waiting below must go on whether or not the person closes this notice
+    void dialog.showMessageBox(win, {
       type: "info",
       title: "AIオーケストラ",
       message: `いま依頼を実行中のため、v${app.getVersion()} への切り替えを待っています`,

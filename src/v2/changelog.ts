@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.57",
+    date: "2026-10-30",
+    items: ["デスクトップ版で、実行中の依頼があって切り替えを待っているとき、案内を閉じるまで待ちが始まらなかったのを直しました(案内を閉じなくても、終わったら自動で切り替わります)。疑似のサーバーで、実行中でないときの自動の切り替えと、同じデータの場所で起動し直すことを確かめました。"],
+  },
+  {
     version: "1.5.56",
     date: "2026-10-30",
     items: [
