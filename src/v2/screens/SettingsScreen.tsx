@@ -126,6 +126,8 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
     try {
       const r = await api.tryAutomation(s.id);
       setTried((t) => ({ ...t, [s.id]: r.ok ? "ok" : (r.reason ?? "試せませんでした") }));
+      // the site asked for a sign-in although it was marked as signed in: the mark is wrong, so the sign-in button must come back
+      if (!r.ok && r.reason?.includes("ログインが必要です") && web?.loggedIn?.[s.id]) await api.setLoggedIn(s.id, false).catch(() => undefined);
       done();
     } catch (e) {
       setTried((t) => ({ ...t, [s.id]: e instanceof Error ? e.message : String(e) }));
@@ -175,9 +177,12 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
                   )}
-                  {!auto && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (
+                  {!auto && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (web?.loggedIn?.[s.id] ? (
+                    // signed in already (the sign-in is remembered), yet not automatic: what is missing is a check, not another sign-in
+                    <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => void tryOne(s)}>使えるか確認する</Button>
+                  ) : (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
-                  )}
+                  ))}
                 </div>
                 {usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
                 {limitUntil && <p className="mt-1 text-[12px] text-muted">このAIは「利用上限に達した」と答えたため、{formatTime(limitUntil)}ごろまで休ませています。その間は、ほかのAIが引き受けます。</p>}

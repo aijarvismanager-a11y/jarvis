@@ -3,6 +3,11 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.44",
+    date: "2026-10-29",
+    items: ["「使うAI」で、ログイン済みの印がある「まだ使えないAI」には、ログインではなく「使えるか確認する」を出すようにしました。確認でサイトがログインを求めたときは、印を外して、「ログインして使えるようにする」に戻します。"],
+  },
+  {
     version: "1.5.43",
     date: "2026-10-29",
     items: ["はじめて開いたときの画面を、縦に短くしました。3つの手順を横に並べ、「何を作りますか?」の入力欄が、スクロールしなくても見えます。"],
