@@ -501,6 +501,8 @@ export type ChromiumDriverOptions = {
   headless?: boolean;
   /** How long to wait for the prompt box after navigation. */
   inputTimeoutMs?: number;
+  /** how long a bot-check screen may take to clear by itself before it is reported to the person */
+  checkClearTimeoutMs?: number;
 };
 
 export class ChromiumDriver implements WebChatDriver {
@@ -630,8 +632,15 @@ export class ChromiumDriver implements WebChatDriver {
       if (!found) {
         const snap = await cdp.evaluate<{ url: string; text: string; hasChallengeFrame: boolean }>(BLOCKER_SNAPSHOT_EXPR);
         const blocked = classifyBlocker(snap);
-        if (blocked) throw new WebAiBlockedError(blocked);
-        throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
+        // many "checking your browser" screens clear themselves within seconds (Copilot's does, some of the time): give it time before giving up
+        // on it. A check that needs the person's click never clears, and then it is reported as before (never bypassed).
+        const cleared = blocked === "captcha" && (await waitUntil(async () => cdp.evaluate<boolean>(`!!${firstMatch(req.site.inputSelector)}`), { timeoutMs: this.opts.checkClearTimeoutMs ?? 45_000, signal: req.signal }));
+        if (cleared) {
+          /* the page went on by itself: carry on below */
+        } else {
+          if (blocked) throw new WebAiBlockedError(blocked);
+          throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
+        }
       }
       await cdp.send("Page.bringToFront");
       const page = new CdpChatPage(cdp, req.site, closeTab);

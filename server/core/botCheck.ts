@@ -3,7 +3,7 @@ import type { Store } from "./store.ts";
 // A bot check ("I am not a robot") is never bypassed. What the app does instead: the AI is left alone for a while, so the site is not
 // hit again and again, and an AI that asks every single time drops out of the automatic choice until the person clears the check.
 
-export const BOT_CHECK_REST_MS = 30 * 60 * 1000;
+export const BOT_CHECK_REST_MS = 10 * 60 * 1000;
 /** This many checks in a row (no answer in between) and the AI no longer takes part in the automatic choice. */
 export const BOT_CHECK_ALWAYS_AFTER = 3;
 
@@ -35,7 +35,7 @@ export function botCheckExclusions(store: Store, aiIds: string[], now = Date.now
   for (const id of aiIds) {
     const st = botCheckState(store, id, now);
     if (st?.kind === "always") out[id] = "毎回ボット確認が出るため、自動では使えません(設定で確認を済ませると戻ります)";
-    else if (st) out[id] = "ボット確認が出たため、しばらく休ませています(30分ほど)";
+    else if (st) out[id] = "ボット確認が出たため、しばらく休ませています(10分ほど)";
   }
   return out;
 }
