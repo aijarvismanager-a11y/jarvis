@@ -962,3 +962,23 @@ Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補
 - `config/` `workspace/`: `migrate:legacy` と `npm run package` がまだ参照
 - `legacy-ai-manager/`(D-6): 旧Electron版。未移行データの有無は `data/logs.jsonl` のみ
 - `backups/` `src/types/{workflow,aiService}.ts`(legacyImport が使用)
+
+---
+
+## 2026-10-29: 1.5.32〜1.5.46 — 利用枠の上限対応・資料選びの検証・画面の整理
+
+### 完了(済)
+- Claude の5時間枠が90%以上で警告、上限到達で「リセットまで待つ / ほかのAIに回す」を選ぶバナー(`LimitBanner`、`claudeQuota.ts` の `claudeLimitUntil` など)。選ぶと上限で止まった作業が自動で再開(`limitStoppedTasks`)。選ぶ前は `retryable: false` で止め、自動やり直しの回数を使い切らない
+- ChatGPT・Gemini など: 回答が短い「上限に達しました」系なら、そのAIを数時間休ませてほかのAIへ(`usageLimit.ts`)。「使うAI」に「いま休んでいるAI」
+- 資料選び(`projectContext.ts`): Gage 以外の3プロジェクト(Rust+TS / Python / Next.js)で、関数名を名指しした課題45件を検証。ChatGPT の小容量で外れていた30/45 → 45/45。コード優先・メモは容量の3割まで・定義側を優先
+- 計画づくり(`planner.ts`): 既存プロジェクトは20分まで待つ(Gage は約11分・約1.7ドル。5分で打ち切られ、理由が空の「異常終了」になっていた)。時間切れは理由に出す
+- 失敗理由を原因別の案内に(上限 / ログイン切れ / 時間切れ)
+- ロボット確認(`browserDriver.ts`): 見えない枠・隠れた窓は確認と数えない。自動で消える確認は最大45秒待つ。休止は10分
+- Copilot: 確認は本物で、メッセージ送信時に毎回出る。半自動(Level 2)で使う。Level 2 は確認で選択から外さない(`aiBroker.ts`)
+- 画面: 「設定」を「使うAI」と「設定」に分割、「半自動で使えるAI」の見出し、はじめの画面を短縮、取り込みの説明を折りたたみ、移行プロジェクトの表示整形、リントエラー0件
+
+### 要確認
+- [優先度: 中] ChatGPT・Gemini の上限文言の実機確認(外れたら `usageLimit.ts` の正規表現に足す)
+- [優先度: 中] Copilot 半自動の実作業(入力欄への入力と返事の読み取り)
+- [優先度: 低] テスト `phase6.test.ts` が、まれに「bad port」(fetch の禁止ポート)で落ちる(Copilot などとは無関係の揺らぎ)
+- [優先度: 低] `browserDriver.ts` のテンプレート文字列内の `\.` が `.` になる(確認用の枠のURL判定が少しゆるい)
