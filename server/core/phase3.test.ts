@@ -6,6 +6,7 @@ import { ClaudeCodeExecutor, buildTaskPrompt, changedFiles, parseExecutorCapabil
 import type { CommandRunner } from "./commandRunner.ts";
 import { spawnRunner } from "./commandRunner.ts";
 import { openDatabase, type Db } from "./db.ts";
+import { saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { MissionEngine } from "./missionEngine.ts";
 import { PermissionPolicy, classifyCommand, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { Store, type Task } from "./store.ts";
@@ -130,6 +131,64 @@ describe("ClaudeCodeExecutor", () => {
     const task = makeTask();
     const runner: CommandRunner = async (_c, args) => ({ stdout: args[0] === "--help" ? "-p, --print" : "", stderr: "", code: 0 });
     await expect(new ClaudeCodeExecutor(store, { runner }).execute(task, ctx(task))).rejects.toThrow(/acceptEdits/);
+  });
+
+  describe("when the Claude plan is used up", () => {
+    const rejectedUntil = (ms: number) => saveClaudeQuota(store, { fiveHour: { utilization: 1, resetsAt: new Date(Date.now() + ms).toISOString() }, sevenDay: null, status: "rejected", checkedAt: new Date().toISOString() });
+    const ok = () => fakeClaude(() => ({ stdout: JSON.stringify({ is_error: false, result: "done" }) }));
+
+    it("stops with a sentence that asks for the choice, and does not call Claude Code, while nothing is chosen", async () => {
+      rejectedUntil(3_600_000);
+      const task = makeTask();
+      const f = ok();
+      const r = await new ClaudeCodeExecutor(store, { runner: f.runner }).execute(task, ctx(task));
+      expect(r.ok).toBe(false);
+      expect(r.summary).toContain("選んでから");
+      expect(f.calls.some((c) => c.args[0] !== "--help")).toBe(false);
+    });
+
+    it("hands the work on when the person chose that, again without calling Claude Code", async () => {
+      rejectedUntil(3_600_000);
+      saveClaudeLimitPolicy(store, "reroute");
+      const task = makeTask();
+      const f = ok();
+      const r = await new ClaudeCodeExecutor(store, { runner: f.runner }).execute(task, ctx(task));
+      expect(r).toMatchObject({ ok: false });
+      expect(r.summary).toContain("ほかのAIに回します");
+      expect(f.calls.some((c) => c.args[0] !== "--help")).toBe(false);
+    });
+
+    it("waits for the reset when the person chose that, then runs", async () => {
+      rejectedUntil(400);
+      saveClaudeLimitPolicy(store, "wait");
+      const task = makeTask();
+      store.setTaskStatus(pid, task.id, "running"); // the engine has started it
+      const f = ok();
+      const res = await new ClaudeCodeExecutor(store, { runner: f.runner, limitPollMs: 100 }).execute(task, ctx(task));
+      expect(res).toMatchObject({ ok: true, summary: "done" });
+      expect(f.calls.some((c) => c.args[0] !== "--help")).toBe(true);
+    });
+
+    it("gives up waiting when the person switches to handing the work on", async () => {
+      rejectedUntil(3_600_000);
+      saveClaudeLimitPolicy(store, "wait");
+      const task = makeTask();
+      store.setTaskStatus(pid, task.id, "running"); // the engine has started it
+      const f = ok();
+      setTimeout(() => saveClaudeLimitPolicy(store, "reroute"), 250);
+      const res = await new ClaudeCodeExecutor(store, { runner: f.runner, limitPollMs: 100 }).execute(task, ctx(task));
+      expect(res.ok).toBe(false);
+      expect(res.summary).toContain("ほかのAIに回します");
+    });
+
+    it("notes a limit hit from the failure text alone, so the banner can appear", async () => {
+      const task = makeTask();
+      const f = fakeClaude(() => ({ code: 1, stderr: "Claude usage limit reached" }));
+      await new ClaudeCodeExecutor(store, { runner: f.runner }).execute(task, ctx(task));
+      const again = await new ClaudeCodeExecutor(store, { runner: ok().runner }).execute(task, ctx(task));
+      expect(again.ok).toBe(false);
+      expect(again.summary).toContain("利用上限");
+    });
   });
 
   it("reports login problems, timeouts and non-zero exits as failures", async () => {
