@@ -189,7 +189,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
                     {check.kind === "always" ? "毎回「私はロボットではありません」などの確認が出るため、いまは自動で使っていません。" : "確認が出たため、しばらく休ませています。"}
-                    「確認を済ませる」で開くブラウザで、ご自身で確認を通して、ブラウザを閉じてください。
+                    「確認を済ませる」で開くブラウザで、そのAIに「こんにちは」などと1通送ってみてください(確認は、メッセージを送ったときに出ることがあります)。確認が出たら、ご自身で通して、ブラウザを閉じてください。
                   </p>
                 )}
                 {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} {check ? "の確認(ログイン・ロボット確認など)を済ませて" : "にログインして"}、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}

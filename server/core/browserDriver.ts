@@ -20,11 +20,15 @@ import { BLOCK_MESSAGES, classifyBlocker, type BlockReason, type SiteProfile } f
  */
 const BLOCKER_SNAPSHOT_EXPR = `(() => {
   const body = document.body;
-  const dialogs = [...document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog')].map((d) => (d.getAttribute('aria-label') || '') + ' ' + (d.innerText || '')).join(' ');
+  // a dialog that is in the page but not on screen (Copilot keeps a hidden "セキュリティ チェックが必要です" one) is not a check
+  const onScreen = (e) => { const r = e.getBoundingClientRect(); const st = getComputedStyle(e); return r.width >= 30 && r.height >= 30 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) !== 0; };
+  const dialogs = [...document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog')].filter(onScreen).map((d) => (d.getAttribute('aria-label') || '') + ' ' + (d.innerText || '')).join(' ');
   const CHALLENGE = /recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|funcaptcha|arkoselabs|geetest|captcha/i;
   const frames = (root, depth) => {
     if (depth > 4) return false;
-    for (const f of root.querySelectorAll('iframe')) if (CHALLENGE.test(f.src || '')) return true;
+    // only a frame the person can see is a check to clear: many sites keep an invisible (0-size) challenge frame on every page
+    const shown = (f) => { const r = f.getBoundingClientRect(); const st = getComputedStyle(f); return r.width >= 30 && r.height >= 30 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) !== 0; };
+    for (const f of root.querySelectorAll('iframe')) if (CHALLENGE.test(f.src || '') && shown(f)) return true;
     for (const el of root.querySelectorAll('*')) if (el.shadowRoot && frames(el.shadowRoot, depth + 1)) return true;
     return false;
   };

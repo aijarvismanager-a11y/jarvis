@@ -130,7 +130,7 @@ export class WebAiExecutor implements TaskExecutor {
       if (err instanceof WebAiProfileBusyError) return { ok: false, reason: "ログイン用の窓が開いたままです。その窓を閉じてから、もう一度押してください" };
       if (err instanceof WebAiBlockedError && err.reason === "captcha") {
         recordBotCheck(this.store, svc.id);
-        return { ok: false, reason: "ボット確認(「私はロボットではありません」など)が表示されました。「確認を済ませる」で開いたブラウザで、ご自身で済ませてください" };
+        return { ok: false, reason: "ボット確認(「私はロボットではありません」など)が表示されました。「確認を済ませる」で開いたブラウザで、そのAIに1通メッセージを送って、出た確認をご自身で済ませてください(確認は、送信したときに出ることがあります)" };
       }
       if (err instanceof WebAiBlockedError) return { ok: false, reason: "ログインが必要です。「ログインして使えるようにする」で済ませて、窓を閉じてから、もう一度押してください" };
       return { ok: false, reason: `自動で操作できませんでした(${errMsg(err)})。ログインが済んでいるか確認してください` };
