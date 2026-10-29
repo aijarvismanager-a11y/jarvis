@@ -180,7 +180,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
                   )}
-                  {!auto && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (web?.loggedIn?.[s.id] ? (
+                  {!auto && s.automationLevel !== 2 && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (web?.loggedIn?.[s.id] ? (
                     // signed in already (the sign-in is remembered), yet not automatic: what is missing is a check, not another sign-in
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => void tryOne(s)}>使えるか確認する</Button>
                   ) : (
