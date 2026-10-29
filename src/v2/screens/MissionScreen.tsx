@@ -360,7 +360,7 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
   const [feedback, setFeedback] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const { mission, proposal } = view;
-  if (!proposal) return <Card title="計画">AI が計画を作成中です…(通常 1〜2 分かかります。できあがると、この画面が自動で切り替わります)</Card>;
+  if (!proposal) return <Card title="計画">AI が計画を作成中です…(新しいアイデアは 1〜2 分、大きな既存プロジェクトは 10 分以上かかることがあります。できあがると、この画面が自動で切り替わります)</Card>;
   const act = (action: "approve" | "reject") =>
     run(async () => {
       if (action === "approve") await api.approveAndRun(mission.projectId, mission.id);

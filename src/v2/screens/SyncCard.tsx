@@ -143,7 +143,7 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
   return (
     <Card
       fold
-      open={state.pullEntries.length + state.entries.length > 0}
+      open={false} // the tab already shows a badge when the folders differ; a long card must not push the request itself down
       title={
         <span className="flex flex-wrap items-center gap-2">
           元のフォルダに反映する

@@ -85,6 +85,19 @@ describe("ClaudeCodePlanner", () => {
     await expect(new ClaudeCodePlanner({ runner, timeoutMs: 600_000 }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/タイムアウト.*10分/);
   });
 
+  it("gives an existing project 20 minutes to be read and planned, a new idea 5", async () => {
+    const seen: number[] = [];
+    const runner: CommandRunner = async (_c, args, opts) => {
+      if (args[0] === "--help") return { stdout: HELP, stderr: "", code: 0 };
+      seen.push(opts.timeoutMs ?? 0);
+      return { stdout: JSON.stringify({ type: "result", result: JSON.stringify(PLAN) }), stderr: "", code: 0 };
+    };
+    const planner = new ClaudeCodePlanner({ runner });
+    await planner.plan({ goal: "g", constraints: [], technologyPreferences: [] });
+    await planner.plan({ goal: "g", constraints: [], technologyPreferences: [], existingProject: true });
+    expect(seen).toEqual([5 * 60_000, 20 * 60_000]);
+  });
+
   it("refuses when --print is unsupported", async () => {
     const { runner } = fakeRunner(PLAN, "Usage: claude");
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow();

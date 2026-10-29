@@ -157,7 +157,8 @@ export class ClaudeCodePlanner implements Planner {
     const args = this.buildArgs(caps);
     const cwd = request.cwd ?? this.opts.cwd;
     const ask = async (prompt: string) => {
-      const limitMs = this.opts.timeoutMs ?? 5 * 60_000;
+      // an existing project is read before it is planned: Gage took 11 minutes (measured 2026-10-29), a new idea 1-2
+      const limitMs = this.opts.timeoutMs ?? (request.existingProject ? 20 : 5) * 60_000;
       const res = await this.runner(this.command, args, { input: prompt, cwd, signal, timeoutMs: limitMs });
       if (res.timedOut) throw new Error(`タイムアウトしました(計画づくりが${Math.round(limitMs / 60_000)}分以内に終わりませんでした。フォルダが大きいか、依頼が広すぎる可能性があります)`);
       if (res.code !== 0) throw new Error(explainClaudeFailure(`${res.stdout}

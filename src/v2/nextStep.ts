@@ -13,7 +13,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
   if (mine(handoffs).length > 0) return { tone: "go", title: "あなたの操作が必要です", detail: "別の AI(ChatGPT など)に、指示文を貼り付けて送り、返ってきた回答をここへ貼り付けてください。下のカードの手順どおりに進めます。" };
   switch (mission.status) {
     case "planning":
-      if (!planReady) return { tone: "wait", title: "AI が計画を作っています", detail: "通常 1〜2 分かかります。できあがると、この画面が自動で切り替わるので、そのままお待ちください。" };
+      if (!planReady) return { tone: "wait", title: "AI が計画を作っています", detail: "新しいアイデアは 1〜2 分、大きな既存プロジェクトは 10 分以上かかることがあります。できあがると、この画面が自動で切り替わるので、そのままお待ちください。" };
       return { tone: "go", title: "計画を確認して、よければ開始してください", detail: "AI が立てた作業の予定です。直したい点があれば書いて「修正して再提案」、これでよければ「この計画で開始」を押します。" };
     case "running": {
       const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
