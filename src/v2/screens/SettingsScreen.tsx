@@ -158,7 +158,10 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
   const isResting = (s: AiService) => !!web?.usageLimits?.[s.id];
   const ready = candidates.filter(isReady);
   const resting = candidates.filter(isResting);
-  const notReady = candidates.filter((s) => !isReady(s) && !isResting(s));
+  // semi-automatic (Level 2): the app fills the prompt in, the person presses send (and passes a bot check when the site asks)
+  const isSemi = (s: AiService) => s.automationLevel === 2 && !web?.usageLimits?.[s.id];
+  const semi = candidates.filter(isSemi);
+  const notReady = candidates.filter((s) => !isReady(s) && !isResting(s) && !isSemi(s));
 
   const claudeCode = services.find((x) => x.id === "claude-code");
   const others = services.filter((x) => x.id !== "claude-code" && !canAutomate(x));
@@ -167,13 +170,13 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
   const renderRow = (s: AiService) => {
             const auto = s.automationLevel >= 3;
             const result = tried[s.id];
-            const check = web?.botChecks?.[s.id];
+            const check = s.automationLevel >= 3 ? web?.botChecks?.[s.id] : undefined; // at Level 2 the person passes the check themselves
             const limitUntil = web?.usageLimits?.[s.id];
             return (
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{short(s.name)}</span>
-                  {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
+                  {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : s.automationLevel === 2 ? <Badge tone="info">半自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
                   )}
@@ -220,6 +223,13 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
           <>
             <h3 className="mt-4 text-[13px] font-semibold">ブラウザ上の自動で使えるAI({ready.length}件)</h3>
             <ul className="mt-2 grid gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
+          </>
+        )}
+        {web?.available && web.browserAvailable && semi.length > 0 && (
+          <>
+            <h3 className="mt-4 text-[13px] font-semibold">半自動で使えるAI({semi.length}件)</h3>
+            <p className="text-[12px] text-muted">アプリが依頼の文を入力欄に入れます。<b>送信ボタンは、あなたが押します</b>。ロボット確認が出たときも、ご自身で通してください。返事はアプリが読み取ります。作業が回ってきたときは、画面で知らせます。</p>
+            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{semi.map(renderRow)}</ul>
           </>
         )}
         {web?.available && web.browserAvailable && resting.length > 0 && (

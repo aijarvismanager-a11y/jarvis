@@ -8,6 +8,7 @@ import { AIBroker, NEAR_BEST, aiUsage, capabilityForTaskRole, pickBalanced, type
 import { pickReviewer, reviewCapabilityFor } from "./aiReview.ts";
 import { IDEATION_SCORES, applyIdeationCapability } from "./aiRegistry.ts";
 import { setWebAiSettings } from "./webAiSites.ts";
+import { recordBotCheck } from "./botCheck.ts";
 
 let db: Db;
 let store: Store;
@@ -159,4 +160,17 @@ describe("who reviews", () => {
     run("chatgpt", 4);
     expect(pickReviewer(store, "claude-code", "design")?.svc.id).toBe("chatgpt"); // Gemini and Qwen are clearly behind: no turn-taking
   });
+
+describe("bot checks and the level of automation", () => {
+  it("rests a fully automatic AI that was checked, but not a semi-automatic one (the person is at its page and passes the check)", () => {
+    web("full", "Full", { research: 5 });
+    web("semi", "Semi", { research: 5 });
+    store.patchAiService("semi", { automationLevel: 2 });
+    for (const id of ["full", "semi"]) for (let i = 0; i < 3; i++) recordBotCheck(store, id);
+    const d = new AIBroker(store).select({ role: "research" });
+    expect(d.ranked.map((c) => c.aiId)).toContain("semi");
+    expect(d.ranked.map((c) => c.aiId)).not.toContain("full");
+    expect(d.excluded.find((e) => e.aiId === "full")?.reason).toContain("ボット確認");
+  });
+});
 });

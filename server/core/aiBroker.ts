@@ -285,7 +285,9 @@ export class AIBroker {
   /** AIs left out for now: a bot check waiting for the person, a site limit, or the Claude plan used up (and the person chose to hand the work on). */
   private restingAis(): Record<string, string> {
     const ids = this.store.listAiServices().map((x) => x.id);
-    return { ...botCheckExclusions(this.store, ids), ...usageLimitExclusions(this.store, ids), ...claudeLimitExclusions(this.store, ids) };
+    // a bot check only matters where the app drives the page by itself (Level 3); at Level 2 the person is at the page and passes it
+    const automatic = this.store.listAiServices().filter((x) => x.automationLevel >= 3).map((x) => x.id);
+    return { ...botCheckExclusions(this.store, automatic), ...usageLimitExclusions(this.store, ids), ...claudeLimitExclusions(this.store, ids) };
   }
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
