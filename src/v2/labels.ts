@@ -252,3 +252,12 @@ export function describeEvent(e: { type: string; payload: unknown }): string {
   }
   return eventLabel(e.type);
 }
+
+/** "あと2時間15分でリセット" from a reset time (empty when it has passed or is unknown). */
+export const resetIn = (iso: string | null, now = Date.now()) => {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - now;
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const min = Math.ceil(ms / 60_000);
+  return min < 60 ? `あと${min}分でリセット` : min < 24 * 60 ? `あと${Math.floor(min / 60)}時間${min % 60}分でリセット` : `あと${Math.floor(min / 1440)}日${Math.floor((min % 1440) / 60)}時間でリセット`;
+};

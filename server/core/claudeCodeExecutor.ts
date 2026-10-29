@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
+import { parseRateLimit, saveClaudeQuota } from "./claudeQuota.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
@@ -277,6 +278,8 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       this.store.createArtifact({ projectId, taskId: task.id, path: file, createdBy: this.name });
     }
 
+    const quota = parseRateLimit(res.stdout);
+    if (quota) saveClaudeQuota(this.store, quota);
     const out = parseRunOutput(res.stdout);
     const metrics = parseRunMetrics(res.stdout);
     const combined = `${out.text}\n${res.stderr}`;

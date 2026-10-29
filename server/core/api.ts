@@ -1,3 +1,4 @@
+import { probeClaudeQuota, readClaudeQuota } from "./claudeQuota.ts";
 import { botCheckState } from "./botCheck.ts";
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
@@ -150,6 +151,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   // ---- Projects / artifacts (Phase 7 UI) ---------------------------------------
   router.get("/projects", (_req, res) => {
     res.json({ projects: store.listProjects() });
+  });
+  // One line per project for the "all projects" screen: the newest request, how many requests and files, and the last activity.
+  router.get("/projects-summary", (_req, res) => {
+    const summary = store.listProjects().map((p) => {
+      const missions = [...store.listMissions(p.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const artifacts = store.listArtifacts(p.id);
+      const latest = missions[0] ?? null;
+      const last = [p.updatedAt, ...missions.map((m) => m.updatedAt), ...artifacts.map((x) => x.createdAt)].sort().pop() ?? p.updatedAt;
+      return { project: p, latestMission: latest ? { id: latest.id, goal: latest.goal, status: latest.status } : null, missionCount: missions.length, artifactCount: artifacts.length, lastActivityAt: last };
+    });
+    res.json({ summary: summary.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)) });
   });
   router.post(
     "/projects",
@@ -424,6 +436,39 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   });
 
   // ---- AI Registry / Broker (Phase 4) -----------------------------------------
+  // How much each AI was used lately. The sites do not tell their remaining quota, so this is what the app itself ran.
+  router.get("/ai-usage", (_req, res) => {
+    res.json({ usage: store.aiRunCounts() });
+  });
+  // Claude plan usage (shared by Claude Code and claude.ai chat), as Claude Code itself reports it; refreshed by every run and by the button.
+  router.get("/claude-quota", (_req, res) => {
+    res.json({ quota: readClaudeQuota(store) });
+  });
+  router.post(
+    "/claude-quota/refresh",
+    guarded(async (_req, res) => {
+      const quota = await probeClaudeQuota(store).catch(() => null);
+      if (!quota) return void res.status(502).json({ error: "Claude Code から使用量を読み取れませんでした。ログインできているか確認してください" });
+      res.json({ quota });
+    }),
+  );
+  // Where everything lives on this computer (for "where is my data?" and for support). Paths only; nothing is read from the folders.
+  router.get("/environment", (req, res) => {
+    const root = path.dirname(store.projectsRoot);
+    const projectId = typeof req.query.projectId === "string" && PROJECT_ID_RE.test(req.query.projectId) ? req.query.projectId : null;
+    const link = projectId ? store.getSetting<SyncLink | null>(linkKey(projectId), null) : null;
+    res.json({
+      root,
+      dataDir: path.join(root, "data"),
+      projectsDir: store.projectsRoot,
+      backupsDir: path.join(root, "backups"),
+      snapshotsDir: path.join(root, "snapshots"),
+      browserProfileDir: path.join(root, "data", "browser-profile"),
+      project: projectId ? { id: projectId, workDir: projectDir(store.projectsRoot, projectId), sourcePath: link?.sourcePath ?? null } : null,
+      node: process.version,
+      platform: process.platform,
+    });
+  });
   router.get("/ai-services", (_req, res) => {
     res.json({ services: store.listAiServices() });
   });

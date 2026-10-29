@@ -451,6 +451,18 @@ export class Store {
     return id;
   }
 
+  /** How often each AI ran, over all projects: in the last 3 hours and 24 hours, and when it ran last (a run without an AI is Claude Code's). */
+  aiRunCounts(now = Date.now()): Record<string, { last3h: number; last24h: number; lastAt: string | null }> {
+    const since24 = new Date(now - 24 * 3600_000).toISOString();
+    const since3 = new Date(now - 3 * 3600_000).toISOString();
+    const rows = this.db
+      .prepare("SELECT COALESCE(ai_id, 'claude-code') AS ai, COUNT(*) AS n24, SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS n3, MAX(started_at) AS last FROM ai_runs WHERE started_at >= ? GROUP BY ai")
+      .all(since3, since24) as { ai: string; n24: number; n3: number; last: string | null }[];
+    const out: Record<string, { last3h: number; last24h: number; lastAt: string | null }> = {};
+    for (const r of rows) out[r.ai] = { last3h: Number(r.n3), last24h: Number(r.n24), lastAt: r.last };
+    return out;
+  }
+
   listAiRuns(projectId: string): Row[] {
     return this.db.prepare("SELECT * FROM ai_runs WHERE project_id = ? ORDER BY started_at, id").all(projectId) as Row[];
   }

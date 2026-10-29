@@ -96,7 +96,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
 }
 
 /** One sentence on where the request stands, so the screen can be read without opening any row. */
-function summaryLine(tasks: Task[], ctx: Ctx): string {
+export function summaryLine(tasks: Task[], ctx: Ctx): string {
   const by = (st: TaskStatus) => tasks.filter((t) => t.status === st);
   const failed = [...by("failed"), ...by("blocked")];
   if (failed.length > 0) return `うまくいかなかった作業が${failed.length}件あります。下の赤い印の作業を開くと理由が見られます(ホームの「次にやること」にも出ます)。`;

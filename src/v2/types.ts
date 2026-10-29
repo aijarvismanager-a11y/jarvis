@@ -112,3 +112,7 @@ export type TuningItem = { key: string; label: string; start: number | null; now
 export type TuningReport = { enabled: boolean; entries: { aiId: string; name: string; items: TuningItem[] }[] };
 export type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "history" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
 export type ClaudeStatus = { state: "ready"; version: string } | { state: "not_installed" | "unknown"; message: string } | { state: "not_logged_in"; version: string; message: string };
+
+export type ProjectSummary = { project: Project; latestMission: { id: string; goal: string; status: MissionStatus } | null; missionCount: number; artifactCount: number; lastActivityAt: string };
+export type ClaudeQuota = { fiveHour: { utilization: number | null; resetsAt: string | null } | null; sevenDay: { utilization: number | null; resetsAt: string | null } | null; status: string; checkedAt: string };
+export type Environment = { root: string; dataDir: string; projectsDir: string; backupsDir: string; snapshotsDir: string; browserProfileDir: string; project: { id: string; workDir: string; sourcePath: string | null } | null; node: string; platform: string };

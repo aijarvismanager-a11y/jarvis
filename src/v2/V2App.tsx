@@ -6,19 +6,27 @@ import { ArtifactScreen } from "./screens/ArtifactScreen";
 import { DevelopmentScreen } from "./screens/DevelopmentScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MissionScreen } from "./screens/MissionScreen";
+import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
 import { HelpDialog } from "./HelpDialog";
+import { QuotaChip } from "./screens/QuotaChip";
+import { ChangelogDialog } from "./ChangelogDialog";
+import { StatusStrip } from "./screens/StatusStrip";
 import { ImportBar } from "./ImportBar";
 import { Button, ErrorBar } from "./ui";
+
+/** Button text that gives way to the icon alone on a narrow window, so the header stays one or two lines. */
+const Label = ({ children }: { children: string }) => <span className="ml-1 hidden sm:inline">{children}</span>;
 
 const SCREENS = [
   { id: "mission", label: "ホーム" },
   { id: "development", label: "進み具合" },
   { id: "history", label: "これまでの記録" },
   { id: "artifacts", label: "できたもの" },
+  { id: "projects", label: "プロジェクト一覧" },
   { id: "settings", label: "設定" },
 ] as const;
 type ScreenId = (typeof SCREENS)[number]["id"];
@@ -69,6 +77,7 @@ export default function V2App() {
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
   const [appVersion, setAppVersion] = useState("");
+  const [changelog, setChangelog] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const restartServer = async () => {
     setRestarting(true);
@@ -184,14 +193,16 @@ export default function V2App() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}</h1>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
-            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)}>📁 ほかで作っているものを引き継ぐ</Button>
+            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ" aria-label="ほかで作っているものを引き継ぐ">📁<Label>ほかで作っているものを引き継ぐ</Label></Button>
             {notifySupported() && (
               <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
-                {notifyOn ? "🔔 通知オン" : "🔕 通知オフ"}
+                {notifyOn ? "🔔" : "🔕"}<Label>{notifyOn ? "通知オン" : "通知オフ"}</Label>
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setHelp(true)}>？ 使い方</Button>
-            <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }}>＋ 新しいプロジェクト</Button>
+            <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴" aria-label="更新履歴">🆕<Label>更新履歴</Label></Button>
+            <Button variant="ghost" onClick={() => setHelp(true)} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
+            <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
+            <QuotaChip onOpen={() => setScreen("settings")} />
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="min-w-0 max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -215,7 +226,9 @@ export default function V2App() {
             </button>
           ))}
         </nav>
+        {screen !== "mission" && <StatusStrip ctx={ctx} onOpen={() => setScreen("mission")} />}
       </header>
+      {changelog && <ChangelogDialog version={appVersion} onClose={() => setChangelog(false)} />}
       {help && <HelpDialog version={appVersion} onClose={() => setHelp(false)} />}
       <main className="mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
         {outdated && !offline && (
@@ -244,6 +257,7 @@ export default function V2App() {
             {screen === "development" && <DevelopmentScreen ctx={ctx} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
+            {screen === "projects" && <ProjectsScreen currentId={projectId} onOpen={(id, to) => { choose(id); setScreen(to); }} />}
             {screen === "settings" && <SettingsScreen services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
           </>
         )}

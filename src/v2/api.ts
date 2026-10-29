@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, Environment, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -49,6 +49,7 @@ async function serverVersion(): Promise<{ stale: boolean; startedAt: string; ver
 
 export const api = {
   serverVersion,
+  projectsSummary: () => request<{ summary: ProjectSummary[] }>("/projects-summary").then((r) => r.summary),
   projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
@@ -98,6 +99,10 @@ export const api = {
   reassignHandoff: (id: string, aiId: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/reassign`, "POST", { aiId }),
   skipHandoff: (id: string) => request<{ handoff: Handoff }>(`/web-handoffs/${encodeURIComponent(id)}/skip`, "POST", {}),
 
+  claudeQuota: () => request<{ quota: ClaudeQuota | null }>("/claude-quota").then((r) => r.quota),
+  refreshClaudeQuota: () => request<{ quota: ClaudeQuota }>("/claude-quota/refresh", "POST", {}).then((r) => r.quota),
+  environment: (projectId: string | null) => request<Environment>(`/environment${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`),
+  aiUsage: () => request<{ usage: Record<string, { last3h: number; last24h: number; lastAt: string | null }> }>("/ai-usage").then((r) => r.usage),
   aiServices: () => request<{ services: AiService[] }>("/ai-services").then((r) => r.services),
   healthCheck: () => request<{ services: AiService[] }>("/ai-services/health-check", "POST", {}).then((r) => r.services),
   setAutomationLevel: (aiId: string, level: number) => request<{ service: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/automation-level`, "PUT", { level }),

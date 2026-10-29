@@ -8,6 +8,7 @@ import { SplitPreview } from "./SplitPreview";
 import { DepsCard } from "./DepsCard";
 import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
+import { summaryLine } from "./DevelopmentScreen";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
@@ -464,7 +465,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+      <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[900px]:items-start">
       <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
       {pendingPlan && <PlanReview view={view} ctx={ctx} />}
@@ -487,6 +488,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
+          {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
           {["completed", "failed"].includes(mission.status) && <ReportPanel projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (

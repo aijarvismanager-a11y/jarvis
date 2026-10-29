@@ -88,6 +88,19 @@ describe("project isolation", () => {
     expect(() => store.recordAiRun({ projectId: "proj_a", taskId: b.task.id, executor: "manual" })).toThrow();
   });
 
+  it("counts how often each AI ran over all projects (a run without an AI is Claude Code's)", () => {
+    const a = seed("proj_a");
+    const b = seed("proj_b");
+    store.upsertAiService({ id: "gemini", name: "Gemini", url: "https://gemini.test", accessMode: "web", adapterType: "manual", automationLevel: 3, freeStatus: "free_tier" });
+    store.recordAiRun({ projectId: "proj_a", taskId: a.task.id, aiId: "gemini", executor: "web" });
+    store.recordAiRun({ projectId: "proj_b", taskId: b.task.id, aiId: "gemini", executor: "web" });
+    store.recordAiRun({ projectId: "proj_a", taskId: a.task.id, executor: "claude-code" });
+    const counts = store.aiRunCounts();
+    expect(counts.gemini).toMatchObject({ last3h: 2, last24h: 2 });
+    expect(counts["claude-code"]?.last24h).toBe(1);
+    expect(store.aiRunCounts(Date.now() + 5 * 3600_000).gemini).toMatchObject({ last3h: 0, last24h: 2 });
+  });
+
   it("cannot change another project's task status", () => {
     const a = seed("proj_a");
     seed("proj_b");

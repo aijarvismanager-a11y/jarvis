@@ -167,6 +167,26 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "taskNotes", "tasks"]);
   });
 
+  it("summarises every project: newest request, counts and last activity", async () => {
+    await call("/projects/p1/missions", "POST", { goal: "first" });
+    await call("/projects/p1/missions", "POST", { goal: "second" });
+    store.createArtifact({ projectId: "p1", path: "a.md", createdBy: "test" });
+    const body = (await (await call("/projects-summary")).json()) as { summary: { project: { id: string }; latestMission: { goal: string } | null; missionCount: number; artifactCount: number }[] };
+    const p1 = body.summary.find((r) => r.project.id === "p1")!;
+    expect(p1.missionCount).toBe(2);
+    expect(p1.artifactCount).toBe(1);
+    expect(p1.latestMission?.goal).toBe("second");
+  });
+
+  it("tells where the data lives, and where a project's copy and original folder are", async () => {
+    const env = (await (await call("/environment?projectId=p1")).json()) as { root: string; projectsDir: string; project: { id: string; workDir: string; sourcePath: string | null } | null };
+    expect(env.projectsDir).toBe(store.projectsRoot);
+    expect(env.project?.id).toBe("p1");
+    expect(env.project?.workDir.startsWith(env.projectsDir)).toBe(true);
+    expect(env.project?.sourcePath).toBeNull();
+    expect(((await (await call("/environment?projectId=../x")).json()) as { project: unknown }).project).toBeNull();
+  });
+
   it("serves only registered artifacts, and never outside the project", async () => {
     mkdirSync(path.join(projectsRoot, "p1", "docs"), { recursive: true });
     writeFileSync(path.join(projectsRoot, "p1", "docs", "a.md"), "# hello");

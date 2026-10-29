@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
-import type { AiService, Project, TuningReport, WebAiSettings } from "../types";
+import { resetIn, formatTime } from "../labels";
+import type { AiService, ClaudeQuota, Environment, Project, TuningReport, WebAiSettings } from "../types";
 
 function DeleteProjectCard({ project, setError, onDeleted }: { project: Project; setError: (m: string) => void; onDeleted: () => void }) {
   const { busy, run } = useAction(setError);
@@ -27,11 +28,88 @@ function DeleteProjectCard({ project, setError, onDeleted }: { project: Project;
   );
 }
 
+function QuotaBar({ label, w }: { label: string; w: { utilization: number | null; resetsAt: string | null } | null }) {
+  if (!w) return null;
+  const pct = w.utilization === null ? null : Math.round(w.utilization * 100);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px]">
+      <span className="w-14 shrink-0 text-muted">{label}</span>
+      {pct !== null && (
+        <span className="h-1.5 w-28 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${label}の使用率`}>
+          <span className={`block h-full ${pct >= 90 ? "bg-[#9B2C2C]" : pct >= 70 ? "bg-[#B7791F]" : "bg-accent"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        </span>
+      )}
+      <span>{pct === null ? "使用率は不明" : `${pct}% 使用`}</span>
+      <span className="text-muted">{resetIn(w.resetsAt)}</span>
+    </div>
+  );
+}
+
+/** The Claude plan's usage, as Claude Code reports it (the same plan claude.ai chat uses). */
+function ClaudeQuotaView({ setError }: { setError: (m: string) => void }) {
+  const [quota, setQuota] = useState<ClaudeQuota | null>(null);
+  const { busy, run } = useAction(setError);
+  usePoll(async () => setQuota(await api.claudeQuota().catch(() => null)), 20000, []);
+  return (
+    <div className="mt-1">
+      {quota ? (
+        <>
+          <QuotaBar label="5時間枠" w={quota.fiveHour} />
+          <QuotaBar label="7日枠" w={quota.sevenDay} />
+          {quota.status === "rejected" && <p className="mt-1 text-[12px] text-[#9B2C2C]">いま上限に達しています。リセットまで Claude Code は使えません。</p>}
+          <p className="mt-1 text-[11.5px] text-muted">{formatTime(quota.checkedAt)} 時点。Claude(claude.ai のチャット)と同じ枠です。</p>
+        </>
+      ) : (
+        <p className="text-[12px] text-muted">まだ読み取っていません。作業を1回実行するか、下のボタンで確認します。</p>
+      )}
+      <Button variant="ghost" className="mt-1" disabled={busy} onClick={() => run(async () => setQuota(await api.refreshClaudeQuota()))}>{busy ? "確認中…(30秒ほど)" : "いまの使用量を確認"}</Button>
+    </div>
+  );
+}
+
+function EnvironmentCard({ project }: { project: Project | null }) {
+  const [env, setEnv] = useState<Environment | null>(null);
+  usePoll(async () => setEnv(await api.environment(project?.id ?? null).catch(() => null)), 60000, [project?.id]);
+  if (!env) return null;
+  const rows: [string, string, string][] = [
+    ["データの置き場所", env.root, "このアプリの記録・コピー・バックアップは、すべてこの下にあります"],
+    ["プロジェクトの作業用コピー", env.projectsDir, "AIが実際にファイルを書き換える場所(取り込んだ元のフォルダではありません)"],
+    ["バックアップ", env.backupsDir, "「元のフォルダに反映する」の前に自動で取る控え"],
+    ["変更の履歴(巻き戻し用)", env.snapshotsDir, "作業ごとの前後の状態。「この作業の変更を元に戻す」で使います"],
+    ["ブラウザ上のAIのログイン情報", env.browserProfileDir, "ChatGPT・Gemini などにログインした状態を覚えている専用のブラウザ"],
+    ["記録のデータベース", env.dataDir, "依頼・作業・AIの記録(orchestrator.db)"],
+  ];
+  if (env.project) {
+    rows.unshift(["このプロジェクトの作業用コピー", env.project.workDir, "AIが書き換えるのはここだけです"]);
+    if (env.project.sourcePath) rows.splice(1, 0, ["取り込み元の元のフォルダ", env.project.sourcePath, "反映のボタンを押すまで、変わりません"]);
+  }
+  return (
+    <Details summary="フォルダと環境(データの場所)">
+      <dl className="space-y-2 text-[12.5px]">
+        {rows.map(([name, value, note]) => (
+          <div key={name + value}>
+            <dt className="font-semibold">{name}</dt>
+            <dd className="break-all font-mono text-[12px]">{value}</dd>
+            <dd className="text-[11.5px] text-muted">{note}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-[11.5px] text-muted">{env.platform} · Node {env.node}</p>
+    </Details>
+  );
+}
+
 export function SettingsScreen({ services, project, setError, refresh, onProjectDeleted }: { services: AiService[]; project: Project | null; setError: (m: string) => void; refresh: () => void; onProjectDeleted: () => void }) {
   const [web, setWeb] = useState<WebAiSettings | null>(null);
   const { busy, run } = useAction(setError);
   const [tuning, setTuning] = useState<TuningReport | null>(null);
   const [review, setReview] = useState<{ enabled: boolean; webAiEnabled: boolean; reviewer: string | null } | null>(null);
+  const [usage, setUsage] = useState<Record<string, { last3h: number; last24h: number; lastAt: string | null }>>({});
+  usePoll(async () => setUsage(await api.aiUsage().catch(() => ({}))), 15000, []);
+  const useLine = (id: string) => {
+    const u = usage[id];
+    return u ? `使った回数: 直近3時間 ${u.last3h}回 · 直近24時間 ${u.last24h}回` : "使った回数: 直近24時間 0回";
+  };
   const reload = usePoll(async () => { setWeb(await api.webAiSettings()); setReview(await api.aiReviewSettings()); setTuning(await api.scoreTuning().catch(() => null)); }, 10000, []);
   const done = () => {
     reload();
@@ -74,27 +152,18 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
   const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
   const candidates = services.filter(canAutomate);
   const autoCount = candidates.filter((s) => s.automationLevel >= 3 && !web?.botChecks?.[s.id]).length;
+  const isReady = (s: AiService) => s.automationLevel >= 3 && !web?.botChecks?.[s.id];
+  const ready = candidates.filter(isReady);
+  const notReady = candidates.filter((s) => !isReady(s));
 
   const claudeCode = services.find((x) => x.id === "claude-code");
   const others = services.filter((x) => x.id !== "claude-code" && !canAutomate(x));
   const short = (name: string) => name.replace(/ ?\(Web\)/, "");
 
-  return (
-    <div className="space-y-4">
-      <Card title="使うAI">
-        <p className="text-[13px]">
-          自動で使えるAI: <b>{autoCount + (claudeCode ? 1 : 0)}件</b>。調べもの・設計・文章などは、このAIが分担します。
-        </p>
-        <ul className="mt-3 space-y-2">
-          {claudeCode && (
-            <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
-              <span className="font-semibold">Claude Code</span> <Badge tone="ok">自動で使えます</Badge> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
-            </li>
-          )}
-          {web?.available && web.browserAvailable && candidates.map((s) => {
+  const renderRow = (s: AiService) => {
             const auto = s.automationLevel >= 3;
             const result = tried[s.id];
-            const check = web.botChecks?.[s.id];
+            const check = web?.botChecks?.[s.id];
             return (
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
@@ -107,6 +176,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   )}
                 </div>
+                {(auto || usage[s.id]) && <p className="mt-0.5 text-[12px] text-muted">{useLine(s.id)}</p>}
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
                     {check.kind === "always" ? "毎回「私はロボットではありません」などの確認が出るため、いまは自動で使っていません。" : "確認が出たため、しばらく休ませています。"}
@@ -119,8 +189,32 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
                 {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}
               </li>
             );
-          })}
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card title="使うAI">
+        <p className="text-[13px]">
+          自動で使えるAI: <b>{autoCount + (claudeCode ? 1 : 0)}件</b>。調べもの・設計・文章などは、このAIが分担します。
+        </p>
+        <ul className="mt-3 space-y-2">
+          {claudeCode && (
+            <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
+              <span className="font-semibold">Claude Code</span> <Badge tone="ok">自動で使えます</Badge> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
+              <p className="mt-0.5 text-[12px] text-muted">{useLine("claude-code")}</p>
+              <ClaudeQuotaView setError={setError} />
+            </li>
+          )}
+          {web?.available && web.browserAvailable && ready.map(renderRow)}
         </ul>
+        {web?.available && web.browserAvailable && notReady.length > 0 && (
+          <>
+            <h3 className="mt-4 text-[13px] font-semibold">まだ使えないAI({notReady.length}件)</h3>
+            <p className="text-[12px] text-muted">使いたいAIだけ、「ログインして使えるようにする」を押してください。使わないAIは、そのままで大丈夫です。</p>
+            <ul className="mt-2 grid gap-2 lg:grid-cols-2">{notReady.map(renderRow)}</ul>
+          </>
+        )}
+        <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。上限に達して確認が出たAIは、上の「人間確認が必要」と表示され、しばらく休みます。</p>
         {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
         {others.length > 0 && (
           <Details summary={`画像・動画・音楽などのAI(${others.length}件・手動で使います)`}>
@@ -177,6 +271,7 @@ export function SettingsScreen({ services, project, setError, refresh, onProject
         </Details>
       )}
 
+      <Card title="フォルダと環境"><EnvironmentCard project={project} /></Card>
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
     </div>
   );
