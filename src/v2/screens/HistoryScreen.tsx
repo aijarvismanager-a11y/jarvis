@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
-import { MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf } from "../labels";
+import { MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf, goalText } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import { usePoll } from "../hooks";
 import type { StoredEvent } from "../types";
@@ -27,7 +27,7 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
                   <span className="text-[11px] text-muted">{formatTime(m.createdAt)}</span>
                   {total > 0 && <span className="text-[11px] text-muted">{done}/{total}作業完了</span>}
                 </div>
-                <p className="mt-1 text-[13px]">{m.goal}</p>
+                <p className="mt-1 text-[13px]">{goalText(m.goal)}</p>
                 {m.status === "failed" && <p className="mt-1 text-[12px] text-[#9B2C2C]">理由: {explainFailure(missionFailureReason(events, m.id)).what}</p>}
               </li>
             );

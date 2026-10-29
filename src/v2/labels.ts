@@ -131,6 +131,12 @@ export function progressOf(tasks: Task[]): { done: number; total: number; percen
 }
 
 /** A short project name from the first request: its first phrase (up to the first 、。!?), at most 20 characters. */
+/** A request's text as shown: requests carried over from the old app had a "(旧プロジェクトから移行)" marker added in front, which says nothing to the person. */
+export const goalText = (goal: string) => {
+  const rest = goal.replace(/^\s*\(旧プロジェクトから移行\)\s*/, "").trim();
+  return rest === goal.trim() ? goal : `旧アプリから引き継いだプロジェクト「${rest}」`;
+};
+
 export const deriveProjectName = (goal: string) => {
   const t = goal.trim().replace(/\s+/g, " ");
   if (!t) return "新しいプロジェクト";

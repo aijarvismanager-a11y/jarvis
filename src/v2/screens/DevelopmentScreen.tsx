@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
-import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel } from "../labels";
+import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel, goalText } from "../labels";
 import { Badge, Card, Details } from "../ui";
 import type { Task, TaskStatus } from "../types";
 import { FailureReason } from "./FailureReason";
@@ -120,7 +120,7 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
   return (
     <div className="space-y-4">
       <Card title="いまの依頼">
-        <p className="text-[14px] font-semibold">{ctx.mission.goal}</p>
+        <p className="text-[14px] font-semibold">{goalText(ctx.mission.goal)}</p>
         <p className="mt-1 text-[12px] text-muted">状態: {MISSION_LABEL[ctx.mission.status]}{total > 0 && ` · ${total}つの作業のうち ${done}つ完了`}</p>
         {total > 0 && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="全体の進み具合">

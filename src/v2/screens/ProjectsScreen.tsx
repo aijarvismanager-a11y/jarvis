@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { MISSION_LABEL, formatTime } from "../labels";
+import { MISSION_LABEL, formatTime, goalText } from "../labels";
 import { usePoll } from "../hooks";
 import { Badge, Button, Card } from "../ui";
 import type { ProjectSummary } from "../types";
@@ -22,7 +22,7 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
               {r.latestMission && <Badge tone={r.latestMission.status === "completed" ? "ok" : r.latestMission.status === "failed" ? "bad" : r.latestMission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[r.latestMission.status]}</Badge>}
               <span className="ml-auto text-[11px] text-muted">最後の動き {formatTime(r.lastActivityAt)}</span>
             </div>
-            <p className="mt-1 text-[13px]">{r.latestMission ? r.latestMission.goal : "まだ依頼がありません。"}</p>
+            <p className="mt-1 text-[13px]">{r.latestMission ? goalText(r.latestMission.goal) : "まだ依頼がありません。"}</p>
             <p className="mt-1 text-[12px] text-muted">依頼 {r.missionCount}件 · できたもの {r.artifactCount}件</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button variant="ghost" onClick={() => onOpen(r.project.id, "mission")}>ホームで開く</Button>

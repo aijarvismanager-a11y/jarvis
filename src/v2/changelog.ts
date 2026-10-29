@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.39",
+    date: "2026-10-29",
+    items: [
+      "計画づくりが時間切れになったときは、理由が空の「異常終了」ではなく、「計画づくりが○分以内に終わりませんでした」と出します。",
+      "旧アプリから引き継いだプロジェクトの依頼に付いていた「(旧プロジェクトから移行)」を、「旧アプリから引き継いだプロジェクト「…」」の読みやすい表示に直しました。",
+    ],
+  },
+  {
     version: "1.5.38",
     date: "2026-10-29",
     items: ["Claude の上限で止まった作業は、「リセットまで待つ」か「ほかのAIに回す」を選ぶと、自動で続きます(「やり直す」を押す必要はありません)。選ぶ前は、作業の自動やり直しの回数を使い切らないよう、止まったまま待ちます。"],

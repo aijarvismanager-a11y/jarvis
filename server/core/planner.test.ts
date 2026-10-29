@@ -80,6 +80,11 @@ describe("ClaudeCodePlanner", () => {
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/plan/);
   });
 
+  it("says so when the planning ran out of time, instead of an empty crash message", async () => {
+    const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: "", stderr: "", code: null, timedOut: true });
+    await expect(new ClaudeCodePlanner({ runner, timeoutMs: 600_000 }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/タイムアウト.*10分/);
+  });
+
   it("refuses when --print is unsupported", async () => {
     const { runner } = fakeRunner(PLAN, "Usage: claude");
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow();

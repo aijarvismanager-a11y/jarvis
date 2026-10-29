@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, goalText } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -481,7 +481,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
             <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
           </div>
-          <p className="font-serif text-[18px] font-semibold">{mission.goal}</p>
+          <p className="font-serif text-[18px] font-semibold">{goalText(mission.goal)}</p>
           {total > 0 && (
             <div className="mt-3">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
