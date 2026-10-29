@@ -54,7 +54,11 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
         <ul className="space-y-0.5">
           {latest.map((a) => (
             <li key={a.path}>
-              <button onClick={() => onSelect(a)} className={`w-full break-all rounded px-2 py-1 text-left text-[12.5px] ${selected?.path === a.path ? "bg-sidebar font-semibold" : "hover:bg-bg"}`}>{a.path}</button>
+              <button onClick={() => onSelect(a)} className={`w-full rounded px-2 py-1 text-left ${selected?.path === a.path ? "bg-sidebar" : "hover:bg-bg"}`}>
+                {/* the file name first, where it lives under it: a long path no longer breaks in the middle of a word */}
+                <span className={`block break-words text-[12.5px] ${selected?.path === a.path ? "font-semibold" : ""}`}>{a.path.split("/").pop()}</span>
+                {a.path.includes("/") && <span className="block break-all text-[11px] text-muted">{a.path.slice(0, a.path.lastIndexOf("/") + 1)}</span>}
+              </button>
             </li>
           ))}
         </ul>
