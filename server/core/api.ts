@@ -22,6 +22,7 @@ import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
+import { createDeliveryFolder } from "./deliveryFolder.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
@@ -61,6 +62,8 @@ export type OrchestratorApiDeps = {
   restart?: () => void;
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
+  /** Where the folders of projects started in the app are made (their "original folder", filled by the sync); without it none is made. */
+  newProjectRoot?: () => string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
   webAi?: { hub: WebHandoffHub; browserAvailable: () => boolean; /** Is a sign-in window of the person's using the dedicated browser profile, and how many tasks wait for it to be closed. */ status?: () => Promise<{ loginWindowOpen: boolean; waiting: number }>; /** Tries one tiny prompt on the AI in the dedicated browser. */ probe?: (aiId: string) => Promise<{ ok: true } | { ok: false; reason: string }>; /** Opens the AI's page in the dedicated browser profile for a manual sign-in. */ openLogin?: (url: string) => void; /** Copies the everyday browser's sign-ins into the automation profile. */ importSignIn?: () => Promise<{ profile: string; copied: string[] }> };
 };
@@ -168,7 +171,9 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects",
     guarded((req, res) => {
       const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(req.body ?? {});
-      res.status(201).json({ project: store.createProject({ name }) });
+      const project = store.createProject({ name });
+      if (deps.newProjectRoot && deps.syncBackupsRoot) createDeliveryFolder(store, project.id, project.name, deps.newProjectRoot());
+      res.status(201).json({ project });
     }),
   );
   // Removes a project for good: its rows, its working copy, the history repository, the sync record and the sync backups.
@@ -297,7 +302,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     try {
       const root = projectDir(store.projectsRoot, projectId);
       const { push, pull } = await computeDiffsAsync(link, root);
-      res.json({ linked: true, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
+      res.json({ linked: true, createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
       res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }

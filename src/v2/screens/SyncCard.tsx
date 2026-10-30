@@ -147,15 +147,19 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
       open={false} // the tab already shows a badge when the folders differ; a long card must not push the request itself down
       title={
         <span className="flex flex-wrap items-center gap-2">
-          元のフォルダに反映する
+          {state.createdByApp ? "保存先のフォルダに入れる" : "元のフォルダに反映する"}
           {state.entries.length > 0 && <Badge tone="warn">反映していない変更 {state.entries.length}件</Badge>}
           {state.pullEntries.length > 0 && <Badge tone="info">元のフォルダ側の変更 {state.pullEntries.length}件</Badge>}
         </span>
       }
     >
-      <p className="break-all text-[12.5px]"><span className="text-muted">元のフォルダ: </span>{state.sourcePath}</p>
+      <p className="break-all text-[12.5px]"><span className="text-muted">{state.createdByApp ? "保存先のフォルダ: " : "元のフォルダ: "}</span>{state.sourcePath}</p>
       <div className="mt-1.5 rounded-md bg-bg px-3 py-2 text-[12px] leading-relaxed text-muted">
-        <p>このアプリは、元のフォルダの<b>コピー</b>で作業しています。AIが変えた内容は、下の「反映する」を押すまで、<b>元のフォルダには入りません</b>。</p>
+        {state.createdByApp ? (
+          <p>このプロジェクトは、このアプリの中で作っています。できたもの(CHANGELOG.md などの更新履歴も)は、下の「反映する」を押すと、上の<b>保存先のフォルダ</b>に入ります。押すまでは、アプリの中にだけあります。</p>
+        ) : (
+          <p>このアプリは、元のフォルダの<b>コピー</b>で作業しています。AIが変えた内容は、下の「反映する」を押すまで、<b>元のフォルダには入りません</b>。</p>
+        )}
         <p className="mt-0.5">反映の前に、変わるファイルは自動でバックアップされます。あとから取り消せます。</p>
       </div>
       {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}

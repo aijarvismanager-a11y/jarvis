@@ -301,7 +301,18 @@ export class MissionEngine {
     // keep a chosen AI unless it already failed this task: then fall back to the next candidate
     if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
     try {
-      const decision = broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: [...failedAis, ...this.authorsToAvoid(task)] });
+      const select = (exclude: string[]) => broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: exclude });
+      const avoid = this.authorsToAvoid(task);
+      let decision = select([...failedAis, ...avoid]);
+      // A review wants a second opinion, but a finished mission matters more: when every other AI has failed or is resting,
+      // the AI that wrote the work reviews it (and the report says so) instead of the task failing and stopping the whole mission.
+      if (!decision.selected && avoid.length > 0) {
+        const alone = select(failedAis);
+        if (alone.selected) {
+          decision = alone;
+          this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_REVIEW_BY_AUTHOR", payload: { aiId: alone.selected.aiId, reason: "ほかのAIがすべて使えなかったため" } });
+        }
+      }
       const byId = new Map(decision.ranked.map((c) => [c.aiId, c]));
       const payload = {
         capability: decision.capability,

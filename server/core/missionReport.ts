@@ -1,5 +1,6 @@
 import type { Store, Task } from "./store.ts";
 import { isWriteTask } from "./scheduler.ts";
+import { linkKey } from "./projectSync.ts";
 
 // Completion report: what was done, what was actually checked and how far, and
 // what was NOT checked. Built only from recorded facts (tasks, validations,
@@ -212,6 +213,18 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       actions: done.filter((x) => !x.isCode && x.files.length).slice(0, 3).map((t) => ({ kind: "artifact" as const, label: `作業${numberOf(t)}の成果物を読む`, path: t.files[0]! })),
     });
   }
+  // A project made inside the app only reaches its folder (with CHANGELOG.md etc.) when the person presses 反映.
+  const link = store.getSetting<{ sourcePath?: string; createdByApp?: boolean } | null>(linkKey(projectId), null);
+  if (finished && link?.createdByApp && link.sourcePath && code.length + done.length > 0) {
+    todos.push({
+      id: "deliver",
+      required: true,
+      title: "できたものを、保存先のフォルダに入れてください",
+      why: `このプロジェクトはアプリの中で作っています。押すまで、成果物と更新履歴(CHANGELOG.md など)は「${link.sourcePath}」に入りません。`,
+      steps: ["下のボタンで「保存先のフォルダに入れる」を開きます。", "入れるファイルを確かめて、「反映する」を押します。"],
+      actions: [{ kind: "sync", label: "保存先のフォルダに入れる" }],
+    });
+  }
   // plain-text form of the same advice (Markdown copy, older screens)
   const nextSteps = todos.map((x) => `${x.required ? "【やること】" : "【任意】"}${x.title}。${x.why}`);
 
@@ -219,6 +232,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   const retried = reportTasks.filter((t) => t.attempts > 1);
   if (retried.length) notes.push(`${retried.length}個の作業は複数回実行しています(再試行・やり直し)`);
   const count = (type: string) => events.filter((e) => e.type === type).length;
+  if (count("AI_REVIEW_BY_AUTHOR")) notes.push(`ほかのAIがすべて使えなかったため、書いたAI自身がレビューした作業が${count("AI_REVIEW_BY_AUTHOR")}件あります(別のAIの目では見ていません。大事な変更なら、あとで別のAIに見てもらってください)`);
   if (count("AI_FALLBACK")) notes.push(`失敗により別のAIへ切り替えた作業が${count("AI_FALLBACK")}件あります`);
   if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直した作業が${count("TASK_MANUAL_RETRY")}件あります`);
   if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻した作業が${count("TASK_ROLLBACK")}件あります`);

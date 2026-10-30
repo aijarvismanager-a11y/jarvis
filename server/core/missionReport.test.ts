@@ -104,3 +104,21 @@ describe("buildMissionReport", () => {
     expect(buildMissionReport(store, "p", m.id, () => text).tasks[0]!.inconclusive).toBe(false);
   });
 });
+
+describe("deliver to-do for projects made in the app", () => {
+  it("asks the person to put the result into the delivery folder", async () => {
+    const { store, db, m } = await runMission(4);
+    store.setSetting("source:p", { sourcePath: "D:/Desktop/p", importedAt: "", baseline: {}, exclude: [], createdByApp: true });
+    const r = buildMissionReport(store, "p", m.id);
+    const t = r.todos?.find((x) => x.id === "deliver");
+    expect(t?.required).toBe(true);
+    expect(t?.actions[0]?.kind).toBe("sync");
+    db.close();
+  });
+  it("does not ask for imported projects", async () => {
+    const { store, db, m } = await runMission(4);
+    store.setSetting("source:p", { sourcePath: "D:/x", importedAt: "", baseline: {}, exclude: [] });
+    expect(buildMissionReport(store, "p", m.id).todos?.some((x) => x.id === "deliver")).toBe(false);
+    db.close();
+  });
+});
