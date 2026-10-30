@@ -261,10 +261,11 @@ function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
     <div className="ml-6 mt-1">
       <div className="flex flex-wrap gap-2">
         <Button variant="ghost" disabled={busy} onClick={go}>この作業をやり直す</Button>
-        {!open && <Button variant="ghost" disabled={busy} onClick={() => setOpen(true)}>指示を足してやり直す</Button>}
+        {!open && <Button variant="ghost" disabled={busy} onClick={() => setOpen(true)}>注文をつけてやり直す(任意)</Button>}
       </div>
-      {open && (
+      {open && (
         <div className="mt-2">
+          <p className="mb-1 text-[12px] text-muted">AIが作った内容に付け足すのではなく、やり直すAIへの「注文」を書く欄です。変えたい点がなければ、何も書かずに「この作業をやり直す」を押してください。</p>
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="例: 削除機能は後回しにして、一覧と登録だけ作ってください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
           <div className="mt-1 flex gap-2">
             <Button disabled={busy || !text.trim()} onClick={go}>この指示でやり直す</Button>

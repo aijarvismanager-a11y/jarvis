@@ -20,7 +20,7 @@ import { getWebAiSettings, resolveSiteProfile } from "./webAiSites.ts";
 export const AI_REVIEW_LEVEL = 6;
 /** How many times a review may send a task back. After that its remaining findings are only recorded. */
 export const MAX_REVIEW_REVISIONS = 1;
-export const REVIEW_DIR = "reviews";
+export const REVIEW_DIR = "_ai-records/reviews";
 
 const SETTING_KEY = "ai_review";
 export type AiReviewSettings = { enabled: boolean };

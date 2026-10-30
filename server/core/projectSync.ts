@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HISTORY_NOTES_PATH, SKIP_DIRS, SKIP_FILE } from "./projectImport.ts";
+import { isAiRecordPath } from "./recordsArchive.ts";
 
 // Sync between an imported project (the working copy) and the folder it came from.
 // The link remembers what the source looked like at import time (a hash per file), so a
@@ -100,6 +101,7 @@ function assertSourceExists(link: SyncLink) {
 function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string, string>): SyncEntry[] {
   const entries: SyncEntry[] = [];
   for (const rel of new Set([...Object.keys(from), ...Object.keys(link.baseline)])) {
+    if (isAiRecordPath(rel)) continue; // the AI's own notes are never carried into (or out of) the original folder
     const b = link.baseline[rel];
     const f = from[rel];
     const t = to[rel];

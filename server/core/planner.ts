@@ -1,6 +1,6 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
-import { planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
+import { MAX_PLAN_TASKS, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
 
 // Planner (spec §3: Claude Code is Lead Developer and plans too). The engine
 // only depends on the Planner interface, so the implementation can be swapped
@@ -79,7 +79,9 @@ export function buildPlannerPrompt(req: PlanRequest): string {
     "あなたは開発依頼のLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
     "出力形式: {\"summary\": string, \"tasks\": [{\"key\", \"role\", \"objective\", \"inputs\", \"expectedOutputs\", \"constraints\", \"dependsOn\": [key]}]}",
     "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。アイデア出し・名前案・文面の案を出す作業の role は ideation にする。作業は最大50件、循環依存は禁止。",
-    "各 task の expectedOutputs には、成果物の「ファイルパスだけ」を書く(例: design/auth.md、research/tools.md、review/ui.md、src/app.js)。説明文・括弧書き・「〜を含む」のような補足は書かない。文章や調査結果を残す作業にもパスを付け、ファイルを残さない作業だけ空の配列にする。",
+    "各 task の expectedOutputs には、成果物の「ファイルパスだけ」を書く(例: _ai-records/auth/design.md、src/app.js)。説明文・括弧書き・「〜を含む」のような補足は書かない。文章や調査結果を残す作業にもパスを付け、ファイルを残さない作業だけ空の配列にする。",
+    "作業の数や分け方は、ゴールに必要なだけ自由に計画してよい(記録のために作業を減らしたり、まとめたりしない)。ただし、調査・設計・レビュー・メモなど、AIが残す記録の置き場所だけは決まっている: すべて `_ai-records/<依頼を表す短い英数字の名前>/` の下に置き(design/ や research/ や review/ などの新しいフォルダは作らない)、1つの作業につきファイル1つにする。ユーザーが成果物として頼んだ文書とコードは、これまでどおり通常の場所に置く。",
+    "記録の書き方: 長い文章にせず、次の見出しだけで短くまとめる — 「結論」「やったこと(変えたファイルとその理由)」「確認できたこと」「確認できていないこと」。入力として読んだ資料の内容を写さない(どのファイルを読んだかだけ書く)。同じ内容の記録が既にあるときは、新しく書き直さず、そのファイルを読んで使う。プロジェクトに既存の更新履歴・不具合メモ・テスト記録・計画書があるときは、新しいメモを作る代わりに、そこへ追記する。",
     "有料APIは使わない。ファイルを実際に変更したり、コマンドを実行したりせず、計画だけを返すこと。",
     "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",
     `ゴール: ${req.goal}`,
@@ -91,6 +93,38 @@ export function buildPlannerPrompt(req: PlanRequest): string {
   if (req.failed?.length) lines.push(`失敗: ${req.failed.map((t) => `[${t.role}] ${t.objective}${t.reason ? ` (${t.reason})` : ""}`).join(" ; ")}`);
   if (req.feedback) lines.push(`ユーザーからの指摘: ${req.feedback}`);
   return lines.join("\n");
+}
+
+export const HISTORY_TASK_KEY = "update_project_history";
+
+/**
+ * An existing project already keeps its own history (change log, bug notes, test log, plan, architecture). The work used to
+ * leave that untouched and pile up new memos beside it. When a plan changes code, the last step brings the project's own
+ * records up to date instead - it is part of the plan the person approves, so it can be seen and removed.
+ */
+export function withHistoryUpdateTask(draft: PlanDraft, existingProject = true): PlanDraft {
+  const changesCode = draft.tasks.some((t) => t.role === "coding");
+  if (!changesCode || draft.tasks.some((t) => t.key === HISTORY_TASK_KEY) || draft.tasks.length >= MAX_PLAN_TASKS) return draft;
+  const objective = existingProject
+    ? "この依頼で行った内容(変えたファイルとその理由、確認できたこと、確認できていないこと)を、プロジェクトに既にある更新履歴・不具合(バグ)メモ・テスト記録・計画書・構成書へ反映する。" +
+      "まず、プロジェクトのフォルダを調べ、既存の記録ファイルを全部探す(CHANGELOG・更新履歴・HISTORY・TESTLOG・PROGRESS・PLAN・ARCHITECTURE・README・docs/status-report.md、名前に バグ・不具合・bug・issue を含むメモなど)。" +
+      "見つかったそれぞれに、書かれている書式をそのまま真似て、追記するか、該当する箇所を更新する(この依頼と関係のないファイルは触らない。書かれている内容を勝手に消さない)。" +
+      "この依頼と関係のある記録が1つも見つからないときだけ、_ai-records/<依頼を表す短い英数字の名前>/summary.md を1つ作る。それ以外で、新しいメモのファイルは作らない。" +
+      "最後に、更新したファイルの一覧を答えに書く。"
+    : "この依頼で行った内容(作ったもの、変えたファイルとその理由、確認できたこと、確認できていないこと、分かっている不具合)を、このプロジェクトの更新履歴として残す。" +
+      "プロジェクトの一番上のフォルダに CHANGELOG.md が無ければ新しく作り、あれば先頭(新しい順)に追記する。書き方: 日付、依頼の要約、変更点、確認できたこと、確認できていないこと、既知の不具合(あれば、再現の手順つき)。" +
+      "README.md があれば、使い方や構成が変わった部分だけを直す(無ければ、作らなくてよい)。" +
+      "それ以外の新しいメモのファイルは作らない。最後に、作った・更新したファイルの一覧を答えに書く。";
+  const task = {
+    key: HISTORY_TASK_KEY,
+    role: "document",
+    objective,
+    inputs: [] as string[],
+    expectedOutputs: [] as string[],
+    constraints: ["コードは変更しない(文書だけを変更する)", "確認できていないことは「確認できていない」と書き、確認済みとは書かない", "既存の記録の、依頼と関係のない部分は変えない"],
+    dependsOn: draft.tasks.map((t) => t.key),
+  };
+  return { ...draft, tasks: [...draft.tasks, task] };
 }
 
 /** Pulls the plan JSON out of `--output-format json` output or free text. */
@@ -182,6 +216,6 @@ ${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code}): ${
     }
     const problems = validatePlan(parsed.data);
     if (problems.length) throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
-    return parsed.data;
+    return withHistoryUpdateTask(parsed.data, !!request.existingProject);
   }
 }

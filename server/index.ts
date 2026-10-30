@@ -28,6 +28,7 @@ import { pickFolder } from "./core/folderPicker.ts";
 import { DepsInstaller } from "./core/depsInstaller.ts";
 import { SystemCheck } from "./core/systemCheck.ts";
 import { VersionWatch } from "./core/version.ts";
+import { archiveOldRecords } from "./core/recordsArchive.ts";
 
 // ROOT = where the user data lives (data/, projects/, backups/): the working directory.
 // APP_DIR = where the program itself is (server/, dist/): the same folder when run from the repository,
@@ -187,3 +188,12 @@ server.headersTimeout = 0;
 server.listen(PORT, BIND_HOST, () => {
   console.log(`[ai-orchestrator] server listening on http://${BIND_HOST}:${PORT}`);
 });
+
+// Old AI records (_ai-records/<name>/ untouched for two weeks) are packed into backups/records by themselves: once a minute
+// after start-up, then once a day. Nothing to press, nothing in the way of the user's own files.
+const packOldRecords = () =>
+  archiveOldRecords({ projectsRoot: path.join(ROOT, "projects"), backupsRoot: path.join(ROOT, "backups") })
+    .then((r) => { if (r.archived.length) console.log(`[ai-orchestrator] packed old AI records: ${r.archived.join(", ")}`); })
+    .catch((err) => console.warn("[ai-orchestrator] packing old AI records failed:", err instanceof Error ? err.message : err));
+setTimeout(() => void packOldRecords(), 60_000).unref();
+setInterval(() => void packOldRecords(), 86_400_000).unref();

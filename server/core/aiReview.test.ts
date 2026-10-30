@@ -105,9 +105,9 @@ describe("reviewing one task", () => {
     expect(calls[0].svc).toBe("chatgpt");
     expect(calls[0].prompt).toContain("=== design/auth.md ===");
     expect(calls[0].prompt).toContain("セッションはCookie");
-    const file = path.join(projectDir(root, pid), "reviews", `${task.id}.md`);
+    const file = path.join(projectDir(root, pid), "_ai-records", "reviews", `${task.id}.md`);
     expect(readFileSync(file, "utf8")).toContain("妥当です");
-    expect(store.listArtifacts(pid).some((a) => a.path === `reviews/${task.id}.md`)).toBe(true);
+    expect(store.listArtifacts(pid).some((a) => a.path === `_ai-records/reviews/${task.id}.md`)).toBe(true);
     expect(store.listAiRuns(pid).some((x) => x.executor === "ai-review" && x.status === "succeeded")).toBe(true);
     expect(store.listEvents({ projectId: pid }).map((e) => e.type)).toEqual(expect.arrayContaining(["AI_REVIEW_REQUESTED", "AI_REVIEW_DONE"]));
   });
@@ -173,7 +173,7 @@ describe("inside the engine", () => {
     const levels = store.listValidations(pid).map((v) => `${v.level}:${v.status}`);
     expect(levels).toContain(`${AI_REVIEW_LEVEL}:failed`);
     expect(levels).toContain(`${AI_REVIEW_LEVEL}:passed`);
-    expect(existsSync(path.join(projectDir(root, pid), "reviews"))).toBe(true);
+    expect(existsSync(path.join(projectDir(root, pid), "_ai-records", "reviews"))).toBe(true);
   });
 
   it("a reviewer that always breaks never stops the mission", async () => {

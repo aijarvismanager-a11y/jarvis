@@ -25,3 +25,14 @@ describe("failure reasons", () => {
     expect(explainFailure("planner error: Claude Codeが異常終了しました(code=1)").hint).toContain("利用上限に達していないか");
   });
 });
+
+describe("a web AI that could not be driven", () => {
+  it("says it is handled automatically and names the reason in plain words", () => {
+    const manual = explainFailure("ChatGPT (Web)を自動で操作できませんでした(手動の設定です)。ほかのAIに回します");
+    expect(manual.what).toContain("自動で動かさない設定");
+    expect(manual.hint).toContain("あなたがやることはありません");
+    const gone = explainFailure("ChatGPT (Web)を自動で操作できませんでした(プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります))。ほかのAIに回します");
+    expect(gone.what).toContain("文章を入れる欄が見つかりませんでした");
+    expect(gone.hint).toContain("試してみる");
+  });
+});

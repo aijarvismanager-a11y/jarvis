@@ -242,6 +242,28 @@ export function explainFailure(reason: string | null): { what: string; hint: str
         : "少し待ってから「計画をやり直す」を押してください。何度も失敗するときは、依頼の書き方を具体的にしてみてください。"),
     };
   }
+  // a web AI that could not be driven automatically: the engine hands the task to another AI by itself, so there is nothing to redo
+  const web = reason?.match(/^(.+?)を自動で操作できませんでした((.*))。ほかのAIに回します/s);
+  if (web) {
+    const ai = web[1];
+    const why = web[2];
+    const plain = /手動の設定/.test(why)
+      ? `${ai}は、自動で動かさない設定(手動)になっています`
+      : /入力欄が見つかりません/.test(why)
+        ? `${ai}の画面に、文章を入れる欄が見つかりませんでした(サイトの画面が変わったか、ログインが切れている可能性があります)`
+        : /ログイン/.test(why)
+          ? `${ai}にログインできていません`
+          : /人間確認|ロボット|bot/i.test(why)
+            ? `${ai}が「人間かどうかの確認」を出しています`
+            : /上限/.test(why)
+              ? `${ai}の利用上限に達しています`
+              : why;
+    return {
+      what: `${ai}は、今回は使えませんでした。理由: ${plain}`,
+      hint: "あなたがやることはありません。この作業は、アプリが自動で別のAIに回します(「やり直す」も、指示の追加も要りません)。" +
+        (/手動の設定/.test(why) ? "このAIを自動で使いたいときだけ、「使うAI」で自動操作を入れてください。" : /入力欄|ログイン|人間確認|ロボット|bot/i.test(why) ? "このAIを使いたいときは、「使うAI」の「試してみる」で、状態を確かめてください。" : ""),
+    };
+  }
   if (reason && REASON_LABEL[reason]) return { what: REASON_LABEL[reason], hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
   if (reason) return { what: reason, hint: cause ?? "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
   return { what: "理由の記録が見つかりませんでした", hint: "「計画をやり直す」を押すか、「新しい依頼」を出してください。" };

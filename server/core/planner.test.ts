@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ClaudeCodePlanner, buildPlannerPrompt, extractPlanJson, needsShell, parseCliCapabilities, spawnRunner, type CommandRunner } from "./planner.ts";
+import { HISTORY_TASK_KEY, withHistoryUpdateTask, ClaudeCodePlanner, buildPlannerPrompt, extractPlanJson, needsShell, parseCliCapabilities, spawnRunner, type CommandRunner } from "./planner.ts";
 
 // Excerpt of a real `claude --help` (v2.x): the planner must derive its flags from this, not assume them.
 const HELP = `Usage: claude [options] [command] [prompt]
@@ -47,7 +47,8 @@ describe("ClaudeCodePlanner", () => {
   it("builds args only from detected capabilities and sends the prompt on stdin", async () => {
     const { runner, calls } = fakeRunner(PLAN);
     const draft = await new ClaudeCodePlanner({ runner }).plan({ goal: "商品管理アプリ", constraints: [], technologyPreferences: [] });
-    expect(draft.tasks).toHaveLength(2);
+    expect(draft.tasks).toHaveLength(3); // + the last step that starts the new project's CHANGELOG.md
+    expect(draft.tasks[2]!.objective).toContain("CHANGELOG.md が無ければ新しく作り");
     expect(calls[0].args).toEqual(["--help"]);
     const run = calls[1];
     expect(run.args).toContain("--print");
@@ -121,7 +122,7 @@ describe("ClaudeCodePlanner", () => {
       return { stdout: JSON.stringify({ type: "result", result }), stderr: "", code: 0 };
     };
     const draft = await new ClaudeCodePlanner({ runner, cwd: "C:/orchestrator" }).plan({ goal: "g", constraints: [], technologyPreferences: [], cwd: "C:/projects/p1", existingProject: true });
-    expect(draft.tasks).toHaveLength(2);
+    expect(draft.tasks).toHaveLength(PLAN.tasks.length + 1); // the plan changes code, so the project's own history is brought up to date last
     expect(cwds).toEqual(["C:/projects/p1", "C:/projects/p1"]);
     expect(buildPlannerPrompt({ goal: "g", constraints: [], technologyPreferences: [], existingProject: true })).toContain("既存のプロジェクト");
   });
@@ -163,4 +164,20 @@ describe("real claude --help (read-only, no model call)", () => {
     if (res.code !== 0) return;
     expect(parseCliCapabilities(res.stdout).print).toBe(true);
   }, 40_000);
+});
+
+describe("withHistoryUpdateTask", () => {
+  const draft = (roles: string[]) => ({ summary: "", tasks: roles.map((role, i) => ({ key: `t${i}`, role, objective: "x", inputs: [], expectedOutputs: [], constraints: [], dependsOn: [] })) });
+  it("adds one last step that updates the project's own records when the plan changes code", () => {
+    const out = withHistoryUpdateTask(draft(["research", "coding"]));
+    const last = out.tasks[out.tasks.length - 1]!;
+    expect(last.key).toBe(HISTORY_TASK_KEY);
+    expect(last.dependsOn).toEqual(["t0", "t1"]);
+    expect(last.objective).toContain("TESTLOG");
+    expect(last.expectedOutputs).toEqual([]);
+    expect(withHistoryUpdateTask(out).tasks).toHaveLength(3); // not added twice
+  });
+  it("leaves plans that change no code alone", () => {
+    expect(withHistoryUpdateTask(draft(["research", "design"])).tasks).toHaveLength(2);
+  });
 });
