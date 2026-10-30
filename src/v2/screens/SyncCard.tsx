@@ -141,6 +141,7 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
   const running = ctx.mission?.status === "running";
 
   return (
+    <div id="sync-card">
     <Card
       fold
       open={false} // the tab already shows a badge when the folders differ; a long card must not push the request itself down
@@ -162,5 +163,6 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
       <Section dir="push" projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />
       <div className="mt-3"><Button variant="ghost" disabled={busy} onClick={() => void load()}>差分を再確認</Button></div>
     </Card>
+    </div>
   );
 }

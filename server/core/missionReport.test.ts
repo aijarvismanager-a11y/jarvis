@@ -57,9 +57,26 @@ describe("buildMissionReport", () => {
     expect(partly.nextSteps.join("\n")).toContain("失敗ではありません");
     const none = buildMissionReport(store, "p", m.id, () => "分かりません。\n確認状況：確認できず");
     expect(none.tasks.some((t) => t.inconclusive)).toBe(true);
-    expect(none.nextSteps.join("\n")).toContain("この作業をやり直す");
+    const unanswered = none.todos.find((x) => x.id.startsWith("unanswered"));
+    expect(unanswered).toMatchObject({ required: true });
+    expect(unanswered!.actions.map((a) => a.kind)).toEqual(expect.arrayContaining(["artifact", "new_request"]));
+    expect(unanswered!.steps.length).toBeGreaterThan(2);
+    // the markdown copy also says what to do
+    expect(none.markdown).toContain("あなたがやること");
     expect(statedStatus("確認状況: 確認できず")).toBe("none");
     expect(statedStatus("何も書いていない")).toBeNull();
+    db.close();
+  });
+  it("tells the person that nothing is needed when only optional checks remain, and explains a command the AI was not allowed to run", async () => {
+    const { store, db, m } = await runMission(2, "test");
+    const t = store.listTasks("p").find((x) => x.role === "test")!;
+    store.createArtifact({ projectId: "p", taskId: t.id, path: "review/build.md", createdBy: "test" });
+    const denied = "dotnet build は承認が必要(DESTRUCTIVE)なため実行できなかった。\n確認状況: 確認できず";
+    const r = buildMissionReport(store, "p", m.id, () => denied);
+    expect(r.todos.some((x) => x.required)).toBe(false);
+    const cannot = r.todos.find((x) => x.id.startsWith("cannot-run"))!;
+    expect(cannot.actions).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "sync" })]));
+    expect(r.markdown).toContain("いまは、あなたがやることはありません");
     db.close();
   });
   it("is verified only when code tasks passed tests and the integration gate ran", async () => {

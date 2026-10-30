@@ -90,6 +90,13 @@ export type Handoff = {
 export type WebAiSettings = { enabled: boolean; available: boolean; browserAvailable: boolean; sites: Record<string, unknown>; bundledSites: string[]; loggedIn: Record<string, boolean>; usageLimits?: Record<string, string>; botChecks?: Record<string, { kind: "rest"; until: string } | { kind: "always" }> };
 export type StoredEvent = { id: number; type: string; taskId: string | null; payload: unknown; createdAt: string };
 
+export type ReportAction =
+  | { kind: "new_request"; label: string; goal: string }
+  | { kind: "retry"; label: string; taskId: string }
+  | { kind: "artifact"; label: string; path: string }
+  | { kind: "copy"; label: string; text: string }
+  | { kind: "sync"; label: string };
+export type ReportTodo = { id: string; required: boolean; title: string; why: string; steps: string[]; actions: ReportAction[] };
 export type MissionReport = {
   missionId: string;
   verdict: "verified" | "partial" | "unfinished";
@@ -97,6 +104,7 @@ export type MissionReport = {
   tasks: { id: string; objective: string; status: string; level: number; attempts: number; isCode: boolean; role?: string; inconclusive?: boolean; partly?: boolean }[];
   notChecked: string[];
   nextSteps?: string[];
+  todos?: ReportTodo[];
   notes: string[];
   markdown: string;
 };

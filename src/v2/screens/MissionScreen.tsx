@@ -12,7 +12,7 @@ import { summaryLine } from "./DevelopmentScreen";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
-import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, ReportAction, ReportTodo } from "../types";
 
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
@@ -79,7 +79,43 @@ const VERDICT_TONE ={ verified: "ok", partial: "warn", unfinished: "bad" } as co
 const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認" };
 
 /** What was done, how far it was actually checked, and what was not checked. */
-function ReportPanel({ projectId, missionId, status }: { projectId: string; missionId: string; status: string }) {
+function TodoCard({ todo, ctx, missionId, onNewRequest }: { todo: ReportTodo; ctx: Ctx; missionId: string; onNewRequest: (goal: string) => void }) {
+  const { busy, run } = useAction(ctx.setError);
+  const [copied, setCopied] = useState("");
+  const projectId = ctx.project!.id;
+  const act = (a: ReportAction) => {
+    if (a.kind === "new_request") return onNewRequest(a.goal);
+    if (a.kind === "retry") return void run(async () => { await api.retryTask(projectId, missionId, a.taskId); ctx.refresh(); });
+    if (a.kind === "artifact") {
+      const found = ctx.overview.artifacts.find((x) => x.path === a.path);
+      if (found) ctx.openArtifact(found);
+      else ctx.setError(`成果物「${a.path}」が見つかりません。「できたもの」のタブで探してください`);
+      return;
+    }
+    if (a.kind === "copy") return void navigator.clipboard?.writeText(a.text).then(() => setCopied(a.text)).catch(() => undefined);
+    const box = document.querySelector<HTMLDetailsElement>("#sync-card details");
+    if (!box) return ctx.setError("このプロジェクトは、元のフォルダから取り込んだものではないので、反映の画面はありません");
+    box.open = true;
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <div className={`rounded-md border px-3 py-2.5 ${todo.required ? "border-accent bg-white" : "border-borderSoft bg-white"}`}>
+      <p className="flex flex-wrap items-center gap-2">
+        <Badge tone={todo.required ? "warn" : "neutral"}>{todo.required ? "やること" : "任意"}</Badge>
+        <span className="font-semibold">{todo.title}</span>
+      </p>
+      <p className="mt-1 text-muted">{todo.why}</p>
+      <ol className="mt-1.5 list-decimal space-y-0.5 pl-5">{todo.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {todo.actions.map((a, i) => (
+          <Button key={i} variant={i === todo.actions.length - 1 && todo.required ? "primary" : "ghost"} disabled={busy} onClick={() => act(a)}>{a.kind === "copy" && copied === a.text ? "コピーしました" : a.label}</Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx: Ctx; projectId: string; missionId: string; status: string; onNewRequest: (goal: string) => void }) {
   const [report, setReport] = useState<MissionReport | null>(null);
   const [open, setOpen] = useState<boolean | null>(null); // null = default: open unless everything was verified
   const [copied, setCopied] = useState(false);
@@ -92,6 +128,9 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
   const isOpen = open ?? report.verdict !== "verified";
   const done = report.tasks.filter((t) => t.status === "completed").length;
+  const todos = report.todos ?? [];
+  const must = todos.filter((t) => t.required);
+  const maybe = todos.filter((t) => !t.required);
   // a request that stopped while it was still being planned has nothing to report: its reason is already shown above
   if (report.tasks.length === 0) return null;
   return (
@@ -102,8 +141,20 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
         <span className="text-[12px] text-muted">{report.tasks.length}件の作業のうち、{done}件が終わりました</span>
         <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!isOpen)}>{isOpen ? "閉じる" : "詳しく見る"}</button>
       </div>
+      {report.todos && (
+        <div className={`mt-2 rounded-md px-3 py-2 text-[13px] ${must.length ? "bg-[#FBF3E0] text-[#7A5410]" : "bg-[#E8F3EA] text-[#2F6B3C]"}`}>
+          <b>{must.length ? `あなたがやることが ${must.length}件 あります` : "いまは、あなたがやることはありません"}</b>
+          {!must.length && maybe.length > 0 && <span className="ml-2 text-[12px]">(やっておくと安心なことが{maybe.length}件あります。下の「任意」)</span>}
+        </div>
+      )}
       {isOpen && (
         <div className="mt-3 space-y-3.5 text-[12.5px] leading-relaxed">
+          {todos.length > 0 && (
+            <section className="space-y-2">
+              <p className="font-semibold">{must.length ? "あなたがやること" : "やっておくと安心なこと(しなくても大丈夫です)"}</p>
+              {[...must, ...maybe].map((t) => <TodoCard key={t.id} todo={t} ctx={ctx} missionId={missionId} onNewRequest={onNewRequest} />)}
+            </section>
+          )}
           <section>
             <p className="mb-1 font-semibold">やったこと</p>
             <ul className="divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
@@ -131,15 +182,9 @@ function ReportPanel({ projectId, missionId, status }: { projectId: string; miss
             </ul>
           </section>
           <section className="rounded-md bg-[#FBF3E0] px-3 py-2">
-            <p className="mb-1 font-semibold text-[#7A5410]">まだ確認できていないこと</p>
+            <p className="mb-1 font-semibold text-[#7A5410]">AIが確認できていないこと(あなたの作業ではありません)</p>
             <ul className="list-disc space-y-0.5 pl-5 text-[#5A4A2A]">{report.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
           </section>
-          {report.nextSteps && report.nextSteps.length > 0 && (
-            <section className="rounded-md bg-[#EAF0F8] px-3 py-2">
-              <p className="mb-1 font-semibold text-[#2F5A8A]">次にすること</p>
-              <ul className="list-disc space-y-0.5 pl-5 text-[#2F3F55]">{report.nextSteps.map((n) => <li key={n}>{n}</li>)}</ul>
-            </section>
-          )}
           {report.notes.length > 0 && (
             <section>
               <p className="mb-1 font-semibold">気をつけること</p>
@@ -395,8 +440,8 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
   );
 }
 
-function Intake({ ctx, onStarted }: { ctx: Ctx; onStarted: () => void }) {
-  const [goal, setGoal] = useState("");
+function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () => void; initialGoal?: string }) {
+  const [goal, setGoal] = useState(initialGoal);
   const [constraints, setConstraints] = useState("");
   const [tech, setTech] = useState("");
   const { busy, run } = useAction(ctx.setError);
@@ -434,6 +479,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const [view, setView] = useState<MissionView | null>(null);
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
+  const [draftGoal, setDraftGoal] = useState(""); // a to-do in the report can open the request form with the words already written
+  const writeRequest = (text: string) => { setDraftGoal(text); setStarting(true); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   // The proposal is not part of /overview, and it arrives after the mission already says "planning" (without any change to the
   // mission itself), so keep asking for the full view while a plan awaits approval. `view` is only used while it matches the
@@ -498,7 +545,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           )}
           {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
-          {["completed", "failed"].includes(mission.status) && <ReportPanel projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
+          {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (
             <p className="mt-2 text-[12px] text-muted">
               AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
@@ -546,7 +593,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {showIntake && (
         <>
           {starting && <div><Button variant="ghost" onClick={() => setStarting(false)}>← 現在の依頼に戻る</Button></div>}
-          <Intake ctx={ctx} onStarted={() => { setStarting(false); ctx.refresh(); }} />
+          <Intake key={draftGoal} ctx={ctx} initialGoal={draftGoal} onStarted={() => { setDraftGoal(""); setStarting(false); ctx.refresh(); }} />
         </>
       )}
 

@@ -26,6 +26,15 @@ export type ReportTask = {
   /** the deliverable answers, but says some points are still unconfirmed ("確認状況: 一部未確認") */
   partly: boolean;
 };
+/** A button on a to-do: what it does is decided by the screen, the report only names it. */
+export type ReportAction =
+  | { kind: "new_request"; label: string; goal: string }
+  | { kind: "retry"; label: string; taskId: string }
+  | { kind: "artifact"; label: string; path: string }
+  | { kind: "copy"; label: string; text: string }
+  | { kind: "sync"; label: string };
+/** Something the person has to (or may) do, with why and exact steps; `required` ones are the only reason to say "you have to do something". */
+export type ReportTodo = { id: string; required: boolean; title: string; why: string; steps: string[]; actions: ReportAction[] };
 export type MissionReport = {
   missionId: string;
   goal: string;
@@ -36,6 +45,8 @@ export type MissionReport = {
   notChecked: string[];
   /** what the person can do about it, in plain words */
   nextSteps: string[];
+  /** what the person has to do (required) or may do to be safer (optional); empty = nothing to do */
+  todos: ReportTodo[];
   notes: string[];
   usage: { durationMs: number; costUsd: number | null; runs: number };
   markdown: string;
@@ -113,11 +124,96 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (partlyTasks.length) notChecked.unshift(`作業${partlyTasks.map((t) => reportTasks.indexOf(t) + 1).join("・")}の成果物は、答えは出していますが、「確認できていない点が残っている」と書いています。残っている点は、成果物の中の「未確認」の項に出ています`);
   notChecked.push("画面や機能が、あなたの要望どおりかどうかは人の目での確認が必要です");
 
-  const nextSteps: string[] = [];
-  const unanswered = done.filter((x) => x.inconclusive);
-  if (unanswered.length) nextSteps.push(`作業${unanswered.map((t) => reportTasks.indexOf(t) + 1).join("・")}は、聞いたことの答えが出ていません。その作業の「この作業をやり直す」を押すと、別のAIに頼み直せます。くり返すときは、依頼の範囲を絞って(対象のファイルや関数を名指しして)出し直してください`);
-  if (partlyTasks.length) nextSteps.push("「一部未確認」は、失敗ではありません。成果物の「未確認」の項を読んで、結論を変えそうな点だけ、確かめる依頼を別に出してください。変えそうにない点なら、そのまま次に進んで大丈夫です");
-  if (done.length && !unanswered.length && !partlyTasks.length && done.some((x) => !x.isCode)) nextSteps.push("調査・設計の成果物は、「できたもの」で内容を読んで、おかしな点がないか確かめてください");
+  const numberOf = (t: ReportTask) => reportTasks.indexOf(t) + 1;
+  const shortObjective = (t: ReportTask) => (t.objective.length > 60 ? `${t.objective.slice(0, 60)}…` : t.objective);
+  const todos: ReportTodo[] = [];
+  const unfinishedMission = !["completed", "cancelled"].includes(mission.status);
+  for (const t of reportTasks.filter((x) => (x.status === "failed" || x.status === "blocked") && unfinishedMission && x.status === "failed")) {
+    todos.push({
+      id: `retry-${t.id}`,
+      required: true,
+      title: `作業${numberOf(t)}が失敗して止まっています`,
+      why: "この作業が終わらないと、後ろの作業に進めません。もう一度やらせれば、たいていは進みます。",
+      steps: ["下の「この作業をやり直す」を押します(別のAIに替わることがあります)。", "それでも失敗するときは、「計画をやり直す」を押すか、依頼の範囲を小さくしてください。"],
+      actions: [{ kind: "retry", label: "この作業をやり直す", taskId: t.id }],
+    });
+  }
+  // an answer is missing because the AI was not allowed to run the command it needed: asking again cannot fix that
+  const CANNOT_RUN = /承認(プロンプト|が必要)|承認できる主体|DESTRUCTIVE|許可が(出|得)|実行(自体)?ができて?(い)?ない|実行できなかった/;
+  const COMMAND = /\b((?:dotnet|npm|npx|pnpm|yarn|cargo|go|pytest|python|mvn|gradle|make)\s+[\w.\-]+(?:\s+[\w./\-]+)*)/;
+  for (const t of done.filter((x) => x.inconclusive)) {
+    const text = readArtifact ? t.files.map((f) => readArtifact(f) ?? "").join("\n") : "";
+    if (CANNOT_RUN.test(text)) {
+      const command = t.objective.match(COMMAND)?.[1];
+      todos.push({
+        id: `cannot-run-${t.id}`,
+        required: false,
+        title: `作業${numberOf(t)}は、AIが実行を許されなかったため、確かめられていません`,
+        why: "このアプリは、AIが勝手にコマンドを実行しないよう、許可の出ない操作を止めています。作業が失敗したわけではなく、「確かめられなかった」だけです。あなたがやり直させても、同じ理由で確かめられません。",
+        steps: command
+          ? [`ご自身で確かめるときは、プロジェクトのフォルダで「${command}」を実行します(元のフォルダに反映済みなら、そこで実行します)。`, "エラーが出なければ、その点は問題ありません。エラーが出たら、その文面を、新しい依頼にそのまま貼ってください。", "確かめなくても、ほかの作業の結果は使えます(確かめないと、動くかどうかが分からないだけです)。"]
+          : ["確かめたい操作を、ご自身で実行します。", "エラーが出たら、その文面を、新しい依頼にそのまま貼ってください。"],
+        actions: command ? [{ kind: "copy", label: "コマンドをコピー", text: command }, { kind: "sync", label: "元のフォルダへの反映を見る" }] : [{ kind: "sync", label: "元のフォルダへの反映を見る" }],
+      });
+    } else {
+      todos.push({
+        id: `unanswered-${t.id}`,
+        required: true,
+        title: `作業${numberOf(t)}は、聞いたことの答えが出ていません`,
+        why: "AIが、調べたいものを読めなかった(または見つけられなかった)と書いています。そのままだと、この作業の結論は使えません。",
+        steps: [
+          "まず、下の「成果物を読む」で、AIが何を確認できなかったのかを読みます。",
+          "答えが要るときは、「範囲を絞ってもう一度頼む」を押します。入力欄に、文面が入ります。",
+          "文面の中の「対象」を、ファイルや関数の名前に書き換えてから、「開発を開始」を押します。",
+          "答えが要らないときは、何もしなくて大丈夫です。",
+        ],
+        actions: [
+          ...t.files.slice(0, 2).map((path) => ({ kind: "artifact" as const, label: "成果物を読む", path })),
+          { kind: "new_request" as const, label: "範囲を絞ってもう一度頼む", goal: `前回の作業「${shortObjective(t)}」は、答えが出ませんでした。次の対象に絞って、もう一度調べてください。
+対象: (ここに、ファイルや関数の名前を書いてください)
+
+元の作業: ${t.objective}` },
+        ],
+      });
+    }
+  }
+  const partlyTasks2 = done.filter((x) => x.partly && !x.inconclusive);
+  if (partlyTasks2.length) {
+    todos.push({
+      id: "partly",
+      required: false,
+      title: `作業${partlyTasks2.map(numberOf).join("・")}に、確認できていない点が残っています`,
+      why: "失敗ではありません。答えは出ていて、「ここはまだ確かめていない」という点が、成果物の中に書かれているだけです。",
+      steps: ["下の「成果物を読む」で、「未確認」と書かれた項を読みます。", "結論が変わりそうな点だけ、「その点を確かめてもらう」を押して、もう一度頼みます。", "結論が変わりそうにない点なら、何もしなくて大丈夫です。"],
+      actions: [
+        ...partlyTasks2.flatMap((t) => t.files.slice(0, 1).map((path) => ({ kind: "artifact" as const, label: `作業${numberOf(t)}の成果物を読む`, path }))),
+        { kind: "new_request" as const, label: "その点を確かめてもらう", goal: `作業${partlyTasks2.map(numberOf).join("・")}の成果物で「未確認」とされた点のうち、次の点だけを確かめてください。
+確かめる点: (ここに、確かめたい点を書いてください)` },
+      ],
+    });
+  }
+  if (code.length > 0 && finished && !code.some((x) => x.level >= 4) && !todos.some((x) => x.id.startsWith("cannot-run"))) {
+    todos.push({
+      id: "try-it",
+      required: false,
+      title: "実際に動かして、確かめておくと安心です",
+      why: "コードは書き換わっていますが、アプリを起動して画面を開く確認までは、自動では行われていません。",
+      steps: ["Webアプリなら、ホームの「動かして確認する」の「起動して見る」を押します。", "Gageのようなデスクトップアプリは、「元のフォルダへの反映を見る」で内容を確かめてから反映し、ご自身でビルドして起動します。", "おかしなところがあれば、その様子を文章にして、新しい依頼で伝えてください。"],
+      actions: [{ kind: "sync", label: "元のフォルダへの反映を見る" }],
+    });
+  }
+  if (done.length && !todos.length && done.some((x) => !x.isCode)) {
+    todos.push({
+      id: "read-deliverables",
+      required: false,
+      title: "成果物を読んで、おかしな点がないか見ておくと安心です",
+      why: "調査・設計・文書の中身が正しいかは、自動では検証していません(ファイルがあることだけ確認しています)。",
+      steps: ["下の「成果物を読む」で、内容を読みます。", "おかしな点があれば、新しい依頼で、どこがおかしいかを伝えてください。"],
+      actions: done.filter((x) => !x.isCode && x.files.length).slice(0, 3).map((t) => ({ kind: "artifact" as const, label: `作業${numberOf(t)}の成果物を読む`, path: t.files[0]! })),
+    });
+  }
+  // plain-text form of the same advice (Markdown copy, older screens)
+  const nextSteps = todos.map((x) => `${x.required ? "【やること】" : "【任意】"}${x.title}。${x.why}`);
 
   const notes: string[] = [];
   const retried = reportTasks.filter((t) => t.attempts > 1);
@@ -126,7 +222,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (count("AI_FALLBACK")) notes.push(`失敗により別のAIへ切り替えた作業が${count("AI_FALLBACK")}件あります`);
   if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直した作業が${count("TASK_MANUAL_RETRY")}件あります`);
   if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻した作業が${count("TASK_ROLLBACK")}件あります`);
-  if (count("APPROVAL_DENIED")) notes.push("承認されなかった操作があります");
+  if (count("APPROVAL_DENIED")) notes.push("AIが実行しようとした操作のうち、許可が出なかったものがあります(許可の出ない操作は止める決まりです。作業全体が失敗したとは限りません)");
   for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`作業${reportTasks.indexOf(t) + 1}は完了していません(${t.status})`);
 
   const verdict: MissionReport["verdict"] = !finished ? "unfinished" : code.length > 0 && code.every((t) => t.level >= 3) && code.some((t) => t.level >= 4) ? "verified" : "partial";
@@ -148,9 +244,10 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     "## 確認していないこと",
     ...notChecked.map((n) => `- ${n}`),
   ];
-  if (nextSteps.length) lines.push("", "## 次にすること", ...nextSteps.map((n) => `- ${n}`));
+  lines.push("", "## あなたがやること", todos.some((x) => x.required) ? "" : "いまは、あなたがやることはありません。");
+  for (const x of todos) lines.push(`- ${x.required ? "【やること】" : "【任意】"}${x.title}`, `  - ${x.why}`, ...x.steps.map((st, i) => `  ${i + 1}. ${st}`));
   if (notes.length) lines.push("", "## 注意点", ...notes.map((n) => `- ${n}`));
   lines.push("", `作業時間 ${Math.round(durationMs / 1000)}秒 / 実行${usage.runs}回${usage.costUsd != null ? ` / API換算 $${usage.costUsd.toFixed(2)}` : ""}`);
 
-  return { missionId, goal: mission.goal, status: mission.status, verdict, verdictLabel, tasks: reportTasks, notChecked, nextSteps, notes, usage, markdown: lines.join("\n") };
+  return { missionId, goal: mission.goal, status: mission.status, verdict, verdictLabel, tasks: reportTasks, notChecked, nextSteps, todos, notes, usage, markdown: lines.join("\n") };
 }
