@@ -10,6 +10,11 @@
 - 1項目ずつ試して、結果を末尾の表に書く。**わからないときは「不明」と書いてよい**(推測で埋めない)。
 - 結果の表を私に貼ってもらえれば、設計の「暫定方針」を「確定」か「やり直し」に分けます。
 
+## まず、Gage を起動するまで(PowerShell で、1行ずつ)
+1. 設定の控えを取る: `Copy-Item $env:APPDATAGage $env:USERPROFILEDesktopGage-設定の控え -Recurse`
+2. 元の Gage のフォルダで起動する: `cd C:UserscrossDesktopGage` → `dotnet run --project src/Fence.App -c Release`
+3. 終わったら、トレイのアイコンから Gage を終了する(控えは、問題がなければ消してよい)。
+
 ## A. Z-order(Gage が、デスクトップのアイコンの下・ふつうの窓の後ろに居続けるか)— 最優先
 この結果で、Z-order の設計の方向が決まります(実装の前に必ず要る確認です)。
 
