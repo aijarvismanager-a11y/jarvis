@@ -15,7 +15,7 @@ describe("createDeliveryFolder", () => {
     const a = createDeliveryFolder(store, "p", "My: App?", root)!;
     expect(existsSync(a)).toBe(true);
     expect(path.basename(a)).toBe("My App");
-    expect(store.getSetting<{ createdByApp?: boolean; sourcePath: string }>(linkKey("p"), null)).toMatchObject({ createdByApp: true, sourcePath: a });
+    expect(store.getSetting<{ createdByApp?: boolean; sourcePath: string }>(linkKey("p"), { sourcePath: "" })).toMatchObject({ createdByApp: true, sourcePath: a });
     expect(uniqueFolder(root, "My: App?")).toBe(path.join(root, "My App (2)"));
   });
 });
