@@ -168,7 +168,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
           "答えが要らないときは、何もしなくて大丈夫です。",
         ],
         actions: [
-          ...t.files.slice(0, 2).map((path) => ({ kind: "artifact" as const, label: "成果物を読む", path })),
+          ...t.files.slice(0, 2).map((path) => ({ kind: "artifact" as const, label: `成果物を読む(${path.split("/").pop()})`, path })),
           { kind: "new_request" as const, label: "範囲を絞ってもう一度頼む", goal: `前回の作業「${shortObjective(t)}」は、答えが出ませんでした。次の対象に絞って、もう一度調べてください。
 対象: (ここに、ファイルや関数の名前を書いてください)
 

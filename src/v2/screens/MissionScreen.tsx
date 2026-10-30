@@ -480,7 +480,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
   const [draftGoal, setDraftGoal] = useState(""); // a to-do in the report can open the request form with the words already written
-  const writeRequest = (text: string) => { setDraftGoal(text); setStarting(true); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const writeRequest = (text: string) => { setDraftGoal(text); setStarting(true); setTimeout(() => document.getElementById("goal")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80); };
 
   // The proposal is not part of /overview, and it arrives after the mission already says "planning" (without any change to the
   // mission itself), so keep asking for the full view while a plan awaits approval. `view` is only used while it matches the
