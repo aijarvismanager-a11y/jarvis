@@ -290,7 +290,7 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
         <span className="text-[13px] font-semibold">{APPROVAL_LEVEL[approval.level]}を伴う作業です</span>
       </div>
       <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
-      <p className="mt-1 text-[12px] text-muted">許可しても、この作業の間だけ有効です。他の作業には広がりません。拒否するとこの作業は失敗として止まります。30分で自動的に拒否されます。</p>
+      <p className="mt-1 text-[12px] text-muted">許可しても、この作業の間だけ有効です。他の作業には広がりません。拒否するとこの作業は失敗として止まります。押すまで、この作業は止まったまま待ちます(自動では拒否しません)。</p>
       <div className="mt-3 flex gap-2">
         <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>
         <Button variant="danger" disabled={busy} onClick={() => answer(false)}>拒否する</Button>

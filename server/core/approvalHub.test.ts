@@ -37,12 +37,17 @@ describe("ApprovalHub", () => {
     expect(events("APPROVAL_REFUSED")).toHaveLength(1);
   });
 
-  it("denies on timeout and when the task is aborted, and cannot be answered twice", async () => {
+  it("waits for the user by default, denies on an explicit timeout and when the task is aborted, and cannot be answered twice", async () => {
     const slow = new ApprovalHub(store, 20);
     expect(await slow.gate(req())).toBe(false);
     expect(slow.list()).toEqual([]);
 
     const hub = new ApprovalHub(store);
+    void hub.gate(req("t0"));
+    await new Promise((r) => setTimeout(r, 40));
+    expect(hub.list()).toHaveLength(1); // no default timeout: still waiting
+    const [waiting] = hub.list();
+    hub.resolve(waiting!.id, true);
     const controller = new AbortController();
     const aborted = hub.gate(req("t2", controller.signal));
     controller.abort();
