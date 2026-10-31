@@ -119,7 +119,7 @@ const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
   aiReview: { reviewer: webExecutor },
-  validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester() }),
+  validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots }),
   broker: new AIBroker(coreStore),
 });
 // A restart leaves approved missions marked "running" with no loop behind them: pick them up again.

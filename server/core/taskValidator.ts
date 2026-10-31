@@ -6,6 +6,8 @@ import { projectDir, resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
 import type { Task } from "./store.ts";
 import type { SmokeResult } from "./appSmokeTest.ts";
+import type { SnapshotManager } from "./snapshotManager.ts";
+import { dotnetBuildCheck, findShrunkFiles, readTextIfExists, restoreFiles, shrinkMessage, touchesDotnet } from "./autoChecks.ts";
 
 // Validation L1-L3 (spec §31): files exist, files are well-formed, unit tests
 // pass. Each level only runs if the lower one passed; the verdict reports the
@@ -30,7 +32,7 @@ export function isIntegrationTask(task: Pick<Task, "role" | "objective">): boole
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
-    private readonly opts: { runner?: CommandRunner; runTests?: boolean; smoke?: { run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> } } = {},
+    private readonly opts: { runner?: CommandRunner; runTests?: boolean; smoke?: { run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> }; /** before/after copies of the folder: lets the validator notice files that shrank */ snapshots?: SnapshotManager; /** set false to skip the automatic `dotnet build` of .NET projects */ dotnetBuild?: boolean } = {},
   ) {}
 
   private get runner() {
@@ -81,15 +83,44 @@ export class ProjectValidator implements TaskValidator {
     }
     if (syntaxErrors.length) return { passed: false, level: 2, detail: `構文エラー:\n${syntaxErrors.join("\n")}` };
 
+    // Guard: an existing file replaced by a much shorter one (a task that rewrote a history file instead of adding to it) is put back and the task fails.
+    const snaps = this.opts.snapshots;
+    if (snaps && changed.length) {
+      const name = `${task.projectId}-${task.id}-${task.retryCount}-before`;
+      const root = projectDir(this.projectsRoot, task.projectId);
+      const originals = new Map<string, string>();
+      const shrunk = await findShrunkFiles(
+        changed,
+        async (rel) => {
+          const buf = await snaps.readFile(task.projectId, name, rel).catch(() => null);
+          if (!buf) return null;
+          originals.set(rel, buf.toString("utf8"));
+          return originals.get(rel)!;
+        },
+        (rel) => readTextIfExists(path.join(root, rel)),
+      );
+      if (shrunk.length) {
+        restoreFiles(root, shrunk.map((s) => ({ path: s.path, content: originals.get(s.path)! })));
+        return { passed: false, level: 2, detail: shrinkMessage(shrunk) };
+      }
+    }
+
     // L3: unit tests, only for code tasks in a project that defines a test script
     let level = toCheck.length ? 2 : 1;
     let detail: string | undefined;
+    // L3: a .NET project must still build (done here, because the AI has no way to run the build itself)
+    if (this.opts.dotnetBuild !== false && isWriteTask(task) && touchesDotnet(changed)) {
+      const build = await dotnetBuildCheck(projectDir(this.projectsRoot, task.projectId), this.runner);
+      if (build.status === "failed") return { passed: false, level: 3, detail: build.detail };
+      detail = build.status === "passed" ? build.detail : `ビルド確認(未実施): ${build.detail}`;
+      if (build.status === "passed") level = 3;
+    }
     if (this.opts.runTests !== false && isWriteTask(task) && this.hasTestScript(task.projectId)) {
       const res = await this.runner("npm", ["test"], { cwd: projectDir(this.projectsRoot, task.projectId), timeoutMs: TEST_TIMEOUT_MS, env: { CI: "true" } });
       if (res.timedOut) return { passed: false, level: 3, detail: "テストがタイムアウトしました" };
       if (res.code !== 0) return { passed: false, level: 3, detail: `テスト失敗(npm test, code=${res.code}):\n${`${res.stdout}\n${res.stderr}`.trim().slice(-TAIL_CHARS)}` };
       level = 3;
-      detail = "npm test 合格";
+      detail = [detail, "npm test 合格"].filter(Boolean).join("\n");
     }
 
     // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
