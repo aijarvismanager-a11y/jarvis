@@ -58,7 +58,7 @@ export class MissionEngine {
 
   constructor(
     private readonly store: Store,
-    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; /** AI B Review (spec §57): a second AI checks important tasks */ aiReview?: { reviewer: AiReviewer }; maxParallel?: number; lockTtlMs?: number },
+    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; /** AI B Review (spec §57): a second AI checks important tasks */ aiReview?: { reviewer: AiReviewer }; maxParallel?: number; lockTtlMs?: number; /** called once when a request has finished (e.g. to reflect it into the original folder) */ onMissionCompleted?: (projectId: string, missionId: string) => void | Promise<void> },
   ) {
     this.scheduler = new Scheduler(store, { maxParallel: deps.maxParallel, lockTtlMs: deps.lockTtlMs });
   }
@@ -268,6 +268,7 @@ export class MissionEngine {
       }
       if (tasks.length > 0 && tasks.every((t) => TERMINAL_TASK_STATUSES.includes(t.status)) && tasks.some((t) => t.status === "completed")) {
         transitionMission(this.store, projectId, missionId, "completed", "all tasks completed");
+        void Promise.resolve(this.deps.onMissionCompleted?.(projectId, missionId)).catch(() => undefined);
       } else if (tasks.some((t) => t.status === "ready")) {
         // a write task is waiting on a lock held outside this engine; do not spin
         transitionMission(this.store, projectId, missionId, "failed", "write lock unavailable");

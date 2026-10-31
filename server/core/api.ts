@@ -19,6 +19,7 @@ import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from 
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
 import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
+import { autoReflectKey, isSyncBusy, withSyncLock } from "./autoReflect.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
@@ -302,11 +303,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     try {
       const root = projectDir(store.projectsRoot, projectId);
       const { push, pull } = await computeDiffsAsync(link, root);
-      res.json({ linked: true, createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
+      res.json({ linked: true, autoReflect: store.getSetting<boolean>(autoReflectKey(projectId), false), createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
       res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
   });
+  router.put(
+    "/projects/:projectId/auto-reflect",
+    syncGuarded((req, res, { projectId }) => {
+      const body = z.object({ enabled: z.boolean() }).parse(req.body);
+      store.setSetting(autoReflectKey(projectId), body.enabled);
+      store.appendEvent({ projectId, type: body.enabled ? "SYNC_AUTO_ON" : "SYNC_AUTO_OFF", payload: {} });
+      res.json({ autoReflect: body.enabled });
+    }),
+  );
   // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
   type SyncSummaryValue = { linked: boolean; push: number; pull: number; problem?: string };
   const summaryCache = new Map<string, { at: number; value: SyncSummaryValue }>();
@@ -334,16 +344,6 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     res.json(await run);
   });
   // Writing is asynchronous now, so two clicks (or an apply and a restore) must not interleave on the same project.
-  const syncBusy = new Set<string>();
-  const withSyncLock = async <T>(projectId: string, fn: () => Promise<T>): Promise<T> => {
-    if (syncBusy.has(projectId)) throw new Error("同期の書き込み中です。終わるまで少し待ってください");
-    syncBusy.add(projectId);
-    try {
-      return await fn();
-    } finally {
-      syncBusy.delete(projectId);
-    }
-  };
   router.post(
     "/projects/:projectId/sync/apply",
     syncGuarded(async (req, res, { projectId, link, backupDir }) => {
@@ -370,7 +370,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       for (const project of store.listProjects()) {
         const projectId = project.id;
         const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
-        if (!link || syncBusy.has(projectId) || store.listMissions(projectId).some((m) => m.status === "running")) continue;
+        if (!link || isSyncBusy(projectId) || store.listMissions(projectId).some((m) => m.status === "running")) continue;
         try {
           const root = projectDir(store.projectsRoot, projectId);
           const paths = autoPullPaths((await computeDiffsAsync(link, root)).pull);

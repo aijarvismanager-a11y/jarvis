@@ -164,6 +164,10 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
         )}
         <p className="mt-0.5">反映の前に、変わるファイルは自動でバックアップされます。あとから取り消せます。</p>
       </div>
+      <label className="mt-2 flex items-start gap-2 text-[12.5px]">
+        <input type="checkbox" className="mt-0.5" checked={!!state.autoReflect} onChange={(e) => void api.setAutoReflect(projectId, e.target.checked).then(load).catch((err) => ctx.setError(err instanceof Error ? err.message : String(err)))} />
+        <span><b>依頼が終わったら、安全なものは自動で反映する</b><span className="block text-[11.5px] text-muted">コンフリクトのないファイルだけを入れます。削除・AIのメモ・「半分以下に減る」ファイルは入れず、ここに残します。反映前にバックアップします。</span></span>
+      </label>
       {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}
       <Section dir="pull" projectId={projectId} entries={state.pullEntries} backups={state.pullBackups} running={running} ctx={ctx} reload={load} />
       <Section dir="push" projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />

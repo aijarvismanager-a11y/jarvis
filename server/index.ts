@@ -24,6 +24,8 @@ import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
+import { autoReflectMission } from "./core/autoReflect.ts";
+import { resolveInProject } from "./core/paths.ts";
 import { pickFolder } from "./core/folderPicker.ts";
 import { DepsInstaller } from "./core/depsInstaller.ts";
 import { SystemCheck } from "./core/systemCheck.ts";
@@ -121,6 +123,14 @@ const engine = new MissionEngine(coreStore, {
   aiReview: { reviewer: webExecutor },
   validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots }),
   broker: new AIBroker(coreStore),
+  onMissionCompleted: (projectId, missionId) =>
+    void autoReflectMission(coreStore, path.join(ROOT, "backups", "sync"), projectId, missionId, (rel) => {
+      try {
+        return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000);
+      } catch {
+        return null;
+      }
+    }),
 });
 // A restart leaves approved missions marked "running" with no loop behind them: pick them up again.
 for (const project of coreStore.listProjects()) {
