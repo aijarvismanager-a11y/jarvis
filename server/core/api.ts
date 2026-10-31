@@ -19,6 +19,7 @@ import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from 
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
 import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
+import { approveVerifyScript, runVerification, scriptText, verifyInfo } from "./postVerify.ts";
 import { autoReflectKey, isSyncBusy, withSyncLock } from "./autoReflect.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
@@ -63,6 +64,8 @@ export type OrchestratorApiDeps = {
   restart?: () => void;
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
+  /** where verifiers/<projectId>.ps1 live (the app root) */
+  appRoot?: string;
   /** Where the folders of projects started in the app are made (their "original folder", filled by the sync); without it none is made. */
   newProjectRoot?: () => string;
   /** Enables the Web AI endpoints (handoffs, settings, site profiles); without it they answer 501. */
@@ -303,7 +306,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     try {
       const root = projectDir(store.projectsRoot, projectId);
       const { push, pull } = await computeDiffsAsync(link, root);
-      res.json({ linked: true, autoReflect: store.getSetting<boolean>(autoReflectKey(projectId), false), createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
+      res.json({ linked: true, verify: deps.appRoot ? verifyInfo(store, deps.appRoot, projectId) : null, autoReflect: store.getSetting<boolean>(autoReflectKey(projectId), false), createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
       res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
@@ -317,6 +320,22 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ autoReflect: body.enabled });
     }),
   );
+  router.get("/projects/:projectId/verify/script", syncGuarded((_req, res, { projectId }) => {
+    const text = deps.appRoot ? scriptText(deps.appRoot, projectId) : null;
+    if (text === null) return void res.status(404).json({ error: "確認の手順がありません" });
+    res.json({ text });
+  }));
+  router.post("/projects/:projectId/verify/approve", syncGuarded((_req, res, { projectId }) => {
+    if (!deps.appRoot) return void res.status(501).json({ error: "接続されていません" });
+    approveVerifyScript(store, deps.appRoot, projectId);
+    res.json(verifyInfo(store, deps.appRoot, projectId));
+  }));
+  router.post("/projects/:projectId/verify/run", syncGuarded((_req, res, { projectId }) => {
+    if (!deps.appRoot) return void res.status(501).json({ error: "接続されていません" });
+    if (store.listMissions(projectId).some((m) => m.status === "running")) return void res.status(409).json({ error: "実行中の依頼があります。終わってから確認してください" });
+    void runVerification(store, deps.appRoot, projectId);
+    res.status(202).json({ started: true });
+  }));
   // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
   type SyncSummaryValue = { linked: boolean; push: number; pull: number; problem?: string };
   const summaryCache = new Map<string, { at: number; value: SyncSummaryValue }>();

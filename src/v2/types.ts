@@ -113,7 +113,9 @@ export type SnapshotInfo = { name: string; taskId: string; objective: string; at
 
 export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; conflict: boolean; shrinks?: boolean; shrinkVerdict?: "safe" | "unsafe" | "unknown"; shrinkReason?: string };
 export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean }[] };
-export type SyncState = { linked: false } | { linked: true; autoReflect?: boolean; /** the folder was made by the app for a project started here (not imported) */ createdByApp?: boolean; sourcePath: string; entries: SyncEntry[]; pullEntries: SyncEntry[]; backups: SyncBackup[]; pullBackups: SyncBackup[]; problem?: string };
+export type VerifyResult = { at: string; status: "passed" | "failed" | "postponed" | "running"; summary: string; tail: string; durationMs: number; missionId?: string };
+export type VerifyInfo = { available: boolean; approved: boolean; changed: boolean; result: VerifyResult | null };
+export type SyncState = { linked: false } | { linked: true; verify?: VerifyInfo | null; autoReflect?: boolean; /** the folder was made by the app for a project started here (not imported) */ createdByApp?: boolean; sourcePath: string; entries: SyncEntry[]; pullEntries: SyncEntry[]; backups: SyncBackup[]; pullBackups: SyncBackup[]; problem?: string };
 export type SyncSummary = { linked: boolean; push: number; pull: number; problem?: string };
 export type DepsInstall = { state: "idle" | "installing" | "done" | "error"; message: string; log: string; startedAt: string | null };
 export type DepsState = { missing: string[]; install: DepsInstall };

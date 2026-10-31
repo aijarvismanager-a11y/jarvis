@@ -202,7 +202,21 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       ],
     });
   }
-  if (code.length > 0 && finished && !code.some((x) => x.level >= 4) && !todos.some((x) => x.id.startsWith("cannot-run"))) {
+  // The check run after the request was reflected (build, start and measure the real app): when it passed, "try it yourself" is not needed; when it failed, that is a real to-do.
+  const verified = store.getSetting<{ at: string; status: string; summary: string; missionId?: string } | null>(`verifyResult:${projectId}`, null);
+  const verifiedThis = !!verified && verified.missionId === missionId;
+  if (verifiedThis && verified!.status === "passed") notChecked.unshift(`反映後の自動確認は通りました: ${verified!.summary}`);
+  if (verifiedThis && verified!.status === "failed") {
+    todos.unshift({
+      id: "verify-failed",
+      required: true,
+      title: "反映後の自動確認が失敗しました",
+      why: `ビルドして実際に動かして測ったところ、基準に届きませんでした: ${verified!.summary}`,
+      steps: ["下の「元のフォルダへの反映を見る」を開き、「反映後の自動確認」の結果を読みます。", "原因が分かるときは、新しい依頼で、その内容を伝えてください(結果の文面をそのまま貼れます)。", "直したあとは、同じ画面の「確認を実行」を押して、もう一度確かめます。"],
+      actions: [{ kind: "sync", label: "元のフォルダへの反映を見る" }],
+    });
+  }
+  if (code.length > 0 && finished && !code.some((x) => x.level >= 4) && !(verifiedThis && verified!.status === "passed") && !todos.some((x) => x.id.startsWith("cannot-run"))) {
     todos.push({
       id: "try-it",
       required: false,

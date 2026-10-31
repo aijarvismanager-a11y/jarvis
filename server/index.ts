@@ -25,6 +25,7 @@ import { SnapshotManager } from "./core/snapshotManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
 import { autoReflectMission } from "./core/autoReflect.ts";
+import { runVerification } from "./core/postVerify.ts";
 import { resolveInProject } from "./core/paths.ts";
 import { pickFolder } from "./core/folderPicker.ts";
 import { DepsInstaller } from "./core/depsInstaller.ts";
@@ -130,7 +131,7 @@ const engine = new MissionEngine(coreStore, {
       } catch {
         return null;
       }
-    }),
+    }).then((r) => (r.applied > 0 ? runVerification(coreStore, ROOT, projectId, missionId) : undefined)),
 });
 // A restart leaves approved missions marked "running" with no loop behind them: pick them up again.
 for (const project of coreStore.listProjects()) {
@@ -149,7 +150,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.

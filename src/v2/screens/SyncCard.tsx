@@ -4,7 +4,7 @@ import type { Ctx } from "../context";
 import { formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction } from "../hooks";
-import type { SyncBackup, SyncEntry, SyncState } from "../types";
+import type { SyncBackup, SyncEntry, SyncState, VerifyInfo } from "../types";
 
 const KIND_LABEL: Record<SyncEntry["kind"], string> = { added: "追加", modified: "変更", deleted: "削除" };
 type Direction = "push" | "pull";
@@ -129,6 +129,41 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
 }
 
 /** For a project imported from a folder: review what differs between the copy and the original, in either direction, and apply it after saving what it replaces. */
+const VERIFY_TONE = { passed: "ok", failed: "bad", postponed: "warn", running: "info" } as const;
+const VERIFY_LABEL = { passed: "通過", failed: "失敗", postponed: "あとで実行", running: "実行中" } as const;
+
+/** "Reflect, then build, start and measure the real app": the approval of the script, its latest result, and a button to run it again. */
+function VerifyBox({ projectId, info, ctx, reload }: { projectId: string; info: VerifyInfo; ctx: Ctx; reload: () => Promise<void> }) {
+  const [script, setScript] = useState<string | null>(null);
+  const r = info.result;
+  useEffect(() => {
+    if (r?.status !== "running" && r?.status !== "postponed") return;
+    const t = setInterval(() => void reload(), 5000);
+    return () => clearInterval(t);
+  }, [r?.status, reload]);
+  const fail = (e: unknown) => ctx.setError(e instanceof Error ? e.message : String(e));
+  return (
+    <div className="mt-2 rounded-md border border-borderSoft bg-white px-3 py-2 text-[12.5px]">
+      <p className="font-semibold">反映後の自動確認(ビルド → 起動 → 測定)</p>
+      <p className="mt-0.5 text-[11.5px] text-muted">依頼を元のフォルダへ自動で反映したあと、このPCで実際にアプリを作り直して動かし、測ります。PCを使っている間は、使い終わるまで待ちます。</p>
+      {!info.approved && (
+        <p className="mt-1.5 text-[12px] text-[#7A5410]">{info.changed ? "確認の手順の中身が変わりました。読んでから、もう一度承認してください。" : "この確認は、あなたが手順を読んで承認するまで、実行されません。"}</p>
+      )}
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <Button variant="ghost" onClick={() => void api.verifyScript(projectId).then((v) => setScript(script === null ? v.text : null)).catch(fail)}>{script === null ? "手順を読む" : "手順を閉じる"}</Button>
+        {!info.approved && <Button onClick={() => void api.approveVerify(projectId).then(reload).catch(fail)}>この手順を承認する</Button>}
+        {info.approved && <Button variant="ghost" disabled={r?.status === "running"} onClick={() => void api.runVerify(projectId).then(() => reload()).catch(fail)}>確認を実行</Button>}
+        {r && <Badge tone={VERIFY_TONE[r.status]}>{VERIFY_LABEL[r.status]}</Badge>}
+      </div>
+      {script !== null && <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-bg p-2 text-[11px]">{script}</pre>}
+      {r && <p className="mt-1.5 text-[12px]">{formatTime(r.at)} · {r.summary}</p>}
+      {r?.tail && r.status !== "running" && (
+        <details className="mt-1"><summary className="cursor-pointer text-[11.5px] text-muted">くわしい出力</summary><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-bg p-2 text-[11px]">{r.tail}</pre></details>
+      )}
+    </div>
+  );
+}
+
 export function SyncCard({ ctx }: { ctx: Ctx }) {
   const projectId = ctx.project!.id;
   // tagged with the project it belongs to, so switching projects never shows the previous one's state
@@ -168,6 +203,7 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
         <input type="checkbox" className="mt-0.5" checked={!!state.autoReflect} onChange={(e) => void api.setAutoReflect(projectId, e.target.checked).then(load).catch((err) => ctx.setError(err instanceof Error ? err.message : String(err)))} />
         <span><b>依頼が終わったら、安全なものは自動で反映する</b><span className="block text-[11.5px] text-muted">コンフリクトのないファイルだけを入れます。削除・AIのメモ・「半分以下に減る」ファイルは入れず、ここに残します。反映前にバックアップします。</span></span>
       </label>
+      {state.verify?.available && <VerifyBox projectId={projectId} info={state.verify} ctx={ctx} reload={load} />}
       {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}
       <Section dir="pull" projectId={projectId} entries={state.pullEntries} backups={state.pullBackups} running={running} ctx={ctx} reload={load} />
       <Section dir="push" projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />

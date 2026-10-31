@@ -64,6 +64,9 @@ export const api = {
   installDeps: (projectId: string) => request<{ install: DepsState["install"] }>(`/projects/${encodeURIComponent(projectId)}/deps/install`, "POST", {}),
   sync: (projectId: string) => request<SyncState>(`/projects/${encodeURIComponent(projectId)}/sync`),
   syncSummary: (projectId: string) => request<SyncSummary>(`/projects/${encodeURIComponent(projectId)}/sync/summary`),
+  verifyScript: (projectId: string) => request<{ text: string }>(`/projects/${encodeURIComponent(projectId)}/verify/script`),
+  approveVerify: (projectId: string) => request<unknown>(`/projects/${encodeURIComponent(projectId)}/verify/approve`, "POST", {}),
+  runVerify: (projectId: string) => request<{ started: boolean }>(`/projects/${encodeURIComponent(projectId)}/verify/run`, "POST", {}),
   setAutoReflect: (projectId: string, enabled: boolean) => request<{ autoReflect: boolean }>(`/projects/${encodeURIComponent(projectId)}/auto-reflect`, "PUT", { enabled }),
   applySync: (projectId: string, opts: { deletes: boolean; overwriteConflicts: boolean; direction: "push" | "pull"; paths?: string[] }) =>
     request<{ applied: number; skipped: unknown[]; backup: string | null; repaired?: string[] }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
