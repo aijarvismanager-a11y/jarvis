@@ -122,3 +122,12 @@ describe("deliver to-do for projects made in the app", () => {
     db.close();
   });
 });
+
+describe("statedStatus", () => {
+  it("reads the verdict even with words before it", async () => {
+    const { statedStatus } = await import("./missionReport.ts");
+    expect(statedStatus("未確認 未確認 未確認\n確認状況: 設計確定(コード変更なし)")).toBe("settled");
+    expect(statedStatus("確認状況: 一部未確認")).toBe("partly");
+    expect(statedStatus("確認状況: 確認できず")).toBe("none");
+  });
+});

@@ -7,6 +7,7 @@ import { isWriteTask } from "./scheduler.ts";
 import type { Task } from "./store.ts";
 import type { SmokeResult } from "./appSmokeTest.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
+import { admissionCount, INCONCLUSIVE_AT } from "./missionReport.ts";
 import { dotnetBuildCheck, findShrunkFiles, readTextIfExists, restoreFiles, shrinkMessage, touchesDotnet } from "./autoChecks.ts";
 
 // Validation L1-L3 (spec §31): files exist, files are well-formed, unit tests
@@ -18,6 +19,7 @@ const SYNTAX_CHECKED = new Set([".js", ".mjs", ".cjs"]);
 const MAX_SYNTAX_FILES = 50;
 const TEST_TIMEOUT_MS = 5 * 60_000;
 const TAIL_CHARS = 3000;
+const CANNOT_RUN = /承認(プロンプト|が必要)|承認できる主体|DESTRUCTIVE|許可が(出|得)|実行(自体)?ができて?(い)?ない|実行できなかった/;
 
 /** Declared outputs that are file paths ("code/app.js"), as opposed to prose ("要件定義書"). */
 export function declaredPaths(expectedOutputs: string[]): string[] {
@@ -82,6 +84,15 @@ export class ProjectValidator implements TaskValidator {
       }
     }
     if (syntaxErrors.length) return { passed: false, level: 2, detail: `構文エラー:\n${syntaxErrors.join("\n")}` };
+
+    // A research / design / review deliverable that says it could not read what it was asked about is sent back once,
+    // naming the files to open, so the person is not left with an "unanswered" to-do. (Not when the AI says it was not allowed to run something: asking again cannot fix that.)
+    if (!isWriteTask(task) && task.retryCount === 0) {
+      const text = (changed.length ? changed : wanted).map((rel) => { try { return readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? ""; } catch { return ""; } }).join("\n");
+      if (text && admissionCount(text, task.objective) >= INCONCLUSIVE_AT && !CANNOT_RUN.test(text)) {
+        return { passed: false, level: 2, detail: "成果物に「読めなかった/見つけられなかった/確認できていない」と書かれており、頼まれたことの答えが出ていません。プロジェクトフォルダの中のファイルを実際に開いて読み(Read/Glob/Grepで探す)、答えを出し直してください。どうしても読めないものだけを「確認状況: 一部未確認」として挙げ、読めたものについては結論を書いてください。" };
+      }
+    }
 
     // Guard: an existing file replaced by a much shorter one (a task that rewrote a history file instead of adding to it) is put back and the task fails.
     const snaps = this.opts.snapshots;

@@ -64,3 +64,23 @@ describe("ProjectValidator shrink guard", () => {
     expect(readFileSync(path.join(dir, "PLAN.md"), "utf8").split("\n").length).toBe(100);
   });
 });
+
+describe("ProjectValidator unanswered research", () => {
+  const setup = (text: string) => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "ac-"));
+    mkdirSync(path.join(root, "p"));
+    writeFileSync(path.join(root, "p", "r.md"), text);
+    return root;
+  };
+  const task = (retryCount: number) => ({ id: "t", projectId: "p", role: "research", objective: "調査", expectedOutputs: [], retryCount }) as never;
+  it("sends a deliverable that could not read its target back once, then accepts it", async () => {
+    const root = setup("確認状況: 確認できず\n読めなかった");
+    const v = new ProjectValidator(root, { runTests: false });
+    expect((await v.validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(false);
+    expect((await v.validate(task(1), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
+  });
+  it("does not retry when the AI was simply not allowed to run something", async () => {
+    const root = setup("確認状況: 確認できず\n承認が必要でした");
+    expect((await new ProjectValidator(root, { runTests: false }).validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
+  });
+});

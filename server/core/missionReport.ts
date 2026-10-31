@@ -57,7 +57,17 @@ export type MissionReport = {
 const ADMISSION = /未確認|読めて(い)?ない|読めなかった|確認できて(い)?ない|確認できなかった|確認でき(ませ|ま)ん|実ファイルが(ない|存在しな)|見つからなかった/g;
 export const INCONCLUSIVE_AT = 3;
 /** The line a web AI is asked to end a research/review deliverable with. It outranks counting admissions in the text. */
-const STATUS_LINE = /確認状況[:：]\s*(確定|一部未確認|確認できず)/g;
+// a few words may sit before the verdict ("確認状況: 設計確定", "確認状況: 調査は確定")
+const STATUS_LINE = /確認状況[:：]\s*[^\n確未]{0,12}?(確定|一部未確認|確認できず)/g;
+/** How many times a deliverable admits it could not read / find / confirm what it was asked about (INCONCLUSIVE_AT or more = no answer). */
+export function admissionCount(text: string, objective: string): number {
+  const stated = statedStatus(text);
+  if (stated) return stated === "none" ? INCONCLUSIVE_AT : 0; // it says how far it got: take its word
+  // a deliverable whose job is to LIST the unconfirmed points ("未確認事項一覧") says "未確認" all the time: that is its content, not an admission
+  if (/未確認事項/.test(objective)) return 0;
+  return text.match(ADMISSION)?.length ?? 0;
+}
+
 /** "settled" / "partly" / "none", or null when the deliverable does not say (the last such line counts). */
 export function statedStatus(text: string): "settled" | "partly" | "none" | null {
   const all = [...text.matchAll(STATUS_LINE)];
@@ -86,12 +96,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     const costs = myRuns.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
     const files = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))];
     const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => {
-          const text = readArtifact(f) ?? "";
-          const stated = statedStatus(text);
-          if (stated) return n + (stated === "none" ? INCONCLUSIVE_AT : 0); // it says how far it got: take its word
-          // a deliverable whose job is to LIST the unconfirmed points ("未確認事項一覧") says "未確認" all the time: that is its content, not an admission
-          if (/未確認事項/.test(t.objective)) return n;
-          return n + (text.match(ADMISSION)?.length ?? 0);
+          return n + admissionCount(readArtifact(f) ?? "", t.objective);
         }, 0) : 0;
     // "一部未確認": it answered, and says which points are still open (not the same as having no answer)
     const partly = !!readArtifact && t.status === "completed" && !isWriteTask(t) && files.some((f) => statedStatus(readArtifact(f) ?? "") === "partly");
