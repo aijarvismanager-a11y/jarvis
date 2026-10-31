@@ -891,6 +891,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     "/projects/:projectId/missions",
     guarded(async (req, res) => {
       const body = createSchema.parse(req.body);
+      if (/\(ここに[^)]*\)/.test(body.goal)) return void res.status(400).json({ error: "依頼文に「(ここに…)」という書きかけの部分が残っています。書き換えてから、もう一度出してください" });
       const { mission } = await engine.createMission({ projectId: String(req.params.projectId), ...body });
       res.status(201).json(view(mission.projectId, mission.id));
     }),

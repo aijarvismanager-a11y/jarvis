@@ -76,7 +76,10 @@ Start-Sleep 8
 $fences = [GageVerify]::FenceCount([uint32]$p.Id)
 if ($fences -eq 0) { Write-Output "結果: 起動しましたが、表示中のフェンスが1枚もありません"; exit 1 }
 
-Write-Output "手順4/4: Win+D を3回押して、フェンスが隠れる時間を測ります(画面が一瞬切り替わります)"
+Write-Output "手順4/4: Win+D を慣らしに1回、測定に3回押して、フェンスが隠れる時間を測ります(画面が一瞬切り替わります)"
+# 起動直後は準備中で遅くなりやすいので、1回は測らずに押して慣らす
+$warm = [GageVerify]::Cycle([uint32]$p.Id)
+Write-Output ("  (慣らし: {0} ミリ秒。判定には使いません)" -f $warm)
 $worst = 0
 for ($n = 1; $n -le 3; $n++) {
   $ms = [GageVerify]::Cycle([uint32]$p.Id)
