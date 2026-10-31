@@ -162,7 +162,7 @@ describe("what is taken over from the original automatically", () => {
 describe("shrink stopper", () => {
   it("holds back a change that cuts a long file under half, unless overwriting is chosen", async () => {
     const { src, proj, backups, link } = setup();
-    const long = Array.from({ length: 100 }, (_, i) => `line ${i}`).join(String.fromCharCode(10));
+    const long = Array.from({ length: 100 }, (_, i) => `line number ${i} of the log`).join(String.fromCharCode(10));
     writeFileSync(path.join(src, "LOG.md"), long);
     writeFileSync(path.join(proj, "LOG.md"), long);
     const l2: SyncLink = { ...link, baseline: hashTree(proj) };
@@ -173,5 +173,45 @@ describe("shrink stopper", () => {
     expect(read(src, "LOG.md")).toBe(long);
     await applySync(l2, proj, backups, { overwriteConflicts: true });
     expect(read(src, "LOG.md")).toBe("short");
+  });
+});
+
+describe("shrink verification", () => {
+  const NL = String.fromCharCode(10);
+  const longDoc = Array.from({ length: 60 }, (_, i) => (i % 10 === 0 ? `## Section ${i}` : `detail line number ${i} of the history`)).join(NL);
+  it("lets a consolidation through when the removed lines live on in another file", async () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(src, "LOG.md"), longDoc);
+    writeFileSync(path.join(proj, "LOG.md"), longDoc);
+    const l2: SyncLink = { ...link, baseline: hashTree(proj) };
+    writeFileSync(path.join(proj, "LOG.md"), "## Section 0" + NL + "moved to ARCHIVE.md");
+    writeFileSync(path.join(proj, "ARCHIVE.md"), longDoc);
+    const entry = computeDiff(l2, proj).find((e) => e.path === "LOG.md")!;
+    expect(entry.shrinkVerdict).toBe("safe");
+    expect(entry.shrinks).toBeUndefined();
+    await applySync(l2, proj, backups, { only: ["LOG.md"] });
+    expect(read(src, "LOG.md")).toContain("moved to ARCHIVE.md");
+  });
+  it("does not carry a chat-answer overwrite over: the copy is put back from the original and the damaged file is kept", async () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(src, "LOG.md"), longDoc);
+    writeFileSync(path.join(proj, "LOG.md"), longDoc);
+    const l2: SyncLink = { ...link, baseline: hashTree(proj) };
+    writeFileSync(path.join(proj, "LOG.md"), "ご指示の通り、以下に追記内容を整理して完了といたします。" + NL + "```" + NL + "x" + NL + "```");
+    expect(computeDiff(l2, proj).find((e) => e.path === "LOG.md")?.shrinkVerdict).toBe("unsafe");
+    const r = await applySync(l2, proj, backups, { only: ["LOG.md"] });
+    expect(r.repaired).toEqual(["LOG.md"]);
+    expect(read(src, "LOG.md")).toBe(longDoc);
+    expect(read(proj, "LOG.md")).toBe(longDoc);
+  });
+  it("holds back a cut it cannot explain", () => {
+    const { src, proj, link } = setup();
+    writeFileSync(path.join(src, "LOG.md"), longDoc);
+    writeFileSync(path.join(proj, "LOG.md"), longDoc);
+    const l2: SyncLink = { ...link, baseline: hashTree(proj) };
+    writeFileSync(path.join(proj, "LOG.md"), longDoc.split(NL).slice(0, 20).join(NL));
+    const e = computeDiff(l2, proj).find((x) => x.path === "LOG.md")!;
+    expect(e.shrinkVerdict).toBe("unknown");
+    expect(e.shrinks).toBe(true);
   });
 });

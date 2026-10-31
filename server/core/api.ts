@@ -356,7 +356,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
       pruneBackups(dir, keep);
       store.appendEvent({ projectId, type: opts.direction === "pull" ? "SYNC_PULLED" : "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
-      res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null });
+      res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null, repaired: r.repaired ?? [] });
     }),
   );
   // The original changed in another tool: bring in what the copy never touched, but only while no request is running (a request may be

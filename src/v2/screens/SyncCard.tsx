@@ -57,7 +57,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
       setChosen({});
       setDeletes(false);
       setOverwrite(false);
-      ctx.setError(r.applied ? "" : "入れる変更はありませんでした");
+      ctx.setError(r.repaired?.length ? `${r.repaired.join("、")} は、AIの書き込みで中身が失われていたため、入れずに、元のフォルダの内容に戻しました(壊れた方はバックアップに残してあります)` : r.applied ? "" : "入れる変更はありませんでした");
       if (dir === "pull") ctx.refresh();
       await reload();
     });
@@ -85,6 +85,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
                 <span className="w-8 shrink-0 text-muted">{KIND_LABEL[e.kind]}</span>
                 <span className="min-w-0 flex-1 break-all">{e.path}</span>
                 {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted" title="AIが書いたメモやレポートです。はじめはチェックが外れています">メモ</span>}
+                {e.shrinkVerdict === "safe" && <Badge tone="ok">半分以下に減りますが安全と確認済み</Badge>}
                 {e.shrinks && <Badge tone="warn">長いファイルが半分以下に減ります(中身が消える恐れ)</Badge>}
                 {e.conflict && <Badge tone="warn">{dir === "push" ? "元のフォルダでも変更あり" : "このアプリでも変更あり"}</Badge>}
               </li>

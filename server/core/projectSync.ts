@@ -12,7 +12,7 @@ import { isAiRecordPath } from "./recordsArchive.ts";
 // delete into a backup generation, from which they can be restored.
 
 export type SyncLink = { sourcePath: string; importedAt: string; /** top-level folders left out of the import; never compared or copied */ exclude?: string[]; /** project-relative path -> sha1, as it was when last in step with the source */ baseline: Record<string, string> };
-export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean; /** the new file is under half as long as the one it replaces (a long file about to be wiped out) */ shrinks?: boolean };
+export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean; /** the new file is under half as long as the one it replaces (a long file about to be wiped out) */ shrinks?: boolean; /** what the automatic check of a shrinking file concluded: safe = moved elsewhere (let through), unsafe = looks like a chat answer / lost content (repaired), unknown = needs a person */ shrinkVerdict?: "safe" | "unsafe" | "unknown"; shrinkReason?: string };
 export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean; prevBaseline: string | null }[] };
 
 export const DEFAULT_KEEP_BACKUPS = 5;
@@ -91,7 +91,7 @@ const rootsOf = (link: SyncLink, projectRoot: string, dir: SyncDirection) => (di
 export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirection = "push"): SyncEntry[] {
   assertSourceExists(link);
   const roots = rootsOf(link, projectRoot, dir);
-  return markShrinks(diffOf(link, hashTree(roots.from, link.exclude), hashTree(roots.to, link.exclude)), roots.from, roots.to);
+  return markShrinks(diffOf(link, hashTree(roots.from, link.exclude), hashTree(roots.to, link.exclude)), roots.from, roots.to, link.exclude);
 }
 
 function assertSourceExists(link: SyncLink) {
@@ -100,20 +100,78 @@ function assertSourceExists(link: SyncLink) {
 
 const TEXT_EXT = new Set([".md", ".txt", ".csv", ".json", ".cs", ".xaml", ".ts", ".tsx", ".js", ".css", ".html", ".ps1", ".csproj"]);
 const NL = String.fromCharCode(10);
-const lineCountOf = (abs: string): number | null => {
+const readTextOrNull = (abs: string): string | null => {
   try {
-    return readFileSync(abs, "utf8").split(NL).length;
+    return readFileSync(abs, "utf8");
   } catch {
     return null;
   }
 };
-/** Stopper: flags a modified text file that would replace a long (30+ lines) one with less than half of it, so nothing is wiped out unnoticed. */
-function markShrinks(entries: SyncEntry[], fromRoot: string, toRoot: string): SyncEntry[] {
+const MAX_SCAN_BYTES = 8_000_000;
+const CHAT_ANSWER = /^```|ご指示の通り|以下に[^\n]{0,30}(追記|反映|整理|更新)|完了といたします|Last \d+ chars|print\(/m;
+const trimmedLines = (t: string) => t.split(NL).map((l) => l.trim()).filter((l) => l.length >= 8);
+
+/** Every long-enough line of the project's other text files (where a line cut from one file may have been moved to). */
+function linesElsewhere(root: string, exclude: string[], skipRel: string): Set<string> {
+  const out = new Set<string>();
+  let bytes = 0;
+  const walk = (dir: string, rel: string) => {
+    let names: import("node:fs").Dirent[];
+    try {
+      names = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      const r = rel ? `${rel}/${n.name}` : n.name;
+      if (n.isDirectory()) {
+        if (SKIP_DIRS.has(n.name) || n.name === "bin" || n.name === "obj" || (rel === "" && exclude.includes(n.name))) continue;
+        walk(path.join(dir, n.name), r);
+      } else if (r !== skipRel && TEXT_EXT.has(path.extname(n.name).toLowerCase())) {
+        try {
+          const text = readFileSync(path.join(dir, n.name), "utf8");
+          bytes += text.length;
+          if (bytes > MAX_SCAN_BYTES) return;
+          for (const l of trimmedLines(text)) out.add(l);
+        } catch {
+          /* unreadable: ignored */
+        }
+      }
+    }
+  };
+  walk(root, "");
+  return out;
+}
+
+/** Decides, from the two versions, whether cutting a long file down is a legitimate consolidation or damage. */
+export function judgeShrink(oldText: string, newText: string, elsewhere: Set<string>): { verdict: "safe" | "unsafe" | "unknown"; reason: string } {
+  const newSet = new Set(trimmedLines(newText));
+  const removed = [...new Set(trimmedLines(oldText))].filter((l) => !newSet.has(l));
+  if (removed.length === 0) return { verdict: "safe", reason: "消える行はありません(空行や重複が減っただけです)" };
+  const moved = removed.filter((l) => elsewhere.has(l)).length;
+  const ratio = moved / removed.length;
+  if (ratio >= 0.9) return { verdict: "safe", reason: `消える${removed.length}行の${Math.round(ratio * 100)}%が、プロジェクトのほかのファイルにあります(移した・まとめたと判断しました)` };
+  const heads = oldText.split(NL).filter((l) => /^#{1,4} /.test(l)).map((l) => l.trim());
+  const keptHeads = heads.filter((h) => newSet.has(h)).length;
+  const headLoss = heads.length >= 3 ? 1 - keptHeads / heads.length : 0;
+  if (CHAT_ANSWER.test(newText) && headLoss >= 0.8) return { verdict: "unsafe", reason: "新しい中身が、チャットの返事のような文章で、元の見出しの8割以上が消えています(AIが書き込みを間違えた可能性が高いです)" };
+  if (headLoss >= 0.8 && ratio < 0.5) return { verdict: "unsafe", reason: `元の見出しの${Math.round(headLoss * 100)}%が消え、消える内容の${Math.round((1 - ratio) * 100)}%がほかのどこにもありません` };
+  return { verdict: "unknown", reason: `消える${removed.length}行のうち、ほかのファイルにあるのは${Math.round(ratio * 100)}%です。意図した削減かどうか、人の確認が必要です` };
+}
+
+/** Stopper: a modified text file that would replace a long (30+ lines) one with less than half of it is checked for why; only what is not clearly safe is held back. */
+function markShrinks(entries: SyncEntry[], fromRoot: string, toRoot: string, exclude: string[] = []): SyncEntry[] {
+  let elsewhere: Set<string> | null = null;
   for (const e of entries) {
     if (e.kind !== "modified" || !TEXT_EXT.has(path.extname(e.path).toLowerCase())) continue;
-    const before = lineCountOf(path.join(toRoot, e.path));
-    const after = lineCountOf(path.join(fromRoot, e.path));
-    if (before !== null && after !== null && before >= 30 && after < before / 2) e.shrinks = true;
+    const oldText = readTextOrNull(path.join(toRoot, e.path));
+    const newText = readTextOrNull(path.join(fromRoot, e.path));
+    if (oldText === null || newText === null || oldText.split(NL).length < 30 || newText.split(NL).length >= oldText.split(NL).length / 2) continue;
+    elsewhere ??= linesElsewhere(fromRoot, exclude, e.path);
+    const j = judgeShrink(oldText, newText, elsewhere);
+    e.shrinkVerdict = j.verdict;
+    e.shrinkReason = j.reason;
+    if (j.verdict !== "safe") e.shrinks = true;
   }
   return entries;
 }
@@ -139,7 +197,7 @@ function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string,
 export async function computeDiffsAsync(link: SyncLink, projectRoot: string): Promise<{ push: SyncEntry[]; pull: SyncEntry[] }> {
   assertSourceExists(link);
   const [copy, source] = await Promise.all([hashTreeAsync(projectRoot, link.exclude), hashTreeAsync(link.sourcePath, link.exclude)]);
-  return { push: markShrinks(diffOf(link, copy, source), projectRoot, link.sourcePath), pull: markShrinks(diffOf(link, source, copy), link.sourcePath, projectRoot) };
+  return { push: markShrinks(diffOf(link, copy, source), projectRoot, link.sourcePath, link.exclude), pull: markShrinks(diffOf(link, source, copy), link.sourcePath, projectRoot, link.exclude) };
 }
 
 /** What may be taken over from the original without asking: changed or added there, and not touched in the copy. Deletions always wait for the user. */
@@ -150,16 +208,34 @@ export type ApplyOptions = { /** only these project-relative paths (default: eve
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);
 
 /** Writes the diff into the original, after saving what it replaces. Returns the new link and the backup made. Never blocks the server: every read and write is asynchronous. */
-export async function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): Promise<{ link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[] }> {
+export async function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): Promise<{ link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[]; /** files whose damaged copy was put back from the original */ repaired?: string[] }> {
   const roots = rootsOf(link, projectRoot, direction);
   assertSourceExists(link);
   const [fromHashes, toHashes] = await Promise.all([hashTreeAsync(roots.from, link.exclude), hashTreeAsync(roots.to, link.exclude)]);
-  const all = markShrinks(diffOf(link, fromHashes, toHashes), roots.from, roots.to);
+  let all = markShrinks(diffOf(link, fromHashes, toHashes), roots.from, roots.to, link.exclude);
+  // Re-verification: a push that would wipe out a long file with something that is clearly damage (a chat answer, lost headings) is not carried over.
+  // The working copy's file is put back from the original (the damaged one is kept in the backup folder), and the diff is checked again.
+  const repaired: string[] = [];
+  if (direction === "push") {
+    const only0 = opts.only ? new Set(opts.only) : null;
+    for (const e of all.filter((x) => x.shrinkVerdict === "unsafe" && !x.conflict && (!only0 || only0.has(x.path)))) {
+      const bad = path.join(roots.from, e.path);
+      const keep = path.join(backupDir, "rejected", new Date().toISOString().replace(/[:.]/g, "-"), e.path);
+      await mkdir(path.dirname(keep), { recursive: true });
+      await cp(bad, keep);
+      await cp(path.join(roots.to, e.path), bad);
+      repaired.push(e.path);
+    }
+    if (repaired.length) {
+      const again = await hashTreeAsync(roots.from, link.exclude);
+      all = markShrinks(diffOf(link, again, toHashes), roots.from, roots.to, link.exclude);
+    }
+  }
   const only = opts.only ? new Set(opts.only) : null;
   const todo = all.filter((e) => (!only || only.has(e.path)) && (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || (!e.conflict && !e.shrinks)));
   // not offered to the user (or not chosen) is not "skipped": only what was wanted but held back is reported
   const skipped = all.filter((e) => !todo.includes(e) && (!only || only.has(e.path)));
-  if (todo.length === 0) return { link, backup: null, skipped };
+  if (todo.length === 0) return { link, backup: null, skipped, repaired };
 
   const source = path.resolve(roots.to); // the side that gets written
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -196,7 +272,7 @@ export async function applySync(link: SyncLink, projectRoot: string, backupDir: 
       baseline[e.path] = fromHashes[e.path]!;
     }
   }
-  return { link: { ...link, baseline }, backup, skipped };
+  return { link: { ...link, baseline }, backup, skipped, repaired };
 }
 
 const isFile = (p: string) => stat(p).then((st) => st.isFile(), () => false);
