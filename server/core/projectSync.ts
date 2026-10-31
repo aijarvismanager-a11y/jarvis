@@ -12,7 +12,7 @@ import { isAiRecordPath } from "./recordsArchive.ts";
 // delete into a backup generation, from which they can be restored.
 
 export type SyncLink = { sourcePath: string; importedAt: string; /** top-level folders left out of the import; never compared or copied */ exclude?: string[]; /** project-relative path -> sha1, as it was when last in step with the source */ baseline: Record<string, string> };
-export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean };
+export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean; /** the new file is under half as long as the one it replaces (a long file about to be wiped out) */ shrinks?: boolean };
 export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean; prevBaseline: string | null }[] };
 
 export const DEFAULT_KEEP_BACKUPS = 5;
@@ -91,11 +91,31 @@ const rootsOf = (link: SyncLink, projectRoot: string, dir: SyncDirection) => (di
 export function computeDiff(link: SyncLink, projectRoot: string, dir: SyncDirection = "push"): SyncEntry[] {
   assertSourceExists(link);
   const roots = rootsOf(link, projectRoot, dir);
-  return diffOf(link, hashTree(roots.from, link.exclude), hashTree(roots.to, link.exclude));
+  return markShrinks(diffOf(link, hashTree(roots.from, link.exclude), hashTree(roots.to, link.exclude)), roots.from, roots.to);
 }
 
 function assertSourceExists(link: SyncLink) {
   if (!existsSync(link.sourcePath) || !statSync(link.sourcePath).isDirectory()) throw new Error("元のフォルダが見つかりません");
+}
+
+const TEXT_EXT = new Set([".md", ".txt", ".csv", ".json", ".cs", ".xaml", ".ts", ".tsx", ".js", ".css", ".html", ".ps1", ".csproj"]);
+const NL = String.fromCharCode(10);
+const lineCountOf = (abs: string): number | null => {
+  try {
+    return readFileSync(abs, "utf8").split(NL).length;
+  } catch {
+    return null;
+  }
+};
+/** Stopper: flags a modified text file that would replace a long (30+ lines) one with less than half of it, so nothing is wiped out unnoticed. */
+function markShrinks(entries: SyncEntry[], fromRoot: string, toRoot: string): SyncEntry[] {
+  for (const e of entries) {
+    if (e.kind !== "modified" || !TEXT_EXT.has(path.extname(e.path).toLowerCase())) continue;
+    const before = lineCountOf(path.join(toRoot, e.path));
+    const after = lineCountOf(path.join(fromRoot, e.path));
+    if (before !== null && after !== null && before >= 30 && after < before / 2) e.shrinks = true;
+  }
+  return entries;
 }
 
 function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string, string>): SyncEntry[] {
@@ -119,7 +139,7 @@ function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string,
 export async function computeDiffsAsync(link: SyncLink, projectRoot: string): Promise<{ push: SyncEntry[]; pull: SyncEntry[] }> {
   assertSourceExists(link);
   const [copy, source] = await Promise.all([hashTreeAsync(projectRoot, link.exclude), hashTreeAsync(link.sourcePath, link.exclude)]);
-  return { push: diffOf(link, copy, source), pull: diffOf(link, source, copy) };
+  return { push: markShrinks(diffOf(link, copy, source), projectRoot, link.sourcePath), pull: markShrinks(diffOf(link, source, copy), link.sourcePath, projectRoot) };
 }
 
 /** What may be taken over from the original without asking: changed or added there, and not touched in the copy. Deletions always wait for the user. */
@@ -134,9 +154,9 @@ export async function applySync(link: SyncLink, projectRoot: string, backupDir: 
   const roots = rootsOf(link, projectRoot, direction);
   assertSourceExists(link);
   const [fromHashes, toHashes] = await Promise.all([hashTreeAsync(roots.from, link.exclude), hashTreeAsync(roots.to, link.exclude)]);
-  const all = diffOf(link, fromHashes, toHashes);
+  const all = markShrinks(diffOf(link, fromHashes, toHashes), roots.from, roots.to);
   const only = opts.only ? new Set(opts.only) : null;
-  const todo = all.filter((e) => (!only || only.has(e.path)) && (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || !e.conflict));
+  const todo = all.filter((e) => (!only || only.has(e.path)) && (opts.deletes || e.kind !== "deleted") && (opts.overwriteConflicts || (!e.conflict && !e.shrinks)));
   // not offered to the user (or not chosen) is not "skipped": only what was wanted but held back is reported
   const skipped = all.filter((e) => !todo.includes(e) && (!only || only.has(e.path)));
   if (todo.length === 0) return { link, backup: null, skipped };

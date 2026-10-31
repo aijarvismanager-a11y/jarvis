@@ -2,6 +2,7 @@ import { projectDir } from "./paths.ts";
 import { referenceBudget, referenceContext } from "./projectContext.ts";
 import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
+import { readTextIfExists } from "./autoChecks.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, WebAiPromptTooLongError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
@@ -420,6 +421,15 @@ export class WebAiExecutor implements TaskExecutor {
       files = [[`web-ai/${slug(task.role)}-${task.id.slice(0, 8)}.md`, text]];
     }
     const saved: string[] = [];
+    // A site answers in chat, so it cannot append to a long existing file: its text would replace the whole history (TESTLOG, PLAN...). Leave the file alone and let Claude Code do it.
+    for (const [rel, raw] of files) {
+      const abs = resolveInProject(this.store.projectsRoot, projectId, rel);
+      const before = existsSync(abs) ? readTextIfExists(abs) : null;
+      const lines = (t: string) => t.split("\n").length;
+      if (before !== null && lines(before) >= 30 && lines(cleanFileText(rel, raw)) < lines(before) / 2) {
+        return { ok: false, fallback: true, aiId: svc.id, automationLevel: level, summary: `${rel} は既存の長いファイルなので、Webのチャットの回答では上書きせず、Claude Codeで追記します` };
+      }
+    }
     for (const [rel, raw] of files) {
       const body = cleanFileText(rel, raw);
       const abs = resolveInProject(this.store.projectsRoot, projectId, rel);

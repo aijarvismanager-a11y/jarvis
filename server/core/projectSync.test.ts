@@ -158,3 +158,20 @@ describe("what is taken over from the original automatically", () => {
     expect(autoPullPaths([entry("a", "modified", false), entry("b", "added", false), entry("c", "modified", true), entry("d", "deleted", false)])).toEqual(["a", "b"]);
   });
 });
+
+describe("shrink stopper", () => {
+  it("holds back a change that cuts a long file under half, unless overwriting is chosen", async () => {
+    const { src, proj, backups, link } = setup();
+    const long = Array.from({ length: 100 }, (_, i) => `line ${i}`).join(String.fromCharCode(10));
+    writeFileSync(path.join(src, "LOG.md"), long);
+    writeFileSync(path.join(proj, "LOG.md"), long);
+    const l2: SyncLink = { ...link, baseline: hashTree(proj) };
+    writeFileSync(path.join(proj, "LOG.md"), "short");
+    expect(computeDiff(l2, proj).find((e) => e.path === "LOG.md")?.shrinks).toBe(true);
+    const held = await applySync(l2, proj, backups, {});
+    expect(held.skipped.some((e) => e.path === "LOG.md")).toBe(true);
+    expect(read(src, "LOG.md")).toBe(long);
+    await applySync(l2, proj, backups, { overwriteConflicts: true });
+    expect(read(src, "LOG.md")).toBe("short");
+  });
+});

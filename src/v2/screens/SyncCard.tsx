@@ -45,9 +45,9 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
   const { busy, run } = useAction(ctx.setError);
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
   const hasDelete = entries.some((e) => e.kind === "deleted");
-  const hasConflict = entries.some((e) => e.conflict);
+  const hasConflict = entries.some((e) => e.conflict || e.shrinks);
   const ticked = (e: SyncEntry) => chosen[e.path] ?? !isNotes(e.path);
-  const allowed = (e: SyncEntry) => (deletes || e.kind !== "deleted") && (overwrite || !e.conflict);
+  const allowed = (e: SyncEntry) => (deletes || e.kind !== "deleted") && (overwrite || (!e.conflict && !e.shrinks));
   const picks = entries.filter((e) => allowed(e) && ticked(e));
   const willWrite = picks.length;
   const apply = () => {
@@ -85,6 +85,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
                 <span className="w-8 shrink-0 text-muted">{KIND_LABEL[e.kind]}</span>
                 <span className="min-w-0 flex-1 break-all">{e.path}</span>
                 {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted" title="AIが書いたメモやレポートです。はじめはチェックが外れています">メモ</span>}
+                {e.shrinks && <Badge tone="warn">長いファイルが半分以下に減ります(中身が消える恐れ)</Badge>}
                 {e.conflict && <Badge tone="warn">{dir === "push" ? "元のフォルダでも変更あり" : "このアプリでも変更あり"}</Badge>}
               </li>
             ))}
@@ -98,7 +99,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
           {hasConflict && (
             <label className="mt-1 flex items-start gap-2 text-[12.5px]">
               <input type="checkbox" className="mt-0.5" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
-              {t.conflict}
+              {t.conflict}(「半分以下に減ります」と出たファイルも、チェックしないと入れません)
             </label>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
