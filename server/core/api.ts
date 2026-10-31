@@ -447,7 +447,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       } catch {
         return null;
       }
-    }) });
+    }, deps.appRoot ? verifyInfo(store, deps.appRoot, String(req.params.projectId)) : undefined) });
   });
   // Why each task has the AI it has: the selection events of the whole project (the plain events list only keeps the latest 200).
   router.get("/projects/:projectId/ai-selections", (req, res) => {

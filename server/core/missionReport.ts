@@ -80,7 +80,7 @@ export function statedStatus(text: string): "settled" | "partly" | "none" | null
 
 /** readArtifact returns the text of a deliverable (null when unreadable); without it, deliverable contents are not judged. */
 
-export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null): MissionReport {
+export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null, verify?: { available: boolean; approved: boolean; changed?: boolean }): MissionReport {
   const mission = store.getMission(projectId, missionId);
   if (!mission) throw new Error("依頼が見つかりません");
   const tasks = store.listTasks(projectId).filter((t) => t.missionId === missionId).sort((a, b) => a.position - b.position);
@@ -246,6 +246,17 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       why: `このプロジェクトはアプリの中で作っています。押すまで、成果物と更新履歴(CHANGELOG.md など)は「${link.sourcePath}」に入りません。`,
       steps: ["下のボタンで「保存先のフォルダに入れる」を開きます。", "入れるファイルを確かめて、「反映する」を押します。"],
       actions: [{ kind: "sync", label: "保存先のフォルダに入れる" }],
+    });
+  }
+  // The post-reflect check (build, start, measure) runs only after the person has read and approved its script.
+  if (finished && verify?.available && !verify.approved && link?.sourcePath) {
+    todos.push({
+      id: "verify-approve",
+      required: true,
+      title: verify.changed ? "反映後の自動確認の手順が変わりました。読み直して承認してください" : "反映後の自動確認を、承認してください",
+      why: "承認すると、反映のあとにAIオーケストラが自分で、作り直し・起動・測定までやります。承認するまでは動かず、あなたが手で確かめることになります。",
+      steps: ["下のボタンで「元のフォルダへの反映」を開きます。", "「反映後の自動確認」の手順(何をするか)を読みます。", "よければ「この手順を承認する」を押します(承認は、手順の中身が変わるまで有効です)。"],
+      actions: [{ kind: "sync", label: "承認する場所を開く" }],
     });
   }
   // plain-text form of the same advice (Markdown copy, older screens)
