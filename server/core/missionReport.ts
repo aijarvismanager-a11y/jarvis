@@ -59,6 +59,9 @@ export const INCONCLUSIVE_AT = 3;
 /** The line a web AI is asked to end a research/review deliverable with. It outranks counting admissions in the text. */
 // a few words may sit before the verdict ("確認状況: 設計確定", "確認状況: 調査は確定")
 const STATUS_LINE = /確認状況[:：]\s*[^\n確未]{0,12}?(確定|一部未確認|確認できず)/g;
+/** The project's own running records (TESTLOG, PLAN, ARCHITECTURE...): they hold old "未確認" lines from earlier work, so they say nothing about whether this task got its answer. */
+export const isHistoryFile = (rel: string) => /(^|[\/])(TESTLOG|PLAN|ARCHITECTURE|CHANGELOG|README|STATUS)[^\/]*\.md$/i.test(rel);
+
 /** How many times a deliverable admits it could not read / find / confirm what it was asked about (INCONCLUSIVE_AT or more = no answer). */
 export function admissionCount(text: string, objective: string): number {
   const stated = statedStatus(text);
@@ -96,6 +99,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     const costs = myRuns.map((r) => r.cost_usd).filter((c): c is number => typeof c === "number");
     const files = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))];
     const admissions = readArtifact && t.status === "completed" && !isWriteTask(t) ? files.reduce((n, f) => {
+          if (isHistoryFile(f)) return n;
           return n + admissionCount(readArtifact(f) ?? "", t.objective);
         }, 0) : 0;
     // "一部未確認": it answered, and says which points are still open (not the same as having no answer)
