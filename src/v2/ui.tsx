@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { goalText, shortGoal } from "./labels";
 
 export function Button({ variant = "primary", className = "", ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
   const styles = {
@@ -31,6 +32,19 @@ export function Card({ title, children, className = "", fold = false, open = fal
 }
 
 const TONES = { neutral: "bg-sidebar text-muted", ok: "bg-[#E6F0EA] text-status-done", warn: "bg-[#FBF1DC] text-[#8A6212]", bad: "bg-[#FBEAEA] text-[#9B2C2C]", info: "bg-[#EAF0F8] text-[#2F5A8A]" };
+/** A request's text: long ones show a one-line heading and open to the full text on demand. */
+export function GoalText({ goal, className = "" }: { goal: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const { head, long } = shortGoal(goal);
+  if (!long) return <p className={className}>{head}</p>;
+  return (
+    <div>
+      <p className={className}>{open ? goalText(goal) : head}</p>
+      <button type="button" className="mt-1 text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "全文を見る"}</button>
+    </div>
+  );
+}
+
 export function Badge({ tone = "neutral", children }: { tone?: keyof typeof TONES; children: ReactNode }) {
   return <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${TONES[tone]}`}>{children}</span>;
 }

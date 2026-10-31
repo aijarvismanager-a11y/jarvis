@@ -176,10 +176,14 @@ function markShrinks(entries: SyncEntry[], fromRoot: string, toRoot: string, exc
   return entries;
 }
 
+/** .NET build output: bin/Debug, bin/Release, obj/Debug, obj/Release (a folder merely called "bin" is not touched). */
+export const isBuildOutput = (rel: string) => /(^|\/)(bin|obj)\/(Debug|Release)\//i.test(rel);
+
 function diffOf(link: SyncLink, from: Record<string, string>, to: Record<string, string>): SyncEntry[] {
   const entries: SyncEntry[] = [];
   for (const rel of new Set([...Object.keys(from), ...Object.keys(link.baseline)])) {
     if (isAiRecordPath(rel)) continue; // the AI's own notes are never carried into (or out of) the original folder
+    if (isBuildOutput(rel)) continue; // compiler output (bin/Release/...) is rebuilt, never carried over
     const b = link.baseline[rel];
     const f = from[rel];
     const t = to[rel];

@@ -13,6 +13,9 @@ const VALIDATION: Record<string, { label: string; tone: "ok" | "bad" | "neutral"
   unvalidated: { label: "未チェック", tone: "neutral" },
 };
 
+/** The AI's own notes (research, designs, reviews): kept apart from what was made. */
+const isNotePath = (p: string) => /^(_ai-records|web-ai)\//.test(p);
+
 export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected: Artifact | null; onSelect: (a: Artifact) => void }) {
   // What was fetched, tagged with what it was fetched for: anything stale is ignored instead of being cleared in an effect.
   const [loaded, setLoaded] = useState<{ key: string; content: string | null; failure: string | null } | null>(null);
@@ -27,6 +30,8 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
     }
     return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
   }, [ctx.overview.artifacts]);
+  const made = latest.filter((a) => !isNotePath(a.path));
+  const notes = latest.filter((a) => isNotePath(a.path));
   const versions = selected ? ctx.overview.artifacts.filter((a) => a.path === selected.path).sort((a, b) => b.version - a.version) : [];
   const shown = selected ? (latest.find((a) => a.path === selected.path) ?? selected) : null;
 
@@ -51,8 +56,8 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
       <Card title="できたファイル" className="self-start">
         <p className="mb-2 text-[12px] text-muted">押すと中身を読めます。</p>
-        <ul className="space-y-0.5">
-          {latest.map((a) => (
+        {made.length > 0 && <ul className="space-y-0.5">
+          {made.map((a) => (
             <li key={a.path}>
               <button onClick={() => onSelect(a)} className={`w-full rounded px-2 py-1 text-left ${selected?.path === a.path ? "bg-sidebar" : "hover:bg-bg"}`}>
                 {/* the file name first, where it lives under it: a long path no longer breaks in the middle of a word */}
@@ -61,7 +66,24 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
               </button>
             </li>
           ))}
-        </ul>
+        </ul>}
+        {made.length === 0 && <p className="text-[12px] text-muted">作ったファイルは、まだありません。</p>}
+        {notes.length > 0 && (
+          <details className="mt-3 border-t border-borderSoft pt-2" open={!!selected && isNotePath(selected.path)}>
+            <summary className="cursor-pointer text-[12px] text-muted">AIのメモ({notes.length}件: 調べたこと・設計・レビューなど)</summary>
+            <ul className="mt-1 space-y-0.5">
+          {notes.map((a) => (
+            <li key={a.path}>
+              <button onClick={() => onSelect(a)} className={`w-full rounded px-2 py-1 text-left ${selected?.path === a.path ? "bg-sidebar" : "hover:bg-bg"}`}>
+                {/* the file name first, where it lives under it: a long path no longer breaks in the middle of a word */}
+                <span className={`block break-words text-[12.5px] ${selected?.path === a.path ? "font-semibold" : ""}`}>{a.path.split("/").pop()}</span>
+                {a.path.includes("/") && <span className="block break-all text-[11px] text-muted">{a.path.slice(0, a.path.lastIndexOf("/") + 1)}</span>}
+              </button>
+            </li>
+          ))}
+            </ul>
+          </details>
+        )}
       </Card>
       <Card className="min-w-0">
         {!shown ? (

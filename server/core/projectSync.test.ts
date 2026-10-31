@@ -215,3 +215,16 @@ describe("shrink verification", () => {
     expect(e.shrinks).toBe(true);
   });
 });
+
+describe("build output", () => {
+  it("is left out of the diff in both directions, other bin folders are not", () => {
+    const { src, proj, link } = setup();
+    for (const d of [src, proj]) mkdirSync(path.join(d, "app", "bin", "Release"), { recursive: true });
+    writeFileSync(path.join(src, "app", "bin", "Release", "app.dll"), "built");
+    mkdirSync(path.join(src, "bin"), { recursive: true });
+    writeFileSync(path.join(src, "bin", "cli.js"), "real source");
+    const paths = computeDiff(link, proj, "pull").map((e) => e.path);
+    expect(paths).toContain("bin/cli.js");
+    expect(paths.some((p) => p.includes("Release"))).toBe(false);
+  });
+});

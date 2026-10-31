@@ -27,6 +27,13 @@ export function resolveInProject(projectsRoot: string, projectId: string, relPat
     throw new Error("絶対パスは使えません");
   }
   if (normalized.split("/").some((seg) => seg === "..")) throw new Error("親ディレクトリへの参照は使えません");
+  // Windows treats some names specially: device names (CON, NUL, COM1...), "file:stream" (a hidden data stream) and trailing dots/spaces (silently dropped).
+  for (const seg of normalized.split("/")) {
+    if (seg === "") continue;
+    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(seg)) throw new Error(`Windowsの予約名は使えません: ${seg}`);
+    if (seg.includes(":")) throw new Error(`パスに「:」は使えません: ${seg}`);
+    if (/[. ]$/.test(seg) && seg !== ".") throw new Error(`名前の最後に「.」や空白は使えません: ${seg}`);
+  }
 
   const target = path.resolve(base, normalized);
   if (target !== base && !target.startsWith(base + path.sep)) throw new Error("プロジェクトの外には出られません");

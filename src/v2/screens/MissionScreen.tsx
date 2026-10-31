@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, goalText } from "../labels";
-import { Badge, Button, Card, Details } from "../ui";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
+import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
 import { DepsCard } from "./DepsCard";
@@ -263,9 +263,9 @@ function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
         <Button variant="ghost" disabled={busy} onClick={go}>この作業をやり直す</Button>
         {!open && <Button variant="ghost" disabled={busy} onClick={() => setOpen(true)}>注文をつけてやり直す(任意)</Button>}
       </div>
-      {open && (
+      {open && (
         <div className="mt-2">
-          <p className="mb-1 text-[12px] text-muted">AIが作った内容に付け足すのではなく、やり直すAIへの「注文」を書く欄です。変えたい点がなければ、何も書かずに「この作業をやり直す」を押してください。</p>
+          <p className="mb-1 text-[12px] text-muted">AIが作った内容に付け足すのではなく、やり直すAIへの「注文」を書く欄です。変えたい点がなければ、何も書かずに「この作業をやり直す」を押してください。</p>
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="例: 削除機能は後回しにして、一覧と登録だけ作ってください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
           <div className="mt-1 flex gap-2">
             <Button disabled={busy || !text.trim()} onClick={go}>この指示でやり直す</Button>
@@ -535,7 +535,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
             <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
           </div>
-          <p className="font-serif text-[18px] font-semibold">{goalText(mission.goal)}</p>
+          <GoalText goal={mission.goal} className="font-serif text-[18px] font-semibold" />
           {total > 0 && (
             <div className="mt-3">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>

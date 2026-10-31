@@ -26,6 +26,10 @@ describe("resolveInProject", () => {
     },
   );
 
+  it("keeps ordinary names that merely look similar", () => {
+    for (const ok of ["auxiliary.md", "console.md", "com10.md", ".gitignore", "a.b.c", "docs/null-check.md"]) expect(() => resolveInProject(root, "p1", ok)).not.toThrow();
+  });
+
   it("rejects bad project ids", () => {
     expect(() => resolveInProject(root, "../p2", "secret.txt")).toThrow();
     expect(() => resolveInProject(root, "p1/../p2", "secret.txt")).toThrow();

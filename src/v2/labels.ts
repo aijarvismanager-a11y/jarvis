@@ -137,6 +137,16 @@ export const goalText = (goal: string) => {
   return rest === goal.trim() ? goal : `旧アプリから引き継いだプロジェクト「${rest}」`;
 };
 
+const SHORT_GOAL_AT = 90;
+/** A long request as a one-line heading: its first sentence (or the first part), the rest is for "全文を見る". */
+export const shortGoal = (goal: string): { head: string; long: boolean } => {
+  const t = goalText(goal).replace(/\s+/g, " ").trim();
+  if (t.length <= SHORT_GOAL_AT) return { head: t, long: false };
+  const cut = t.search(/[。!?！？]/);
+  if (cut > 8 && cut < SHORT_GOAL_AT) return { head: t.slice(0, cut + 1), long: true };
+  return { head: `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
+};
+
 export const deriveProjectName = (goal: string) => {
   const t = goal.trim().replace(/\s+/g, " ");
   if (!t) return "新しいプロジェクト";
