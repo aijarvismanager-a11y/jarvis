@@ -119,11 +119,12 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
   const [report, setReport] = useState<MissionReport | null>(null);
   const [open, setOpen] = useState<boolean | null>(null); // null = default: open unless everything was verified
   const [copied, setCopied] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     let alive = true;
     api.missionReport(projectId, missionId).then((r) => alive && setReport(r)).catch(() => alive && setReport(null));
     return () => { alive = false; };
-  }, [projectId, missionId, status]);
+  }, [projectId, missionId, status, refreshKey]);
   if (!report) return null;
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
   const isOpen = open ?? report.verdict !== "verified";
@@ -139,7 +140,8 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
         <span className="text-[13px] font-semibold">完了検証レポート</span>
         <Badge tone={VERDICT_TONE[report.verdict]}>{report.verdictLabel}</Badge>
         <span className="text-[12px] text-muted">{report.tasks.length}件の作業のうち、{done}件が終わりました</span>
-        <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!isOpen)}>{isOpen ? "閉じる" : "詳しく見る"}</button>
+        <button className="ml-auto text-[12px] text-muted hover:underline" title="このレポートを、いちばん新しい判定で作り直します" onClick={() => setRefreshKey((k) => k + 1)}>最新にする</button>
+        <button className="text-[12px] text-accent hover:underline" onClick={() => setOpen(!isOpen)}>{isOpen ? "閉じる" : "詳しく見る"}</button>
       </div>
       {report.todos && (
         <div className={`mt-2 rounded-md px-3 py-2 text-[13px] ${must.length ? "bg-[#FBF3E0] text-[#7A5410]" : "bg-[#E8F3EA] text-[#2F6B3C]"}`}>
