@@ -259,6 +259,22 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       actions: [{ kind: "sync", label: "承認する場所を開く" }],
     });
   }
+  // A review that still said 要修正 after the one allowed revision lets the task go on: the findings that are left must not vanish.
+  const unresolved = reportTasks.filter((t) => {
+    const last = events.filter((e) => e.taskId === t.id && e.type === "AI_REVIEW_DONE").pop();
+    const p = last?.payload as { verdict?: string; revisions?: number } | undefined;
+    return p?.verdict === "revise" && (p.revisions ?? 0) >= 1;
+  });
+  if (finished && unresolved.length) {
+    todos.push({
+      id: "review-open",
+      required: false,
+      title: `レビューの指摘が残ったまま進んだ作業が${unresolved.length}件あります`,
+      why: "別のAIが「要修正」と言い、1回直したあとも指摘が残りました。やり直しは1回までの決まりなので、そのまま進めています。指摘が本当に大事かどうかは、読んで決めてください。",
+      steps: ["下のボタンで、レビューの文面を読みます(「直さないと困る点」が書かれています)。", "直すべき点があれば、新しい依頼で、その点を伝えてください(レビューの文面をそのまま貼れます)。", "気にならない点なら、何もしなくて大丈夫です。"],
+      actions: unresolved.slice(0, 3).map((t) => ({ kind: "artifact" as const, label: `作業${numberOf(t)}のレビューを読む`, path: `_ai-records/reviews/${t.id}.md` })),
+    });
+  }
   // plain-text form of the same advice (Markdown copy, older screens)
   const nextSteps = todos.map((x) => `${x.required ? "【やること】" : "【任意】"}${x.title}。${x.why}`);
 

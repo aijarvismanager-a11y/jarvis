@@ -131,3 +131,19 @@ describe("statedStatus", () => {
     expect(statedStatus("確認状況: 確認できず")).toBe("none");
   });
 });
+
+describe("review findings left after the allowed revision", () => {
+  it("shows an optional to-do with the review file, and only for a review still saying 要修正 after a revision", async () => {
+    const { store, db, m } = await runMission(4, "review");
+    const t = store.listTasks("p")[0]!;
+    store.appendEvent({ projectId: "p", taskId: t.id, type: "AI_REVIEW_DONE", payload: { reviewer: "x", verdict: "revise", revisions: 0 } });
+    expect(buildMissionReport(store, "p", m.id).todos?.some((x) => x.id === "review-open")).toBe(false);
+    store.appendEvent({ projectId: "p", taskId: t.id, type: "AI_REVIEW_DONE", payload: { reviewer: "x", verdict: "revise", revisions: 1 } });
+    const todo = buildMissionReport(store, "p", m.id).todos?.find((x) => x.id === "review-open");
+    expect(todo?.required).toBe(false);
+    expect(todo?.actions[0]).toMatchObject({ kind: "artifact", path: `_ai-records/reviews/${t.id}.md` });
+    store.appendEvent({ projectId: "p", taskId: t.id, type: "AI_REVIEW_DONE", payload: { reviewer: "x", verdict: "approve", revisions: 1 } });
+    expect(buildMissionReport(store, "p", m.id).todos?.some((x) => x.id === "review-open")).toBe(false);
+    db.close();
+  });
+});
