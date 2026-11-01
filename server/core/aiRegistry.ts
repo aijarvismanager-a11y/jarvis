@@ -22,7 +22,7 @@ export type AiProfile = {
 /** Keyed by the legacy ai_services.json id. */
 export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
   "claude-code": {
-    capabilities: { coding: 5, debugging: 5, testing: 5, architecture: 5, documentation: 4, research: 3 },
+    capabilities: { coding: 5, debugging: 5, testing: 5, architecture: 5, documentation: 4, research: 3, ux_review: 3.5 },
     qualityScore: 5,
     reliabilityScore: 4,
     automationLevel: 3,
@@ -336,6 +336,22 @@ export function applyIdeationCapability(store: Store): string[] {
   store.setSetting(KEY, true);
   if (changed.length) store.addDecision({ title: "AI Registry: 「アイデア出し(ideation)」の能力を追加", reason: `会話・アイデア出しに向くPiを中心に、初期値(仮定)の点数を追加: ${changed.join(", ")}`, isAssumption: true });
   return changed;
+}
+
+/**
+ * One-time registry update: Claude Code gets "ux_review" (review work) at a score below the web AIs'. Before, review tasks could only go to
+ * web AIs, and on a day when they had all failed or needed hand operation the task had no AI at all (14 times on 10/29-30).
+ * The web AIs are still chosen first; Claude Code takes it when none is left (and then reviews its own work, which the report says).
+ */
+export function applyClaudeCodeReview(store: Store): boolean {
+  const KEY = "registry.claudeCodeReview.v1";
+  if (store.getSetting<boolean>(KEY, false)) return false;
+  const service = store.getAiService("claude-code");
+  if (!service) return false;
+  if (service.capabilityScores.ux_review === undefined) store.setCapabilities("claude-code", { ...service.capabilityScores, ux_review: 3.5 });
+  store.setSetting(KEY, true);
+  store.addDecision({ title: "AI Registry: Claude Code にレビュー(ux_review)の能力を追加", reason: "Web版AIが全部使えない日に、レビューの作業を担当するAIがいなくなったため。Web版AIより低い初期値(仮定)で、ほかが使えないときだけ選ばれる", isAssumption: true });
+  return true;
 }
 
 /** The browser AIs a fresh install starts with (the ones people use for free). Level 1 (manual) until the user raises it; the scores come from DEFAULT_AI_PROFILES. */

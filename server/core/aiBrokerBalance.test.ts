@@ -6,7 +6,7 @@ import { openDatabase, type Db } from "./db.ts";
 import { Store } from "./store.ts";
 import { AIBroker, NEAR_BEST, aiUsage, capabilityForTaskRole, pickBalanced, type BrokerCandidate } from "./aiBroker.ts";
 import { pickReviewer, reviewCapabilityFor } from "./aiReview.ts";
-import { IDEATION_SCORES, applyIdeationCapability } from "./aiRegistry.ts";
+import { IDEATION_SCORES, applyClaudeCodeReview, applyIdeationCapability } from "./aiRegistry.ts";
 import { setWebAiSettings } from "./webAiSites.ts";
 import { recordBotCheck } from "./botCheck.ts";
 
@@ -173,4 +173,20 @@ describe("bot checks and the level of automation", () => {
     expect(d.excluded.find((e) => e.aiId === "full")?.reason).toContain("ボット確認");
   });
 });
+});
+
+describe("review work when no web AI is left", () => {
+  it("Claude Code gets ux_review once, keeps its other scores, and is chosen for a review only when the web AIs are out", () => {
+    store.upsertAiService({ id: "claude-code", name: "Claude Code (CLI)", accessMode: "cli", adapterType: "claude-code", automationLevel: 3, freeStatus: "free_tier", requiresLogin: true });
+    store.setCapabilities("claude-code", { coding: 5, documentation: 4 });
+    web("chatgpt", "ChatGPT (Web)", { ux_review: 5 });
+    expect(applyClaudeCodeReview(store)).toBe(true);
+    expect(store.getAiService("claude-code")?.capabilityScores).toEqual({ coding: 5, documentation: 4, ux_review: 3.5 });
+    expect(applyClaudeCodeReview(store)).toBe(false);
+    const mission = store.createMission({ projectId: "p1", goal: "g", status: "running" });
+    const t = store.createTask({ projectId: "p1", missionId: mission.id, role: "review", status: "ready" });
+    const adapters = ["claude-code", "manual"];
+    expect(new AIBroker(store).select(t, { executableAdapters: adapters }).selected?.aiId).toBe("chatgpt");
+    expect(new AIBroker(store).select(t, { executableAdapters: adapters, excludeAiIds: ["chatgpt"] }).selected?.aiId).toBe("claude-code");
+  });
 });
