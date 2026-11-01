@@ -31,6 +31,11 @@ export function isIntegrationTask(task: Pick<Task, "role" | "objective">): boole
   return isWriteTask(task) && /結合|統合|連携|integrat|wire\s*up/i.test(task.objective);
 }
 
+/** The task that runs / judges the tests ("npm test を実行して結果を記録"): not a code-writing role, but its claim "tests pass" must be proven. */
+export function isTestRunTask(task: Pick<Task, "role" | "objective">): boolean {
+  return /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) || /npm\s+(run\s+)?test|テスト(を|の)?(実行|走ら)/i.test(task.objective);
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -126,7 +131,8 @@ export class ProjectValidator implements TaskValidator {
       detail = build.status === "passed" ? build.detail : `ビルド確認(未実施): ${build.detail}`;
       if (build.status === "passed") level = 3;
     }
-    if (this.opts.runTests !== false && isWriteTask(task) && this.hasTestScript(task.projectId)) {
+    // A test / QA task is checked by running the tests here too: the AI's sandbox often cannot run them ("承認が必要で実行できなかった"), and its hand calculation is no evidence.
+    if (this.opts.runTests !== false && (isWriteTask(task) || isTestRunTask(task)) && this.hasTestScript(task.projectId)) {
       const res = await this.runner("npm", ["test"], { cwd: projectDir(this.projectsRoot, task.projectId), timeoutMs: TEST_TIMEOUT_MS, env: { CI: "true" } });
       if (res.timedOut) return { passed: false, level: 3, detail: "テストがタイムアウトしました" };
       if (res.code !== 0) return { passed: false, level: 3, detail: `テスト失敗(npm test, code=${res.code}):\n${`${res.stdout}\n${res.stderr}`.trim().slice(-TAIL_CHARS)}` };

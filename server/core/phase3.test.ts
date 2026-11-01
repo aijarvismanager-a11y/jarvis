@@ -309,6 +309,19 @@ describe("ProjectValidator", () => {
     expect(await new ProjectValidator(root, { runner: passing }).validate(task, { ok: true, artifacts: ["src.js"] })).toMatchObject({ passed: true, level: 3 });
   });
 
+  it("a test-run task is proven by running npm test here, not by the AI's own claim", async () => {
+    write("package.json", JSON.stringify({ scripts: { test: "node --test" } }));
+    write("test-run.md", "npm test は実行できなかった。手計算では全て合格");
+    const task = makeTask({ role: "test", objective: "npm test を実行して結果を記録する", expectedOutputs: ["test-run.md"] });
+    const failing: CommandRunner = async () => ({ stdout: "4 failed", stderr: "", code: 1 });
+    const res = await new ProjectValidator(root, { runner: failing }).validate(task, { ok: true, artifacts: ["test-run.md"] });
+    expect(res).toMatchObject({ passed: false, level: 3 });
+    expect(res.detail).toContain("4 failed");
+    expect(await new ProjectValidator(root, { runner: noRun }).validate(task, { ok: true, artifacts: ["test-run.md"] })).toMatchObject({ passed: true, level: 3 });
+    // a design task is not run through the tests
+    expect(await new ProjectValidator(root, { runner: failing }).validate(makeTask({ role: "design", objective: "設計する", expectedOutputs: ["test-run.md"] }), { ok: true, artifacts: ["test-run.md"] })).toMatchObject({ passed: true, level: 2 });
+  });
+
   it("skips L3 when there is no real test script", async () => {
     write("package.json", JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }));
     write("a.js", "1");
