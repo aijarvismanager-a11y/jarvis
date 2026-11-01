@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -422,15 +422,32 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
     });
   return (
     <Card title={proposal.kind === "replan" ? "再計画の提案" : "計画の提案"}>
-      {proposal.draft.summary && <p className="mb-3 text-[13px]">{proposal.draft.summary}</p>}
-      <ol className="mb-3 space-y-1.5">
-        {proposal.draft.tasks.map((t, i) => (
-          <li key={t.key} className="text-[13px]">
-            <span className="mr-2 text-muted">{i + 1}.</span>
-            <span className="font-semibold">{roleLabel(t.role)}</span>
-            <span className="ml-2 text-muted">{t.objective}</span>
-          </li>
-        ))}
+      {proposal.draft.summary && <p className="mb-3 text-[15px] leading-relaxed">{proposal.draft.summary}</p>}
+      <p className="mb-2 text-[13px] text-muted">作業は全部で{proposal.draft.tasks.length}つです。上から順に進みます。細かい内容は、各作業の「詳しく見る」で読めます。</p>
+      <ol className="mb-3 space-y-2">
+        {proposal.draft.tasks.map((t, i) => {
+          const { head, long } = shortGoal(t.objective);
+          const after = t.dependsOn.map((k) => proposal.draft.tasks.findIndex((x) => x.key === k) + 1).filter((n) => n > 0);
+          return (
+            <li key={t.key} className="rounded-lg border border-borderSoft bg-white px-3 py-2">
+              <p className="text-[14.5px] leading-relaxed">
+                <span className="mr-2 font-semibold text-muted">{i + 1}.</span>
+                <span className="mr-2 rounded bg-bg px-1.5 py-0.5 text-[12.5px] font-semibold">{roleLabel(t.role)}</span>
+                <span>{head}</span>
+              </p>
+              {(long || t.expectedOutputs.length > 0 || after.length > 0) && (
+                <details className="mt-1 text-[13px]">
+                  <summary className="cursor-pointer select-none text-muted">詳しく見る</summary>
+                  <div className="mt-1.5 space-y-1.5 leading-relaxed">
+                    {long && <p className="whitespace-pre-wrap">{t.objective}</p>}
+                    {after.length > 0 && <p className="text-muted">先に終わらせる作業: {after.map((n) => `作業${n}`).join("、")}</p>}
+                    {t.expectedOutputs.length > 0 && <p className="break-all text-muted">できるもの: {t.expectedOutputs.join(" / ")}</p>}
+                  </div>
+                </details>
+              )}
+            </li>
+          );
+        })}
       </ol>
       <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} placeholder="直してほしい点があれば入力(例: テストを厚く)" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
       <div className="flex flex-wrap gap-2">

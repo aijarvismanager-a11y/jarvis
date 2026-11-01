@@ -151,7 +151,9 @@ export const shortGoal = (goal: string): { head: string; long: boolean } => {
   if (t.length <= SHORT_GOAL_AT) return { head: t, long: false };
   const cut = t.search(/[。!?！？]/);
   if (cut > 8 && cut < SHORT_GOAL_AT) return { head: t.slice(0, cut + 1), long: true };
-  return { head: `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
+  // no sentence end in sight: stop at the last comma before the limit, so the heading does not end mid-phrase
+  const comma = t.slice(0, SHORT_GOAL_AT).lastIndexOf("、");
+  return { head: comma >= 30 ? `${t.slice(0, comma)}…` : `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
 };
 
 export const deriveProjectName = (goal: string) => {
