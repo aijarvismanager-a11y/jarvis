@@ -1,3 +1,4 @@
+import { useAutoRestartChoice } from "../autoRestart";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Badge, Button, Card, Details } from "../ui";
@@ -273,6 +274,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
               <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">ChatGPT や Gemini など、ブラウザで開くAIにも作業を分けます。AIには、依頼の文と、プロジェクトのファイルの一部(一覧と、関係するファイルの抜粋)を送ります。<b>プロジェクトの中身を外に出したくないときは、オフにしてください。</b>オフにすると、すべて Claude Code がやります。</span></span>
             </label>
           )}
+          <AutoRestartSetting />
           {review && (
             <label className="flex items-start gap-3">
               <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
@@ -309,5 +311,15 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
       </>)}
     </div>
+  );
+}
+
+function AutoRestartSetting() {
+  const [on, setOn] = useAutoRestartChoice();
+  return (
+    <label className="flex items-start gap-3">
+      <input type="checkbox" className="mt-1" checked={on} onChange={(e) => setOn(e.target.checked)} />
+      <span><span className="font-semibold">アプリの更新を、自動で取り込む</span><span className="block text-[12px] text-muted">サーバーが古いコードのまま動いているとき、実行中の依頼がなければ、自動で再起動します(数秒、画面がつながらなくなります)。依頼の実行中は、終わるまで待ちます。この設定は、このブラウザ(デスクトップ版もここ)だけに残ります。</span></span>
+    </label>
   );
 }

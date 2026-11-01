@@ -8,6 +8,7 @@ import { HistoryScreen } from "./screens/HistoryScreen";
 import { MissionScreen } from "./screens/MissionScreen";
 import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { getAutoRestart, useAutoRestartChoice } from "./autoRestart";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
@@ -83,6 +84,8 @@ export default function V2App() {
   const windowVersion = typeof navigator !== "undefined" ? /AIOrchestratorDesktop\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? "" : "";
   const [changelog, setChangelog] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const restartingRef = useRef(false);
+  const [autoRestart, setAutoRestart] = useAutoRestartChoice();
   const restartServer = async () => {
     setRestarting(true);
     try {
@@ -116,6 +119,17 @@ export default function V2App() {
     const v = await api.serverVersion();
     setOutdated(v === null || v.stale);
     if (v?.version) setAppVersion(v.version);
+    // a running request refuses the restart ("実行中の依頼"): that is simply tried again at the next check
+    if (v?.stale && getAutoRestart() && !restartingRef.current) {
+      restartingRef.current = true;
+      try {
+        await api.restartServer();
+      } catch {
+        /* busy or failed: try again later */
+      } finally {
+        restartingRef.current = false;
+      }
+    }
   }, 30000, []);
   // a sign-in window of the dedicated browser profile left open stops the browser AIs: say so, and that closing it continues the work
   const [browserWindow, setBrowserWindow] = useState<{ loginWindowOpen: boolean; waiting: number } | null>(null);
@@ -245,6 +259,10 @@ export default function V2App() {
         {outdated && !offline && (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
             <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中の依頼は再起動後に自動で再開します)。</span>
+            <label className="flex items-center gap-1.5 text-[12.5px]">
+              <input type="checkbox" checked={autoRestart} onChange={(e) => setAutoRestart(e.target.checked)} />
+              <span>実行中の依頼がないときは、自動で再起動する</span>
+            </label>
             <Button variant="ghost" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "サーバーを再起動"}</Button>
           </div>
         )}
