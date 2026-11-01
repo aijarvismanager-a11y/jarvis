@@ -9,6 +9,7 @@ import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, WebAiPromp
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
 import { isWriteTask } from "./scheduler.ts";
+import { isHistoryFile } from "./missionReport.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { transitionTask } from "./taskStateMachine.ts";
 import { cleanFileText, webOutputPaths } from "./webOutputs.ts";
@@ -96,6 +97,9 @@ export function buildWebPrompt(input: {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "task";
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Tasks a web chat cannot do: editing code, or updating the project's running records (TESTLOG, PLAN...), which a chat answer would overwrite whole. They go straight to the code executor instead of failing on the site first. */
+export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs">): boolean => isWriteTask(task) || task.expectedOutputs.some(isHistoryFile);
 
 export class WebAiExecutor implements TaskExecutor {
   readonly name = "web-ai";
@@ -576,12 +580,12 @@ export class RoutingExecutor implements TaskExecutor {
 
   /** Code-editing tasks only ever run on the code executor, so the Broker must not pick a web AI for them. */
   adapterTypesFor(task: Task): readonly string[] {
-    return isWriteTask(task) ? [...(this.code.adapterTypes ?? [])] : this.adapterTypes;
+    return needsCodeExecutor(task) ? [...(this.code.adapterTypes ?? [])] : this.adapterTypes;
   }
 
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult> {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
-    const toWeb = getWebAiSettings(this.store).enabled && svc !== null && this.web.adapterTypes.some((t) => t === svc.adapterType) && !isWriteTask(task);
+    const toWeb = getWebAiSettings(this.store).enabled && svc !== null && this.web.adapterTypes.some((t) => t === svc.adapterType) && !needsCodeExecutor(task);
     if (!toWeb) return this.runCode(task, ctx);
     const res = await this.web.execute(task, ctx);
     if (!res.fallback) return { ...res, executor: res.executor ?? this.web.name };

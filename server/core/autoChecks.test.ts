@@ -84,3 +84,14 @@ describe("ProjectValidator unanswered research", () => {
     expect((await new ProjectValidator(root, { runTests: false }).validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
   });
 });
+
+describe("needsCodeExecutor", () => {
+  it("keeps code edits and the project's running records off the web chats", async () => {
+    const { needsCodeExecutor } = await import("./webAiExecutor.ts");
+    expect(needsCodeExecutor({ role: "coding", expectedOutputs: [] })).toBe(true);
+    expect(needsCodeExecutor({ role: "document", expectedOutputs: ["TESTLOG.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "document", expectedOutputs: ["PLAN.md", "ARCHITECTURE.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "document", expectedOutputs: ["docs/new-note.md"] })).toBe(false);
+    expect(needsCodeExecutor({ role: "research", expectedOutputs: ["_ai-records/x/t1.md"] })).toBe(false);
+  });
+});
