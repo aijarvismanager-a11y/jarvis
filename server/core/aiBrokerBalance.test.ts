@@ -190,3 +190,17 @@ describe("review work when no web AI is left", () => {
     expect(new AIBroker(store).select(t, { executableAdapters: adapters, excludeAiIds: ["chatgpt"] }).selected?.aiId).toBe("claude-code");
   });
 });
+
+describe("sparing the Claude plan", () => {
+  it("prefers other AIs for non-code work once the Claude plan is mostly used, but keeps Claude as a fallback", async () => {
+    const { saveClaudeQuota } = await import("./claudeQuota.ts");
+    web("claude-web", "Claude (Web)", { research: 5 }, 5);
+    web("other", "Other", { research: 4 }, 4);
+    const pick = () => new AIBroker(store).select({ role: "research" });
+    expect(pick().selected?.aiId).toBe("claude-web");
+    saveClaudeQuota(store, { fiveHour: { utilization: 0.2, resetsAt: null }, sevenDay: { utilization: 0.85, resetsAt: null }, status: "allowed", checkedAt: new Date().toISOString() });
+    const d = pick();
+    expect(d.selected?.aiId).toBe("other");
+    expect(d.ranked.map((c) => c.aiId)).toContain("claude-web");
+  });
+});

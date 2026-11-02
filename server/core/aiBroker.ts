@@ -1,5 +1,5 @@
 import { botCheckExclusions } from "./botCheck.ts";
-import { claudeLimitExclusions } from "./claudeQuota.ts";
+import { claudeLimitExclusions, readClaudeQuota } from "./claudeQuota.ts";
 import { usageLimitExclusions } from "./usageLimit.ts";
 import { capabilityForRole } from "./legacyImport.ts";
 import type { AiService, Store, Task } from "./store.ts";
@@ -28,6 +28,8 @@ const LOW_CONFIDENCE = 0.7;
 export const NEAR_BEST = 2;
 /** Task work spreads over every AI within this many points (1.5 of 10) of the best, least used first: a few AIs were doing nearly everything. */
 export const TASK_NEAR_BEST = 7.5;
+/** From this share of the Claude plan (5-hour or 7-day window) used, Claude is spared for work only it can do (editing code). */
+export const CLAUDE_SPARE_AT = 0.6;
 export const USAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const ROLE_ALIASES: Record<string, string> = {
@@ -92,6 +94,8 @@ export type BrokerOptions = {
   executableAdapters?: string[];
   /** how far below the best (in total points) an AI may be and still share the work; reviews keep the narrow default, task work spreads wider */
   nearBest?: number;
+  /** points taken off an AI's total while its allowance runs low (the Claude plan): it stays a fallback but others are tried first */
+  penalties?: Record<string, number>;
   /** AIs left out for now, with the reason (a bot check that is waiting for the person; see botCheck.ts). */
   restingAis?: Record<string, string>;
   /** AIs that already failed this task; skipped so a retry falls back to the next candidate. */
@@ -216,6 +220,12 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     }
     const candidate = score(s, capability);
     if (!candidate) continue; // simply not capable: not worth listing
+    const penalty = options.penalties?.[s.id] ?? 0;
+    if (penalty > 0) {
+      candidate.total = round(candidate.total - penalty);
+      candidate.score10 = round(candidate.total / 5, 1);
+      candidate.notes.push(`利用枠が残り少ないため${round(penalty / 5, 1)}点下げています`);
+    }
     if (s.accessMode === "web" && s.automationLevel <= 2 && !isMediaCapability(capability) && !options.allowManualText) {
       excluded.push({ aiId: s.id, name: s.name, reason: "人の操作が要る(手動・半自動)ため、文章系の作業は任せません" });
       continue;
@@ -294,8 +304,17 @@ export class AIBroker {
     return { ...botCheckExclusions(this.store, automatic), ...usageLimitExclusions(this.store, ids), ...claudeLimitExclusions(this.store, ids) };
   }
 
+  /** The Claude plan is shared by Claude Code and claude.ai chat and cannot be topped up: from 60% used, other AIs get the work first. */
+  private claudePenalties(): Record<string, number> {
+    const q = readClaudeQuota(this.store);
+    const used = Math.max(q?.fiveHour?.utilization ?? 0, q?.sevenDay?.utilization ?? 0);
+    if (used < CLAUDE_SPARE_AT) return {};
+    const penalty = Math.min(25, (used - 0.5) * 50);
+    return Object.fromEntries(this.store.listAiServices().filter((x) => x.id.startsWith("claude")).map((x) => [x.id, penalty]));
+  }
+
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), nearBest: TASK_NEAR_BEST, restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), nearBest: TASK_NEAR_BEST, penalties: this.claudePenalties(), restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
   }
 }
