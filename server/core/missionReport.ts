@@ -126,7 +126,9 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   const code = done.filter((t) => t.isCode);
   const finished = mission.status === "completed";
   const notChecked: string[] = [];
-  if (code.some((t) => t.level < 3)) notChecked.push("自動テストが走っていないコード作業があります(プロジェクトにテストスクリプトが無い、または検証が構文チェックまでです)");
+  // an early code task runs before the tests exist (syntax check only): what counts is that the tests ran at or after the last code change
+  const lastCode = Math.max(...code.map((t) => reportTasks.indexOf(t)), -1);
+  if (code.length > 0 && !done.some((t) => reportTasks.indexOf(t) >= lastCode && t.level >= 3)) notChecked.push("自動テストが走っていないコード作業があります(プロジェクトにテストスクリプトが無い、または検証が構文チェックまでです)");
   if (code.length > 0 && !code.some((t) => t.level >= 4)) notChecked.push("アプリを実際に起動して画面を開く検証(L4)は通っていません。「動かして見る」で実際に動くか確かめてください");
   if (done.some((t) => !t.isCode)) notChecked.push("調査・設計・ドキュメントの内容が正しいかは自動では検証していません(成果物ファイルの存在のみ確認)");
   for (const t of done.filter((x) => x.inconclusive)) notChecked.unshift(`作業${reportTasks.indexOf(t) + 1}の成果物は、確認できなかったと書いています。聞いたことの答えが出ていません(元のファイルを渡せていない可能性があります)`);
