@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppSmokeTester, detectApps } from "./appSmokeTest.ts";
 import { findBrowserExecutable } from "./browserDriver.ts";
-import { ProjectValidator, isIntegrationTask, touchesUi } from "./taskValidator.ts";
+import { ProjectValidator, isIntegrationTask, isLaunchCheckTask, touchesUi } from "./taskValidator.ts";
 import type { Task } from "./store.ts";
 
 let root: string;
@@ -104,6 +104,8 @@ describe("a single server that serves its own page", () => {
     expect(touchesUi({ role: "coding" }, ["public/index.html"])).toBe(true);
     expect(touchesUi({ role: "coding" }, ["lib/split.js"])).toBe(false);
     expect(touchesUi({ role: "document" }, ["docs/a.html"])).toBe(false);
+    expect(isLaunchCheckTask({ role: "test", objective: "npm startでサーバーを起動しブラウザから画面を確認する" })).toBe(true);
+    expect(isLaunchCheckTask({ role: "test", objective: "lib/split.jsの単体テストを作成する" })).toBe(false);
   });
   it.skipIf(!findBrowserExecutable())("passes when the page opens without errors, fails on a page error, skips a server that shows no page", async () => {
     page("");

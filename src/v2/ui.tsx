@@ -25,7 +25,7 @@ export function Card({ title, children, className = "", fold = false, open = fal
   }
   return (
     <section className={`rounded-xl border border-border bg-panel p-4 ${className}`}>
-      {title && <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>}
+      {title && <h2 className="mb-3 text-[11px] font-semibold tracking-wide text-muted">{title}</h2>}
       {children}
     </section>
   );

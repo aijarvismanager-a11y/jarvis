@@ -76,7 +76,7 @@ const toBullets = (text: string): string[] =>
     .filter(Boolean);
 
 const VERDICT_TONE ={ verified: "ok", partial: "warn", unfinished: "bad" } as const;
-const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認" };
+const LEVEL_SHORT: Record<number, string> = { 1: "存在", 2: "構文", 3: "テスト", 4: "起動確認", 5: "別のAI", 6: "別のAI" };
 
 /** What was done, how far it was actually checked, and what was not checked. */
 function TodoCard({ todo, ctx, missionId, onNewRequest }: { todo: ReportTodo; ctx: Ctx; missionId: string; onNewRequest: (goal: string) => void }) {
@@ -160,7 +160,7 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
             <ul className="divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
               {report.tasks.map((t, i) => {
                 const ok = t.status === "completed";
-                const check = t.inconclusive ? "答えが出ていない" : t.partly ? "一部未確認" : t.level ? `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで` : "確認なし";
+                const check = t.inconclusive ? "答えが出ていない" : t.partly ? "一部未確認" : t.level ? (!t.isCode && t.level <= 2 ? "成果物あり" : t.level >= 5 ? "別のAIが確認" : `確認: ${LEVEL_SHORT[t.level] ?? `L${t.level}`}まで`) : "確認なし";
                 return (
                   <li key={t.id} className="px-3 py-2">
                     <div className="flex items-start gap-2">
@@ -549,7 +549,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {mission && !starting && (
         <Card>
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
+            <span className="text-[11px] font-semibold tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
             <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
           </div>
           <GoalText goal={mission.goal} className="font-serif text-[18px] font-semibold" />

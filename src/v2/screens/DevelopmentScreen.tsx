@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
-import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel } from "../labels";
+import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Card, Details, GoalText } from "../ui";
 import type { Task, TaskStatus } from "../types";
 import { FailureReason } from "./FailureReason";
@@ -28,12 +28,13 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
   const outputs = ctx.overview.artifacts.filter((a) => a.taskId === task.id);
   return (
     <li className="rounded-lg border border-borderSoft bg-bg">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2 text-left">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2 text-left">
         <span className="text-muted">{open ? "▾" : "▸"}</span>
         <span className="text-[13px] font-semibold">{roleLabel(task.role)}</span>
         <Badge tone={TONE[task.status]}>{TASK_LABEL_PLAIN[task.status]}</Badge>
         {task.retryCount > 0 && <span className="text-[11px] text-muted">再試行 {task.retryCount}回</span>}
         <span className="ml-auto text-[12px] text-muted">{task.selectedAi || !["pending", "ready", "blocked"].includes(task.status) ? aiNameOf(ctx.services, task.selectedAi) : "担当は始めるときに決まります"}</span>
+        <span className="w-full pl-5 text-[12px] leading-snug text-muted">{shortGoal(task.objective).head}</span>
       </button>
       {open && (
         <div className="space-y-2 border-t border-borderSoft px-3 py-2 text-[12.5px]">
@@ -121,7 +122,7 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
     <div className="space-y-4">
       <Card title="いまの依頼">
         <GoalText goal={ctx.mission.goal} className="text-[14px] font-semibold" />
-        <p className="mt-1 text-[12px] text-muted">状態: {MISSION_LABEL[ctx.mission.status]}{total > 0 && ` · ${total}つの作業のうち ${done}つ完了`}</p>
+        <p className="mt-1 text-[12px] text-muted">状態: {MISSION_LABEL[ctx.mission.status]}{total > 0 && ` · ${total}件の作業のうち ${done}件が完了`}</p>
         {total > 0 && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="全体の進み具合">
             <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />

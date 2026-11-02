@@ -41,6 +41,11 @@ export function touchesUi(task: Pick<Task, "role">, changed: string[]): boolean 
   return isWriteTask(task) && changed.some((f) => /\.(html?|jsx|tsx|vue|svelte)$/i.test(f));
 }
 
+/** The test task that says it starts the app and looks at the page ("npm startでサーバーを起動しブラウザから…確認する"): the AI cannot really open a browser, so the app is opened here. */
+export function isLaunchCheckTask(task: Pick<Task, "role" | "objective">): boolean {
+  return !isWriteTask(task) && /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) && /起動|ブラウザ|画面/.test(task.objective) && /確認|試|動作/.test(task.objective);
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -154,7 +159,7 @@ export class ProjectValidator implements TaskValidator {
     }
 
     // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
-    if (this.opts.smoke && (isIntegrationTask(task) || touchesUi(task, changed))) {
+    if (this.opts.smoke && (isIntegrationTask(task) || touchesUi(task, changed) || isLaunchCheckTask(task))) {
       const smoke = await this.opts.smoke.run(projectDir(this.projectsRoot, task.projectId));
       if (smoke.status === "failed") return { passed: false, level: 4, detail: smoke.detail };
       detail = [detail, `結合ゲート(${smoke.status === "passed" ? "合格" : "未実施"}): ${smoke.detail}`].filter(Boolean).join("\n");
