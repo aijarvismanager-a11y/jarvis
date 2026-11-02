@@ -30,6 +30,7 @@ describe("SystemCheck", () => {
 describe("explainClaudeFailure", () => {
   it("recognises sign-in, limit and missing-command problems", () => {
     expect(explainClaudeFailure("Error: Not logged in · Please run /login")).toContain("ログイン");
+    expect(explainClaudeFailure('{"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}')).toContain("claude auth login");
     expect(explainClaudeFailure("429 rate limit exceeded")).toContain("上限");
     expect(explainClaudeFailure("'claude' is not recognized as an internal command")).toContain("見つかりません");
     expect(explainClaudeFailure("something else")).toBeNull();
