@@ -16,8 +16,8 @@ import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
 import { ensureClaudeCode, seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyClaudeCodeReview, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
-import { RoutingExecutor, WebAiExecutor } from "./core/webAiExecutor.ts";
-import { WebHandoffHub } from "./core/webHandoff.ts";
+import { RoutingExecutor, WebAiExecutor, needsCodeExecutor } from "./core/webAiExecutor.ts";
+import { WEB_ADAPTER_TYPES, WebHandoffHub } from "./core/webHandoff.ts";
 import { AppSmokeTester } from "./core/appSmokeTest.ts";
 import { TaskLogStore } from "./core/taskLog.ts";
 import { PreviewManager } from "./core/previewManager.ts";
@@ -123,7 +123,7 @@ const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
   aiReview: { reviewer: webExecutor },
-  validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots }),
+  validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots, runsOnWebChat: (task) => { const svc = task.selectedAi ? coreStore.getAiService(task.selectedAi) : null; return !!svc && (WEB_ADAPTER_TYPES as readonly string[]).includes(svc.adapterType) && !needsCodeExecutor(task); } }),
   broker: new AIBroker(coreStore),
   onMissionCompleted: (projectId, missionId) =>
     void autoReflectMission(coreStore, path.join(ROOT, "backups", "sync"), projectId, missionId, (rel) => {

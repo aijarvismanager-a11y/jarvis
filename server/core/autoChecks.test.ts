@@ -89,6 +89,11 @@ describe("ProjectValidator unanswered research", () => {
     expect((await v.validate(task(2), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
     expect((await new ProjectValidator(setup("確認状況: 確定"), { runTests: false }).validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
   });
+  it("does not send a web-chat task back to read files it cannot open", async () => {
+    const root = setup("# 調査\n結論: A\n\n確認状況: 一部未確認");
+    const v = new ProjectValidator(root, { runTests: false, runsOnWebChat: () => true });
+    expect((await v.validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
+  });
   it("does not retry when the AI was simply not allowed to run something", async () => {
     const root = setup("確認状況: 確認できず\n承認が必要でした");
     expect((await new ProjectValidator(root, { runTests: false }).validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);

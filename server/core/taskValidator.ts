@@ -49,7 +49,7 @@ export function isLaunchCheckTask(task: Pick<Task, "role" | "objective">): boole
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
-    private readonly opts: { runner?: CommandRunner; runTests?: boolean; smoke?: { run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> }; /** before/after copies of the folder: lets the validator notice files that shrank */ snapshots?: SnapshotManager; /** set false to skip the automatic `dotnet build` of .NET projects */ dotnetBuild?: boolean } = {},
+    private readonly opts: { runner?: CommandRunner; runTests?: boolean; smoke?: { run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> }; /** before/after copies of the folder: lets the validator notice files that shrank */ snapshots?: SnapshotManager; /** set false to skip the automatic `dotnet build` of .NET projects */ dotnetBuild?: boolean; /** true for a task done in a web chat page: that AI cannot open files, so sending it back to "read the files" cannot help */ runsOnWebChat?: (task: Task) => boolean } = {},
   ) {}
 
   private get runner() {
@@ -110,7 +110,7 @@ export class ProjectValidator implements TaskValidator {
     }
 
     // "確認状況: 一部未確認": it answered but left points open. Those are not left for the person: the task is sent back once to read the files and settle them.
-    if (!isWriteTask(task) && task.retryCount < 2) {
+    if (!isWriteTask(task) && task.retryCount < 2 && !this.opts.runsOnWebChat?.(task)) {
       const text = (changed.length ? changed : wanted).filter((rel) => !isHistoryFile(rel)).map((rel) => { try { return readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? ""; } catch { return ""; } }).join("\n");
       if (text && statedStatus(text) === "partly" && !CANNOT_RUN.test(text)) {
         return { passed: false, level: 2, detail: "成果物に「確認状況: 一部未確認」と書かれています。「未確認」とした点それぞれについて、プロジェクトフォルダの中のファイルを実際に開いて読み(Read/Glob/Grepで探す)、確かめて答えを出し直してください。確かめられた点は結論を書き、「確認状況: 確定」にしてください。ファイルを調べても本当に分からない点だけを残し、その理由(どのファイルを見たか)を書いてください。" };
