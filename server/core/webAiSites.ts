@@ -84,7 +84,7 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   perplexity: {
     // the page starts in the paid "コンピューター" mode, which answers a prompt with an upgrade pop-up: switch to the free "検索" mode
     prepare: { selectText: ["検索", "Search"] },
-    inputSelector: "#ask-input, textarea",
+    inputSelector: "#ask-input, div[role=\"textbox\"][contenteditable=\"true\"], textarea",
     sendSelector: 'button[aria-label="Submit"], button[aria-label="送信"], button[aria-label*="Send"]',
     responseSelector: 'div[data-renderer="lm"], div[id^="markdown-content"]',
   },

@@ -85,7 +85,8 @@ describe("ProjectValidator unanswered research", () => {
     const first = await v.validate(task(0), { ok: true, artifacts: ["r.md"] });
     expect(first.passed).toBe(false);
     expect(first.detail).toContain("実際に開いて読み");
-    expect((await v.validate(task(1), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
+    expect((await v.validate(task(1), { ok: true, artifacts: ["r.md"] })).passed).toBe(false); // asked twice
+    expect((await v.validate(task(2), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
     expect((await new ProjectValidator(setup("確認状況: 確定"), { runTests: false }).validate(task(0), { ok: true, artifacts: ["r.md"] })).passed).toBe(true);
   });
   it("does not retry when the AI was simply not allowed to run something", async () => {
@@ -100,6 +101,7 @@ describe("needsCodeExecutor", () => {
     expect(needsCodeExecutor({ role: "coding", expectedOutputs: [] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["TESTLOG.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["PLAN.md", "ARCHITECTURE.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "test", expectedOutputs: ["test/apiSplit.test.js"] })).toBe(true); // a chat page mangles code (5 broken test files in a row)
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["docs/new-note.md"] })).toBe(false);
     expect(needsCodeExecutor({ role: "research", expectedOutputs: ["_ai-records/x/t1.md"] })).toBe(false);
   });

@@ -100,7 +100,7 @@ export class ProjectValidator implements TaskValidator {
     }
 
     // "確認状況: 一部未確認": it answered but left points open. Those are not left for the person: the task is sent back once to read the files and settle them.
-    if (!isWriteTask(task) && task.retryCount === 0) {
+    if (!isWriteTask(task) && task.retryCount < 2) {
       const text = (changed.length ? changed : wanted).filter((rel) => !isHistoryFile(rel)).map((rel) => { try { return readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? ""; } catch { return ""; } }).join("\n");
       if (text && statedStatus(text) === "partly" && !CANNOT_RUN.test(text)) {
         return { passed: false, level: 2, detail: "成果物に「確認状況: 一部未確認」と書かれています。「未確認」とした点それぞれについて、プロジェクトフォルダの中のファイルを実際に開いて読み(Read/Glob/Grepで探す)、確かめて答えを出し直してください。確かめられた点は結論を書き、「確認状況: 確定」にしてください。ファイルを調べても本当に分からない点だけを残し、その理由(どのファイルを見たか)を書いてください。" };

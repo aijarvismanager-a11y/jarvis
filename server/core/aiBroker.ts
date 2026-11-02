@@ -26,6 +26,8 @@ const UNCLASSIFIED_FIT = 2;
 const LOW_CONFIDENCE = 0.7;
 /** On the 50-point scale: 2.0 = 0.4 on the 10-point scale. */
 export const NEAR_BEST = 2;
+/** Task work spreads over every AI within this many points (1.5 of 10) of the best, least used first: a few AIs were doing nearly everything. */
+export const TASK_NEAR_BEST = 7.5;
 export const USAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const ROLE_ALIASES: Record<string, string> = {
@@ -88,6 +90,8 @@ export type BrokerOptions = {
   budgetPolicy?: "free_only" | "allow_paid";
   /** Restrict to services whose adapter_type can actually be run (e.g. ["claude-code"]). */
   executableAdapters?: string[];
+  /** how far below the best (in total points) an AI may be and still share the work; reviews keep the narrow default, task work spreads wider */
+  nearBest?: number;
   /** AIs left out for now, with the reason (a bot check that is waiting for the person; see botCheck.ts). */
   restingAis?: Record<string, string>;
   /** AIs that already failed this task; skipped so a retry falls back to the next candidate. */
@@ -176,11 +180,11 @@ const hashOf = (text: string): number => {
  *   the higher total, and last a tie broken by the task (`seed`, so equals are not always decided by their names).
  * `shared` is the set of equally good AIs the choice was made from.
  */
-export function pickBalanced(ranked: BrokerCandidate[], usage?: AiUsage, seed?: string): { pick: BrokerCandidate | null; shared: BrokerCandidate[] } {
+export function pickBalanced(ranked: BrokerCandidate[], usage?: AiUsage, seed?: string, nearBest = NEAR_BEST): { pick: BrokerCandidate | null; shared: BrokerCandidate[] } {
   const best = ranked[0];
   if (!best) return { pick: null, shared: [] };
   if (!usage) return { pick: best, shared: [best] };
-  const near = ranked.filter((c) => best.total - c.total <= NEAR_BEST);
+  const near = ranked.filter((c) => best.total - c.total <= nearBest);
   const used = (c: BrokerCandidate) => usage[c.aiId] ?? { mission: 0, recent: 0 };
   const lastResort = (a: BrokerCandidate, b: BrokerCandidate) => (seed ? hashOf(`${seed}:${a.aiId}`) - hashOf(`${seed}:${b.aiId}`) : a.name.localeCompare(b.name));
   const pick = [...near].sort((a, b) => used(a).mission - used(b).mission || used(a).recent - used(b).recent || b.breakdown.fit - a.breakdown.fit || b.total - a.total || lastResort(a, b))[0]!;
@@ -248,7 +252,7 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     return [...pool].map((e) => e.candidate).sort((a, b) => sortKey[strategy](b) - sortKey[strategy](a) || byTotal(a, b))[0] ?? null;
   };
 
-  const balanced = pickBalanced(ranked, options.usage, options.seed);
+  const balanced = pickBalanced(ranked, options.usage, options.seed, options.nearBest);
   const selected = balanced.pick;
   let confidence = 0;
   if (selected) {
@@ -292,6 +296,6 @@ export class AIBroker {
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), nearBest: TASK_NEAR_BEST, restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
   }
 }
