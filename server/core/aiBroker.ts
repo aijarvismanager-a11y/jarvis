@@ -212,8 +212,8 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     }
     const candidate = score(s, capability);
     if (!candidate) continue; // simply not capable: not worth listing
-    if (s.accessMode === "web" && s.automationLevel <= 1 && !isMediaCapability(capability) && !options.allowManualText) {
-      excluded.push({ aiId: s.id, name: s.name, reason: "自動で操作できない(手動)ため、文章系の作業は任せません" });
+    if (s.accessMode === "web" && s.automationLevel <= 2 && !isMediaCapability(capability) && !options.allowManualText) {
+      excluded.push({ aiId: s.id, name: s.name, reason: "人の操作が要る(手動・半自動)ため、文章系の作業は任せません" });
       continue;
     }
     const resting = options.restingAis?.[s.id];

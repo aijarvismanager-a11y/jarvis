@@ -162,14 +162,14 @@ describe("who reviews", () => {
   });
 
 describe("bot checks and the level of automation", () => {
-  it("rests a fully automatic AI that was checked, but not a semi-automatic one (the person is at its page and passes the check)", () => {
+  it("rests a fully automatic AI that was checked; a semi-automatic one is not given text work at all (it needs a person at its page)", () => {
     web("full", "Full", { research: 5 });
     web("semi", "Semi", { research: 5 });
     store.patchAiService("semi", { automationLevel: 2 });
     for (const id of ["full", "semi"]) for (let i = 0; i < 3; i++) recordBotCheck(store, id);
     const d = new AIBroker(store).select({ role: "research" });
-    expect(d.ranked.map((c) => c.aiId)).toContain("semi");
-    expect(d.ranked.map((c) => c.aiId)).not.toContain("full");
+    expect(d.ranked.map((c) => c.aiId)).not.toContain("semi");
+    expect(d.excluded.find((e) => e.aiId === "semi")?.reason).toContain("半自動");
     expect(d.excluded.find((e) => e.aiId === "full")?.reason).toContain("ボット確認");
   });
 });
