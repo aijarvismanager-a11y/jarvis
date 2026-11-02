@@ -34,7 +34,8 @@ const KEY = "orchestrator.notify";
 export const notifySupported = () => typeof Notification !== "undefined";
 export function notifyEnabled(): boolean {
   try {
-    return notifySupported() && Notification.permission === "granted" && localStorage.getItem(KEY) === "on";
+    // on unless the person switched it off: a plan waiting for approval must not depend on a toggle they never found
+    return notifySupported() && Notification.permission === "granted" && localStorage.getItem(KEY) !== "off";
   } catch {
     return false;
   }
