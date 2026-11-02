@@ -159,13 +159,19 @@ export class ProjectValidator implements TaskValidator {
     }
 
     // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
-    if (this.opts.smoke && (isIntegrationTask(task) || touchesUi(task, changed) || isLaunchCheckTask(task))) {
+    if (this.opts.smoke && (isIntegrationTask(task) || touchesUi(task, changed) || (isWriteTask(task) && this.hasPage(task.projectId)) || isLaunchCheckTask(task))) {
       const smoke = await this.opts.smoke.run(projectDir(this.projectsRoot, task.projectId));
       if (smoke.status === "failed") return { passed: false, level: 4, detail: smoke.detail };
       detail = [detail, `結合ゲート(${smoke.status === "passed" ? "合格" : "未実施"}): ${smoke.detail}`].filter(Boolean).join("\n");
       if (smoke.status === "passed") level = 4;
     }
     return { passed: true, level, ...(detail ? { detail } : {}) };
+  }
+
+  /** The project already has a page (index.html at the root or in public/): a retry that only touched server.js or tests must still be checked against it. */
+  private hasPage(projectId: string): boolean {
+    const root = projectDir(this.projectsRoot, projectId);
+    return ["index.html", "public/index.html"].some((f) => existsSync(path.join(root, f)));
   }
 
   private hasTestScript(projectId: string): boolean {

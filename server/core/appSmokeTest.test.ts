@@ -66,6 +66,12 @@ describe("ProjectValidator integration gate", () => {
     expect(v).toMatchObject({ passed: false, level: 4, detail: "d" });
   });
 
+  it("checks a retry that only touched server code when the project already has a page", async () => {
+    write("p1/public/index.html", "<h1>x</h1>");
+    const v = await validator("failed").validate({ ...task("サーバーを直す"), expectedOutputs: ["a.json"] }, result);
+    expect(v).toMatchObject({ passed: false, level: 4, detail: "d" });
+  });
+
   it("does not run for other tasks, and a skipped check does not fail the task", async () => {
     const plain = await validator("failed").validate({ ...task("画面を実装する"), expectedOutputs: ["a.json"] }, result);
     expect(plain.passed).toBe(true);
