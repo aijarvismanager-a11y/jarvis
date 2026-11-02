@@ -119,6 +119,10 @@ export const api = {
   importSignIn: () => request<{ ok: boolean; profile: string; copied: string[] }>("/web-ai/import-signin", "POST", {}),
   tryAutomation: (aiId: string) => request<{ ok: boolean; reason?: string; service?: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/try-automation`, "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
+  scout: () => request<ScoutState>("/ai-scout"),
+  scoutRun: () => request<ScoutState>("/ai-scout/run", "POST", {}),
+  scoutAdd: (id: string) => request<{ state: ScoutState }>(`/ai-scout/${encodeURIComponent(id)}/add`, "POST", {}),
+  scoutDismiss: (id: string) => request<ScoutState>(`/ai-scout/${encodeURIComponent(id)}/dismiss`, "POST", {}),
   scoreTuning: () => request<TuningReport>("/score-tuning"),
   setScoreTuning: (enabled: boolean) => request<TuningReport>("/score-tuning", "PUT", { enabled }),
   resetScoreTuning: (aiId?: string) => request<TuningReport>("/score-tuning/reset", "POST", aiId ? { aiId } : {}),
@@ -126,3 +130,6 @@ export const api = {
   setAiReview: (enabled: boolean) => request<{ enabled: boolean }>("/ai-review/settings", "PUT", { enabled }),
   setWebAi: (enabled: boolean) => request<{ enabled: boolean }>("/web-ai/settings", "PUT", { enabled }),
 };
+
+export type ScoutProposal = { id: string; name: string; url: string; use: string; provider: string | null; googleLogin: "page" | "claimed"; free: "page" | "claimed"; foundAt: string; foundBy: string; status: "new" | "added" | "dismissed" };
+export type ScoutState = { proposals: ScoutProposal[]; lastRunAt: string | null; lastNote: string | null; running: boolean };

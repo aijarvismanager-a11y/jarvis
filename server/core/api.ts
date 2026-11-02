@@ -11,6 +11,7 @@ import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
+import type { AiScout } from "./aiScout.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
@@ -44,6 +45,8 @@ export type OrchestratorApiDeps = {
   healthChecker?: AiHealthChecker;
   /** Enables POST /ai-discovery; without it that endpoint answers 501. */
   discovery?: AiDiscovery;
+  /** Enables /ai-scout (weekly search for new Google-sign-in AIs, proposals the person accepts or drops). */
+  scout?: AiScout;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
   executableAdapters?: string[] | (() => string[]);
   /** Live log of what the AI does in a task (GET /projects/:id/tasks/:taskId/log). */
@@ -522,6 +525,27 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ results: await deps.healthChecker.checkAll(ids), services: store.listAiServices() });
     }),
   );
+  // New-AI scout: proposals wait here until the person accepts or drops them.
+  router.get("/ai-scout", (_req, res) => {
+    if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
+    res.json(deps.scout.state());
+  });
+  router.post("/ai-scout/run", guarded(async (_req, res) => {
+    if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
+    void deps.scout.run();
+    res.json({ ...deps.scout.state(), running: true });
+  }));
+  router.post("/ai-scout/:id/add", guarded(async (req, res) => {
+    if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
+    const p = deps.scout.accept(String(req.params.id));
+    if (!p) return void res.status(404).json({ error: "その候補はありません" });
+    res.json({ proposal: p, state: deps.scout.state() });
+  }));
+  router.post("/ai-scout/:id/dismiss", guarded(async (req, res) => {
+    if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
+    if (!deps.scout.dismiss(String(req.params.id))) return void res.status(404).json({ error: "その候補はありません" });
+    res.json(deps.scout.state());
+  }));
   // On-demand discovery (Phase 5): no-op when the registry already covers the request.
   router.post(
     "/ai-discovery",
