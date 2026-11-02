@@ -43,6 +43,7 @@ describe("cleaning the text of a saved file", () => {
   });
   it("drops what follows the 確認状況 line (a site's follow-up question), and leaves answers without one alone", () => {
     expect(cleanFileText("d.md", "# 題\n本文\n\n確認状況: 一部未確認\n\n次の作業を選択してください。")).toBe("# 題\n本文\n\n確認状況: 一部未確認");
+    expect(cleanFileText("t.test.js", "test('a', () => {});\n\n確認状況: 確定")).toBe("test('a', () => {});");
     expect(cleanFileText("d.md", "# 題\n本文\n\n**確認状況：確定**\nどうしますか?")).toBe("# 題\n本文\n\n**確認状況：確定**");
     expect(cleanFileText("d.md", "# 題\n本文\nどうしますか?")).toBe("# 題\n本文\nどうしますか?");
   });

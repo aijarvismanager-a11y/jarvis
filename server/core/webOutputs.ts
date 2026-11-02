@@ -38,7 +38,10 @@ export function webOutputPaths(task: Pick<Task, "role" | "objective" | "expected
  */
 export function cleanFileText(rel: string, text: string): string {
   let t = text.replace(/^\s*\n/, "").replace(/\s+$/, "");
-  if (!/\.(md|markdown|txt)$/i.test(rel)) return t;
+  if (!/\.(md|markdown|txt)$/i.test(rel)) {
+    // a source file must not end with the prose status line the page was asked for ("確認状況: 確定"): it breaks the code
+    return t.replace(/\n+[ \t]*(\/\/|#)?[ \t]*確認状況\s*[:：][^\n]*$/, "");
+  }
   const lines = t.split("\n");
   if (/^(markdown|md)$/i.test(lines[0]!.trim()) && lines.length > 1) lines.shift(); // the label of a code block the page rendered
   const first = lines.findIndex((l) => l.trim() !== "");
