@@ -36,6 +36,11 @@ export function isTestRunTask(task: Pick<Task, "role" | "objective">): boolean {
   return /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) || /npm\s+(run\s+)?test|テスト(を|の)?(実行|走ら)/i.test(task.objective);
 }
 
+/** A code task that wrote a page (html / jsx / tsx / vue): the app is opened after it, even when the plan has no task named "結合". */
+export function touchesUi(task: Pick<Task, "role">, changed: string[]): boolean {
+  return isWriteTask(task) && changed.some((f) => /\.(html?|jsx|tsx|vue|svelte)$/i.test(f));
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -149,7 +154,7 @@ export class ProjectValidator implements TaskValidator {
     }
 
     // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
-    if (this.opts.smoke && isIntegrationTask(task)) {
+    if (this.opts.smoke && (isIntegrationTask(task) || touchesUi(task, changed))) {
       const smoke = await this.opts.smoke.run(projectDir(this.projectsRoot, task.projectId));
       if (smoke.status === "failed") return { passed: false, level: 4, detail: smoke.detail };
       detail = [detail, `結合ゲート(${smoke.status === "passed" ? "合格" : "未実施"}): ${smoke.detail}`].filter(Boolean).join("\n");

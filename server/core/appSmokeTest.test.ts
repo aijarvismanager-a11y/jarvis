@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppSmokeTester, detectApps } from "./appSmokeTest.ts";
 import { findBrowserExecutable } from "./browserDriver.ts";
-import { ProjectValidator, isIntegrationTask } from "./taskValidator.ts";
+import { ProjectValidator, isIntegrationTask, touchesUi } from "./taskValidator.ts";
 import type { Task } from "./store.ts";
 
 let root: string;
@@ -92,5 +92,26 @@ describe.skipIf(!findBrowserExecutable())("AppSmokeTester (real browser)", () =>
   it("is skipped, not failed, when nothing can be shown", async () => {
     write("lib/package.json", JSON.stringify({ scripts: { dev: "node x.js" } }));
     expect((await new AppSmokeTester().run(root)).status).toBe("skipped");
-  }, 30_000);
+  }, 90_000);
+});
+
+describe("a single server that serves its own page", () => {
+  const page = (script: string) => {
+    write("package.json", JSON.stringify({ scripts: { start: "node server.js" } }));
+    write("server.js", `require("http").createServer((req, res) => { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><h1>割り勘</h1><script>${script}</script>'); }).listen(Number(process.env.PORT));`);
+  };
+  it("opens the top page after a task that wrote a page, even without an integration task", () => {
+    expect(touchesUi({ role: "coding" }, ["public/index.html"])).toBe(true);
+    expect(touchesUi({ role: "coding" }, ["lib/split.js"])).toBe(false);
+    expect(touchesUi({ role: "document" }, ["docs/a.html"])).toBe(false);
+  });
+  it.skipIf(!findBrowserExecutable())("passes when the page opens without errors, fails on a page error, skips a server that shows no page", async () => {
+    page("");
+    expect(await new AppSmokeTester().run(root)).toMatchObject({ status: "passed" });
+    page("null.x");
+    const bad = await new AppSmokeTester().run(root);
+    expect(bad.status).toBe("failed");
+    write("server.js", `require("http").createServer((req, res) => { res.setHeader("content-type", "application/json"); res.end("{}"); }).listen(Number(process.env.PORT));`);
+    expect((await new AppSmokeTester().run(root)).status).toBe("skipped");
+  }, 120_000);
 });

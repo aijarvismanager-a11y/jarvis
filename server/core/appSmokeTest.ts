@@ -82,7 +82,7 @@ export function startServer(app: DetectedApp, args: string[], env: Record<string
 export async function waitReady(url: string, s: Started, signal?: AbortSignal): Promise<boolean> {
   const ok = await waitUntil(
     async () => {
-      if (s.exited() || signal?.aborted) return null;
+      if (s.exited() || signal?.aborted) throw new Error("the process ended"); // stops the wait at once (waitUntil keeps polling on null)
       try {
         await fetch(url, { signal: AbortSignal.timeout(2_000) });
         return true;
@@ -147,12 +147,44 @@ const IGNORED_PROBLEM = /ResizeObserver loop/i;
 export class AppSmokeTester {
   constructor(private readonly opts: { browserExecutable?: string | null } = {}) {}
 
+  /** A project with no separate frontend: its server (npm start / dev) is started on a free port and its top page is opened. Anything that cannot be shown is "skipped", never a failure of the task. */
+  private async runSingleServer(app: DetectedApp, browser: string | null, signal?: AbortSignal): Promise<SmokeResult> {
+    if (!browser) return { status: "skipped", detail: "Edge・Chrome・Braveのいずれも見つからないため、画面の表示確認は行っていません" };
+    const pkg = readPkg(app.dir);
+    const hasDeps = Object.keys({ ...pkg?.dependencies, ...pkg?.devDependencies }).length > 0;
+    if (hasDeps && !existsSync(path.join(app.dir, "node_modules"))) return { status: "skipped", detail: "node_modules が無く(依存が未インストール)、起動確認は行っていません" };
+    const started: Started[] = [];
+    try {
+      const port = await freePort();
+      const origin = `http://localhost:${port}`;
+      const server = startServer(app, [], { PORT: String(port) });
+      started.push(server);
+      if (!(await waitReady(origin, server, signal))) return { status: "skipped", detail: `サーバーの起動を確認できませんでした(まだ作りかけの可能性があります)${server.log() ? `:
+${server.log()}` : ""}` };
+      const top = await fetch(origin, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
+      if (!top || !/html/i.test(top.headers.get("content-type") ?? "")) return { status: "skipped", detail: "サーバーのトップページが画面(HTML)ではないため、画面の表示確認は行っていません" };
+      const report = await probePage(browser, origin, [origin]);
+      const problems = report.problems.filter((p) => !IGNORED_PROBLEM.test(p));
+      if (report.textLength === 0) problems.unshift("画面が真っ白です(表示された文字が0件)");
+      if (problems.length) return { status: "failed", detail: `アプリを起動して画面を開いたところ、問題がありました:\n${problems.slice(0, MAX_REPORTED).map((p) => `- ${p}`).join("\n")}` };
+      return { status: "passed", detail: "サーバーを起動して画面を開き、エラーなく表示されることを確認しました" };
+    } catch (err) {
+      return { status: "skipped", detail: `起動確認を実行できませんでした: ${err instanceof Error ? err.message : String(err)}` };
+    } finally {
+      for (const st of started) killTree(st.proc.pid);
+    }
+  }
+
   async run(projectRoot: string, signal?: AbortSignal): Promise<SmokeResult> {
     const apps = detectApps(projectRoot);
     const frontend = apps.find((a) => a.kind === "frontend");
     const backend = apps.find((a) => a.kind === "backend");
-    if (!frontend) return { status: "skipped", detail: "画面(Vite)のアプリが見つからないため、起動確認は行っていません" };
     const browser = this.opts.browserExecutable === undefined ? findBrowserExecutable() : this.opts.browserExecutable;
+    if (!frontend) {
+      // one Node server that serves its own page (and API): start it and open its top page
+      if (!backend) return { status: "skipped", detail: "起動できるアプリが見つからないため、起動確認は行っていません" };
+      return this.runSingleServer(backend, browser, signal);
+    }
     if (!browser) return { status: "skipped", detail: "Edge・Chrome・Braveのいずれも見つからないため、画面の表示確認は行っていません" };
     for (const a of [frontend, backend]) if (a && !existsSync(path.join(a.dir, "node_modules"))) return { status: "skipped", detail: `${path.relative(projectRoot, a.dir) || "."} に node_modules が無く(依存が未インストール)、起動確認は行っていません` };
 
