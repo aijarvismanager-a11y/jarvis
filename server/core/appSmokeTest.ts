@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { CdpClient, findBrowserExecutable, waitUntil } from "./browserDriver.ts";
 import { killTree, needsShell } from "./commandRunner.ts";
+import { INTERACT_EXPR, type InteractionReport } from "./pageInteraction.ts";
 
 // Integration smoke test (Validation L4): start the generated app (backend and
 // frontend dev servers), open the frontend in a headless browser and report what
@@ -102,9 +103,10 @@ export async function waitReady(url: string, s: Started, signal?: AbortSignal): 
   return !!ok;
 }
 
-export type PageReport = { problems: string[]; textLength: number };
+export type PageReport = { problems: string[]; textLength: number; interaction?: InteractionReport };
 
-export async function probePage(browserExe: string, url: string, apiOrigins: string[]): Promise<PageReport> {
+/** interact: also fill the inputs and press the buttons, and report what happened */
+export async function probePage(browserExe: string, url: string, apiOrigins: string[], opts: { interact?: boolean } = {}): Promise<PageReport> {
   const profile = mkdtempSync(path.join(os.tmpdir(), "smoke-profile-"));
   const port = await freePort();
   const proc = spawn(browserExe, ["--headless=new", `--remote-debugging-port=${port}`, "--remote-debugging-address=127.0.0.1", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore", windowsHide: true });
@@ -113,6 +115,7 @@ export async function probePage(browserExe: string, url: string, apiOrigins: str
     if (!problems.includes(p) && problems.length < 50) problems.push(p);
   };
   let cdp: CdpClient | null = null;
+  let interacting = false;
   try {
     const up = await waitUntil(async () => fetch(`http://127.0.0.1:${port}/json/version`).then((r) => r.ok).catch(() => false), { timeoutMs: 20_000, intervalMs: 250 });
     if (!up) throw new Error("ブラウザを起動できませんでした");
@@ -127,7 +130,7 @@ export async function probePage(browserExe: string, url: string, apiOrigins: str
         note(`console.error: ${args.map((a) => a.description ?? String(a.value ?? "")).join(" ").slice(0, 300)}`);
       } else if (method === "Network.responseReceived") {
         const r = params.response as { url: string; status: number } | undefined;
-        if (r && r.status >= 400 && !/favicon/i.test(r.url) && apiOrigins.some((o) => r.url.startsWith(o))) note(`通信エラー: ${r.status} ${r.url}`);
+        if (r && r.status >= (interacting ? 500 : 400) && !/favicon/i.test(r.url) && apiOrigins.some((o) => r.url.startsWith(o))) note(`通信エラー: ${r.status} ${r.url}`);
       }
     };
     await cdp.send("Runtime.enable");
@@ -137,7 +140,16 @@ export async function probePage(browserExe: string, url: string, apiOrigins: str
     await waitUntil(async () => (await cdp!.evaluate<string>("document.readyState")) === "complete", { timeoutMs: 30_000 });
     await new Promise((r) => setTimeout(r, SETTLE_MS));
     const textLength = await cdp.evaluate<number>("(document.body && document.body.innerText || '').trim().length");
-    return { problems, textLength };
+    let interaction: InteractionReport | undefined;
+    if (opts.interact && textLength > 0) {
+      interacting = true; // sample input may be rejected with a 4xx on purpose: only crashes (5xx, exceptions) count then
+      try {
+        interaction = await cdp.evaluate<InteractionReport>(INTERACT_EXPR);
+      } catch (err) {
+        if (!/context was destroyed|navigat/i.test(err instanceof Error ? err.message : String(err))) note(`画面の操作中にエラー: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}`);
+      }
+    }
+    return { problems, textLength, ...(interaction ? { interaction } : {}) };
   } finally {
     cdp?.close();
     killTree(proc.pid);
@@ -150,6 +162,17 @@ export async function probePage(browserExe: string, url: string, apiOrigins: str
 }
 
 const IGNORED_PROBLEM = /ResizeObserver loop/i;
+
+/** Problems found on the opened page, including buttons that did nothing when pressed. */
+function pageProblems(report: PageReport): string[] {
+  const problems = report.problems.filter((p) => !IGNORED_PROBLEM.test(p));
+  if (report.textLength === 0) problems.unshift("画面が真っ白です(表示された文字が0件)");
+  const i = report.interaction;
+  if (i && i.clicked > 0 && i.reacted === 0) problems.push(`ボタンを押しても画面も通信も変わりませんでした: ${i.idle.map((l) => `「${l}」`).join(" ")}`);
+  return problems;
+}
+
+const OPENED_OK = (r: PageReport) => (r.interaction && r.interaction.clicked > 0 ? `ボタン${r.interaction.clicked}個を押して反応(画面の変化・通信)も確認しました` : "");
 
 export class AppSmokeTester {
   constructor(private readonly opts: { browserExecutable?: string | null } = {}) {}
@@ -168,11 +191,10 @@ export class AppSmokeTester {
 ${server.log()}` : ""}` };
       const top = await fetch(origin, { signal: AbortSignal.timeout(5_000) }).catch(() => null);
       if (!top || !/html/i.test(top.headers.get("content-type") ?? "")) return { status: "skipped", detail: "サーバーのトップページが画面(HTML)ではないため、画面の表示確認は行っていません" };
-      const report = await probePage(browser, origin, [origin]);
-      const problems = report.problems.filter((p) => !IGNORED_PROBLEM.test(p));
-      if (report.textLength === 0) problems.unshift("画面が真っ白です(表示された文字が0件)");
+      const report = await probePage(browser, origin, [origin], { interact: true });
+      const problems = pageProblems(report);
       if (problems.length) return { status: "failed", detail: `アプリを起動して画面を開いたところ、問題がありました:\n${problems.slice(0, MAX_REPORTED).map((p) => `- ${p}`).join("\n")}` };
-      return { status: "passed", detail: "サーバーを起動して画面を開き、エラーなく表示されることを確認しました" };
+      return { status: "passed", detail: ["サーバーを起動して画面を開き、エラーなく表示されることを確認しました", OPENED_OK(report)].filter(Boolean).join("。") };
     } catch (err) {
       return { status: "skipped", detail: `起動確認を実行できませんでした: ${err instanceof Error ? err.message : String(err)}` };
     } finally {
@@ -211,11 +233,10 @@ ${server.log()}` : ""}` };
       if (!(await waitReady(origin, f, signal))) {
         return f.exited() ? { status: "failed", detail: `フロントエンドが起動できませんでした:\n${f.log()}` } : { status: "skipped", detail: "フロントエンドの起動を確認できませんでした" };
       }
-      const report = await probePage(browser, origin, [origin, ...(apiOrigin ? [apiOrigin] : [])]);
-      const problems = report.problems.filter((p) => !IGNORED_PROBLEM.test(p));
-      if (report.textLength === 0) problems.unshift("画面が真っ白です(表示された文字が0件)");
+      const report = await probePage(browser, origin, [origin, ...(apiOrigin ? [apiOrigin] : [])], { interact: true });
+      const problems = pageProblems(report);
       if (problems.length) return { status: "failed", detail: `アプリを起動して画面を開いたところ、問題がありました:\n${problems.slice(0, MAX_REPORTED).map((p) => `- ${p}`).join("\n")}` };
-      return { status: "passed", detail: "起動して画面を開き、エラーなく表示されることを確認しました" };
+      return { status: "passed", detail: ["起動して画面を開き、エラーなく表示されることを確認しました", OPENED_OK(report)].filter(Boolean).join("。") };
     } catch (err) {
       return { status: "skipped", detail: `起動確認を実行できませんでした: ${err instanceof Error ? err.message : String(err)}` };
     } finally {

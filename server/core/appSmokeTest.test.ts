@@ -123,3 +123,24 @@ describe("a single server that serves its own page", () => {
     expect((await new AppSmokeTester().run(root)).status).toBe("skipped");
   }, 120_000);
 });
+
+describe("pressing the buttons", () => {
+  const app = (html: string) => {
+    write("package.json", JSON.stringify({ scripts: { start: "node server.js" } }));
+    write("server.js", `require("http").createServer((req, res) => { if (req.url === "/api/x") { res.setHeader("content-type", "application/json"); res.end('{"r":1}'); return; } res.setHeader("content-type", "text/html; charset=utf-8"); res.end(${JSON.stringify(html)}); }).listen(Number(process.env.PORT));`);
+  };
+  it.skipIf(!findBrowserExecutable())("passes when the button changes the screen, fails when it does nothing or throws", async () => {
+    app(`<!doctype html><input type="number" id="v"><button onclick="document.getElementById('o').textContent = document.getElementById('v').value">変換</button><div id="o">結果</div>`);
+    const ok = await new AppSmokeTester().run(root);
+    expect(ok).toMatchObject({ status: "passed" });
+    expect(ok.detail).toContain("ボタン1個");
+    app("<!doctype html><h1>画面</h1><button>変換</button>");
+    const idle = await new AppSmokeTester().run(root);
+    expect(idle.status).toBe("failed");
+    expect(idle.detail).toContain("「変換」");
+    app(`<!doctype html><h1>画面</h1><button onclick="null.x">変換</button>`);
+    expect((await new AppSmokeTester().run(root)).status).toBe("failed");
+    app(`<!doctype html><h1>画面</h1><button onclick="fetch('/api/x')">送信</button>`);
+    expect((await new AppSmokeTester().run(root)).status).toBe("passed");
+  }, 180_000);
+});
