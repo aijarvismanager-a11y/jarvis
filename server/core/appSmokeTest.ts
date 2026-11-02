@@ -35,6 +35,13 @@ const readPkg = (dir: string): Pkg | null => {
   }
 };
 
+/** True when the app declares dependencies but they are not installed. An app with none (plain Node) needs no node_modules. */
+export function missingDeps(dir: string): boolean {
+  const pkg = readPkg(dir);
+  const declared = Object.keys({ ...pkg?.dependencies, ...pkg?.devDependencies }).length > 0;
+  return declared && !existsSync(path.join(dir, "node_modules"));
+}
+
 /** package.json folders under the project, classified as frontend (vite dev server) or backend (anything else with a dev/start script). */
 export function detectApps(root: string): DetectedApp[] {
   const found: DetectedApp[] = [];
@@ -150,9 +157,7 @@ export class AppSmokeTester {
   /** A project with no separate frontend: its server (npm start / dev) is started on a free port and its top page is opened. Anything that cannot be shown is "skipped", never a failure of the task. */
   private async runSingleServer(app: DetectedApp, browser: string | null, signal?: AbortSignal): Promise<SmokeResult> {
     if (!browser) return { status: "skipped", detail: "Edge・Chrome・Braveのいずれも見つからないため、画面の表示確認は行っていません" };
-    const pkg = readPkg(app.dir);
-    const hasDeps = Object.keys({ ...pkg?.dependencies, ...pkg?.devDependencies }).length > 0;
-    if (hasDeps && !existsSync(path.join(app.dir, "node_modules"))) return { status: "skipped", detail: "node_modules が無く(依存が未インストール)、起動確認は行っていません" };
+    if (missingDeps(app.dir)) return { status: "skipped", detail: "node_modules が無く(依存が未インストール)、起動確認は行っていません" };
     const started: Started[] = [];
     try {
       const port = await freePort();
@@ -186,7 +191,7 @@ ${server.log()}` : ""}` };
       return this.runSingleServer(backend, browser, signal);
     }
     if (!browser) return { status: "skipped", detail: "Edge・Chrome・Braveのいずれも見つからないため、画面の表示確認は行っていません" };
-    for (const a of [frontend, backend]) if (a && !existsSync(path.join(a.dir, "node_modules"))) return { status: "skipped", detail: `${path.relative(projectRoot, a.dir) || "."} に node_modules が無く(依存が未インストール)、起動確認は行っていません` };
+    for (const a of [frontend, backend]) if (a && missingDeps(a.dir)) return { status: "skipped", detail: `${path.relative(projectRoot, a.dir) || "."} に node_modules が無く(依存が未インストール)、起動確認は行っていません` };
 
     const started: Started[] = [];
     try {

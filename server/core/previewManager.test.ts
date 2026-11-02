@@ -61,7 +61,7 @@ describe("PreviewManager", () => {
     manager.start("empty");
     expect((await until("empty", (x) => x.state === "error")).message).toContain("起動できるものが見つかりません");
 
-    write("nodeps", "package.json", JSON.stringify({ scripts: { dev: "node x.js" } }));
+    write("nodeps", "package.json", JSON.stringify({ scripts: { dev: "node x.js" }, dependencies: { "left-pad": "*" } })); // declared but not installed
     manager.start("nodeps");
     expect((await until("nodeps", (x) => x.state === "error")).message).toContain("node_modules");
   });

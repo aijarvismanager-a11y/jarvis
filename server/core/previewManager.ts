@@ -1,7 +1,7 @@
 import http from "node:http";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { detectApps, freePort, probePage, startServer, waitReady, type Started } from "./appSmokeTest.ts";
+import { detectApps, freePort, missingDeps, probePage, startServer, waitReady, type Started } from "./appSmokeTest.ts";
 import { findBrowserExecutable } from "./browserDriver.ts";
 import { killTree } from "./commandRunner.ts";
 import { projectDir } from "./paths.ts";
@@ -133,7 +133,7 @@ export class PreviewManager {
       let apiOrigin = "";
 
       if (target) {
-        for (const a of [frontend, backend]) if (a && !existsSync(path.join(a.dir, "node_modules"))) return fail(`${path.relative(root, a.dir) || "."} に node_modules がありません(依存が未インストールのため起動できません)`);
+        for (const a of [frontend, backend]) if (a && missingDeps(a.dir)) return fail(`${path.relative(root, a.dir) || "."} に node_modules がありません(依存が未インストールのため起動できません)`);
         const backendPort = backend ? await freePort() : 0;
         if (backend) {
           apiOrigin = `http://localhost:${backendPort}`;
