@@ -502,18 +502,46 @@ class CdpChatPage implements WebChatPage {
         for (const c of node.childNodes || []) deep(c, depth + 1);
       };
       for (const host of document.querySelectorAll('svg-code-block, genui-sandbox, iframe')) deep(host, 0);
-      // 2) press the block's own copy button and catch what it writes to the clipboard
+      // 2) press the block's own copy button and catch whatever it writes (writeText / write / execCommand / a copy event)
+      const dbg = { blocks: 0, buttons: 0, captured: [], hooks: [] };
+      window.__svgDbg = dbg;
       if (!out.length) {
         const blocks = [...document.querySelectorAll('svg-code-block')];
-        let captured = [];
-        const realWrite = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText.bind(navigator.clipboard) : null;
+        dbg.blocks = blocks.length;
+        const captured = [];
+        const cb = navigator.clipboard;
+        const realWriteText = cb && cb.writeText ? cb.writeText.bind(cb) : null;
+        const realWrite = cb && cb.write ? cb.write.bind(cb) : null;
+        const realExec = document.execCommand ? document.execCommand.bind(document) : null;
+        const onCopy = (ev) => { try { const sel = String(window.getSelection ? window.getSelection() : ''); if (sel) captured.push(sel); const ae = document.activeElement; if (ae && ae.value) captured.push(String(ae.value)); } catch (e) { /* ignore */ } };
+        document.addEventListener('copy', onCopy, true);
         try {
-          if (navigator.clipboard) navigator.clipboard.writeText = (t) => { captured.push(String(t)); return Promise.resolve(); };
-          for (const b of blocks) {
-            const btn = b.querySelector('.copy-button, [fonticonname="copy"], button[aria-label*="コピー"], button[aria-label*="opy"]');
-            if (btn) { btn.click(); await new Promise((r) => setTimeout(r, 400)); }
+          if (cb) {
+            cb.writeText = (t) => { captured.push(String(t)); dbg.hooks.push('writeText'); return Promise.resolve(); };
+            cb.write = async (items) => { dbg.hooks.push('write'); for (const it of items || []) { try { const b = await it.getType('text/plain'); captured.push(await b.text()); } catch (e) { /* no text part */ } } };
           }
-        } finally { if (realWrite && navigator.clipboard) navigator.clipboard.writeText = realWrite; }
+          document.execCommand = (cmd, ...rest) => { if (String(cmd).toLowerCase() === 'copy') { dbg.hooks.push('execCommand'); onCopy(); } return realExec ? realExec(cmd, ...rest) : false; };
+          for (const b of blocks) {
+            const btns = [...b.querySelectorAll('.copy-button, [fonticonname="copy"], button[aria-label*="コピー"], button[aria-label*="opy"]')];
+            dbg.buttons += btns.length;
+            for (const btn of btns) {
+              for (const target of [btn, btn.querySelector('button'), btn.querySelector('mat-icon, gem-icon')]) {
+                if (!target) continue;
+                for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, view: window }));
+                await new Promise((r) => setTimeout(r, 300));
+                if (captured.length) break;
+              }
+              if (captured.length) break;
+            }
+            if (captured.length) break;
+          }
+        } finally {
+          document.removeEventListener('copy', onCopy, true);
+          if (cb && realWriteText) cb.writeText = realWriteText;
+          if (cb && realWrite) cb.write = realWrite;
+          if (realExec) document.execCommand = realExec;
+        }
+        dbg.captured = captured.map((t) => t.length);
         for (const t of captured) for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
       }
       if (!out.length) {
@@ -544,7 +572,9 @@ class CdpChatPage implements WebChatPage {
       const imgs = [...document.images].filter((i) => i.naturalWidth >= 48).slice(0, 6).map((i) => i.src.slice(0, 60) + ' ' + i.naturalWidth + 'x' + i.naturalHeight);
       const frames = [...document.querySelectorAll('iframe')].slice(0, 4).map((f) => (f.src || '').slice(0, 80) + ' ' + f.className);
       const svgCard = [...document.querySelectorAll('*')].filter((e) => e.children.length < 6 && /^SVG$/.test((e.textContent || '').trim())).slice(0, 3).map((e) => e.parentElement ? e.parentElement.outerHTML.slice(0, 700) : '');
-      return JSON.stringify({ answerHtml: el ? el.outerHTML.slice(0, 1200) : null, tags, imgs, frames, svgCard });
+      const blockHtml = [...document.querySelectorAll('svg-code-block')].slice(0, 2).map((e) => { const h = e.outerHTML; const k = h.indexOf('svg-actions'); return h.slice(Math.max(0, k - 20), 1800 + Math.max(0, k)).replace(/_ngcontent-[a-z0-9-]+=""/g, ''); });
+      const sandboxes = [...document.querySelectorAll('genui-sandbox')].slice(0, 2).map((e) => e.outerHTML.slice(0, 900).replace(/_ngcontent-[a-z0-9-]+=""/g, ''));
+      return JSON.stringify({ dbg: window.__svgDbg || null, blockHtml, sandboxes, tags: Object.fromEntries(Object.entries(tags).filter(([k]) => /svg|frame|sandbox|code|img|canvas|copy/.test(k))), imgs, frames });
     })()`);
   }
 
