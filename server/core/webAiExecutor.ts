@@ -312,7 +312,7 @@ export class WebAiExecutor implements TaskExecutor {
    * Puts one prompt to a web AI fully automatically (Level 3 only) and returns the answer; never waits for the person.
    * Used by the AI B Review. A break of the automation is counted like any other Level 3 failure.
    */
-  async ask(input: { svc: AiService; prompt: string; task: Task; signal: AbortSignal }): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  async ask(input: { svc: AiService; prompt: string; task: Task; signal: AbortSignal; /** the answer is SVG: when its text holds none, add what the page shows outside the text */ wantSvg?: boolean }): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
     const { svc, prompt, task, signal } = input;
     const site = resolveSiteProfile(this.store, svc.id);
     const driver = this.opts.driver;
@@ -322,10 +322,15 @@ export class WebAiExecutor implements TaskExecutor {
       try {
         await page.fillPrompt(prompt);
         await page.submit();
-        const text = await page.waitForResponse({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal });
+        let text = await page.waitForResponse({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal });
         if (looksLikeUsageLimit(text)) {
           recordUsageLimit(this.store, svc.id, text);
           return { ok: false, error: `${svc.name}が利用上限に達したと答えました` };
+        }
+        if (input.wantSvg && !/<svg[\s>]/i.test(text) && page.readSvgs) {
+          const found = await page.readSvgs().catch(() => [] as string[]);
+          this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_FROM_PAGE", payload: { aiId: svc.id, found: found.length, sizes: found.map((s) => s.length) } });
+          if (found.length) text = `${text}\n\n${found.join("\n\n")}`;
         }
         this.resetFailures(svc);
         return { ok: true, text };
@@ -372,7 +377,7 @@ export class WebAiExecutor implements TaskExecutor {
       "各SVGの先頭に <!-- --> のコメントで、使った色コード・フォント・余白の方針を短く書くこと(あとで実装するAIが読みます)。",
       "見た目の質を最優先に: 余白・配色(3色程度)・文字の大きさの差・整列を意識してください。",
     ].join("\n");
-    const got = await this.ask({ svc, prompt, task, signal });
+    const got = await this.ask({ svc, prompt, task, signal, wantSvg: true });
     if (!got.ok) return { ok: false, fallback: true, summary: `${svc.name}にSVGを頼めませんでした(${got.error})。Claude CodeでSVGを作ります` };
     // some pages hand the code back with its angle brackets escaped ("&lt;svg ...&gt;")
     if (!/<svg/i.test(got.text) && /&lt;svg/i.test(got.text)) got.text = got.text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");

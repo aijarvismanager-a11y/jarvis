@@ -114,6 +114,8 @@ export interface WebChatPage {
   waitForImages?(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void>;
   /** The pictures in the newest answer, read through the page itself (so the signed-in session is used). */
   readImages?(): Promise<{ mime: string; base64: string }[]>;
+  /** SVG code or drawings on the page that are not part of the answer text (a side card). */
+  readSvgs?(): Promise<string[]>;
   close(): Promise<void>;
 }
 export interface WebChatDriver {
@@ -469,6 +471,33 @@ class CdpChatPage implements WebChatPage {
       { timeoutMs: opts.timeoutMs, intervalMs: 700, signal: opts.signal },
     );
     if (done === null) throw new WebAiTimeoutError(`画像を取得できませんでした(${Math.round(opts.timeoutMs / 1000)}秒待機。最後の状態: ${last || "確認できず"})`);
+  }
+
+  /**
+   * SVG code a site keeps OUT of the chat text (Gemini puts it in a side card / draws it as a picture, measured 2026-11-03):
+   * the source shown in any code-like element of the page, and the drawing itself when it is on the page as an <svg> element.
+   */
+  async readSvgs(): Promise<string[]> {
+    return this.cdp.evaluate<string[]>(`(() => {
+      const out = [];
+      const add = (s) => { s = String(s || '').trim(); if (s.length >= 150 && /<svg[\\s>]/i.test(s) && !out.includes(s)) out.push(s); };
+      for (const e of document.querySelectorAll('pre, code, textarea, [class*="code"], [class*="immersive"], [class*="canvas"], [class*="editor"]')) {
+        const t = e.value || e.textContent || '';
+        for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
+      }
+      if (!out.length) {
+        for (const el of document.querySelectorAll('svg')) {
+          if (el.closest('button, a, nav, aside, header, mat-icon, [role="button"], [aria-hidden="true"]')) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 48 || r.height < 48) continue;
+          const c = el.cloneNode(true);
+          if (!c.getAttribute('xmlns')) c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          if (!c.getAttribute('viewBox') && !c.getAttribute('width')) { c.setAttribute('width', String(Math.round(r.width))); c.setAttribute('height', String(Math.round(r.height))); }
+          add(c.outerHTML);
+        }
+      }
+      return out.slice(0, 6);
+    })()`);
   }
 
   async readImages(): Promise<{ mime: string; base64: string }[]> {
