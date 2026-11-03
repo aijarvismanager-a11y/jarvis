@@ -13,6 +13,7 @@ import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { AiScout } from "./aiScout.ts";
+import type { AiRoster } from "./aiRoster.ts";
 import type { TaskLogStore } from "./taskLog.ts";
 import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
@@ -48,6 +49,8 @@ export type OrchestratorApiDeps = {
   discovery?: AiDiscovery;
   /** Enables /ai-scout (weekly search for new Google-sign-in AIs, proposals the person accepts or drops). */
   scout?: AiScout;
+  /** Enables /ai-roster (weekly check of the manual AIs: raise to automatic, take out what is gone, put back). */
+  roster?: AiRoster;
   /** Adapter types the wired executor can run, so /broker/preview matches what a mission would really pick. Read per request: the web AI switch changes it. */
   executableAdapters?: string[] | (() => string[]);
   /** Live log of what the AI does in a task (GET /projects/:id/tasks/:taskId/log). */
@@ -538,6 +541,20 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
     res.json(deps.scout.state());
   });
+  router.get("/ai-roster", (_req, res) => {
+    if (!deps.roster) return void res.status(501).json({ error: "AIの入れ替わりが接続されていません" });
+    res.json(deps.roster.state());
+  });
+  router.post("/ai-roster/run", guarded(async (_req, res) => {
+    if (!deps.roster) return void res.status(501).json({ error: "AIの入れ替わりが接続されていません" });
+    void deps.roster.run();
+    res.json({ ...deps.roster.state(), running: true });
+  }));
+  router.post("/ai-roster/:id/restore", guarded(async (req, res) => {
+    if (!deps.roster) return void res.status(501).json({ error: "AIの入れ替わりが接続されていません" });
+    if (!deps.roster.restore(String(req.params.id))) return void res.status(404).json({ error: "外したAIの中にありません" });
+    res.json({ state: deps.roster.state() });
+  }));
   router.post("/ai-scout/run", guarded(async (_req, res) => {
     if (!deps.scout) return void res.status(501).json({ error: "新AI探しが接続されていません" });
     void deps.scout.run();

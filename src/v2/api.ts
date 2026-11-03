@@ -122,6 +122,9 @@ export const api = {
   tryAutomation: (aiId: string) => request<{ ok: boolean; reason?: string; service?: AiService }>(`/ai-services/${encodeURIComponent(aiId)}/try-automation`, "POST", {}),
   setLoggedIn: (aiId: string, value: boolean) => request<{ aiId: string; loggedIn: boolean }>(`/ai-services/${encodeURIComponent(aiId)}/logged-in`, "PUT", { value }),
   scout: () => request<ScoutState>("/ai-scout"),
+  roster: () => request<RosterState>("/ai-roster"),
+  rosterRun: () => request<RosterState>("/ai-roster/run", "POST", {}),
+  rosterRestore: (id: string) => request<{ state: RosterState }>(`/ai-roster/${encodeURIComponent(id)}/restore`, "POST", {}),
   scoutRun: () => request<ScoutState>("/ai-scout/run", "POST", {}),
   scoutAdd: (id: string) => request<{ state: ScoutState }>(`/ai-scout/${encodeURIComponent(id)}/add`, "POST", {}),
   scoutDismiss: (id: string) => request<ScoutState>(`/ai-scout/${encodeURIComponent(id)}/dismiss`, "POST", {}),
@@ -134,4 +137,5 @@ export const api = {
 };
 
 export type ScoutProposal = { id: string; name: string; url: string; use: string; provider: string | null; googleLogin: "page" | "claimed"; free: "page" | "claimed"; foundAt: string; foundBy: string; status: "new" | "added" | "dismissed" };
+export type RosterState = { lastRunAt: string | null; lastNote: string | null; running: boolean; removed: { service: { id: string; name: string; url: string | null }; removedAt: string; reason: string; nextRecheckAt: string; backAlive: boolean }[]; log: { at: string; kind: string; aiId: string; name: string; text: string }[] };
 export type ScoutState = { proposals: ScoutProposal[]; lastRunAt: string | null; lastNote: string | null; running: boolean };

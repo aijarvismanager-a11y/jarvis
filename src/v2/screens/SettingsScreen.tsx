@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Badge, Button, Card, Details } from "../ui";
 import { ScoutCard } from "./ScoutCard";
+import { RosterCard } from "./RosterCard";
 import { useAction, usePoll } from "../hooks";
 import { resetIn, formatTime } from "../labels";
 import type { AiService, ClaudeQuota, Environment, Project, TuningReport, WebAiSettings } from "../types";
@@ -259,6 +260,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
       </Card>
 
       <ScoutCard setError={setError} />
+      <RosterCard setError={setError} />
 
       {web?.available && web.browserAvailable && (
         <Details summary="ログインがうまくいかないとき">

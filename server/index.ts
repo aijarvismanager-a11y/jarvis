@@ -15,6 +15,7 @@ import { AIBroker } from "./core/aiBroker.ts";
 import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
 import { AiScout } from "./core/aiScout.ts";
+import { AiRoster } from "./core/aiRoster.ts";
 import { ensureClaudeCode, seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyClaudeCodeReview, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor, needsCodeExecutor } from "./core/webAiExecutor.ts";
@@ -121,6 +122,7 @@ const webHub = new WebHandoffHub(coreStore);
 const webExecutor = new WebAiExecutor(coreStore, webHub, { driver: webDriver });
 const executor = new RoutingExecutor(coreStore, claudeExecutor, webExecutor);
 const scout = new AiScout(coreStore, { asker: webExecutor });
+const roster = new AiRoster(coreStore, { probe: async (svc) => webExecutor.probe(svc) });
 const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
@@ -153,7 +155,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, roster, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.
@@ -215,7 +217,9 @@ setInterval(() => void packOldRecords(), 86_400_000).unref();
 // Once a week the scout asks a running web AI for new Google-sign-in AIs; only while no mission is running (it uses the browser).
 setInterval(() => {
   try {
-    if (scout.due() && coreStore.db.prepare("SELECT 1 FROM missions WHERE status = 'running' LIMIT 1").get() === undefined) void scout.run();
+    const idle = coreStore.db.prepare("SELECT 1 FROM missions WHERE status = 'running' LIMIT 1").get() === undefined;
+    if (idle && scout.due()) void scout.run();
+    else if (idle && roster.due()) void roster.run();
   } catch {
     /* try again next hour */
   }

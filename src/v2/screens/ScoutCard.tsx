@@ -24,7 +24,7 @@ export function ScoutCard({ setError }: { setError: (m: string) => void }) {
             <span className="font-semibold">{p.name}</span> {p.use && <span className="text-[12px] text-muted">{p.use}</span>}{" "}
             <Badge tone={p.googleLogin === "page" ? "ok" : "warn"}>{p.googleLogin === "page" ? "Googleログイン: サイトに記載あり" : "Googleログイン: AIの回答のみ(未確認)"}</Badge>
             <p className="mt-0.5 text-[12px] text-muted">
-              {p.url} / 無料枠: {p.free === "page" ? "サイトに記載あり" : "AIの回答のみ(未確認)"}。追加すると、手動(コピー&貼り付け)で使うAIとして登録されます。
+              {p.url} / 無料枠: {p.free === "page" ? "サイトに記載あり" : "AIの回答のみ(未確認)"}。追加すると「自動化待ち」として登録され、自動で使えると確認できた時点で、週1回の見直しで自動のAIになります。
             </p>
             <div className="mt-1 flex gap-2">
               <Button disabled={busy} onClick={() => run(async () => { setState((await api.scoutAdd(p.id)).state); })}>追加する</Button>
