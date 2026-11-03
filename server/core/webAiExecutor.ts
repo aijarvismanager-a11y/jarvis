@@ -373,7 +373,11 @@ export class WebAiExecutor implements TaskExecutor {
     const got = await this.ask({ svc, prompt, task, signal });
     if (!got.ok) return { ok: false, fallback: true, summary: `${svc.name}にSVGを頼めませんでした(${got.error})。Claude CodeでSVGを作ります` };
     const svgs = (got.text.match(/<svg[\s\S]*?<\/svg>/gi) ?? []).filter((s) => s.length >= 150 && !/<script/i.test(s));
-    if (svgs.length < outs.length) return { ok: false, fallback: true, summary: `${svc.name}の回答にSVGが足りませんでした。Claude CodeでSVGを作ります` };
+    if (svgs.length < outs.length) {
+      // keep what the site actually gave back: without it nobody can tell a page that hides the code from an answer that is only prose
+      this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_ANSWER", payload: { aiId: svc.id, length: got.text.length, svgFound: svgs.length, head: got.text.slice(0, 600), tail: got.text.slice(-300) } });
+      return { ok: false, fallback: true, summary: `${svc.name}の回答にSVGが足りませんでした。Claude CodeでSVGを作ります` };
+    }
     const saved: string[] = [];
     outs.forEach((rel, i) => {
       const abs = resolveInProject(this.store.projectsRoot, task.projectId, rel);
