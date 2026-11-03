@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.81",
+    date: "2026-11-04",
+    items: [
+      "ロゴなどのSVGをほかのAIに頼むとき、同じ保存先を2回書いていたため「SVGを2個描いて」と頼んでいました。1回だけ書くようにしました。",
+      "ほかのAIの回答からSVGを読み取れなかったとき、コードの枠のHTMLも記録に残すようにしました(ChatGPTの原因調べ用)。",
+    ],
+  },
+  {
     version: "1.5.80",
     date: "2026-11-04",
     items: [
