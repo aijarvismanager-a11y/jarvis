@@ -482,13 +482,14 @@ class CdpChatPage implements WebChatPage {
   async readSvgs(): Promise<string[]> {
     return this.cdp.evaluate<string[]>(`(async () => {
       const out = [];
+      const SHAPE = /<(rect|circle|ellipse|path|line|polygon|polyline|text|image|use)[\\s>/]/i;
       const valid = (s) => {
-        // a real drawing: well-formed XML whose root is <svg> with at least one shape; not a program that merely mentions "<svg"
+        // a real drawing, not a program that merely mentions "<svg": strict XML first, then a plain look (a copy may carry entities XML rejects)
         try {
           const d = new DOMParser().parseFromString(s, 'image/svg+xml');
-          if (d.querySelector('parsererror') || !d.documentElement || d.documentElement.localName !== 'svg') return false;
-          return d.querySelectorAll('rect, circle, ellipse, path, line, polygon, polyline, text, image, use').length > 0;
-        } catch (e) { return false; }
+          if (!d.querySelector('parsererror') && d.documentElement && d.documentElement.localName === 'svg' && d.querySelectorAll('rect, circle, ellipse, path, line, polygon, polyline, text, image, use').length > 0) return true;
+        } catch (e) { /* fall through */ }
+        return SHAPE.test(s) && !/\\\\"|"\\s*[+]|[+]\\s*"|markup|function\\s*[(]/.test(s);
       };
       const add = (s) => { s = String(s || '').trim(); if (s.length >= 150 && /<svg[\\s>]/i.test(s) && !out.includes(s) && valid(s)) out.push(s); };
       // Gemini (measured 2026-11-03): an <svg-code-block> whose drawing lives in a <genui-sandbox> iframe, with a copy button in its toolbar.
@@ -546,6 +547,7 @@ class CdpChatPage implements WebChatPage {
           if (realExec) document.execCommand = realExec;
         }
         dbg.captured = captured.map((t) => t.length);
+        dbg.heads = captured.map((t) => t.slice(0, 260));
         for (const t of captured) for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
       }
       if (!out.length) {
