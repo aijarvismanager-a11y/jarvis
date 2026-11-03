@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { chooseAi, isMediaCapability } from "./aiBroker.ts";
+import { capabilityForTaskRole, chooseAi, isMediaCapability } from "./aiBroker.ts";
 import type { AiService } from "./store.ts";
 
 const svc = (id: string, level: 1 | 2 | 3, caps: Record<string, number>): AiService =>
   ({ id, name: id, url: "https://x.test", provider: null, languages: [], accessMode: "web", automationLevel: level, freeStatus: "free_tier", freeLimit: null, requiresLogin: false, requiresApiKey: false, apiCost: null, qualityScore: 5, reliabilityScore: 4, lastVerifiedAt: null, adapterType: "manual", limitations: null, status: "active", capabilities: Object.keys(caps), capabilityScores: caps }) as unknown as AiService;
+
+describe("planner roles for picture, video, music and voice work", () => {
+  it("reach the media capabilities, in English and Japanese", () => {
+    const got = ["illustration", "video", "music", "voice", "動画制作", "BGM作成", "ナレーション収録", "ロゴ作成"].map(capabilityForTaskRole);
+    expect(got).toEqual(["image_generation", "video_generation", "music_generation", "voice_generation", "video_generation", "music_generation", "voice_generation", "image_generation"]);
+  });
+});
 
 describe("text work goes only to AIs the app can operate by itself", () => {
   const list = [svc("manual-star", 1, { research: 5, image_generation: 5 }), svc("auto-ok", 3, { research: 3, image_generation: 3 })];
