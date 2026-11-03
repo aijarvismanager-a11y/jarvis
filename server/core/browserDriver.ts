@@ -480,12 +480,41 @@ class CdpChatPage implements WebChatPage {
    * the source shown in any code-like element of the page, and the drawing itself when it is on the page as an <svg> element.
    */
   async readSvgs(): Promise<string[]> {
-    return this.cdp.evaluate<string[]>(`(() => {
+    return this.cdp.evaluate<string[]>(`(async () => {
       const out = [];
       const add = (s) => { s = String(s || '').trim(); if (s.length >= 150 && /<svg[\\s>]/i.test(s) && !out.includes(s)) out.push(s); };
       for (const e of document.querySelectorAll('pre, code, textarea, [class*="code"], [class*="immersive"], [class*="canvas"], [class*="editor"]')) {
         const t = e.value || e.textContent || '';
         for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
+      }
+      // Gemini (measured 2026-11-03): an <svg-code-block> whose drawing lives in a <genui-sandbox> iframe, with a copy button in its toolbar.
+      // 1) look everywhere the source could sit: attributes (srcdoc...), shadow roots, same-origin frames
+      const seen = new Set();
+      const deep = (node, depth) => {
+        if (!node || depth > 8 || seen.has(node)) return;
+        seen.add(node);
+        if (node.nodeType === 1) {
+          if (/^(SCRIPT|STYLE)$/.test(node.tagName)) return;
+          for (const a of node.attributes) if (a.value && a.value.length >= 150 && /<svg[\\s>]/i.test(a.value)) for (const m of a.value.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
+          if (node.shadowRoot) deep(node.shadowRoot, depth + 1);
+          if (node.tagName === 'IFRAME') { try { deep(node.contentDocument && node.contentDocument.documentElement, depth + 1); } catch (e) { /* cross-origin */ } }
+        }
+        for (const c of node.childNodes || []) deep(c, depth + 1);
+      };
+      for (const host of document.querySelectorAll('svg-code-block, genui-sandbox, iframe')) deep(host, 0);
+      // 2) press the block's own copy button and catch what it writes to the clipboard
+      if (!out.length) {
+        const blocks = [...document.querySelectorAll('svg-code-block')];
+        let captured = [];
+        const realWrite = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText.bind(navigator.clipboard) : null;
+        try {
+          if (navigator.clipboard) navigator.clipboard.writeText = (t) => { captured.push(String(t)); return Promise.resolve(); };
+          for (const b of blocks) {
+            const btn = b.querySelector('.copy-button, [fonticonname="copy"], button[aria-label*="コピー"], button[aria-label*="opy"]');
+            if (btn) { btn.click(); await new Promise((r) => setTimeout(r, 400)); }
+          }
+        } finally { if (realWrite && navigator.clipboard) navigator.clipboard.writeText = realWrite; }
+        for (const t of captured) for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
       }
       if (!out.length) {
         for (const el of document.querySelectorAll('svg')) {
