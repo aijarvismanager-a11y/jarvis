@@ -429,20 +429,35 @@ class CdpChatPage implements WebChatPage {
     if (blocked === "limit" || (snap && classifyBlocker({ url: snap.url, text: "", hasChallengeFrame: false, dialogText: notice }) === "limit")) throw new WebAiBlockedError("limit", notice);
   }
 
+  /**
+   * Page code that defines `all` (the answer elements) and `pics` (the finished pictures that are new on this page).
+   * First the newest answer's own pictures; some sites (Grok, checked live on 2026-11-03) draw the picture outside the answer element,
+   * so then every large new picture on the page counts, except small ones (thumbnails, sidebar previews) and those inside a link.
+   */
+  private pictureScan(): string {
+    return `const all = document.querySelectorAll(${q(this.site.responseSelector)});
+          const el = all.length ? all[all.length - 1] : null;
+          const skip = new Set(${JSON.stringify(this.baselineImgs)});
+          const fits = (i, min) => i.complete && i.naturalWidth >= min && i.naturalHeight >= min && !skip.has(i.src);
+          let pics = el ? [...el.querySelectorAll('img')].filter((i) => fits(i, 200)) : [];
+          if (!pics.length) pics = [...document.images].filter((i) => fits(i, 400) && !i.closest('a, nav, aside, header'));`;
+  }
+
   async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {
     let seen = 0;
     let since = Date.now();
     let last = "";
     const done = await waitUntil(
       async () => {
-        const s = await this.cdp.evaluate<{ count: number; imgs: number }>(`(() => {
-          const all = document.querySelectorAll(${q(this.site.responseSelector)});
-          const el = all.length ? all[all.length - 1] : null;
-          const skip = new Set(${JSON.stringify(this.baselineImgs)});
-          const imgs = el ? [...el.querySelectorAll('img')].filter((i) => i.complete && i.naturalWidth >= 200 && i.naturalHeight >= 200 && !skip.has(i.src)).length : 0;
-          return { count: all.length, imgs };
+        const s = await this.cdp.evaluate<{ count: number; imgs: number; limit: string | null }>(`(() => {
+          ${this.pictureScan()}
+          const tail = document.body.innerText.slice(-600);
+          const m = tail.match(/(画像|イメージ|image)[^\\n]{0,24}(上限|制限|limit)[^\\n]{0,60}|レート制限[^\\n]{0,60}|rate limit[^\\n]{0,60}/i);
+          return { count: all.length, imgs: pics.length, limit: pics.length ? null : m ? m[0] : null };
         })()`);
         last = `回答${s.count}件・画像${s.imgs}枚(基準${this.baseline.count}件)`;
+        // the site says the picture allowance is used up: no point waiting for the rest of the time limit
+        if (s.limit) throw new WebAiBlockedError("limit", s.limit);
         if (s.imgs === 0) return null; // the page is opened fresh for each task, so any finished picture in the newest answer is the new one
         if (s.imgs !== seen) {
           seen = s.imgs;
@@ -458,13 +473,9 @@ class CdpChatPage implements WebChatPage {
 
   async readImages(): Promise<{ mime: string; base64: string }[]> {
     return this.cdp.evaluate<{ mime: string; base64: string }[]>(`(async () => {
-      const all = document.querySelectorAll(${q(this.site.responseSelector)});
-      const el = all.length ? all[all.length - 1] : null;
-      if (!el) return [];
-      const skip = new Set(${JSON.stringify(this.baselineImgs)});
+      ${this.pictureScan()}
       const out = [];
-      for (const img of el.querySelectorAll('img')) {
-        if (img.naturalWidth < 200 || img.naturalHeight < 200 || skip.has(img.src)) continue;
+      for (const img of pics) {
         try {
           // redraw the page's own picture on a canvas (some sites block fetch() of their blob: addresses)
           const c = document.createElement('canvas');
