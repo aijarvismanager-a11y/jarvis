@@ -331,18 +331,18 @@ export class WebAiExecutor implements TaskExecutor {
   }
 
   /** The picture could not be made by a web AI: the same task is redone by Claude Code as an SVG (a picture written as text), with the expected file renamed to .svg. */
-  private pictureAsSvg(task: Task, svc: AiService, note: string | null): WebExecutionResult {
+  private pictureAsSvg(task: Task, svc: AiService | null, note: string | null): WebExecutionResult {
     const toSvg = (p: string) => p.replace(/\.(png|jpe?g|webp|gif)$/i, ".svg");
     let outs = task.expectedOutputs.map(toSvg).filter((p) => p.toLowerCase().endsWith(".svg"));
     if (!outs.length) outs = [`assets/image-${task.id.slice(0, 8)}.svg`];
     const objective = `${task.objective}\n(画像を自動で作れなかったため、SVG(文字で書く画像)として作ってください。1つの .svg ファイルに、width・height・viewBox を付けて書き、外部の画像やフォントは読み込まないこと。保存先: ${outs.join(", ")})`;
     this.store.setTaskPlan(task.projectId, task.id, { objective, expectedOutputs: [...task.expectedOutputs.filter((p) => !/\.(png|jpe?g|webp|gif)$/i.test(p)), ...outs] });
-    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_AS_SVG", payload: { aiId: svc.id, outputs: outs, note } });
-    return { ok: false, fallback: true, summary: `${svc.name}では画像を作れなかったため、SVGとしてClaude Codeで作ります` };
+    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_AS_SVG", payload: { aiId: svc?.id ?? null, outputs: outs, note } });
+    return { ok: false, fallback: true, summary: `${svc ? `${svc.name}では` : "自動で使える画像AIがないため、"}画像を作れなかったので、SVGとしてClaude Codeで作ります` };
   }
 
   /** Music, video or voice that no AI can make by itself: the task is closed as "on hold" with a note of what was meant to be made, so the mission is not stopped. */
-  private holdMedia(task: Task, svc: AiService, capability: string, prompt: string, note: string | null): WebExecutionResult {
+  private holdMedia(task: Task, svc: AiService | null, capability: string, prompt: string, note: string | null): WebExecutionResult {
     const rel = `_ai-records/pending-media/${task.id.slice(0, 8)}-${capability}.md`;
     const kind = capability === "music_generation" ? "音楽" : capability === "video_generation" ? "動画" : capability === "voice_generation" ? "音声" : "素材";
     const body = [
@@ -361,10 +361,22 @@ export class WebAiExecutor implements TaskExecutor {
     const abs = resolveInProject(this.store.projectsRoot, task.projectId, rel);
     mkdirSync(path.dirname(abs), { recursive: true });
     writeFileSync(abs, body, "utf8");
-    this.store.createArtifact({ projectId: task.projectId, taskId: task.id, path: rel, createdBy: svc.id, sourceAi: svc.id, sourceUrl: svc.url });
+    this.store.createArtifact({ projectId: task.projectId, taskId: task.id, path: rel, createdBy: svc?.id ?? "orchestrator", ...(svc ? { sourceAi: svc.id, sourceUrl: svc.url } : {}) });
     this.store.setTaskPlan(task.projectId, task.id, { expectedOutputs: [rel] });
-    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_ON_HOLD", payload: { aiId: svc.id, capability, note } });
-    return { ok: true, summary: `${kind}は自動で作れないため保留にしました(作る予定だった内容と指示文を ${rel} に残しました。ミッションは止めません)`, artifacts: [rel], aiId: svc.id, automationLevel: 1, executor: this.name };
+    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_ON_HOLD", payload: { aiId: svc?.id ?? null, capability, note } });
+    return { ok: true, summary: `${kind}は自動で作れないため保留にしました(作る予定だった内容と指示文を ${rel} に残しました。ミッションは止めません)`, artifacts: [rel], ...(svc ? { aiId: svc.id } : {}), automationLevel: 1, executor: this.name };
+  }
+
+  /**
+   * Picture / music / video / voice work that no automatic AI can take (the broker never chooses a manual one): a picture is redone as SVG
+   * by Claude Code, the rest is put on hold. Never waits for a person.
+   */
+  mediaWithoutAi(task: Task, mission: Mission): WebExecutionResult {
+    const capability = capabilityForTaskRole(task.role);
+    const note = "自動で使えるAIがありません";
+    if (capability === "image_generation") return this.pictureAsSvg(task, null, note);
+    const prompt = buildWebPrompt({ task, mission, context: this.dependencyContext(task), references: [], outputPaths: webOutputPaths(task), previousFailure: undefined });
+    return this.holdMedia(task, null, capability, prompt, note);
   }
 
   /** Level 3 picture work: asks for the picture, waits for it, saves what the page shows. */
@@ -635,6 +647,15 @@ export class RoutingExecutor implements TaskExecutor {
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult> {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
     const toWeb = getWebAiSettings(this.store).enabled && svc !== null && this.web.adapterTypes.some((t) => t === svc.adapterType) && !needsCodeExecutor(task);
+    // picture / music / video / voice work nobody automatic can take: SVG by Claude Code or on hold (never a person at an English site)
+    const onCode = svc !== null && !!this.code.adapterTypes?.includes(svc.adapterType);
+    if (!onCode && !needsCodeExecutor(task) && isMediaCapability(capabilityForTaskRole(task.role)) && (svc === null || svc.automationLevel <= 2)) {
+      const media = this.web.mediaWithoutAi(task, ctx.mission);
+      if (!media.fallback) return { ...media, executor: media.executor ?? this.web.name };
+      const fallbackAi = this.store.listAiServices().find((s) => this.code.adapterTypes?.includes(s.adapterType));
+      if (fallbackAi) this.store.setTaskSelectedAi(task.projectId, task.id, fallbackAi.id);
+      return this.runCode(this.store.getTask(task.projectId, task.id) ?? task, ctx);
+    }
     if (!toWeb) return this.runCode(task, ctx);
     const res = await this.web.execute(task, ctx);
     if (!res.fallback) return { ...res, executor: res.executor ?? this.web.name };

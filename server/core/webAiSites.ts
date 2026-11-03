@@ -28,6 +28,11 @@ export type SiteProfile = {
   prepare?: { selectText?: string[]; dismissText?: string[]; escape?: boolean };
 };
 
+/** AIs checked on the live site that cannot be driven automatically (why): they wait in the "自動化待ち" list and are never chosen. */
+export const NOT_AUTOMATABLE: Record<string, string> = {
+  copilot: "送信のたびにボット確認が出るため、自動では使えません(2026-10-29に実サイトで確認)",
+};
+
 export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   // chatgpt: checked against the live site on 2026-10-25 (free plan, logged in): the prompt box is now a ProseMirror
   // editor and the answer carries data-dil-source-message-id instead of data-message-author-role.

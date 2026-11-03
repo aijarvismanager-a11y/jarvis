@@ -25,17 +25,16 @@ describe("text work goes only to AIs the app can operate by itself", () => {
     expect(chooseAi([list[0]!], "research").selected).toBeNull();
   });
 
-  it("lets a manual AI take picture, video, music and voice work, which cannot be read back automatically", () => {
+  it("never picks a manual AI for picture, video, music or voice work either (it would need a person at an English site)", () => {
     expect(isMediaCapability("image_generation")).toBe(true);
-    expect(chooseAi([list[0]!], "image_generation").selected?.aiId).toBe("manual-star");
+    expect(chooseAi([list[0]!], "image_generation").selected).toBeNull();
+    expect(chooseAi([svc("manual-star", 1, { video_generation: 5 })], "video_generation").selected).toBeNull();
   });
 
-  it("prefers an automatic AI for pictures when it is not far behind, and keeps the manual one for video", () => {
+  it("picks the automatic AI for pictures, however far behind the manual one it is", () => {
     expect(chooseAi(list, "image_generation").selected?.aiId).toBe("auto-ok");
     const far = [svc("manual-star", 1, { image_generation: 5 }), svc("auto-weak", 3, { image_generation: 1 })];
-    expect(chooseAi(far, "image_generation").selected?.aiId).toBe("manual-star");
-    const video = [svc("manual-star", 1, { video_generation: 5 }), svc("auto-ok", 3, { video_generation: 3 })];
-    expect(chooseAi(video, "video_generation").selected?.aiId).toBe("manual-star");
+    expect(chooseAi(far, "image_generation").selected?.aiId).toBe("auto-weak");
   });
 
   it("can be switched back by the hidden setting", () => {

@@ -229,8 +229,9 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
       candidate.score10 = round(candidate.total / 5, 1);
       candidate.notes.push(`利用枠が残り少ないため${round(penalty / 5, 1)}点下げています`);
     }
-    if (s.accessMode === "web" && s.automationLevel <= 2 && !isMediaCapability(capability) && !options.allowManualText) {
-      excluded.push({ aiId: s.id, name: s.name, reason: "人の操作が要る(手動・半自動)ため、文章系の作業は任せません" });
+    if (s.accessMode === "web" && s.automationLevel <= 2 && !options.allowManualText) {
+      // an AI that needs a person to carry text or files between sites does not fit this app: it is never chosen (pictures become SVG, music/video are put on hold)
+      excluded.push({ aiId: s.id, name: s.name, reason: "人の操作が要る(手動・半自動)ため、担当には選びません(自動で使えるようになるまで待ちです)" });
       continue;
     }
     const resting = options.restingAis?.[s.id];

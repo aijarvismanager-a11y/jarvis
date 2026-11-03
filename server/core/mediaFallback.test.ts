@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type Db } from "./db.ts";
 import { resolveInProject } from "./paths.ts";
-import { Store } from "./store.ts";
-import { WebAiExecutor } from "./webAiExecutor.ts";
+import { Store, type Task } from "./store.ts";
+import { RoutingExecutor, WebAiExecutor } from "./webAiExecutor.ts";
 import { WebHandoffHub } from "./webHandoff.ts";
 
 let db: Db;
@@ -30,6 +30,31 @@ function setup(role: string, objective: string, expectedOutputs: string[]) {
   const web = new WebAiExecutor(store, new WebHandoffHub(store), {});
   return { mission, task, web };
 }
+
+describe("the router, when no automatic AI can take picture or music work", () => {
+  const route = () => {
+    store.upsertAiService({ id: "claude-code", name: "Claude Code", url: null, accessMode: "cli", adapterType: "claude-code", automationLevel: 3, freeStatus: "free_tier" });
+    const calls: string[] = [];
+    const code = { name: "code", adapterTypes: ["claude-code"] as const, execute: async (t: Task) => { calls.push(`${t.selectedAi}|${t.objective.includes("SVG")}`); return { ok: true }; } };
+    const web = new WebAiExecutor(store, new WebHandoffHub(store), {});
+    return { calls, router: new RoutingExecutor(store, code, web) };
+  };
+  const make = (role: string, expectedOutputs: string[]) => {
+    const mission = store.createMission({ projectId: "p1", goal: "g", status: "running" });
+    return { mission, task: store.createTask({ projectId: "p1", missionId: mission.id, role, objective: "素材を作る", expectedOutputs, status: "running" }) };
+  };
+
+  it("runs a picture as an SVG on Claude Code, and puts music on hold without running anything", async () => {
+    const { calls, router } = route();
+    const pic = make("illustration", ["assets/a.png"]);
+    expect(await router.execute(pic.task, { mission: pic.mission, signal: new AbortController().signal })).toMatchObject({ ok: true });
+    expect(calls).toEqual(["claude-code|true"]);
+    const music = make("music", ["assets/a.mp3"]);
+    const res = await router.execute(music.task, { mission: music.mission, signal: new AbortController().signal });
+    expect(res.summary).toContain("保留");
+    expect(calls).toHaveLength(1);
+  });
+});
 
 describe("picture, music and video work never waits for a person at an English site", () => {
   it("hands a picture to Claude Code as an SVG, with the expected file renamed", async () => {

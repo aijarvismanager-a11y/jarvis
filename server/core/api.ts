@@ -30,7 +30,7 @@ import { createDeliveryFolder } from "./deliveryFolder.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
 import { WEB_ADAPTER_TYPES, type WebHandoffHub } from "./webHandoff.ts";
-import { BUNDLED_SITE_PROFILES, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
+import { BUNDLED_SITE_PROFILES, NOT_AUTOMATABLE, getWebAiSettings, resolveSiteProfile, setWebAiSettings } from "./webAiSites.ts";
 
 // HTTP surface for the new orchestrator (mounted under /api/v2). Reads are open
 // to the (already loopback/Origin-checked) app; every state change needs the
@@ -635,6 +635,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       /** effective selector profile per web AI (bundled + overrides); null = Level 2/3 impossible for it */
       sites: Object.fromEntries(store.listAiServices().filter((s) => s.url).map((s) => [s.id, resolveSiteProfile(store, s.id)])),
       bundledSites: Object.keys(BUNDLED_SITE_PROFILES),
+      /** AIs that cannot be driven automatically, with why: shown as "自動化待ち" */
+      notAutomatable: NOT_AUTOMATABLE,
       loggedIn: settings.loggedIn,
       /** AIs that asked for a bot check: resting for a while ("rest") or no longer used until cleared ("always") */
       /** AIs that said they reached the site's limit, with when they are used again */

@@ -153,7 +153,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingLogin]);
-  const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id];
+  const canAutomate = (s: AiService) => s.accessMode === "web" && !!s.url && !!web?.sites[s.id] && !web?.notAutomatable?.[s.id];
   const candidates = services.filter(canAutomate);
   const isReady = (s: AiService) => s.automationLevel >= 3 && !web?.botChecks?.[s.id] && !web?.usageLimits?.[s.id];
   const autoCount = candidates.filter(isReady).length;
@@ -251,8 +251,8 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>
         {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
         {others.length > 0 && (
-          <Details summary={`画像・動画・音楽などのAI(${others.length}件・手動で使います)`}>
-            <p className="text-[12px] text-muted">画像・動画・音楽づくりなどで、AIの画面を開いて操作する必要があるものです。ふだんは何もしなくて大丈夫です。必要になったときに、画面で案内します。</p>
+          <Details summary={`自動化待ちのAI(${others.length}件・いまは使われません)`}>
+            <p className="text-[12px] text-muted">画像・動画・音楽づくりなどのAIで、まだアプリが自動で操作できないものです。人が画面を開いて操作する必要があるため、依頼の担当には選ばれません。自動で使えるようになったものから、順に「使えるAI」へ移します。何もしなくて大丈夫です。</p>
             <p className="mt-2 text-[12px]">{others.map((x) => short(x.name)).join("、")}</p>
           </Details>
         )}
