@@ -372,6 +372,8 @@ export class WebAiExecutor implements TaskExecutor {
     ].join("\n");
     const got = await this.ask({ svc, prompt, task, signal });
     if (!got.ok) return { ok: false, fallback: true, summary: `${svc.name}にSVGを頼めませんでした(${got.error})。Claude CodeでSVGを作ります` };
+    // some pages hand the code back with its angle brackets escaped ("&lt;svg ...&gt;")
+    if (!/<svg/i.test(got.text) && /&lt;svg/i.test(got.text)) got.text = got.text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
     const svgs = (got.text.match(/<svg[\s\S]*?<\/svg>/gi) ?? []).filter((s) => s.length >= 150 && !/<script/i.test(s));
     if (svgs.length < outs.length) {
       // keep what the site actually gave back: without it nobody can tell a page that hides the code from an answer that is only prose

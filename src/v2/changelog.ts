@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.75",
+    date: "2026-11-03",
+    items: [
+      "ほかのAIにロゴ・サイトの見た目をSVGで頼んだのに、答えからSVGを取り出せなかったとき、答えの先頭と末尾を記録に残すようにしました(原因を調べるためです)。コードの山かっこが「&lt;」の形で返ってきた場合も、SVGとして読み取れるようにしました。",
+    ],
+  },
+  {
     version: "1.5.74",
     date: "2026-11-03",
     items: [
