@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.80",
+    date: "2026-11-04",
+    items: [
+      "Geminiの「コピー」ボタンから、SVGをより確実に受け取れるようにしました(ボタンの内側を押す・コピーの書き込み方が違う場合にも対応)。それでも見つからなかったときは、ボタンの数と受け取れた長さ、枠のHTMLを記録に残します。",
+    ],
+  },
+  {
     version: "1.5.79",
     date: "2026-11-04",
     items: [
