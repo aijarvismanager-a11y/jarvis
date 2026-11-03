@@ -28,8 +28,9 @@ export function RestingBanner({ setError }: { setError: (m: string) => void }) {
       {open && (
         <ul className="mt-2 space-y-0.5 text-[12px]">
           {state.ais.map((a) => (
-            <li key={a.aiId}>{a.name}: {WHY[a.reason]}のため、{formatTime(a.until)}ごろまで(時刻が分からない場合は目安です)</li>
+            <li key={a.aiId}>{a.name}: {WHY[a.reason]}のため、{formatTime(a.until)}ごろまで</li>
           ))}
+          <li className="pt-1 opacity-80">時刻は、サイトが示したものか、こちらでの目安です。早く戻ったときは、確かめ直した時点で使い始めます。</li>
         </ul>
       )}
     </div>
