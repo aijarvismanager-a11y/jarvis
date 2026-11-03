@@ -381,6 +381,12 @@ export class Store {
     this.db.prepare("UPDATE tasks SET selected_ai = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(aiId, now(), taskId, projectId);
   }
 
+  /** Rewrites what a task asks for and expects (used when the work has to be done another way than planned). */
+  setTaskPlan(projectId: string, taskId: string, plan: { objective?: string; expectedOutputs?: string[] }): void {
+    if (plan.objective !== undefined) this.db.prepare("UPDATE tasks SET objective = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(plan.objective, now(), taskId, projectId);
+    if (plan.expectedOutputs !== undefined) this.db.prepare("UPDATE tasks SET expected_outputs = ?, updated_at = ? WHERE id = ? AND project_id = ?").run(JSON.stringify(plan.expectedOutputs), now(), taskId, projectId);
+  }
+
   /** Removes a service from the registry (its capability scores go with it; past runs keep their record, without the link). */
   deleteAiService(id: string): boolean {
     return this.db.prepare("DELETE FROM ai_services WHERE id = ?").run(id).changes > 0;

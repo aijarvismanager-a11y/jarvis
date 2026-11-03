@@ -263,6 +263,14 @@ export class WebAiExecutor implements TaskExecutor {
       }
     }
 
+    // Pictures, music, video and voice are never left waiting for the person to carry a file between English sites:
+    // a picture is drawn as SVG by Claude Code; the rest is put on hold with what was meant to be made, and the mission goes on.
+    const capability = capabilityForTaskRole(task.role);
+    if (text === null && isMediaCapability(capability)) {
+      await page?.close().catch(() => {});
+      return capability === "image_generation" ? this.pictureAsSvg(task, svc, note) : this.holdMedia(task, svc, capability, prompt, note);
+    }
+
     if (text === null && !isMediaCapability(capabilityForTaskRole(task.role)) && !this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false)) {
       // text work never waits for a person to copy and paste: report the failure so the engine hands the task to another AI
       return { ok: false, aiId: svc.id, automationLevel: level, summary: `${svc.name}を自動で操作できませんでした(${note ?? "手動の設定です"})。ほかのAIに回します` };
@@ -322,6 +330,43 @@ export class WebAiExecutor implements TaskExecutor {
     }
   }
 
+  /** The picture could not be made by a web AI: the same task is redone by Claude Code as an SVG (a picture written as text), with the expected file renamed to .svg. */
+  private pictureAsSvg(task: Task, svc: AiService, note: string | null): WebExecutionResult {
+    const toSvg = (p: string) => p.replace(/\.(png|jpe?g|webp|gif)$/i, ".svg");
+    let outs = task.expectedOutputs.map(toSvg).filter((p) => p.toLowerCase().endsWith(".svg"));
+    if (!outs.length) outs = [`assets/image-${task.id.slice(0, 8)}.svg`];
+    const objective = `${task.objective}\n(画像を自動で作れなかったため、SVG(文字で書く画像)として作ってください。1つの .svg ファイルに、width・height・viewBox を付けて書き、外部の画像やフォントは読み込まないこと。保存先: ${outs.join(", ")})`;
+    this.store.setTaskPlan(task.projectId, task.id, { objective, expectedOutputs: [...task.expectedOutputs.filter((p) => !/\.(png|jpe?g|webp|gif)$/i.test(p)), ...outs] });
+    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_AS_SVG", payload: { aiId: svc.id, outputs: outs, note } });
+    return { ok: false, fallback: true, summary: `${svc.name}では画像を作れなかったため、SVGとしてClaude Codeで作ります` };
+  }
+
+  /** Music, video or voice that no AI can make by itself: the task is closed as "on hold" with a note of what was meant to be made, so the mission is not stopped. */
+  private holdMedia(task: Task, svc: AiService, capability: string, prompt: string, note: string | null): WebExecutionResult {
+    const rel = `_ai-records/pending-media/${task.id.slice(0, 8)}-${capability}.md`;
+    const kind = capability === "music_generation" ? "音楽" : capability === "video_generation" ? "動画" : capability === "voice_generation" ? "音声" : "素材";
+    const body = [
+      `# 保留: ${kind}の作成(まだ作られていません)`,
+      "",
+      `- 作る予定だったもの: ${task.objective}`,
+      `- 予定の保存先: ${task.expectedOutputs.join(", ") || "(指定なし)"}`,
+      `- 保留の理由: アプリが自動で${kind}を作れるAIがないため。人の手で英語のサイトを操作する方法には、頼っていません。${note ? `(${note})` : ""}`,
+      "- 作りたくなったとき: 下の指示文を、音楽・動画・音声を作れるAIに渡してください。できたファイルは、予定の保存先に置いてください。",
+      "",
+      "## AIに渡す指示文",
+      "",
+      prompt,
+      "",
+    ].join("\n");
+    const abs = resolveInProject(this.store.projectsRoot, task.projectId, rel);
+    mkdirSync(path.dirname(abs), { recursive: true });
+    writeFileSync(abs, body, "utf8");
+    this.store.createArtifact({ projectId: task.projectId, taskId: task.id, path: rel, createdBy: svc.id, sourceAi: svc.id, sourceUrl: svc.url });
+    this.store.setTaskPlan(task.projectId, task.id, { expectedOutputs: [rel] });
+    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_ON_HOLD", payload: { aiId: svc.id, capability, note } });
+    return { ok: true, summary: `${kind}は自動で作れないため保留にしました(作る予定だった内容と指示文を ${rel} に残しました。ミッションは止めません)`, artifacts: [rel], aiId: svc.id, automationLevel: 1, executor: this.name };
+  }
+
   /** Level 3 picture work: asks for the picture, waits for it, saves what the page shows. */
   private async generateImages(input: { task: Task; svc: AiService; site: NonNullable<ReturnType<typeof resolveSiteProfile>>; driver: WebChatDriver; outputPaths: string[]; ctx: { mission: Mission; signal: AbortSignal } }): Promise<{ result: WebExecutionResult } | { note: string }> {
     const { task, svc, site, driver, ctx } = input;
@@ -333,7 +378,8 @@ export class WebAiExecutor implements TaskExecutor {
         await page.fillPrompt(prompt);
         await page.submit();
         await page.waitForImages({ timeoutMs: this.opts.autoTimeoutMs ?? DEFAULT_AUTO_TIMEOUT_MS, signal: ctx.signal });
-        const images = await page.readImages();
+        // an empty or tiny "image" (an icon, a blank placeholder) is not the picture: it must never be saved as the deliverable
+        const images = (await page.readImages()).filter((img) => img.base64.length >= 1000);
         if (!images.length) throw new Error("画像を読み取れませんでした");
         const wanted = input.outputPaths.filter((p) => /\.(png|jpe?g|webp|gif)$/i.test(p));
         const saved: string[] = [];
