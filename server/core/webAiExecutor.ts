@@ -719,6 +719,8 @@ export class RoutingExecutor implements TaskExecutor {
           this.store.setTaskSelectedAi(task.projectId, task.id, designer.svc.id);
           const done = await this.web.designSvg(this.store.getTask(task.projectId, task.id) ?? task, ctx.mission, designer.svc, ctx.signal);
           if (!done.fallback) return { ...done, executor: done.executor ?? this.web.name };
+          // without this the only trace of a failed design AI was the name shown for a moment: nobody could tell why Claude Code drew it
+          this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_FALLBACK", payload: { aiId: designer.svc.id, reason: done.summary } });
         }
         return toCode(task);
       }
