@@ -574,7 +574,8 @@ class CdpChatPage implements WebChatPage {
       const svgCard = [...document.querySelectorAll('*')].filter((e) => e.children.length < 6 && /^SVG$/.test((e.textContent || '').trim())).slice(0, 3).map((e) => e.parentElement ? e.parentElement.outerHTML.slice(0, 700) : '');
       const blockHtml = [...document.querySelectorAll('svg-code-block')].slice(0, 2).map((e) => { const h = e.outerHTML; const k = h.indexOf('svg-actions'); return h.slice(Math.max(0, k - 20), 1800 + Math.max(0, k)).replace(/_ngcontent-[a-z0-9-]+=""/g, ''); });
       const sandboxes = [...document.querySelectorAll('genui-sandbox')].slice(0, 2).map((e) => e.outerHTML.slice(0, 900).replace(/_ngcontent-[a-z0-9-]+=""/g, ''));
-      return JSON.stringify({ dbg: window.__svgDbg || null, blockHtml, sandboxes, tags: Object.fromEntries(Object.entries(tags).filter(([k]) => /svg|frame|sandbox|code|img|canvas|copy/.test(k))), imgs, frames });
+      const codes = el ? [...el.querySelectorAll('pre, code')].slice(0, 3).map((e) => e.outerHTML.slice(0, 500)) : [];
+      return JSON.stringify({ dbg: window.__svgDbg || null, codes, blockHtml, sandboxes, tags: Object.fromEntries(Object.entries(tags).filter(([k]) => /svg|frame|sandbox|code|img|canvas|copy/.test(k))), imgs, frames });
     })()`);
   }
 

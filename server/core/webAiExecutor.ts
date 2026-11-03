@@ -354,7 +354,7 @@ export class WebAiExecutor implements TaskExecutor {
     let outs = task.expectedOutputs.map(toSvg).filter((p) => p.toLowerCase().endsWith(".svg"));
     if (!outs.length) outs = [`assets/image-${task.id.slice(0, 8)}.svg`];
     const objective = `${task.objective}\n(画像はまず SVG(文字で書く画像)として作ってください。1つの .svg ファイルに、width・height・viewBox を付けて書き、外部の画像やフォントは読み込まないこと。保存先: ${outs.join(", ")})`;
-    this.store.setTaskPlan(task.projectId, task.id, { objective, expectedOutputs: [...task.expectedOutputs.filter((p) => !/\.(png|jpe?g|webp|gif)$/i.test(p)), ...outs] });
+    this.store.setTaskPlan(task.projectId, task.id, { objective, expectedOutputs: [...new Set([...task.expectedOutputs.filter((p) => !/\.(png|jpe?g|webp|gif)$/i.test(p)), ...outs])] });
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_AS_SVG", payload: { aiId: svc?.id ?? null, outputs: outs, note } });
     return { ok: false, fallback: true, summary: `画像は、トークンを多く使う画像生成の前に、まずSVGとしてClaude Codeで作ります(うまくいかないときだけ、画像を作るAIで代わりにします)` };
   }
@@ -364,7 +364,7 @@ export class WebAiExecutor implements TaskExecutor {
    * answered as text (cheap, no image generation). Never waits for a person; any failure hands the task to Claude Code's own SVG.
    */
   async designSvg(task: Task, mission: Mission, svc: AiService, signal: AbortSignal): Promise<WebExecutionResult> {
-    const outs = task.expectedOutputs.filter((p) => p.toLowerCase().endsWith(".svg"));
+    const outs = [...new Set(task.expectedOutputs.filter((p) => p.toLowerCase().endsWith(".svg")))]; // the same file listed twice made the AI draw two pictures
     if (!outs.length) return { ok: false, fallback: true, summary: "SVGの保存先がありません" };
     const context = this.dependencyContext(task);
     const prompt = [
