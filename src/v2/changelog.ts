@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.78",
+    date: "2026-11-03",
+    items: [
+      "ほかのAI(Gemini)のSVGがページのどこにも見つからなかったとき、ページの作り(回答のHTML、画像・フレームの数など)を記録に残すようにしました。読み取り方を直すための調べものです。",
+    ],
+  },
+  {
     version: "1.5.77",
     date: "2026-11-03",
     items: [
