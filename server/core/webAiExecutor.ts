@@ -331,6 +331,10 @@ export class WebAiExecutor implements TaskExecutor {
           const found = await page.readSvgs().catch(() => [] as string[]);
           this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_FROM_PAGE", payload: { aiId: svc.id, found: found.length, sizes: found.map((s) => s.length) } });
           if (found.length) text = `${text}\n\n${found.join("\n\n")}`;
+          else if (page.describeAnswer) {
+            const shape = await page.describeAnswer().catch(() => "");
+            if (shape) this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_PAGE_SHAPE", payload: { aiId: svc.id, shape: shape.slice(0, 4000) } });
+          }
         }
         this.resetFailures(svc);
         return { ok: true, text };

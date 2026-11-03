@@ -116,6 +116,8 @@ export interface WebChatPage {
   readImages?(): Promise<{ mime: string; base64: string }[]>;
   /** SVG code or drawings on the page that are not part of the answer text (a side card). */
   readSvgs?(): Promise<string[]>;
+  /** Diagnosis: the structure of the newest answer and what is around it. */
+  describeAnswer?(): Promise<string>;
   close(): Promise<void>;
 }
 export interface WebChatDriver {
@@ -497,6 +499,23 @@ class CdpChatPage implements WebChatPage {
         }
       }
       return out.slice(0, 6);
+    })()`);
+  }
+
+  /** For diagnosis only: the shape of the newest answer and of the page around it (what holds the picture / code a site keeps out of the text). */
+  async describeAnswer(): Promise<string> {
+    return this.cdp.evaluate<string>(`(() => {
+      const all = document.querySelectorAll(${q(this.site.responseSelector)});
+      const el = all.length ? all[all.length - 1] : null;
+      const tags = {};
+      for (const e of document.body.querySelectorAll('*')) {
+        const t = e.tagName.toLowerCase();
+        if (t.includes('-') || /^(iframe|img|svg|canvas|video|pre|code|object|embed)$/.test(t)) tags[t] = (tags[t] || 0) + 1;
+      }
+      const imgs = [...document.images].filter((i) => i.naturalWidth >= 48).slice(0, 6).map((i) => i.src.slice(0, 60) + ' ' + i.naturalWidth + 'x' + i.naturalHeight);
+      const frames = [...document.querySelectorAll('iframe')].slice(0, 4).map((f) => (f.src || '').slice(0, 80) + ' ' + f.className);
+      const svgCard = [...document.querySelectorAll('*')].filter((e) => e.children.length < 6 && /^SVG$/.test((e.textContent || '').trim())).slice(0, 3).map((e) => e.parentElement ? e.parentElement.outerHTML.slice(0, 700) : '');
+      return JSON.stringify({ answerHtml: el ? el.outerHTML.slice(0, 1200) : null, tags, imgs, frames, svgCard });
     })()`);
   }
 
