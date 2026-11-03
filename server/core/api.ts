@@ -1,3 +1,4 @@
+import { readAllResting } from "./allResting.ts";
 import { CLAUDE_WARN_AT, claudeLimitUntil, limitStoppedTasks, probeClaudeQuota, readClaudeLimitPolicy, readClaudeQuota, saveClaudeLimitPolicy } from "./claudeQuota.ts";
 import { usageLimitUntil } from "./usageLimit.ts";
 import { botCheckState } from "./botCheck.ts";
@@ -472,6 +473,13 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.get("/claude-quota", (_req, res) => {
     res.json({ quota: readClaudeQuota(store) });
   });
+  // Every capable AI is resting: what the screen shows while tasks wait for the first one to come back, and "check now".
+  router.get("/all-resting", (_req, res) => {
+    res.json({ state: readAllResting(store) });
+  });
+  router.post("/all-resting/recheck", guarded((_req, res) => {
+    res.json({ woken: engine.recheckResting() });
+  }));
   // The plan is nearly used up (warn) or used up (limit): what the home screen shows, and the person's choice for that case.
   router.get("/claude-limit", (_req, res) => {
     const used = readClaudeQuota(store)?.fiveHour?.utilization ?? null;

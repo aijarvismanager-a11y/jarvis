@@ -128,4 +128,6 @@ export type ProjectSummary = { project: Project; latestMission: { id: string; go
 export type ClaudeQuota = { fiveHour: { utilization: number | null; resetsAt: string | null } | null; sevenDay: { utilization: number | null; resetsAt: string | null } | null; status: string; checkedAt: string };
 export type Environment = { root: string; dataDir: string; projectsDir: string; backupsDir: string; snapshotsDir: string; browserProfileDir: string; project: { id: string; workDir: string; sourcePath: string | null } | null; node: string; platform: string };
 
+export type RestingAi = { aiId: string; name: string; until: string; reason: "limit" | "botcheck" | "claude" };
+export type AllResting = { since: string; until: string; tasks: number; ais: RestingAi[] };
 export type ClaudeLimit = { warn: boolean; utilization: number | null; resetsAt: string | null; until: string | null; policy: "wait" | "reroute" | null };

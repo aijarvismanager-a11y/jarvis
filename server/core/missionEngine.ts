@@ -8,6 +8,7 @@ import type { PlanRequest, Planner } from "./planner.ts";
 import { capabilityForTaskRole, type AIBroker } from "./aiBroker.ts";
 import { recordOutcome, tuningOf } from "./scoreTuning.ts";
 import { aiFamily, reviewTask, type AiReviewer } from "./aiReview.ts";
+import { clearAllResting, readAllResting, restingList, saveAllResting } from "./allResting.ts";
 import { Scheduler } from "./scheduler.ts";
 import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
@@ -283,9 +284,9 @@ export class MissionEngine {
     const { projectId } = task;
     const key = `${mission.id}:${task.id}`;
     const controller = new AbortController();
-    this.assignAi(mission, task);
+    const allResting = this.assignAi(mission, task);
     transitionTask(this.store, projectId, task.id, "running", "scheduled");
-    const promise = this.execute(mission, task, controller)
+    const promise = this.execute(mission, task, controller, allResting)
       .catch((err) => this.store.appendEvent({ projectId, taskId: task.id, type: "ENGINE_ERROR", payload: { message: errMsg(err) } }))
       .finally(() => {
         this.scheduler.release(projectId, task);
@@ -295,12 +296,13 @@ export class MissionEngine {
   }
 
   /** Broker picks the AI for a task that has none yet. Advisory: a Broker failure never stops the task. */
-  private assignAi(mission: Mission, task: Task): void {
+  /** Returns true when nobody could be chosen only because every capable AI is resting (see allResting.ts): the task then waits. */
+  private assignAi(mission: Mission, task: Task): boolean {
     const { broker, executor } = this.deps;
-    if (!broker) return;
+    if (!broker) return false;
     const failedAis = this.failedAis(task);
     // keep a chosen AI unless it already failed this task: then fall back to the next candidate
-    if (task.selectedAi && !failedAis.includes(task.selectedAi)) return;
+    if (task.selectedAi && !failedAis.includes(task.selectedAi)) return false;
     try {
       const select = (exclude: string[]) => broker.select(task, { budgetPolicy: mission.budgetPolicy, executableAdapters: executor.adapterTypesFor ? [...executor.adapterTypesFor(task)] : executor.adapterTypes ? [...executor.adapterTypes] : undefined, excludeAiIds: exclude });
       const avoid = this.authorsToAvoid(task);
@@ -330,7 +332,9 @@ export class MissionEngine {
       };
       if (!decision.selected) {
         this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_NONE", payload });
-        return; // no fallback left: the retry runs on the same AI
+        // nobody left to choose, and the reason is that the capable AIs are resting: wait for the first one (otherwise the retry runs on the same AI)
+        const resting = new Set(restingList(this.store).map((r) => r.aiId));
+        return decision.ranked.length === 0 && decision.excluded.some((e) => resting.has(e.aiId));
       }
       if (task.selectedAi) this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_FALLBACK", payload: { from: task.selectedAi, to: decision.selected.aiId } });
       this.store.setTaskSelectedAi(task.projectId, task.id, decision.selected.aiId);
@@ -344,6 +348,52 @@ export class MissionEngine {
       });
     } catch (err) {
       this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_SELECTION_ERROR", payload: { message: errMsg(err) } });
+    }
+    return false;
+  }
+
+  /** Tasks waiting because every capable AI is resting, and the wake-ups of their sleeps ("check now" ends the sleep early). */
+  private readonly restWaiting = new Map<string, () => void>();
+
+  /** Asks every waiting task to look again now (the screen's "いま使えるか確かめる"). */
+  recheckResting(): number {
+    const n = this.restWaiting.size;
+    for (const wake of [...this.restWaiting.values()]) wake();
+    return n;
+  }
+
+  /**
+   * The task has nobody to run on only because every capable AI is resting: it waits (not failed, no retry spent) and looks again when
+   * the first one is back, at the latest after an hour; the screen shows why and until when (allResting.ts).
+   */
+  private async waitWhileAllResting(mission: Mission, task: Task, signal: AbortSignal): Promise<void> {
+    const { projectId } = task;
+    let sleeping = true;
+    try {
+      this.store.appendEvent({ projectId, taskId: task.id, type: "TASK_WAITS_ALL_RESTING", payload: { ais: restingList(this.store).map((r) => r.aiId) } });
+      while (sleeping && !signal.aborted) {
+        const rest = restingList(this.store);
+        const first = rest.length ? Math.min(...rest.map((r) => Date.parse(r.until))) : Date.now() + 60_000;
+        const prev = readAllResting(this.store);
+        saveAllResting(this.store, { since: prev?.since ?? new Date().toISOString(), until: new Date(first).toISOString(), tasks: this.restWaiting.size + (this.restWaiting.has(task.id) ? 0 : 1), ais: rest });
+        await new Promise<void>((resolve) => {
+          const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); this.restWaiting.delete(task.id); resolve(); };
+          const timer = setTimeout(done, Math.min(Math.max(first - Date.now() + 5000, 5000), 60 * 60_000));
+          signal.addEventListener("abort", done, { once: true });
+          this.restWaiting.set(task.id, done);
+        });
+        if (signal.aborted) return;
+        const fresh = this.store.getTask(projectId, task.id) ?? task;
+        sleeping = this.assignAi(mission, fresh); // true: still nobody, sleep again
+      }
+    } finally {
+      this.restWaiting.delete(task.id);
+      const left = this.restWaiting.size;
+      if (left === 0) clearAllResting(this.store);
+      else {
+        const cur = readAllResting(this.store);
+        if (cur) saveAllResting(this.store, { ...cur, tasks: left });
+      }
     }
   }
 
@@ -360,9 +410,10 @@ export class MissionEngine {
     return rows.map((r) => r.ai_id);
   }
 
-  private async execute(mission: Mission, task: Task, controller: AbortController): Promise<void> {
+  private async execute(mission: Mission, task: Task, controller: AbortController, allResting = false): Promise<void> {
     const { projectId } = task;
     let result: ExecutionResult;
+    if (allResting) await this.waitWhileAllResting(mission, task, controller.signal);
     const startedMs = Date.now();
     try {
       result = await this.deps.executor.execute(this.store.getTask(projectId, task.id)!, { mission, signal: controller.signal });

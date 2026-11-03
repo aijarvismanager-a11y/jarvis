@@ -15,6 +15,7 @@ import { usePoll } from "./hooks";
 import { HelpDialog } from "./HelpDialog";
 import { QuotaChip } from "./screens/QuotaChip";
 import { LimitBanner } from "./screens/LimitBanner";
+import { RestingBanner } from "./screens/RestingBanner";
 import { ChangelogDialog } from "./ChangelogDialog";
 import { StatusStrip } from "./screens/StatusStrip";
 import { ImportBar } from "./ImportBar";
@@ -278,6 +279,7 @@ export default function V2App() {
         )}
         {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}
         <LimitBanner setError={setError} />
+        <RestingBanner setError={setError} />
         <ErrorBar message={error} onClose={() => setError(null)} />
         {!loaded ? (
           <p className="text-[13px] text-muted">読み込み中…</p>

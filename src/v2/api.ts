@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, Environment, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
 
 const BASE = "/api/v2";
 
@@ -105,6 +105,8 @@ export const api = {
 
   claudeQuota: () => request<{ quota: ClaudeQuota | null }>("/claude-quota").then((r) => r.quota),
   claudeLimit: () => request<ClaudeLimit>("/claude-limit"),
+  allResting: () => request<{ state: AllResting | null }>("/all-resting"),
+  recheckResting: () => request<{ woken: number }>("/all-resting/recheck", "POST", {}),
   setClaudeLimitPolicy: (policy: "wait" | "reroute" | null) => request<{ policy: string | null }>("/claude-limit", "PUT", { policy }),
   refreshClaudeQuota: () => request<{ quota: ClaudeQuota }>("/claude-quota/refresh", "POST", {}).then((r) => r.quota),
   environment: (projectId: string | null) => request<Environment>(`/environment${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`),
