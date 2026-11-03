@@ -108,6 +108,12 @@ const isSourceFile = (rel: string): boolean => /\.(m?js|cjs|jsx|tsx?|py|cs|java|
 
 /** A picture task already turned into "draw it as SVG first" (see pictureAsSvg). */
 const SVG_SUFFIX = /\n\(画像はまず SVG\(文字で書く画像\)として作ってください。[\s\S]*\)$/;
+/**
+ * A site that sees SVG code shows it as a picture and keeps it out of the chat text, so the design AI is asked to write « and » where the
+ * SVG has < and >. This turns them back (full-width brackets too, which some answers use instead).
+ */
+export const decodeSvgText = (text: string): string => text.replace(/[«＜]/g, "<").replace(/[»＞]/g, ">");
+
 export const isSvgTask = (task: Pick<Task, "objective">): boolean => SVG_SUFFIX.test(task.objective);
 
 export class WebAiExecutor implements TaskExecutor {
@@ -327,7 +333,7 @@ export class WebAiExecutor implements TaskExecutor {
           recordUsageLimit(this.store, svc.id, text);
           return { ok: false, error: `${svc.name}が利用上限に達したと答えました` };
         }
-        if (input.wantSvg && !/<svg[\s>]/i.test(text) && page.readSvgs) {
+        if (input.wantSvg && !/[<«＜]svg[\s>]/i.test(text) && page.readSvgs) {
           const found = await page.readSvgs().catch(() => [] as string[]);
           this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_FROM_PAGE", payload: { aiId: svc.id, found: found.length, sizes: found.map((s) => s.length) } });
           if (found.length) text = `${text}\n\n${found.join("\n\n")}`;
@@ -374,15 +380,17 @@ export class WebAiExecutor implements TaskExecutor {
       ...(task.constraints.length ? [`条件: ${task.constraints.join(" / ")}`] : []),
       ...(context.length ? ["参考(前の作業の結果):", ...context] : []),
       "",
-      `出力のルール: SVG を ${outs.length} 個、${outs.map((p, i) => `${i + 1}個目=${p}`).join("、")}、この順に svg のコードブロックで出してください。説明文は不要です。`,
-      // measured 2026-11-03: Gemini put the SVG in a side card and left only the title "SVG" in the chat text, so nothing could be read back
-      "SVGのコードは、チャットの本文の中に ```svg のコードブロックとして直接書いてください。Canvas・プレビュー・別パネル・ファイル添付・画像として表示する方法は使わないでください。",
+      `出力のルール: SVG を ${outs.length} 個、${outs.map((p, i) => `${i + 1}個目=${p}`).join("、")}、この順に、それぞれ text のコードブロック(バッククォート3つで囲む)で出してください。説明文は不要です。`,
+      // measured 2026-11-03/04: sites (Gemini, ChatGPT) show real SVG code as a picture and leave only the label "SVG" in the chat text, so the code is written
+      // with its angle brackets swapped (see decodeSvgText) and arrives as plain text
+      "重要: サイトが絵として表示しないよう、SVGの記号を置き換えて書いてください。< は « に、> は » に置き換えます(例: «svg width=\"64\" height=\"64\" viewBox=\"0 0 64 64\"»«rect x=\"8\" y=\"8\" width=\"48\" height=\"48\" fill=\"#2B3A4A\"/»«/svg»)。それ以外は普通のSVGのとおりに書きます。",
       ' 各SVGには width・height・viewBox を付け、外部の画像・フォント・スクリプトは使わないこと。文字は <text> で font-family="sans-serif" を使う。',
       "各SVGの先頭に <!-- --> のコメントで、使った色コード・フォント・余白の方針を短く書くこと(あとで実装するAIが読みます)。",
       "見た目の質を最優先に: 余白・配色(3色程度)・文字の大きさの差・整列を意識してください。",
     ].join("\n");
     const got = await this.ask({ svc, prompt, task, signal, wantSvg: true });
     if (!got.ok) return { ok: false, fallback: true, summary: `${svc.name}にSVGを頼めませんでした(${got.error})。Claude CodeでSVGを作ります` };
+    got.text = decodeSvgText(got.text);
     // some pages hand the code back with its angle brackets escaped ("&lt;svg ...&gt;")
     if (!/<svg/i.test(got.text) && /&lt;svg/i.test(got.text)) got.text = got.text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
     const svgs = (got.text.match(/<svg[\s\S]*?<\/svg>/gi) ?? []).filter((s) => s.length >= 150 && !/<script/i.test(s));

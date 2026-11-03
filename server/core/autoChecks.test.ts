@@ -112,3 +112,12 @@ describe("needsCodeExecutor", () => {
     expect(needsCodeExecutor({ role: "document", objective: "この依頼で行った内容(作ったもの)を、更新履歴として残す。", expectedOutputs: [] })).toBe(true); // the history step edits project files: never a chat page
   });
 });
+
+describe("decodeSvgText", () => {
+  it("turns « and » back into the angle brackets of an SVG a design AI wrote as plain text", async () => {
+    const { decodeSvgText } = await import("./webAiExecutor.ts");
+    expect(decodeSvgText('«svg width="8" height="8"»«rect x="1" y="1" width="3" height="3"/»«/svg»')).toBe('<svg width="8" height="8"><rect x="1" y="1" width="3" height="3"/></svg>');
+    expect(decodeSvgText("＜svg＞＜/svg＞")).toBe("<svg></svg>");
+    expect(decodeSvgText("<svg></svg>")).toBe("<svg></svg>"); // an answer that already holds real SVG is left alone
+  });
+});
