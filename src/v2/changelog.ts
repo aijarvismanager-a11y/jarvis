@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.84",
+    date: "2026-11-04",
+    items: [
+      "ロゴ・サイトの見た目をほかのAI(Gemini・ChatGPT)に頼むとき、SVGの「<」「>」を「«」「»」に置き換えた、ふつうの文字で書かせるようにしました。サイトがSVGを絵として表示してしまい、コードを読み取れなかったためです。アプリが元の形に戻して使います。",
+    ],
+  },
+  {
     version: "1.5.83",
     date: "2026-11-04",
     items: [
