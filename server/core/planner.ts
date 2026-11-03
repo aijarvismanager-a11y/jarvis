@@ -78,7 +78,7 @@ export function buildPlannerPrompt(req: PlanRequest): string {
   const lines = [
     "あなたは開発依頼のLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
     "出力形式: {\"summary\": string, \"tasks\": [{\"key\", \"role\", \"objective\", \"inputs\", \"expectedOutputs\", \"constraints\", \"dependsOn\": [key]}]}",
-    "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。アイデア出し・名前案・文面の案を出す作業の role は ideation にする。絵・アイコン・ロゴ・バナーなど画像を作る作業の role は illustration、動画を作る作業は video、音楽・BGMは music、音声・ナレーションは voice にする(画像・動画・音楽・音声を作る作業を design や coding にしない)。作業は最大50件、循環依存は禁止。",
+    "role は research / design / coding / review / test / document など。コードを書く作業の role は coding にする。アイデア出し・名前案・文面の案を出す作業の role は ideation にする。絵・アイコン・ロゴ・バナーなど画像を作る作業の role は illustration、動画を作る作業は video、音楽・BGMは music、音声・ナレーションは voice にする(画像・動画・音楽・音声を作る作業を design や coding にしない)。サイトや画面の「見た目のデザイン」(配色・レイアウトのモックアップ)を決める作業の role は visual_design にし、expectedOutputs は .svg にして、実装する coding 作業をその作業に依存させる(見た目はデザインが得意なAIがSVGで作り、Claude Codeはそれを見て実装する)。作業は最大50件、循環依存は禁止。",
     "各 task の expectedOutputs には、成果物の「ファイルパスだけ」を書く(例: _ai-records/auth/design.md、src/app.js)。説明文・括弧書き・「〜を含む」のような補足は書かない。文章や調査結果を残す作業にもパスを付け、ファイルを残さない作業だけ空の配列にする。",
     "作業の数や分け方は、ゴールに必要なだけ自由に計画してよい(記録のために作業を減らしたり、まとめたりしない)。ただし、調査・設計・レビュー・メモなど、AIが残す記録の置き場所だけは決まっている: すべて `_ai-records/<依頼を表す短い英数字の名前>/` の下に置き(design/ や research/ や review/ などの新しいフォルダは作らない)、1つの作業につきファイル1つにする。ユーザーが成果物として頼んだ文書とコードは、これまでどおり通常の場所に置く。",
     "記録の書き方: 長い文章にせず、次の見出しだけで短くまとめる — 「結論」「やったこと(変えたファイルとその理由)」「確認できたこと」「確認できていないこと」。入力として読んだ資料の内容を写さない(どのファイルを読んだかだけ書く)。同じ内容の記録が既にあるときは、新しく書き直さず、そのファイルを読んで使う。プロジェクトに既存の更新履歴・不具合メモ・テスト記録・計画書があるときは、新しいメモを作る代わりに、そこへ追記する。",

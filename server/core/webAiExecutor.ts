@@ -1,6 +1,7 @@
 import { projectDir } from "./paths.ts";
 import { referenceBudget, referenceContext } from "./projectContext.ts";
 import { clearBotCheck, recordBotCheck } from "./botCheck.ts";
+import { pickReviewer } from "./aiReview.ts";
 import { MANUAL_TEXT_KEY, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import { readTextIfExists } from "./autoChecks.ts";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -348,6 +349,42 @@ export class WebAiExecutor implements TaskExecutor {
     return { ok: false, fallback: true, summary: `画像は、トークンを多く使う画像生成の前に、まずSVGとしてClaude Codeで作ります(うまくいかないときだけ、画像を作るAIで代わりにします)` };
   }
 
+  /**
+   * Claude has little design sense: the look of a picture (logo, banner, site mock-up) is drawn as SVG by an automatic AI of ANOTHER maker,
+   * answered as text (cheap, no image generation). Never waits for a person; any failure hands the task to Claude Code's own SVG.
+   */
+  async designSvg(task: Task, mission: Mission, svc: AiService, signal: AbortSignal): Promise<WebExecutionResult> {
+    const outs = task.expectedOutputs.filter((p) => p.toLowerCase().endsWith(".svg"));
+    if (!outs.length) return { ok: false, fallback: true, summary: "SVGの保存先がありません" };
+    const context = this.dependencyContext(task);
+    const prompt = [
+      "あなたは経験豊富なグラフィック・Webデザイナーです。次の依頼のデザインを、SVG(文字で書く画像)で作ってください。",
+      `全体の目的: ${mission.goal}`,
+      `依頼: ${task.objective.replace(SVG_SUFFIX, "")}`,
+      ...(task.constraints.length ? [`条件: ${task.constraints.join(" / ")}`] : []),
+      ...(context.length ? ["参考(前の作業の結果):", ...context] : []),
+      "",
+      `出力のルール: SVG を ${outs.length} 個、${outs.map((p, i) => `${i + 1}個目=${p}`).join("、")}、この順に svg のコードブロックで出してください。説明文は不要です。`,
+      ' 各SVGには width・height・viewBox を付け、外部の画像・フォント・スクリプトは使わないこと。文字は <text> で font-family="sans-serif" を使う。',
+      "各SVGの先頭に <!-- --> のコメントで、使った色コード・フォント・余白の方針を短く書くこと(あとで実装するAIが読みます)。",
+      "見た目の質を最優先に: 余白・配色(3色程度)・文字の大きさの差・整列を意識してください。",
+    ].join("\n");
+    const got = await this.ask({ svc, prompt, task, signal });
+    if (!got.ok) return { ok: false, fallback: true, summary: `${svc.name}にSVGを頼めませんでした(${got.error})。Claude CodeでSVGを作ります` };
+    const svgs = (got.text.match(/<svg[\s\S]*?<\/svg>/gi) ?? []).filter((s) => s.length >= 150 && !/<script/i.test(s));
+    if (svgs.length < outs.length) return { ok: false, fallback: true, summary: `${svc.name}の回答にSVGが足りませんでした。Claude CodeでSVGを作ります` };
+    const saved: string[] = [];
+    outs.forEach((rel, i) => {
+      const abs = resolveInProject(this.store.projectsRoot, task.projectId, rel);
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, `${svgs[i]!}\n`, "utf8");
+      this.store.createArtifact({ projectId: task.projectId, taskId: task.id, path: rel, createdBy: svc.id, sourceAi: svc.id, sourceUrl: svc.url });
+      saved.push(rel);
+    });
+    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "DESIGN_SVG_BY_AI", payload: { aiId: svc.id, outputs: saved } });
+    return { ok: true, summary: `${svc.name}がデザインをSVGで作りました(仮の画像): ${saved.join(", ")}`, artifacts: saved, aiId: svc.id, automationLevel: 3, executor: this.name };
+  }
+
   /** The SVG attempt did not work: the picture task goes back to what was planned (an image file) so an image AI can take it. */
   private pictureAsImage(task: Task): Task {
     this.store.setTaskPlan(task.projectId, task.id, { objective: task.objective.replace(SVG_SUFFIX, ""), expectedOutputs: task.expectedOutputs.map((p) => p.replace(/\.svg$/i, ".png")) });
@@ -672,9 +709,18 @@ export class RoutingExecutor implements TaskExecutor {
       // pictures cost a lot of tokens to generate: SVG by Claude Code comes first
       if (!isSvgTask(task)) {
         this.web.mediaWithoutAi(task, ctx.mission);
+        task = this.store.getTask(task.projectId, task.id) ?? task;
+      }
+      if (task.retryCount < 1) {
+        // design sense: an AI of another maker (not Claude) draws it first; Claude Code only when none can
+        const designer = getWebAiSettings(this.store).enabled ? pickReviewer(this.store, "claude-code", "design", task.id) : null;
+        if (designer) {
+          this.store.setTaskSelectedAi(task.projectId, task.id, designer.svc.id);
+          const done = await this.web.designSvg(this.store.getTask(task.projectId, task.id) ?? task, ctx.mission, designer.svc, ctx.signal);
+          if (!done.fallback) return { ...done, executor: done.executor ?? this.web.name };
+        }
         return toCode(task);
       }
-      if (task.retryCount < 1) return toCode(task);
       // the SVG did not work: an automatic image AI takes the picture; with none, it is put on hold
       const imageAi = getWebAiSettings(this.store).enabled ? this.store.listAiServices().find((s) => s.accessMode === "web" && s.automationLevel >= 3 && s.status === "active" && s.capabilities.includes("image_generation") && this.web.adapterTypes.some((x) => x === s.adapterType)) : undefined;
       if (!imageAi) {

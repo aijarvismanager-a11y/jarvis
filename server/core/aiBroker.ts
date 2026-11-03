@@ -44,7 +44,7 @@ const ROLE_ALIASES: Record<string, string> = {
   docs: "documentation", documentation: "documentation",
   translation: "translation", seo: "seo",
   ideation: "ideation", brainstorm: "ideation", brainstorming: "ideation", naming: "ideation", copywriting: "ideation", "ux copy": "ideation",
-  illustration: "image_generation", icon: "image_generation", logo: "image_generation", banner: "image_generation", graphic: "image_generation", "image generation": "image_generation",
+  illustration: "image_generation", "visual design": "image_generation", visual_design: "image_generation", "web design": "image_generation", "site design": "image_generation", mockup: "image_generation", branding: "image_generation", icon: "image_generation", logo: "image_generation", banner: "image_generation", graphic: "image_generation", "image generation": "image_generation",
   video: "video_generation", music: "music_generation", bgm: "music_generation", voice: "voice_generation", narration: "voice_generation",
   "fact check": "research", "fact-check": "research", factcheck: "research",
 };

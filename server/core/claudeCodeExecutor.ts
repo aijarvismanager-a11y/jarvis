@@ -92,6 +92,8 @@ export function buildTaskPrompt(input: {
   /** The project was imported: its status report describes the existing code. */
   hasStatusReport?: boolean;
   hasHistoryNotes?: boolean;
+  /** Design files (SVG) drawn by another AI: they are built exactly as drawn. */
+  designFiles?: string[];
 }): string {
   const { task, mission } = input;
   const lines = [
@@ -107,6 +109,13 @@ export function buildTaskPrompt(input: {
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);
   if (input.dependencyNotes.length) lines.push("前の作業の成果:", ...input.dependencyNotes.map((n) => `- ${n}`));
+  if (input.designFiles?.length) {
+    lines.push(
+      `【デザインの指定】次のファイルは、デザインが得意な別のAIが作った「完成したデザイン」です: ${input.designFiles.join(", ")}`,
+      "これを参考にして似せるのではなく、そのまま使って実装してください。SVGは作り直さず、ファイルをそのままコピーして(またはそのまま埋め込んで)使うこと。",
+      "ファイル先頭のコメントにある色コード・フォント・余白、SVGの形・配置・文言は一切変えないこと。足りない部分だけを補い、補った点は最後の報告に書くこと。自分の好みで配色やレイアウトを変えないこと。",
+    );
+  }
   if (input.previousFailure) {
     lines.push(
       "【前回の試行は失敗しました】原因を解析し、同じ失敗を繰り返さないよう根本原因を直してください。失敗内容:",
@@ -233,6 +242,15 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     return task.retryCount === 0 ? undefined : "(詳細不明)";
   }
 
+  /** SVG files that an AI other than Claude drew in the tasks this one depends on. */
+  private designFiles(task: Task): string[] {
+    const out: string[] = [];
+    for (const a of this.store.listArtifacts(task.projectId)) {
+      if (a.taskId && task.dependsOn.includes(a.taskId) && a.path.toLowerCase().endsWith(".svg") && a.sourceAi && !a.sourceAi.startsWith("claude")) out.push(a.path);
+    }
+    return [...new Set(out)].slice(0, 20);
+  }
+
   private dependencyNotes(task: Task): string[] {
     const notes: string[] = [];
     const artifacts = this.store.listArtifacts(task.projectId);
@@ -289,7 +307,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const cwd = projectDir(this.store.projectsRoot, projectId);
     mkdirSync(cwd, { recursive: true });
     const args = this.buildArgs(await this.capabilities(), task);
-    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)) });
+    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)), designFiles: this.designFiles(task) });
 
     const before = snapshotDir(cwd);
     const snaps = this.opts.snapshots;

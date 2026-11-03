@@ -92,3 +92,13 @@ describe("picture, music and video work never waits for a person at an English s
     expect(text).toContain("assets/bgm/bgm.mp3");
   });
 });
+
+describe("a design drawn by another AI is built exactly as drawn", () => {
+  it("tells Claude Code to use the SVG as it is", async () => {
+    const { buildTaskPrompt } = await import("./claudeCodeExecutor.ts");
+    const p = buildTaskPrompt({ task: { role: "coding", objective: "o", inputs: [], expectedOutputs: [], constraints: [] }, mission: { goal: "g" }, dependencyNotes: [], designFiles: ["assets/logo.svg"] });
+    expect(p).toContain("assets/logo.svg");
+    expect(p).toContain("そのまま使って");
+    expect(p).toContain("一切変えない");
+  });
+});
