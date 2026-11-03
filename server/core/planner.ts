@@ -96,6 +96,10 @@ export function buildPlannerPrompt(req: PlanRequest): string {
 }
 
 export const HISTORY_TASK_KEY = "update_project_history";
+/** Both wordings of the history task begin like this; a stored Task keeps no plan key, so this is how it is recognised later. */
+export const HISTORY_OBJECTIVE_LEAD = "この依頼で行った内容(";
+/** The history task edits the project's own files: a web chat can only answer in text, so it must run on the code executor. */
+export const isHistoryTask = (task: { objective?: string }): boolean => !!task.objective?.startsWith(HISTORY_OBJECTIVE_LEAD);
 
 /**
  * An existing project already keeps its own history (change log, bug notes, test log, plan, architecture). The work used to

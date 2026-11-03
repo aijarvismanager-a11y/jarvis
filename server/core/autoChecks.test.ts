@@ -109,5 +109,6 @@ describe("needsCodeExecutor", () => {
     expect(needsCodeExecutor({ role: "test", expectedOutputs: ["test/apiSplit.test.js"] })).toBe(true); // a chat page mangles code (5 broken test files in a row)
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["docs/new-note.md"] })).toBe(false);
     expect(needsCodeExecutor({ role: "research", expectedOutputs: ["_ai-records/x/t1.md"] })).toBe(false);
+    expect(needsCodeExecutor({ role: "document", objective: "この依頼で行った内容(作ったもの)を、更新履歴として残す。", expectedOutputs: [] })).toBe(true); // the history step edits project files: never a chat page
   });
 });
