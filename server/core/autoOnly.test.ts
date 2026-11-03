@@ -27,7 +27,15 @@ describe("text work goes only to AIs the app can operate by itself", () => {
 
   it("lets a manual AI take picture, video, music and voice work, which cannot be read back automatically", () => {
     expect(isMediaCapability("image_generation")).toBe(true);
-    expect(chooseAi(list, "image_generation").selected?.aiId).toBe("manual-star");
+    expect(chooseAi([list[0]!], "image_generation").selected?.aiId).toBe("manual-star");
+  });
+
+  it("prefers an automatic AI for pictures when it is not far behind, and keeps the manual one for video", () => {
+    expect(chooseAi(list, "image_generation").selected?.aiId).toBe("auto-ok");
+    const far = [svc("manual-star", 1, { image_generation: 5 }), svc("auto-weak", 3, { image_generation: 1 })];
+    expect(chooseAi(far, "image_generation").selected?.aiId).toBe("manual-star");
+    const video = [svc("manual-star", 1, { video_generation: 5 }), svc("auto-ok", 3, { video_generation: 3 })];
+    expect(chooseAi(video, "video_generation").selected?.aiId).toBe("manual-star");
   });
 
   it("can be switched back by the hidden setting", () => {

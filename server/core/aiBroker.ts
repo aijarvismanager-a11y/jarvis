@@ -26,6 +26,8 @@ const UNCLASSIFIED_FIT = 2;
 const LOW_CONFIDENCE = 0.7;
 /** On the 50-point scale: 2.0 = 0.4 on the 10-point scale. */
 export const NEAR_BEST = 2;
+/** how far below the best picture AI an automatic one may be and still be preferred (it saves the picture itself) */
+export const PICTURE_AUTO_NEAR_BEST = 6;
 /** Task work spreads over every AI within this many points (1.5 of 10) of the best, least used first: a few AIs were doing nearly everything. */
 export const TASK_NEAR_BEST = 7.5;
 /** From this share of the Claude plan (5-hour or 7-day window) used, Claude is spared for work only it can do (editing code). */
@@ -263,7 +265,12 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     return [...pool].map((e) => e.candidate).sort((a, b) => sortKey[strategy](b) - sortKey[strategy](a) || byTotal(a, b))[0] ?? null;
   };
 
-  const balanced = pickBalanced(ranked, options.usage, options.seed, options.nearBest);
+  // Pictures: an AI the app drives by itself (it saves the picture) is chosen over a slightly better one that needs the person to copy, paste and carry the file back.
+  const near = options.nearBest ?? NEAR_BEST;
+  const levelOf = (c: BrokerCandidate) => eligible.find((e) => e.candidate.aiId === c.aiId)?.service.automationLevel ?? 1;
+  const bestTotal = ranked[0]?.total ?? 0;
+  const autoPictures = capability === "image_generation" ? ranked.filter((c) => levelOf(c) >= 3 && bestTotal - c.total <= Math.max(near, PICTURE_AUTO_NEAR_BEST)) : [];
+  const balanced = pickBalanced(autoPictures.length ? autoPictures : ranked, options.usage, options.seed, options.nearBest);
   const selected = balanced.pick;
   let confidence = 0;
   if (selected) {
