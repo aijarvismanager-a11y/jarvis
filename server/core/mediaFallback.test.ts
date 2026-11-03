@@ -54,6 +54,17 @@ describe("the router, when no automatic AI can take picture or music work", () =
     expect(res.summary).toContain("保留");
     expect(calls).toHaveLength(1);
   });
+
+  it("when the SVG did not work and no image AI is usable, puts the picture on hold instead of looping", async () => {
+    const { calls, router } = route();
+    const pic = make("illustration", ["assets/a.png"]);
+    await router.execute(pic.task, { mission: pic.mission, signal: new AbortController().signal });
+    db.prepare("UPDATE tasks SET retry_count = 1 WHERE id = ?").run(pic.task.id);
+    const again = store.getTask("p1", pic.task.id)!;
+    const res = await router.execute(again, { mission: pic.mission, signal: new AbortController().signal });
+    expect(res.summary).toContain("保留");
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe("picture, music and video work never waits for a person at an English site", () => {

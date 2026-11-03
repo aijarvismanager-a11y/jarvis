@@ -104,6 +104,10 @@ export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs">):
 /** A source / test file: a chat page turns "/" and "[a](b)" in code into links and escapes (measured: 5 tries in a row of a broken test file), so code is written by the code executor. */
 const isSourceFile = (rel: string): boolean => /\.(m?js|cjs|jsx|tsx?|py|cs|java|go|rs|sh|ps1|css|html)$/i.test(rel.trim());
 
+/** A picture task already turned into "draw it as SVG first" (see pictureAsSvg). */
+const SVG_SUFFIX = /\n\(画像はまず SVG\(文字で書く画像\)として作ってください。[\s\S]*\)$/;
+export const isSvgTask = (task: Pick<Task, "objective">): boolean => SVG_SUFFIX.test(task.objective);
+
 export class WebAiExecutor implements TaskExecutor {
   readonly name = "web-ai";
   /** Registry adapter types this executor can run: every web AI starts as `manual` (Level 1). */
@@ -191,6 +195,9 @@ export class WebAiExecutor implements TaskExecutor {
   async execute(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<WebExecutionResult> {
     const svc = task.selectedAi ? this.store.getAiService(task.selectedAi) : null;
     if (!svc) return { ok: false, summary: "担当のWeb AIが選ばれていません" };
+    // the SVG came first and did not work: an image AI takes the picture as originally planned (and if that fails too, it is put on hold)
+    const triedSvg = capabilityForTaskRole(task.role) === "image_generation" && isSvgTask(task);
+    if (triedSvg) task = this.pictureAsImage(task);
 
     const outputPaths = webOutputPaths(task);
     let prompt = this.fittedPrompt(task, ctx.mission, svc, outputPaths);
@@ -268,7 +275,7 @@ export class WebAiExecutor implements TaskExecutor {
     const capability = capabilityForTaskRole(task.role);
     if (text === null && isMediaCapability(capability)) {
       await page?.close().catch(() => {});
-      return capability === "image_generation" ? this.pictureAsSvg(task, svc, note) : this.holdMedia(task, svc, capability, prompt, note);
+      return capability === "image_generation" && !triedSvg ? this.pictureAsSvg(task, svc, note) : this.holdMedia(task, svc, capability, prompt, note);
     }
 
     if (text === null && !isMediaCapability(capabilityForTaskRole(task.role)) && !this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false)) {
@@ -335,10 +342,16 @@ export class WebAiExecutor implements TaskExecutor {
     const toSvg = (p: string) => p.replace(/\.(png|jpe?g|webp|gif)$/i, ".svg");
     let outs = task.expectedOutputs.map(toSvg).filter((p) => p.toLowerCase().endsWith(".svg"));
     if (!outs.length) outs = [`assets/image-${task.id.slice(0, 8)}.svg`];
-    const objective = `${task.objective}\n(画像を自動で作れなかったため、SVG(文字で書く画像)として作ってください。1つの .svg ファイルに、width・height・viewBox を付けて書き、外部の画像やフォントは読み込まないこと。保存先: ${outs.join(", ")})`;
+    const objective = `${task.objective}\n(画像はまず SVG(文字で書く画像)として作ってください。1つの .svg ファイルに、width・height・viewBox を付けて書き、外部の画像やフォントは読み込まないこと。保存先: ${outs.join(", ")})`;
     this.store.setTaskPlan(task.projectId, task.id, { objective, expectedOutputs: [...task.expectedOutputs.filter((p) => !/\.(png|jpe?g|webp|gif)$/i.test(p)), ...outs] });
     this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "MEDIA_AS_SVG", payload: { aiId: svc?.id ?? null, outputs: outs, note } });
-    return { ok: false, fallback: true, summary: `${svc ? `${svc.name}では` : "自動で使える画像AIがないため、"}画像を作れなかったので、SVGとしてClaude Codeで作ります` };
+    return { ok: false, fallback: true, summary: `画像は、トークンを多く使う画像生成の前に、まずSVGとしてClaude Codeで作ります(うまくいかないときだけ、画像を作るAIで代わりにします)` };
+  }
+
+  /** The SVG attempt did not work: the picture task goes back to what was planned (an image file) so an image AI can take it. */
+  private pictureAsImage(task: Task): Task {
+    this.store.setTaskPlan(task.projectId, task.id, { objective: task.objective.replace(SVG_SUFFIX, ""), expectedOutputs: task.expectedOutputs.map((p) => p.replace(/\.svg$/i, ".png")) });
+    return this.store.getTask(task.projectId, task.id) ?? task;
   }
 
   /** Music, video or voice that no AI can make by itself: the task is closed as "on hold" with a note of what was meant to be made, so the mission is not stopped. */
@@ -371,10 +384,10 @@ export class WebAiExecutor implements TaskExecutor {
    * Picture / music / video / voice work that no automatic AI can take (the broker never chooses a manual one): a picture is redone as SVG
    * by Claude Code, the rest is put on hold. Never waits for a person.
    */
-  mediaWithoutAi(task: Task, mission: Mission): WebExecutionResult {
+  mediaWithoutAi(task: Task, mission: Mission, hold = false): WebExecutionResult {
     const capability = capabilityForTaskRole(task.role);
     const note = "自動で使えるAIがありません";
-    if (capability === "image_generation") return this.pictureAsSvg(task, null, note);
+    if (capability === "image_generation" && !hold) return this.pictureAsSvg(task, null, note);
     const prompt = buildWebPrompt({ task, mission, context: this.dependencyContext(task), references: [], outputPaths: webOutputPaths(task), previousFailure: undefined });
     return this.holdMedia(task, null, capability, prompt, note);
   }
@@ -649,7 +662,30 @@ export class RoutingExecutor implements TaskExecutor {
     const toWeb = getWebAiSettings(this.store).enabled && svc !== null && this.web.adapterTypes.some((t) => t === svc.adapterType) && !needsCodeExecutor(task);
     // picture / music / video / voice work nobody automatic can take: SVG by Claude Code or on hold (never a person at an English site)
     const onCode = svc !== null && !!this.code.adapterTypes?.includes(svc.adapterType);
-    if (!onCode && !needsCodeExecutor(task) && isMediaCapability(capabilityForTaskRole(task.role)) && (svc === null || svc.automationLevel <= 2)) {
+    const picture = capabilityForTaskRole(task.role) === "image_generation" && !needsCodeExecutor(task);
+    const toCode = async (t: Task) => {
+      const codeAi = this.store.listAiServices().find((s) => this.code.adapterTypes?.includes(s.adapterType));
+      if (codeAi) this.store.setTaskSelectedAi(t.projectId, t.id, codeAi.id);
+      return this.runCode(this.store.getTask(t.projectId, t.id) ?? t, ctx);
+    };
+    if (picture) {
+      // pictures cost a lot of tokens to generate: SVG by Claude Code comes first
+      if (!isSvgTask(task)) {
+        this.web.mediaWithoutAi(task, ctx.mission);
+        return toCode(task);
+      }
+      if (task.retryCount < 1) return toCode(task);
+      // the SVG did not work: an automatic image AI takes the picture; with none, it is put on hold
+      const imageAi = getWebAiSettings(this.store).enabled ? this.store.listAiServices().find((s) => s.accessMode === "web" && s.automationLevel >= 3 && s.status === "active" && s.capabilities.includes("image_generation") && this.web.adapterTypes.some((x) => x === s.adapterType)) : undefined;
+      if (!imageAi) {
+        const held = this.web.mediaWithoutAi(task, ctx.mission, true);
+        return { ...held, executor: held.executor ?? this.web.name };
+      }
+      this.store.setTaskSelectedAi(task.projectId, task.id, imageAi.id);
+      const res = await this.web.execute(this.store.getTask(task.projectId, task.id) ?? task, ctx);
+      return res.fallback ? toCode(task) : { ...res, executor: res.executor ?? this.web.name };
+    }
+    if (!onCode && !needsCodeExecutor(task) && !picture && isMediaCapability(capabilityForTaskRole(task.role)) && (svc === null || svc.automationLevel <= 2)) {
       const media = this.web.mediaWithoutAi(task, ctx.mission);
       if (!media.fallback) return { ...media, executor: media.executor ?? this.web.name };
       const fallbackAi = this.store.listAiServices().find((s) => this.code.adapterTypes?.includes(s.adapterType));
