@@ -177,9 +177,13 @@ export class AiScout {
       const known = new Set([...this.store.listAiServices().flatMap((s) => [s.id, host(s.url)]), ...cur.proposals.map((p) => host(p.url))].filter((v): v is string => !!v));
       const added: ScoutProposal[] = [];
       let dropped = 0;
+      let already = 0;
       for (const c of found) {
         const h = host(c.url)!;
-        if (known.has(h) || known.has(slug(c.name))) continue;
+        if (known.has(h) || known.has(slug(c.name))) {
+          already++;
+          continue;
+        }
         known.add(h);
         const pg = await this.page(c.url);
         if (!pg.ok) {
@@ -195,8 +199,8 @@ export class AiScout {
         added.push({ id: slug(c.name), name: c.name, url: c.url, use: c.use, provider: c.provider, googleLogin: googlePage ? "page" : "claimed", free: FREE_RE.test(page) ? "page" : "claimed", foundAt: at, foundBy: svc.id, status: "new" });
       }
       const proposals = [...added, ...cur.proposals].slice(0, MAX_KEPT);
-      this.store.appendEvent({ type: "AI_SCOUT_RUN", payload: { asked: svc.id, found: found.length, proposed: added.length, dropped } });
-      return finish(`${svc.name}に聞いて${found.length}件の候補が出て、新しく${added.length}件を提案します(${dropped}件は、開けない・Googleログインの記載がない・すでに登録済みのため除きました)。`, proposals);
+      this.store.appendEvent({ type: "AI_SCOUT_RUN", payload: { asked: svc.id, found: found.length, proposed: added.length, dropped, already } });
+      return finish(`${svc.name}に聞いて${found.length}件の候補が出て、新しく${added.length}件を提案します(${[already ? `${already}件は登録済みか前に出した候補` : "", dropped ? `${dropped}件は開けない・Googleログインの記載がない` : ""].filter(Boolean).join("、") || "除いたものはありません"})。`, proposals);
     } catch (err) {
       return finish(`探している途中で止まりました: ${err instanceof Error ? err.message : String(err)}`);
     }

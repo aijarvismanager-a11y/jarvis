@@ -61,6 +61,7 @@ describe("AiScout", () => {
     expect(scout.due()).toBe(false);
     const again = await scout.run();
     expect(again.proposals).toHaveLength(2); // same answer: nothing new
+    expect(again.lastNote).toContain("登録済みか前に出した候補");
   });
 
   it("adds an accepted proposal to the registry as a manual AI, and keeps a dropped one out", async () => {
