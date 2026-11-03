@@ -46,6 +46,10 @@ describe("parseCandidates", () => {
     expect(c.map((x) => x.name)).toEqual(["Alpha AI", "Beta AI", "Gamma AI", "Dead AI"]);
     expect(parseCandidates("no json here")).toEqual([]);
   });
+  it("falls back to the links of a plain-list answer, claiming nothing about login or price", () => {
+    const c = parseCandidates("1. [Zeta](https://zeta.example/app) - コード\n2. https://www.omega.example/. 画像\n3. https://zeta.example/other");
+    expect(c.map((x) => [x.name, x.url, x.googleLogin, x.free])).toEqual([["Zeta", "https://zeta.example/app", false, false], ["omega.example", "https://www.omega.example/", false, false]]);
+  });
 });
 
 describe("AiScout", () => {

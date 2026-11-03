@@ -57,18 +57,33 @@ export const PROMPT = [
   "googleLogin は、Googleアカウントでのログインに対応していると確かな場合だけ true。確かでなければ含めないでください。",
 ].join("\n");
 
+/** When the answer is a plain list instead of JSON: every https address in it, named by its link text or its host. Nothing is claimed about login or price, so the page itself has to show the Google sign-in. */
+function parseLinks(text: string): ReturnType<typeof parseCandidates> {
+  const out: ReturnType<typeof parseCandidates> = [];
+  const seen = new Set<string>();
+  for (const m of text.matchAll(/(?:\[([^\]\n]{1,60})\]\()?(https:\/\/[^\s)\]>"'」]+)/g)) {
+    const url = m[2].replace(/[.,、。]+$/, "");
+    const h = host(url);
+    if (!h || seen.has(h)) continue;
+    seen.add(h);
+    out.push({ name: m[1]?.trim() || h, url, use: "", provider: null, googleLogin: false, free: false });
+  }
+  return out.slice(0, MAX_ASKED);
+}
+
 /** Reads the JSON array out of an answer that may be wrapped in chatter or a code fence. */
 export function parseCandidates(text: string): { name: string; url: string; use: string; provider: string | null; googleLogin: boolean; free: boolean }[] {
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return [];
+  let raw: unknown = null;
+  if (start >= 0 && end > start) {
+    try {
+      raw = JSON.parse(text.slice(start, end + 1));
+    } catch {
+      raw = null;
+    }
   }
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) return parseLinks(text);
   const out: ReturnType<typeof parseCandidates> = [];
   for (const r of raw) {
     if (!r || typeof r !== "object") continue;
@@ -156,7 +171,7 @@ export class AiScout {
       }
       if (!answer.ok) return finish(`${svc.name}に聞けませんでした: ${answer.error}`);
       const found = parseCandidates(answer.text);
-      if (!found.length) return finish(`${svc.name}の答えから候補を読み取れませんでした。`);
+      if (!found.length) return finish(`${svc.name}の答えから候補を読み取れませんでした。(答えの冒頭: ${answer.text.replace(/\s+/g, " ").slice(0, 200) || "空"})`);
 
       const cur = readState(this.store);
       const known = new Set([...this.store.listAiServices().flatMap((s) => [s.id, host(s.url)]), ...cur.proposals.map((p) => host(p.url))].filter((v): v is string => !!v));
