@@ -482,11 +482,15 @@ class CdpChatPage implements WebChatPage {
   async readSvgs(): Promise<string[]> {
     return this.cdp.evaluate<string[]>(`(async () => {
       const out = [];
-      const add = (s) => { s = String(s || '').trim(); if (s.length >= 150 && /<svg[\\s>]/i.test(s) && !out.includes(s)) out.push(s); };
-      for (const e of document.querySelectorAll('pre, code, textarea, [class*="code"], [class*="immersive"], [class*="canvas"], [class*="editor"]')) {
-        const t = e.value || e.textContent || '';
-        for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
-      }
+      const valid = (s) => {
+        // a real drawing: well-formed XML whose root is <svg> with at least one shape; not a program that merely mentions "<svg"
+        try {
+          const d = new DOMParser().parseFromString(s, 'image/svg+xml');
+          if (d.querySelector('parsererror') || !d.documentElement || d.documentElement.localName !== 'svg') return false;
+          return d.querySelectorAll('rect, circle, ellipse, path, line, polygon, polyline, text, image, use').length > 0;
+        } catch (e) { return false; }
+      };
+      const add = (s) => { s = String(s || '').trim(); if (s.length >= 150 && /<svg[\\s>]/i.test(s) && !out.includes(s) && valid(s)) out.push(s); };
       // Gemini (measured 2026-11-03): an <svg-code-block> whose drawing lives in a <genui-sandbox> iframe, with a copy button in its toolbar.
       // 1) look everywhere the source could sit: attributes (srcdoc...), shadow roots, same-origin frames
       const seen = new Set();
@@ -543,6 +547,12 @@ class CdpChatPage implements WebChatPage {
         }
         dbg.captured = captured.map((t) => t.length);
         for (const t of captured) for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
+      }
+      if (!out.length) {
+        for (const e of document.querySelectorAll('pre, code, textarea, [class*="code"], [class*="immersive"], [class*="canvas"], [class*="editor"]')) {
+          const t = e.value || e.textContent || '';
+          for (const m of t.matchAll(/<svg[\\s\\S]*?<\\/svg>/gi)) add(m[0]);
+        }
       }
       if (!out.length) {
         for (const el of document.querySelectorAll('svg')) {
