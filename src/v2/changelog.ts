@@ -3,7 +3,7 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: "次の版(まだ入っていません)",
+    version: "1.5.73",
     date: "2026-11-03",
     items: [
       "全部のAIが休んでいるとき(無料枠を使い切った・ボット確認・Claudeの上限)は、依頼を失敗にせず、止まったまま待ちます。画面の上に「いま休んでいるAI」と戻る時間の目安を出し、最初の1つが戻ったら自動で続きます。「いま確かめる」ボタンもあります。",
