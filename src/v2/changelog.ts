@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.74",
+    date: "2026-11-03",
+    items: [
+      "依頼の最後の「更新履歴を残す」作業が、ブラウザ上のAIに回されて、CHANGELOG.md が作られないまま「完了」になることがありました。この作業は必ずClaude Codeが行うようにしました。",
+      "ロゴ・サイトの見た目をほかのAIにSVGで頼んだのにうまくいかず、Claude Codeが代わりに作ったとき、その理由を記録に残すようにしました(これまでは理由が分からなかったため)。",
+    ],
+  },
+  {
     version: "1.5.73",
     date: "2026-11-03",
     items: [
