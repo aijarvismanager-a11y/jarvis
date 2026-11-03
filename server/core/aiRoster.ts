@@ -155,7 +155,7 @@ export class AiRoster {
     const s = r.service;
     if (!this.store.getAiService(id)) {
       this.store.upsertAiService({ id: s.id, name: s.name, url: s.url, provider: s.provider, accessMode: s.accessMode as "web", automationLevel: s.automationLevel, freeStatus: s.freeStatus, requiresLogin: s.requiresLogin, requiresApiKey: s.requiresApiKey, adapterType: s.adapterType });
-      this.store.setCapabilities(s.id, Object.fromEntries(s.capabilities.map((c) => [c, s.capabilityScores[c] ?? null])));
+      this.store.setCapabilities(s.id, Object.fromEntries(s.capabilities.map((c) => [c, s.capabilityScores?.[c] ?? null])));
       this.store.patchAiService(s.id, { freeLimit: s.freeLimit, qualityScore: s.qualityScore, reliabilityScore: s.reliabilityScore, limitations: s.limitations, status: "active" });
     }
     state.removed = state.removed.filter((x) => x.service.id !== id);
