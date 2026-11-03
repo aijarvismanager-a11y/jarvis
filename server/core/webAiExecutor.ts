@@ -366,6 +366,8 @@ export class WebAiExecutor implements TaskExecutor {
       ...(context.length ? ["参考(前の作業の結果):", ...context] : []),
       "",
       `出力のルール: SVG を ${outs.length} 個、${outs.map((p, i) => `${i + 1}個目=${p}`).join("、")}、この順に svg のコードブロックで出してください。説明文は不要です。`,
+      // measured 2026-11-03: Gemini put the SVG in a side card and left only the title "SVG" in the chat text, so nothing could be read back
+      "SVGのコードは、チャットの本文の中に ```svg のコードブロックとして直接書いてください。Canvas・プレビュー・別パネル・ファイル添付・画像として表示する方法は使わないでください。",
       ' 各SVGには width・height・viewBox を付け、外部の画像・フォント・スクリプトは使わないこと。文字は <text> で font-family="sans-serif" を使う。',
       "各SVGの先頭に <!-- --> のコメントで、使った色コード・フォント・余白の方針を短く書くこと(あとで実装するAIが読みます)。",
       "見た目の質を最優先に: 余白・配色(3色程度)・文字の大きさの差・整列を意識してください。",
