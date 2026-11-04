@@ -313,6 +313,12 @@ class CdpChatPage implements WebChatPage {
   private baseline: { count: number; text: string } = { count: 0, text: "" };
   /** Pictures already on the page before the prompt (a home feed, samples): they are not the answer. */
   private baselineImgs: string[] = [];
+  /** Pictures a site keeps in its history page (see SiteProfile.historyUrl): never the answer, however they are shown. */
+  private knownImgs: string[] = [];
+
+  addKnownPictures(srcs: string[]): void {
+    this.knownImgs = srcs;
+  }
 
   constructor(
     private readonly cdp: CdpClient,
@@ -352,6 +358,29 @@ class CdpChatPage implements WebChatPage {
   }
 
   async submit(): Promise<void> {
+    await this.sendPrompt();
+    if (this.site.confirmButton) await this.confirmSend(this.site.confirmButton);
+  }
+
+  /** Some sites ask to confirm a generation in a second step: wait for that button and click it like a person would. */
+  private async confirmSend(pattern: string): Promise<void> {
+    const find = () =>
+      this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
+        const re = new RegExp(${q(pattern)});
+        const b = [...document.querySelectorAll('button')].filter((e) => !e.disabled && e.getAttribute('aria-disabled') !== 'true' && re.test((e.innerText || '').replace(/\s+/g, ' ').trim())).pop();
+        if (!b) return null;
+        b.scrollIntoView({ block: 'center', inline: 'center' });
+        const r = b.getBoundingClientRect();
+        return r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+      })()`);
+    const rect = await waitUntil(find, { timeoutMs: 8000, intervalMs: 300 });
+    if (!rect) throw new WebAiUiError("確認のボタンが見つかりません(サイトのUIが変わった可能性があります)");
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await this.cdp.send("Input.dispatchMouseEvent", { type, x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+    }
+  }
+
+  private async sendPrompt(): Promise<void> {
     // How much text is still in the prompt box: a send that worked empties it (or leaves the page), one that did nothing does not.
     const promptLength = () => this.cdp.evaluate<number>(`(() => { const el = ${firstMatch(this.site.inputSelector)}; return el ? String(el.value ?? el.innerText ?? "").trim().length : 0; })()`);
     const before = await promptLength();
@@ -441,10 +470,11 @@ class CdpChatPage implements WebChatPage {
   private pictureScan(): string {
     return `const all = document.querySelectorAll(${q(this.site.responseSelector)});
           const el = all.length ? all[all.length - 1] : null;
-          const skip = new Set(${JSON.stringify(this.baselineImgs)});
-          const fits = (i, min) => i.complete && i.naturalWidth >= min && i.naturalHeight >= min && !skip.has(i.src);
+          const key = (s) => s.split('?')[0].split('@')[0].split('/').pop();
+          const skip = new Set(${JSON.stringify([...this.baselineImgs, ...this.knownImgs])}.map(key));
+          const fits = (i, min) => i.complete && i.naturalWidth >= min && i.naturalHeight >= min && !skip.has(key(i.src));
           let pics = el ? [...el.querySelectorAll('img')].filter((i) => fits(i, 200)) : [];
-          if (!pics.length) pics = [...document.images].filter((i) => fits(i, 400) && !i.closest('a, nav, aside, header'));`;
+          if (!pics.length) pics = [...document.images].filter((i) => fits(i, ${this.site.imagesInLinks ? 200 : 400}) && !i.closest(${this.site.imagesInLinks ? "'nav, aside, header'" : "'a, nav, aside, header'"}));`;
   }
 
   async waitForImages(opts: { timeoutMs: number; signal?: AbortSignal }): Promise<void> {
@@ -808,6 +838,18 @@ export class ChromiumDriver implements WebChatDriver {
       await cdp.send("Page.bringToFront");
       const page = new CdpChatPage(cdp, req.site, closeTab);
       await page.prepare();
+      if (req.site.historyUrl) {
+        // Sites that list every earlier result next to the new one: note what is already in the history, then come back.
+        const ready = () => waitUntil(async () => (await cdp.evaluate<string>("document.readyState")) === "complete", { timeoutMs: 30_000, signal: req.signal });
+        await cdp.send("Page.navigate", { url: req.site.historyUrl });
+        await ready();
+        await new Promise((r) => setTimeout(r, 7000));
+        page.addKnownPictures(await cdp.evaluate<string[]>(`[...document.images].filter((i) => i.naturalWidth >= 200).map((i) => i.src)`).catch(() => []));
+        await cdp.send("Page.navigate", { url: req.url });
+        await ready();
+        if (!(await waitUntil(async () => cdp.evaluate<boolean>(`!!${firstMatch(req.site.inputSelector)}`), { timeoutMs: 20_000, signal: req.signal }))) throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
+        await page.prepare();
+      }
       await page.captureBaseline();
       return page;
     } catch (err) {

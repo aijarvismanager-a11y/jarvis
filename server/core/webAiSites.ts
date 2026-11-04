@@ -26,6 +26,15 @@ export type SiteProfile = {
    * - escape: press Escape once to close a pop-up that has no button text to click
    */
   prepare?: { selectText?: string[]; dismissText?: string[]; escape?: boolean };
+  /**
+   * A button the page shows AFTER the send button, asking to confirm the generation (Ideogram: "Generate" with its credit cost).
+   * A regular expression matched against the visible button text with its white space squeezed to single spaces; the last match is clicked (a sheet that opened on top).
+   */
+  confirmButton?: string;
+  /** The site puts its finished pictures inside links (a gallery of results): then pictures in links count as the answer too. */
+  imagesInLinks?: boolean;
+  /** A page that lists the person's earlier results (a library): what it shows before the prompt is sent is not the new answer. */
+  historyUrl?: string;
 };
 
 /** AIs checked on the live site that cannot be driven automatically (why): they wait in the "自動化待ち" list and are never chosen. */
@@ -54,6 +63,17 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     // checked live on 2026-10-25: answers are wrapped in an element with data-perf-reply-text
     responseSelector: "[data-perf-reply-text], .font-claude-response, .font-claude-message",
     stopSelector: 'button[aria-label*="Stop"], button[aria-label*="停止"]',
+  },
+  // ideogram: checked live on 2026-11-04 (free plan, signed in). The arrow button opens a "Generate Image" sheet whose "Generate 12.00"
+  // button (the credit cost) starts the picture; the results are <img> thumbnails inside links.
+  ideogram: {
+    inputSelector: 'textarea:not([aria-hidden="true"])',
+    sendSelector: 'button[aria-label="Generate image"]',
+    responseSelector: "main, body",
+    confirmButton: "^Generate( \\d[0-9.]*)?$",
+    imagesInLinks: true,
+    // the results page lists today's earlier pictures too (checked 2026-11-04): the library, newest first, tells which are old
+    historyUrl: "https://ideogram.ai/library",
   },
   // poe / mistral / genspark: checked live on 2026-10-25 (free accounts, logged in); the answer is read after the Enter key.
   poe: {
