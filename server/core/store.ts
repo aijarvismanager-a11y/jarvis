@@ -120,9 +120,9 @@ export class Store {
     return (this.db.prepare("SELECT * FROM projects ORDER BY created_at, id").all() as Row[]).map((r) => this.toProject(r));
   }
 
-  /** Hides a project from the lists (archived) or brings it back; nothing is deleted. */
+  /** Hides a project from the lists (archived) or brings it back; nothing is deleted. It is not "activity": updated_at stays. */
   setProjectStatus(id: string, status: Project["status"]): boolean {
-    return this.db.prepare("UPDATE projects SET status = ?, updated_at = ? WHERE id = ?").run(status, now(), id).changes > 0;
+    return this.db.prepare("UPDATE projects SET status = ? WHERE id = ?").run(status, id).changes > 0;
   }
 
   /** Deletes the project's rows (cascade) and its projects/<id>/ directory. */

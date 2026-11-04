@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { MISSION_LABEL, formatTime } from "../labels";
+import { MISSION_LABEL, formatTime, shortGoal } from "../labels";
 import { usePoll } from "../hooks";
 import { Badge, Button, Card, GoalText } from "../ui";
 import type { ProjectSummary } from "../types";
@@ -24,6 +24,15 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
   };
   if (!rows) return <p className="text-[13px] text-muted">読み込み中…</p>;
   if (rows.length === 0) return <Card title="プロジェクト一覧">プロジェクトがまだありません。「ホーム」で作りたいものを書くと、ここに並びます。</Card>;
+  const cancelOpen = async (projectId: string, missionId: string) => {
+    setError(null);
+    try {
+      await api.missionAction(projectId, missionId, "cancel");
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "中止できませんでした");
+    }
+  };
   const idle = idleProjects(rows, currentId);
   const archiveIdle = async () => {
     setError(null);
@@ -70,6 +79,12 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
               <span className="ml-auto text-[11px] text-muted">最後の動き {formatTime(r.lastActivityAt)}</span>
             </div>
             {r.latestMission ? <GoalText goal={r.latestMission.goal} className="mt-1 text-[13px]" /> : <p className="mt-1 text-[13px]">まだ依頼がありません。</p>}
+            {r.openMissions.filter((m) => Date.now() - Date.parse(m.updatedAt) >= 86_400_000).map((m) => (
+              <div key={m.id} className="mt-1 flex flex-wrap items-center gap-2 rounded-md bg-[#FBF1DC] px-2 py-1 text-[12px] text-[#8A6212]">
+                <span>「{shortGoal(m.goal).head}」が、{Math.floor((Date.now() - Date.parse(m.updatedAt)) / 86_400_000)}日前から{m.status === "planning" ? "計画の段階" : "実行中"}のまま止まっています。このままだと、このプロジェクトはしまえません。</span>
+                <Button variant="ghost" onClick={() => void cancelOpen(r.project.id, m.id)}>この依頼を中止する</Button>
+              </div>
+            ))}
             <p className="mt-1 text-[12px] text-muted">依頼 {r.missionCount}件 · できたもの {r.artifactCount}件</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button variant="ghost" onClick={() => onOpen(r.project.id, "mission")}>ホームで開く</Button>

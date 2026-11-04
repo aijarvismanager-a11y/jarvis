@@ -55,10 +55,12 @@ describe("orchestrator API", () => {
     expect((await call("/projects/p1/archive", "POST", { archived: "yes" })).status).toBeGreaterThanOrEqual(400);
     const res = await call("/projects/p1/archive", "POST", { archived: true });
     expect(res.status).toBe(200);
+    const stamp = store.getProject("p1")!.updatedAt;
     expect(store.getProject("p1")?.status).toBe("archived");
     expect(((await (await call("/projects")).json()) as { projects: { id: string }[] }).projects.map((p) => p.id)).toContain("p1");
     expect((await call("/projects/p1/archive", "POST", { archived: false })).status).toBe(200);
     expect(store.getProject("p1")?.status).toBe("active");
+    expect(store.getProject("p1")?.updatedAt).toBe(stamp); // putting away is not activity
   });
 
   it("refuses to archive a project with a running request", async () => {

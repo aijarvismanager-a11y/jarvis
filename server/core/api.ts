@@ -173,8 +173,10 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const missions = [...store.listMissions(p.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       const artifacts = store.listArtifacts(p.id);
       const latest = missions[0] ?? null;
-      const last = [p.updatedAt, ...missions.map((m) => m.updatedAt), ...artifacts.map((x) => x.createdAt)].sort().pop() ?? p.updatedAt;
-      return { project: p, latestMission: latest ? { id: latest.id, goal: latest.goal, status: latest.status } : null, missionCount: missions.length, artifactCount: artifacts.length, lastActivityAt: last };
+      const last = [p.createdAt, ...missions.map((m) => m.updatedAt), ...artifacts.map((x) => x.createdAt)].sort().pop() ?? p.createdAt;
+      // requests still "running" or "planning": they block putting the project away, and an old one is usually stuck
+      const openMissions = missions.filter((m) => m.status === "running" || m.status === "planning").map((m) => ({ id: m.id, goal: m.goal, status: m.status, updatedAt: m.updatedAt }));
+      return { project: p, latestMission: latest ? { id: latest.id, goal: latest.goal, status: latest.status } : null, openMissions, missionCount: missions.length, artifactCount: artifacts.length, lastActivityAt: last };
     });
     res.json({ summary: summary.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)) });
   });
