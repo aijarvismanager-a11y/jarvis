@@ -10,3 +10,13 @@ describe("nextStep while a plan is made", () => {
     expect(nextStep(ctx("planning"), [], () => {}, true).title).toContain("計画を確認");
   });
 });
+
+describe("nextStep while every AI is resting", () => {
+  it("says the work waits and goes on by itself, instead of claiming an AI is working", () => {
+    const task = { id: "t", role: "research", status: "running" } as never;
+    expect(nextStep(ctx("running"), [task], () => {}, true, false).title).toBe("AI が作業しています");
+    const step = nextStep(ctx("running"), [task], () => {}, true, true);
+    expect(step.tone).toBe("wait");
+    expect(step.title).toContain("使えるAIがありません");
+  });
+});

@@ -526,7 +526,9 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
     });
 
   const pendingPlan = mission?.status === "planning" && view?.mission.id === mission.id;
-  const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal));
+  const [resting, setResting] = useState(false);
+  usePoll(async () => setResting(((await api.allResting().catch(() => ({ state: null }))).state?.tasks ?? 0) > 0), 15000, []);
+  const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal), resting);
 
   return (
     <div className="space-y-4">
@@ -561,7 +563,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
-          {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
+          {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (
@@ -572,7 +574,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </p>
           )}
           {doing && (
-            <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</p>
+            <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{resting && doing.status === "running" ? `${roleLabel(doing.role)}は、使えるAIが戻るのを待っています` : <>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</>}</p>
           )}
           {tasks.length > 0 && (
             <ul className="mt-3 space-y-1">

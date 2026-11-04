@@ -5,7 +5,7 @@ import type { Task } from "./types";
 export type Step = { tone: "go" | "wait" | "bad" | "done"; title: string; detail: string; action?: { label: string; run: () => void } };
 
 /** What the person should do right now, in one sentence. The rest of the screen is detail. */
-export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, planReady = true): Step {
+export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, planReady = true, resting = false): Step {
   const { project, mission, approvals, handoffs } = ctx;
   const mine = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project?.id);
   if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "下の入力欄に、作りたいものを普通の言葉で書いて「開発を開始」を押します。まず AI が計画を立てます(数十秒かかります)。" };
@@ -16,6 +16,8 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
       if (!planReady) return { tone: "wait", title: "AI が計画を作っています", detail: "新しいアイデアは 1〜2 分、大きな既存プロジェクトは 10 分以上かかることがあります。できあがると、この画面が自動で切り替わるので、そのままお待ちください。" };
       return { tone: "go", title: "計画を確認して、よければ開始してください", detail: "AI が立てた作業の予定です。直したい点があれば書いて「修正して再提案」、これでよければ「この計画で開始」を押します。" };
     case "running": {
+      // every AI is resting: the work is waiting, not being done (the yellow box above says when it goes on)
+      if (resting) return { tone: "wait", title: "いまは使えるAIがありません。自動で再開します", detail: "使えるAIが戻りしだい、続きから自動で進みます。何もしなくて大丈夫です。再開の目安は、画面上部の黄色い枠にあります。" };
       const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
       return { tone: "wait", title: "AI が作業しています", detail: `${doing ? `いまは「${roleLabel(doing.role)}」の作業中です。` : ""}終わるまでこの画面を開いたままで大丈夫です。途中で止めたい・方針を変えたいときは、下のボタンを使います。` };
     }
