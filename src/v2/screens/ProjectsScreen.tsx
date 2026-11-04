@@ -4,12 +4,14 @@ import { MISSION_LABEL, formatTime } from "../labels";
 import { usePoll } from "../hooks";
 import { Badge, Button, Card, GoalText } from "../ui";
 import type { ProjectSummary } from "../types";
+import { IDLE_DAYS, idleProjects } from "../idleProjects";
 
 /** Every project on one page: its newest request, how many requests and files it has, and when it last changed. */
 export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null; onOpen: (projectId: string, screen: "mission" | "history" | "artifacts") => void }) {
   const [rows, setRows] = useState<ProjectSummary[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const reload = usePoll(async () => setRows(await api.projectsSummary()), 5000, []);
   const archive = async (id: string, archived: boolean) => {
     setError(null);
@@ -22,6 +24,23 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
   };
   if (!rows) return <p className="text-[13px] text-muted">読み込み中…</p>;
   if (rows.length === 0) return <Card title="プロジェクト一覧">プロジェクトがまだありません。「ホーム」で作りたいものを書くと、ここに並びます。</Card>;
+  const idle = idleProjects(rows, currentId);
+  const archiveIdle = async () => {
+    setError(null);
+    setNote(null);
+    let done = 0;
+    const skipped: string[] = [];
+    for (const r of idle) {
+      try {
+        await api.archiveProject(r.project.id, true);
+        done++;
+      } catch {
+        skipped.push(r.project.name); // e.g. an older request of it still says "running"
+      }
+    }
+    setNote(`${done}件をしまいました。「しまったプロジェクトも表示する」から、いつでも戻せます。${skipped.length ? `「${skipped.join("」「")}」は、実行中の依頼が残っているため、しまえませんでした。` : ""}`);
+    reload();
+  };
   const archivedCount = rows.filter((r) => r.project.status === "archived").length;
   const shown = showArchived ? rows : rows.filter((r) => r.project.status !== "archived");
   return (
@@ -32,6 +51,13 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
           しまったプロジェクトも表示する({archivedCount}件)
         </label>
       )}
+      {idle.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-muted">
+          <Button variant="ghost" onClick={() => void archiveIdle()}>動いていない{idle.length}件をまとめてしまう</Button>
+          <span>完了・中止・失敗で、{IDLE_DAYS}日以上動いていないものだけです(消えません)</span>
+        </div>
+      )}
+      {note && <p className="mb-2 text-[12px] text-muted">{note}</p>}
       {error && <p className="mb-2 text-[12px] text-[#9B2C2C]">{error}</p>}
       <ul className="space-y-2">
         {shown.map((r) => (
@@ -52,7 +78,11 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
               {r.project.status === "archived" ? (
                 <Button variant="ghost" onClick={() => archive(r.project.id, false)}>もとに戻す</Button>
               ) : (
-                <Button variant="ghost" disabled={r.project.id === currentId} title={r.project.id === currentId ? "いま開いているプロジェクトはしまえません" : "一覧から隠します(消えません)"} onClick={() => archive(r.project.id, true)}>しまう</Button>
+                r.project.id === currentId ? (
+                <span className="self-center text-[11px] text-muted">いま開いているため、しまえません(ほかを開くとしまえます)</span>
+              ) : (
+                <Button variant="ghost" title="一覧から隠します(消えません)" onClick={() => archive(r.project.id, true)}>しまう</Button>
+              )
               )}
             </div>
           </li>

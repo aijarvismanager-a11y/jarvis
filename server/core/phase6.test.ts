@@ -607,6 +607,47 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     await page.close();
   }, 60_000);
 
+  it("a two-step picture site: confirms the generation, reads pictures inside links, and leaves the history's pictures out", async () => {
+    const svg = (c: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420"><rect width="420" height="420" fill="${c}"/></svg>`;
+    const picSite = http.createServer((req, res) => {
+      if (req.url?.startsWith("/img/")) {
+        res.setHeader("content-type", "image/svg+xml");
+        return void res.end(svg(req.url.includes("new") ? "#c33" : "#33c"));
+      }
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      if (req.url === "/library") return void res.end('<!doctype html><meta charset=utf-8><a href="#"><img src="/img/old1@2k.svg"></a>');
+      res.end(`<!doctype html><meta charset="utf-8"><body>
+        <a href="#"><img src="/img/old1@1k.svg"></a>
+        <textarea id="q"></textarea><button id="send" aria-label="Generate image">arrow</button>
+        <div id="sheet" style="display:none"><button>Generate Vector
+SVG</button><button id="go">Generate</button></div>
+        <div id="out"></div>
+        <script>
+          document.getElementById('send').onclick = () => { document.getElementById('sheet').style.display = 'block'; };
+          document.getElementById('go').onclick = () => {
+            document.getElementById('out').innerHTML = '<a href="#"><img src="/img/old1@1k.svg"></a><a href="#"><img src="/img/new1@1k.svg"></a><a href="#"><img src="/img/new2@1k.svg"></a>';
+          };
+        </script>`);
+    });
+    await new Promise<void>((r) => picSite.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${(picSite.address() as AddressInfo).port}`;
+    try {
+      const page = await driver.open({
+        url,
+        site: { inputSelector: "#q", sendSelector: "#send", responseSelector: "#out", confirmButton: "^Generate( \d[0-9.]*)?$", imagesInLinks: true, historyUrl: `${url}/library` },
+      });
+      await page.fillPrompt("a logo");
+      await page.submit();
+      await page.waitForImages!({ timeoutMs: 20_000 });
+      const pics = await page.readImages!();
+      expect(pics).toHaveLength(2); // the two new ones; the picture the history page already showed is left out
+      expect(pics.every((p) => p.base64.length > 100)).toBe(true);
+      await page.close();
+    } finally {
+      await new Promise<void>((r) => picSite.close(() => r()));
+    }
+  }, 90_000);
+
   it("a second prompt in the same chat returns the new answer, not the old one", async () => {
     const page = await driver.open({ url: siteUrl, site: profileFor });
     await page.fillPrompt("first");
