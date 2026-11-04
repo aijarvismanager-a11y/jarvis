@@ -174,26 +174,24 @@ async function switchToOwnServerInner() {
  * instead of leaving the screen on "cannot connect". It waits 30 s first so a deliberate restart (scripts/restart-server.ps1, the
  * version switch) is never fought, and gives up after 3 restarts in 10 minutes so a server that cannot start does not loop.
  */
+const { decide } = require("./watchdog.cjs");
 function watchServer() {
-  let downSince = 0;
-  const restarts = [];
+  let wd = { downSince: 0, restarts: [] };
+  let restarting = false; // a restart waits up to 2 minutes for the server: the next ticks must not start another one
   setInterval(async () => {
-    if (quitting || switching || !win || win.isDestroyed()) return;
-    if (await isUp()) {
-      downSince = 0;
-      return;
+    if (quitting || switching || restarting || !win || win.isDestroyed()) return;
+    const r = decide(wd, await isUp(), Date.now());
+    wd = r.state;
+    if (!r.restart) return;
+    restarting = true;
+    try {
+      if (app.isPackaged) startBundledServer(dataDirInUse || app.getPath("userData"));
+      else spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
+      for (let i = 0; i < 120 && !(await isUp()); i++) await sleep(1000);
+      if ((await isUp()) && win && !win.isDestroyed()) await win.loadURL(URL_BASE);
+    } finally {
+      restarting = false;
     }
-    downSince ||= Date.now();
-    if (Date.now() - downSince < 30000) return;
-    const recent = restarts.filter((t) => Date.now() - t < 600000);
-    if (recent.length >= 3) return;
-    restarts.length = 0;
-    restarts.push(...recent, Date.now());
-    downSince = 0;
-    if (app.isPackaged) startBundledServer(dataDirInUse || app.getPath("userData"));
-    else spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
-    for (let i = 0; i < 120 && !(await isUp()); i++) await sleep(1000);
-    if (await isUp() && win && !win.isDestroyed()) await win.loadURL(URL_BASE);
   }, 10000);
 }
 

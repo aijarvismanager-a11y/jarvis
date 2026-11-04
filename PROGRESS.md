@@ -1019,3 +1019,9 @@ Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補
 ### 要確認
 - [優先度: 中] `docs/pending-real-checks.md` の #8(Ideogram の最終確認。無料クレジットが尽きたため未確認)と #9(Windows の通知)
 - [優先度: 低] Leonardo・Playground・Recraft のサイト設定は未作成。ChatGPT をデザイン担当にしたときの « » SVG の読み取りは未確認
+
+### 2026-11-04 (後半) レビュー修正・見張りの関数化
+- コードレビューの指摘のうち、見張りの二重再起動、しまったプロジェクトの取り込み、通知の誤表示、画像の重複判定キー(historyUrlのあるサイトだけ)、二段階サイトでのEnter、再起動スクリプトのログ退避失敗を修正。残り(Ideogramのセレクタ、止まり警告の基準、待機フラグの範囲、GET内のcloseStale)は見送り。
+- 見張りの判定を electron/watchdog.cjs の純関数 `decide` に切り出し、server/core/watchdog.test.ts で検査(実機のElectronでの動作は未確認)。
+- backups(892MB)の内訳: 861MBは backups/sync/gage_*/_pull の5世代(1世代約171MB、保持数5で頭打ち)。増え続ける不具合ではない。減らすなら syncBackupKeep を下げる。
+- lint は警告のみ(エラー0)。正規表現のエスケープ警告は動作確認なしに変えないため放置。

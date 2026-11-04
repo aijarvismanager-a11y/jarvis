@@ -22,7 +22,9 @@ export function RestingBanner({ setError }: { setError: (m: string) => void }) {
   const [state, setState] = useState<AllResting | null>(null);
   const was = useRef<boolean | undefined>(undefined);
   const refresh = usePoll(async () => {
-    const next = (await api.allResting().catch(() => ({ state: null }))).state;
+    const answer = await api.allResting().catch(() => null);
+    if (!answer) return; // the server did not answer: keep what is shown, and do not announce that the wait ended
+    const next = answer.state;
     setState(next);
     const notice = restingNotice(was.current, next !== null);
     was.current = next !== null;

@@ -39,7 +39,8 @@ if ($StopOnly) { return }
 # one log per port: a second server must not try to open the log another one is holding
 $log = Join-Path $root $(if ($Port -eq 4173) { 'server.log' } else { "server-$Port.log" })
 # keep the previous log: it says why the last server stopped
-if (Test-Path $log) { Move-Item -Force -LiteralPath $log -Destination ($log -replace '\.log$', '.prev.log') }
+# (never let this stop the start: the old server is already gone)
+try { if (Test-Path $log) { Move-Item -Force -LiteralPath $log -Destination ($log -replace '\.log$', '.prev.log') } } catch { Write-Host "Could not keep the previous log: $($_.Exception.Message)" }
 $env:PORT = "$Port"
 $cmd = "npm run server > `"$log`" 2>&1"
 Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $cmd -WorkingDirectory $root -WindowStyle Hidden | Out-Null

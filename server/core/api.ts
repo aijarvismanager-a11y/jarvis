@@ -264,6 +264,13 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
         const link = store.getSetting<SyncLink | null>(linkKey(p.id), null);
         return !!link && normalizeSource(link.sourcePath) === wanted;
       });
+      if (known) {
+        // an imported folder that was put away comes back: otherwise the import would answer with a project the lists hide
+        if (known.status === "archived") {
+          store.setProjectStatus(known.id, "active");
+          known.status = "active";
+        }
+      }
       if (known) return void res.status(200).json({ project: known, existing: true, missionId: null, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets });
       progress.filesTotal = scan.files.length;
       progress.bytesTotal = scan.bytes;

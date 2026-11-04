@@ -411,7 +411,8 @@ class CdpChatPage implements WebChatPage {
           await this.cdp.send("Input.dispatchMouseEvent", { type, x: rect.x, y: rect.y, button: "left", clickCount: 1 });
         }
         // a click that did nothing (the button had moved, something covered it) leaves the text in the box: then press Enter instead
-        if (before === 0 || (await waitUntil(async () => (await promptLength()) < Math.max(1, before * 0.3), { timeoutMs: 4000, intervalMs: 250 }))) return;
+        // (a two-step site opens its confirmation instead of emptying the box: Enter would then act on the wrong thing)
+        if (before === 0 || this.site.confirmButton || (await waitUntil(async () => (await promptLength()) < Math.max(1, before * 0.3), { timeoutMs: 4000, intervalMs: 250 }))) return;
       }
     }
     // Enter goes to whatever has the focus: put the focus back in the prompt box first (looking for the button can move it).
@@ -470,7 +471,7 @@ class CdpChatPage implements WebChatPage {
   private pictureScan(): string {
     return `const all = document.querySelectorAll(${q(this.site.responseSelector)});
           const el = all.length ? all[all.length - 1] : null;
-          const key = (s) => s.split('?')[0].split('@')[0].split('/').pop();
+          const key = ${this.site.historyUrl ? "(s) => s.split('?')[0].split('@')[0].split('/').pop()" : "(s) => s"};
           const skip = new Set(${JSON.stringify([...this.baselineImgs, ...this.knownImgs])}.map(key));
           const fits = (i, min) => i.complete && i.naturalWidth >= min && i.naturalHeight >= min && !skip.has(key(i.src));
           let pics = el ? [...el.querySelectorAll('img')].filter((i) => fits(i, 200)) : [];
