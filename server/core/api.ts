@@ -894,6 +894,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!deps.webAi) return void res.status(501).json({ error: "Web AI自動化が接続されていません" });
     const query = z.object({ projectId: z.string().max(100).optional(), status: z.enum(["pending", "submitted", "skipped", "cancelled"]).optional() }).safeParse(req.query);
     if (!query.success) return void res.status(400).json({ error: "クエリが不正です" });
+    deps.webAi.hub.closeStale();
     // Each handoff also lists the other web AIs the user could hand it to (free ones only, never an API-key one).
     const handoffs = deps.webAi.hub.list(query.data).map((h) => ({
       ...h,

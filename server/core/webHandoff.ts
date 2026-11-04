@@ -121,6 +121,15 @@ export class WebHandoffHub {
     }
   }
 
+  /** Closes handoffs still waiting for the person although their task is already finished or cancelled (an old run left them behind). */
+  closeStale(): void {
+    for (const h of this.all()) {
+      if (h.status !== "pending") continue;
+      const status = this.store.getTask(h.projectId, h.taskId)?.status;
+      if (status === "completed" || status === "cancelled") this.close(h.id, "cancelled", "WEB_HANDOFF_CANCELLED", "作業がすでに終わっているため、手動の操作は不要です");
+    }
+  }
+
   markConsumed(id: string): void {
     this.update(id, { consumed: true });
   }

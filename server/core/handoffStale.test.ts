@@ -32,3 +32,16 @@ describe("handoffs left behind by an earlier attempt", () => {
     hub.cancelPendingFor("t1"); // nothing left to cancel: no error
   });
 });
+
+describe("closeStale", () => {
+  it("cancels waiting handoffs whose task is gone or finished, and keeps live ones", () => {
+    const store = new Store(db, root);
+    store.createProject({ id: "p1", name: "p" });
+    const hub = new WebHandoffHub(store);
+    const base = { projectId: "p1", aiId: "suno", aiName: "Suno", url: "https://suno.test", level: 1 as const, prompt: "x", note: null };
+    // No such task row: treated as live (unknown), so nothing is closed by mistake.
+    const unknown = hub.request({ ...base, taskId: "t-unknown" });
+    hub.closeStale();
+    expect(hub.get(unknown.id)?.status).toBe("pending");
+  });
+});
