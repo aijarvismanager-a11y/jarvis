@@ -110,7 +110,9 @@ const approvals = new ApprovalHub(coreStore);
 const previews = new PreviewManager(path.join(ROOT, "projects"));
 // Preview servers are children of this process: never leave them behind.
 process.once("exit", () => previews.stopAll());
-for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => process.exit(0));
+// Say why the server went away (a signal, or a normal exit): a stop with nothing in the log cannot be explained afterwards.
+for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => { console.log(`[ai-orchestrator] ${new Date().toISOString()} stopped by ${sig}`); process.exit(0); });
+process.once("exit", (code) => console.log(`[ai-orchestrator] ${new Date().toISOString()} exiting (code ${code})`));
 const taskLogs = new TaskLogStore();
 const snapshots = new SnapshotManager(path.join(ROOT, "projects"));
 const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate), logs: taskLogs, snapshots });

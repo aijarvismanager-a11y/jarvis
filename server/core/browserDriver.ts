@@ -863,6 +863,11 @@ export class ChromiumDriver implements WebChatDriver {
     const proc = this.proc;
     this.proc = null;
     this.port = null;
-    if (proc && proc.exitCode === null) killTree(proc.pid);
+    if (proc && proc.exitCode === null) {
+      killTree(proc.pid);
+      // The browser keeps the profile's lock for a few seconds after it is killed: whoever starts the next browser (or copies the
+      // profile) right away would be told the profile is in use. Wait until it is really free.
+      await waitUntil(async () => !(await this.profileBusy()), { timeoutMs: 20_000, intervalMs: 300 });
+    }
   }
 }

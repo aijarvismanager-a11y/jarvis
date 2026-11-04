@@ -1,5 +1,6 @@
 # Logs (note: workspace/logs is intentionally tracked — it's the AI relay's output area)
 /server.log
+/server.prev.log
 /server-*.log
 /vite.log
 /start.log
