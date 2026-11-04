@@ -14,6 +14,19 @@ import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, ReportAction, ReportTodo } from "../types";
 
+/** A task's instruction is written for the AI and can run to several hundred characters: show the start, the rest on request. */
+function TaskObjective({ text }: { text: string }) {
+  const [full, setFull] = useState(false);
+  const LIMIT = 90;
+  if (text.length <= LIMIT) return <>{text}</>;
+  return (
+    <>
+      {full ? text : `${text.slice(0, LIMIT)}…`}{" "}
+      <button type="button" className="text-[12px] text-muted underline" onClick={() => setFull((v) => !v)}>{full ? "閉じる" : "全文を見る"}</button>
+    </>
+  );
+}
+
 function StepMark({ status }: { status: Task["status"] }) {
   if (status === "completed") return <span className="text-status-done">✓</span>;
   if (status === "failed" || status === "blocked") return <span className="text-[#9B2C2C]">✕</span>;
@@ -582,7 +595,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                 <li key={t.id} className={`text-[13px] ${t.status === "pending" || t.status === "cancelled" ? "text-muted" : ""}`}>
                   <div className="flex items-start gap-2">
                     <StepMark status={t.status} />
-                    <span className="min-w-0 flex-1"><span className="text-muted">{roleLabel(t.role)} / </span>{t.objective}</span>
+                    <span className="min-w-0 flex-1"><span className="text-muted">{roleLabel(t.role)} / </span><TaskObjective text={t.objective} /></span>
                     {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
                     {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
                     {["completed", "failed"].includes(t.status) && taskTime(overview.aiRuns, t.id) && <span className="shrink-0 text-[11.5px] text-muted">{taskTime(overview.aiRuns, t.id)}</span>}
