@@ -50,7 +50,8 @@ async function serverVersion(): Promise<{ stale: boolean; startedAt: string; ver
 export const api = {
   serverVersion,
   projectsSummary: () => request<{ summary: ProjectSummary[] }>("/projects-summary").then((r) => r.summary),
-  projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects),
+  projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects.filter((p) => p.status !== "archived")),
+  archiveProject: (projectId: string, archived: boolean) => request<{ project: Project }>(`/projects/${encodeURIComponent(projectId)}/archive`, "POST", { archived }).then((r) => r.project),
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, exclude: string[] = [], carryHistory = false, name = "") =>

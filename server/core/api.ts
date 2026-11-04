@@ -205,6 +205,19 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ ok: true });
     }),
   );
+  // Archiving only hides the project from the lists; its files and history stay, and it can be brought back.
+  router.post(
+    "/projects/:projectId/archive",
+    guarded((req, res) => {
+      const projectId = String(req.params.projectId);
+      const { archived } = z.object({ archived: z.boolean() }).parse(req.body ?? {});
+      if (!store.getProject(projectId)) return void res.status(404).json({ error: "プロジェクトが見つかりません" });
+      const busy = store.listMissions(projectId).filter((m) => m.status === "running" || m.status === "planning").length;
+      if (archived && busy > 0) return void res.status(409).json({ error: `実行中の依頼が${busy}件あります。止めてからしまってください` });
+      store.setProjectStatus(projectId, archived ? "archived" : "active");
+      res.json({ project: store.getProject(projectId) });
+    }),
+  );
   // What the import that is running right now is doing, so the screen can show progress while its request is still open.
   type ImportProgress = { phase: "scanning" | "copying" | "snapshot" | "fingerprint" | "history" | "starting"; files: number; filesTotal: number; bytes: number; bytesTotal: number; startedAt: string };
   let importProgress: ImportProgress | null = null;

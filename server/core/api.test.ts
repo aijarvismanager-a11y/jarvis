@@ -49,6 +49,25 @@ afterEach(async () => {
 describe("orchestrator API", () => {
   beforeEach(() => boot(false));
 
+  it("archives a project (hidden from lists, nothing deleted) and brings it back", async () => {
+    expect((await call("/projects/p1/archive", "POST", { archived: true }, null)).status).toBe(403);
+    expect((await call("/projects/nope/archive", "POST", { archived: true })).status).toBe(404);
+    expect((await call("/projects/p1/archive", "POST", { archived: "yes" })).status).toBeGreaterThanOrEqual(400);
+    const res = await call("/projects/p1/archive", "POST", { archived: true });
+    expect(res.status).toBe(200);
+    expect(store.getProject("p1")?.status).toBe("archived");
+    expect(((await (await call("/projects")).json()) as { projects: { id: string }[] }).projects.map((p) => p.id)).toContain("p1");
+    expect((await call("/projects/p1/archive", "POST", { archived: false })).status).toBe(200);
+    expect(store.getProject("p1")?.status).toBe("active");
+  });
+
+  it("refuses to archive a project with a running request", async () => {
+    const m = store.createMission({ projectId: "p1", goal: "g", status: "running" });
+    expect(m.status).toBe("running");
+    expect((await call("/projects/p1/archive", "POST", { archived: true })).status).toBe(409);
+    expect(store.getProject("p1")?.status).toBe("active");
+  });
+
   it("requires the token for state changes but not for reads", async () => {
     expect((await call("/projects/p1/missions", "POST", { goal: "g" }, null)).status).toBe(403);
     expect((await call("/projects/p1/missions", "POST", { goal: "g" }, "wrong")).status).toBe(403);
