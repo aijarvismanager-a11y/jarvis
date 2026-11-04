@@ -72,7 +72,7 @@ function keywordFiles(root: string, files: string[], tokens: string[], max: numb
     // notes and earlier reports repeat the task's words; the code is what a question about the code needs
     // the place a name is defined says more than the places that call it or register it
     const lowerText = text.toLowerCase();
-    const defined = lower.filter((t) => new RegExp(`\b(?:fn|def|func|function|class|struct|enum|trait|interface|type|const|let|var|void|task|sub)\s+${t.replace(/[^a-z0-9_]/g, "")}\b`).test(lowerText)).length * 8;
+    const defined = lower.filter((t) => new RegExp(String.raw`\b(?:fn|def|func|function|class|struct|enum|trait|interface|type|const|let|var|void|task|sub)\s+${t.replace(/[^a-z0-9_]/g, "")}\b`).test(lowerText)).length * 8;
     const raw = m.score + defined + lower.filter((t) => rel.toLowerCase().includes(t)).length * 5;
     const score = DOC_EXTENSIONS.has(path.extname(rel).toLowerCase()) ? raw * 0.2 : raw;
     if (raw === 0) continue;

@@ -367,7 +367,7 @@ class CdpChatPage implements WebChatPage {
     const find = () =>
       this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
         const re = new RegExp(${q(pattern)});
-        const b = [...document.querySelectorAll('button')].filter((e) => !e.disabled && e.getAttribute('aria-disabled') !== 'true' && re.test((e.innerText || '').replace(/\s+/g, ' ').trim())).pop();
+        const b = [...document.querySelectorAll('button')].filter((e) => !e.disabled && e.getAttribute('aria-disabled') !== 'true' && re.test((e.innerText || '').replace(/\\s+/g, ' ').trim())).pop();
         if (!b) return null;
         b.scrollIntoView({ block: 'center', inline: 'center' });
         const r = b.getBoundingClientRect();
