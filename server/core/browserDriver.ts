@@ -862,24 +862,9 @@ export class ChromiumDriver implements WebChatDriver {
 
   async shutdown(): Promise<void> {
     const proc = this.proc;
-    const port = this.port;
     this.proc = null;
     this.port = null;
     if (proc && proc.exitCode === null) {
-      // Ask the browser to close itself first: the process started here can be only a launcher, and killing it would leave the real
-      // browser (and the profile lock) behind. Killing the tree stays as the fallback.
-      if (port !== null) {
-        try {
-          const info = (await (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) })).json()) as { webSocketDebuggerUrl?: string };
-          if (info.webSocketDebuggerUrl) {
-            const cdp = await CdpClient.connect(info.webSocketDebuggerUrl);
-            await Promise.race([cdp.send("Browser.close").catch(() => undefined), new Promise((r) => setTimeout(r, 2000))]);
-            cdp.close();
-          }
-        } catch {
-          /* the browser is already gone or does not answer: the kill below handles it */
-        }
-      }
       killTree(proc.pid);
       // The browser keeps the profile's lock for a few seconds after it is killed: whoever starts the next browser (or copies the
       // profile) right away would be told the profile is in use. Wait until it is really free.
