@@ -224,8 +224,13 @@ export default function V2App() {
                 {notifyOn ? "🔔" : "🔕"}<Label>{notifyOn ? "通知オン" : "通知オフ"}</Label>
               </Button>
             )}
-            <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)" aria-label="画面を更新">🔄<Label>画面を更新</Label></Button>
-            <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴" aria-label="更新履歴">🆕<Label>更新履歴</Label></Button>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar" title="画面の更新と更新履歴" aria-label="その他">⋯<Label>その他</Label></summary>
+              <div className="absolute right-0 z-20 mt-1 flex w-44 flex-col gap-1 rounded-lg border border-border bg-panel p-1.5 shadow-md" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+                <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)">🔄 画面を更新</Button>
+                <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴">🆕 更新履歴</Button>
+              </div>
+            </details>
             <Button variant="ghost" onClick={() => setHelp(true)} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
             <QuotaChip onOpen={() => setScreen("ais")} />

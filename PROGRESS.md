@@ -1013,6 +1013,9 @@ Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補
 - 専用ブラウザを閉じた直後にプロファイルが「使用中」のままになるのを、空くまで待つように修正。サーバーのログは再起動で `server.prev.log` に残し、終了の理由を記録。
 - Ideogram のサイト設定(送信後の確認ボタン `confirmButton`、リンク内の画像 `imagesInLinks`、過去画像との区別 `historyUrl`)。実サイトで画像の取り出しまで確認。
 
+- ヘッダーの整理(「その他」メニュー、Claude の枠の表示)。サイト確認用の道具 `npm run probe:site -- <aiId>`(見るだけ。`--send "…" --yes` で送信=無料枠を使う。後始末つき)。デスクトップ版のサーバー見張り(`electron/main.cjs` の `watchServer`。**実機では未確認**)。
+- 容量の目安(消していない): `backups` 892MB、`projects` 502MB、`snapshots` 228MB、`dist-installer` の古いインストーラー(1.5.81〜1.5.84)約516MB と `win-unpacked` 391MB、専用ブラウザのプロファイル 1GB超。
+
 ### 要確認
 - [優先度: 中] `docs/pending-real-checks.md` の #8(Ideogram の最終確認。無料クレジットが尽きたため未確認)と #9(Windows の通知)
 - [優先度: 低] Leonardo・Playground・Recraft のサイト設定は未作成。ChatGPT をデザイン担当にしたときの « » SVG の読み取りは未確認

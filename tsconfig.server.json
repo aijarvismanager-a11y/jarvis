@@ -15,5 +15,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["server", "src/types/workflow.ts", "src/types/aiService.ts"]
+  "include": ["server", "scripts/probe-site.ts", "src/types/workflow.ts", "src/types/aiService.ts"]
 }

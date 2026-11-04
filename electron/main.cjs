@@ -12,6 +12,9 @@ const PORT = Number(process.env.PORT) || 4173;
 const URL_BASE = `http://127.0.0.1:${PORT}`;
 let spawned = false;
 let child = null; // installed build: the server process this window started
+let dataDirInUse = null; // where the bundled server's data lives (it can differ from userData after a switch)
+let quitting = false;
+let switching = false;
 let win = null;
 
 const isUp = () =>
@@ -60,6 +63,7 @@ const serverInfo = () =>
 
 /** Installed build: run the bundled server with Electron's own Node. `dataDir` = where the person's data lives (data/, projects/). */
 function startBundledServer(dataDir) {
+  dataDirInUse = dataDir;
   const loader = pathToFileURL(path.join(ROOT, "node_modules", "tsx", "dist", "loader.mjs")).href;
   // the server's output goes to a log file in the data folder, so a failed start can be diagnosed
   const log = fs.openSync(path.join(app.getPath("userData"), "server.log"), "a");
@@ -107,6 +111,15 @@ function stopOwnServer() {
  * (and checks again by itself).
  */
 async function switchToOwnServer() {
+  switching = true;
+  try {
+    await switchToOwnServerInner();
+  } finally {
+    switching = false;
+  }
+}
+
+async function switchToOwnServerInner() {
   const info = await serverInfo();
   if (!info || !info.version || info.version === app.getVersion()) return;
   if (versionCompare(info.version, app.getVersion()) > 0) {
@@ -141,7 +154,7 @@ async function switchToOwnServer() {
       if (!win || win.isDestroyed()) return;
       const now = await serverInfo();
       if (!now || now.version === app.getVersion()) return;
-      if (now.busy === false) return switchToOwnServer();
+      if (now.busy === false) return switchToOwnServerInner();
     }
   }
   await win.loadURL(splash(`v${app.getVersion()} に切り替えています…(データはそのままです)`));
@@ -154,6 +167,34 @@ async function switchToOwnServer() {
   startBundledServer(info.root && fs.existsSync(info.root) ? info.root : app.getPath("userData"));
   for (let i = 0; i < 120 && !(await isUp()); i++) await sleep(1000);
   await win.loadURL(URL_BASE);
+}
+
+/**
+ * The window only shows the server. If the server goes away by itself (it was seen to stop once with nothing in the log), start it again
+ * instead of leaving the screen on "cannot connect". It waits 30 s first so a deliberate restart (scripts/restart-server.ps1, the
+ * version switch) is never fought, and gives up after 3 restarts in 10 minutes so a server that cannot start does not loop.
+ */
+function watchServer() {
+  let downSince = 0;
+  const restarts = [];
+  setInterval(async () => {
+    if (quitting || switching || !win || win.isDestroyed()) return;
+    if (await isUp()) {
+      downSince = 0;
+      return;
+    }
+    downSince ||= Date.now();
+    if (Date.now() - downSince < 30000) return;
+    const recent = restarts.filter((t) => Date.now() - t < 600000);
+    if (recent.length >= 3) return;
+    restarts.length = 0;
+    restarts.push(...recent, Date.now());
+    downSince = 0;
+    if (app.isPackaged) startBundledServer(dataDirInUse || app.getPath("userData"));
+    else spawn("cmd.exe", ["/c", "npm run app"], { cwd: ROOT, windowsHide: true, stdio: "ignore", detached: false });
+    for (let i = 0; i < 120 && !(await isUp()); i++) await sleep(1000);
+    if (await isUp() && win && !win.isDestroyed()) await win.loadURL(URL_BASE);
+  }, 10000);
 }
 
 async function start() {
@@ -185,6 +226,7 @@ async function start() {
   const alreadyRunning = await isUp();
   if (await ensureServer()) {
     await win.loadURL(URL_BASE);
+    watchServer();
     // This window only shows a server. If another server (for example one started from the project folder) was already on the port, its
     // version is what the screen shows, not this installer's: it is replaced by this app's own server when nothing is running, else after the work is done.
     if (app.isPackaged && alreadyRunning) void switchToOwnServer();
@@ -204,5 +246,6 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(start);
   app.on("window-all-closed", () => app.quit());
+  app.on("before-quit", () => { quitting = true; });
   app.on("will-quit", stopOwnServer);
 }

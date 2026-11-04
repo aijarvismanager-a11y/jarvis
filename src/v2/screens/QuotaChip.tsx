@@ -15,7 +15,7 @@ export function QuotaChip({ onOpen }: { onOpen: () => void }) {
   const week = quota.sevenDay?.utilization != null ? ` / 7日枠 ${Math.round(quota.sevenDay.utilization * 100)}%` : "";
   return (
     <button onClick={onOpen} className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] ${tone}`} title={`Claude の利用枠: 5時間枠 ${pct}% 使用${week}。${resetIn(w.resetsAt)}。押すと「使うAI」で詳しく見られます`}>
-      Claude {pct}%
+      Claude 5時間枠 {pct}%
     </button>
   );
 }
