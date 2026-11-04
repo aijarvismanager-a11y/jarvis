@@ -28,13 +28,16 @@ export function RestingBanner({ setError }: { setError: (m: string) => void }) {
     was.current = next !== null;
     if (notice) showNotices([notice]);
   }, 15000, []);
+  // the red Claude box above asks for a choice until one is made: then "nothing to do" would contradict it
+  const [needsPick, setNeedsPick] = useState(false);
+  usePoll(async () => { const l = await api.claudeLimit().catch(() => null); setNeedsPick(!!l?.until && !l.policy); }, 15000, []);
   const { busy, run } = useAction(setError);
   const [open, setOpen] = useState(false);
   if (!state) return null;
   return (
     <div role="status" className="mb-3 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
       <p className="font-semibold">いまは使えるAIがありません。自動で再開します</p>
-      <p className="mt-0.5">いちばん早く使えるのは {formatTime(state.until)} ごろです({inHours(state.until)})。待っている作業は {state.tasks} 件です。何もしなくて大丈夫です。</p>
+      <p className="mt-0.5">いちばん早く使えるのは {formatTime(state.until)} ごろです({inHours(state.until)})。待っている作業は {state.tasks} 件です。{needsPick ? "Claude の作業の扱いだけ、上の赤い枠で選んでください。" : "何もしなくて大丈夫です。"}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button variant="ghost" disabled={busy} onClick={() => void run(async () => { await api.recheckResting(); refresh(); })}>いま使えるか確かめる</Button>
         <button type="button" className="text-[12px] underline" onClick={() => setOpen((v) => !v)}>{open ? "休んでいるAIを閉じる" : "休んでいるAIを見る"}</button>

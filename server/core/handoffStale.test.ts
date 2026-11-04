@@ -44,4 +44,20 @@ describe("closeStale", () => {
     hub.closeStale();
     expect(hub.get(unknown.id)?.status).toBe("pending");
   });
+
+  it("closes the ones whose task is completed or cancelled and leaves running ones", () => {
+    const store = new Store(db, root);
+    store.createProject({ id: "p1", name: "p" });
+    const m = store.createMission({ projectId: "p1", goal: "g", status: "running" });
+    const mk = (status: "completed" | "cancelled" | "running") => store.createTask({ projectId: "p1", missionId: m.id, role: "music", objective: status, status });
+    const hub = new WebHandoffHub(store);
+    const base = { projectId: "p1", aiId: "suno", aiName: "Suno", url: "https://suno.test", level: 1 as const, prompt: "x", note: null };
+    const done = hub.request({ ...base, taskId: mk("completed").id });
+    const gone = hub.request({ ...base, taskId: mk("cancelled").id });
+    const live = hub.request({ ...base, taskId: mk("running").id });
+    hub.closeStale();
+    expect(hub.get(done.id)?.status).toBe("cancelled");
+    expect(hub.get(gone.id)?.status).toBe("cancelled");
+    expect(hub.get(live.id)?.status).toBe("pending");
+  });
 });
