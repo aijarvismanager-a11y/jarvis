@@ -183,6 +183,9 @@ function watchServer() {
     const r = decide(wd, await isUp(), Date.now());
     wd = r.state;
     if (!r.restart) return;
+    // A server this app did not start (the one run from the repository) has its own data folder: starting the bundled server
+    // here would answer with the app's other, older data. Leave it to whoever started it.
+    if (app.isPackaged && !dataDirInUse) return;
     restarting = true;
     try {
       if (app.isPackaged) startBundledServer(dataDirInUse || app.getPath("userData"));
