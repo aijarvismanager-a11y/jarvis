@@ -30,6 +30,14 @@ export function diffNotices(prev: NotifyState | null, approvals: Approval[], han
   return out;
 }
 
+/** The "every AI is resting" wait began or ended. `prev` undefined is the first load: nothing is announced for what already was. */
+export function restingNotice(prev: boolean | undefined, now: boolean): Notice | null {
+  if (prev === undefined || prev === now) return null;
+  return now
+    ? { tag: "resting-on", title: "いまは使えるAIがありません", body: "作業は止まらず待っています。使えるAIが戻ると自動で再開します(何もしなくて大丈夫です)" }
+    : { tag: "resting-off", title: "AIが使えるようになりました", body: "待っていた作業を再開します" };
+}
+
 const KEY = "orchestrator.notify";
 export const notifySupported = () => typeof Notification !== "undefined";
 export function notifyEnabled(): boolean {

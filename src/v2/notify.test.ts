@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffNotices, snapshotOf } from "./notify";
+import { diffNotices, restingNotice, snapshotOf } from "./notify";
 import type { Approval, Handoff, Mission } from "./types";
 
 const mission = (id: string, status: string) => ({ id, status, goal: "商品管理アプリ" }) as unknown as Mission;
@@ -21,5 +21,14 @@ describe("diffNotices", () => {
     const prev = snapshotOf([], [], [mission("m1", "running")]);
     expect(diffNotices(prev, [], [], [mission("m1", "failed")])[0]?.title).toBe("依頼が止まりました");
     expect(diffNotices(prev, [], [], [mission("m1", "running"), mission("m2", "planning")])[0]?.title).toBe("計画ができました");
+  });
+});
+
+describe("restingNotice", () => {
+  it("announces entering and leaving the wait, never the first load or an unchanged state", () => {
+    expect(restingNotice(undefined, true)).toBeNull();
+    expect(restingNotice(true, true)).toBeNull();
+    expect(restingNotice(false, true)?.title).toContain("使えるAIがありません");
+    expect(restingNotice(true, false)?.title).toContain("使えるようになりました");
   });
 });

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../api";
 import { formatTime } from "../labels";
 import { useAction, usePoll } from "../hooks";
 import { Button } from "../ui";
+import { restingNotice, showNotices } from "../notify";
 import type { AllResting } from "../types";
 
 /** "あと1時間33分ほど": the wait to the first AI; "リセット" is only said of Claude's plan, which really resets. */
@@ -19,7 +20,14 @@ const WHY ={ limit: "利用上限", botcheck: "ボット確認", claude: "Claude
  */
 export function RestingBanner({ setError }: { setError: (m: string) => void }) {
   const [state, setState] = useState<AllResting | null>(null);
-  const refresh = usePoll(async () => setState((await api.allResting().catch(() => ({ state: null }))).state), 15000, []);
+  const was = useRef<boolean | undefined>(undefined);
+  const refresh = usePoll(async () => {
+    const next = (await api.allResting().catch(() => ({ state: null }))).state;
+    setState(next);
+    const notice = restingNotice(was.current, next !== null);
+    was.current = next !== null;
+    if (notice) showNotices([notice]);
+  }, 15000, []);
   const { busy, run } = useAction(setError);
   const [open, setOpen] = useState(false);
   if (!state) return null;
