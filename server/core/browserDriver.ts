@@ -638,7 +638,16 @@ class CdpChatPage implements WebChatPage {
         } catch (e) {
           // a picture from another address taints the canvas: ask for the file itself (works when the host allows it)
           try {
-            const blob = await (await fetch(img.src)).blob();
+            let blob = await (await fetch(img.src)).blob();
+            // formats the saved files cannot be named for (avif, ...) are redrawn as png: a picture from a fetched file does not taint the canvas
+            if (!/^image\\/(png|jpeg|webp|gif)$/.test(blob.type)) {
+              const bm = await createImageBitmap(blob);
+              const c2 = document.createElement('canvas');
+              c2.width = bm.width;
+              c2.height = bm.height;
+              c2.getContext('2d').drawImage(bm, 0, 0);
+              blob = await new Promise((res) => c2.toBlob(res, 'image/png'));
+            }
             const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
             out.push({ mime: blob.type || 'image/png', base64: data.slice(data.indexOf(',') + 1) });
           } catch (e2) { /* this picture cannot be read: skip it */ }

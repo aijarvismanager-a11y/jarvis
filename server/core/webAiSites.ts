@@ -75,6 +75,15 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     // the results page lists today's earlier pictures too (checked 2026-11-04): the library, newest first, tells which are old
     historyUrl: "https://ideogram.ai/library",
   },
+  // recraft: checked live on 2026-11-06 (free plan, signed in, 60 credits; one prompt made 2 pictures for 2 credits). A promo dialog
+  // can cover the page at the start (Escape closes it). Every prompt opens its own project page, so the pictures drawn there
+  // (200x200 thumbnails in the chat column, no stable class names) are all new; the start page's gallery is in the baseline.
+  recraft: {
+    inputSelector: "textarea",
+    sendSelector: 'button[type="submit"]',
+    responseSelector: "body",
+    prepare: { escape: true },
+  },
   // poe / mistral / genspark: checked live on 2026-10-25 (free accounts, logged in); the answer is read after the Enter key.
   poe: {
     inputSelector: "textarea",
