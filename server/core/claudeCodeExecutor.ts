@@ -5,6 +5,7 @@ import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { claudeLimitUntil, noteClaudeLimitHit, parseRateLimit, readClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
+import { chooseModel, parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
@@ -26,6 +27,7 @@ export type ExecutorCapabilities = {
   disallowedTools: boolean;
   noSessionPersistence: boolean;
   streamJson: boolean;
+  saver?: SaverCapabilities;
 };
 
 export function parseExecutorCapabilities(helpText: string): ExecutorCapabilities {
@@ -40,6 +42,7 @@ export function parseExecutorCapabilities(helpText: string): ExecutorCapabilitie
     disallowedTools: has("--disallowed-tools") || has("--disallowedTools"),
     noSessionPersistence: has("--no-session-persistence"),
     streamJson: has("--output-format") && /"stream-json"/.test(helpText) && has("--verbose"),
+    saver: parseSaverCapabilities(helpText),
   };
 }
 
@@ -212,7 +215,7 @@ export class ClaudeCodeExecutor implements TaskExecutor {
     return (this.caps = parseExecutorCapabilities(`${res.stdout}\n${res.stderr}`));
   }
 
-  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string }, shell: boolean = needsShell(this.command)): string[] {
+  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string; retryCount?: number }, shell: boolean = needsShell(this.command)): string[] {
     if (!caps.print) throw new Error("このClaude Codeは非対話実行(--print)に対応していないため実行できません");
     // Without a way to deny prompts or restrict tools the run could hang or exceed its grants: refuse.
     if (!caps.acceptEdits) throw new Error("--permission-mode acceptEdits が使えないため、安全に作業を実行できません");
@@ -227,6 +230,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const { allowedTools, disallowedTools } = this.policy.restrictionsFor(task);
     if (allowedTools.length && caps.allowedTools) args.push("--allowed-tools", q(allowedTools.join(",")));
     if (disallowedTools.length) args.push("--disallowed-tools", q(disallowedTools.join(",")));
+    args.push(...saverArgs(caps.saver, chooseModel(task.role, task.retryCount ?? 0)));
     return args;
   }
 
@@ -237,7 +241,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       .filter((v) => v.task_id === task.id && v.status === "failed")
       .pop();
     const detail = (failedValidation?.detail as string | null) ?? this.store.listAiRuns(task.projectId).filter((r) => r.task_id === task.id && r.status === "failed").pop()?.summary;
-    if (typeof detail === "string" && detail) return detail.slice(-3000);
+    if (typeof detail === "string" && detail) return detail.slice(-1800);
     // a task that never failed has nothing to report; one that did (even after a manual retry reset the counter) does
     return task.retryCount === 0 ? undefined : "(詳細不明)";
   }

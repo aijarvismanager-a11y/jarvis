@@ -1033,3 +1033,11 @@ Phase 9 — 移行・掃除(旧データ変換の完了確認後に REMOVE候補
 - 「ブラウザ自身に閉じてもらう」終了処理は、終了が遅くなって実ブラウザのテストが時間切れになり、残る問題も直らなかったので取り消した。残る原因は未特定(docs/pending-real-checks.md)。
 - 実ブラウザを使うテスト(phase6・appSmokeTest)は、機械が重いと全体実行で時間切れになることがある。単独実行では通る。
 - タスク一覧の長い指示文を90字で短縮し、「全文を見る」で開くようにした。
+
+### 2026-11-07 トークン節約(server/core/tokenSaver.ts)
+- Claude Code の呼び出しごとに、役割で軽いモデルと考える量を選ぶ: document/ideation/test は haiku・low、coding/design/review/analysis は sonnet・medium、research は sonnet・low。計画づくりも sonnet・medium。
+- 失敗して再試行するときだけ1段上げる(haiku→sonnet→opus、effort も上げる)。重いモデルは「軽いモデルで足りなかった作業」にだけ使う。
+- 毎回送られる MCP ツール一覧とスキル一覧は読み込まない(--strict-mcp-config / --disable-slash-commands)。`claude --help` に載っているフラグだけ使う。
+- 再試行に渡す前回の失敗内容を末尾3000字→1800字に短縮。
+- 全部を既定モデルで動かしたいときは環境変数 AI_ORCH_FULL_POWER=1。
+- 未確認: 実機で1つ依頼を流して、使用量(inputTokens/コスト)が実際に下がるか、sonnet/haiku で品質が落ちないかの比較はまだ。サーバー再起動までは反映されない。

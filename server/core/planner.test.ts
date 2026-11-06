@@ -33,10 +33,10 @@ function fakeRunner(plan: unknown, help = HELP): { runner: CommandRunner; calls:
 
 describe("parseCliCapabilities", () => {
   it("detects flags present in the help text", () => {
-    expect(parseCliCapabilities(HELP)).toEqual({ print: true, outputFormatJson: true, jsonSchema: true, permissionModePlan: true, noSessionPersistence: true });
+    expect(parseCliCapabilities(HELP)).toMatchObject({ print: true, outputFormatJson: true, jsonSchema: true, permissionModePlan: true, noSessionPersistence: true });
   });
   it("reports nothing for an unrelated help text", () => {
-    expect(parseCliCapabilities("Usage: other [options]")).toEqual({ print: false, outputFormatJson: false, jsonSchema: false, permissionModePlan: false, noSessionPersistence: false });
+    expect(parseCliCapabilities("Usage: other [options]")).toMatchObject({ print: false, outputFormatJson: false, jsonSchema: false, permissionModePlan: false, noSessionPersistence: false });
   });
   it("does not treat a similarly named flag as supported", () => {
     expect(parseCliCapabilities("  --print-extra  foo").print).toBe(false);

@@ -1,4 +1,5 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
+import { parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
 import { MAX_PLAN_TASKS, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
 
@@ -35,6 +36,7 @@ export type CliCapabilities = {
   jsonSchema: boolean;
   permissionModePlan: boolean;
   noSessionPersistence: boolean;
+  saver?: SaverCapabilities;
 };
 
 /** Derives which flags exist from `claude --help` text; nothing is assumed. */
@@ -47,6 +49,7 @@ export function parseCliCapabilities(helpText: string): CliCapabilities {
     jsonSchema: has("--json-schema"),
     permissionModePlan: has("--permission-mode") && /"plan"/.test(permission),
     noSessionPersistence: has("--no-session-persistence"),
+    saver: parseSaverCapabilities(helpText),
   };
 }
 
@@ -186,6 +189,7 @@ export class ClaudeCodePlanner implements Planner {
     if (caps.jsonSchema && !shell) args.push("--json-schema", JSON.stringify(PLAN_JSON_SCHEMA));
     if (caps.permissionModePlan) args.push("--permission-mode", "plan"); // planning must not edit files
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
+    args.push(...saverArgs(caps.saver, { model: "sonnet", effort: "medium" })); // the plan decides how much everything after it costs, but it needs no heavy model
     return args;
   }
 
