@@ -112,6 +112,21 @@ describe("reviewing one task", () => {
     expect(store.listEvents({ projectId: pid }).map((e) => e.type)).toEqual(expect.arrayContaining(["AI_REVIEW_REQUESTED", "AI_REVIEW_DONE"]));
   });
 
+  it("hands the reviewer C# code (not only the report), code before notes; no code in the prompt means no review", async () => {
+    store.upsertAiService({ id: "chatgpt", name: "ChatGPT (Web)", url: "https://chatgpt.test", accessMode: "web", adapterType: "manual", automationLevel: 3, freeStatus: "free_tier", capabilities: ["ux_review", "coding"] });
+    const { task, missionId } = finishedTask("coding", { "report.md": "# 報告", "src/Settings.cs": "class Settings { }", "src/App.xaml": "<Window/>" }, { retryCount: 1 });
+    const calls: { svc: string; prompt: string }[] = [];
+    await run(task, missionId, reviewer(["判定: 承認"], calls));
+    expect(calls).toHaveLength(1);
+    expect(calls[0].prompt).toContain("class Settings");
+    expect(calls[0].prompt).toContain("<Window/>");
+    expect(calls[0].prompt.indexOf("=== src/Settings.cs ===")).toBeLessThan(calls[0].prompt.indexOf("=== report.md ==="));
+    const noCode = finishedTask("coding", { "report.md": "# 報告だけ", "bin/app.dll": "x" }, { retryCount: 1 });
+    const calls2: { svc: string; prompt: string }[] = [];
+    expect(await run(noCode.task, noCode.missionId, reviewer(["判定: 要修正"], calls2))).toBeNull();
+    expect(calls2).toHaveLength(0);
+  });
+
   it("sends a task back once with the findings, then lets it through", async () => {
     const { task, missionId } = finishedTask("design", { "design/auth.md": "x" });
     const first = await run(task, missionId, reviewer(["判定: 要修正\n- パスワードが平文"]));

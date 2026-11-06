@@ -4,7 +4,7 @@ import { botCheckExclusions } from "./botCheck.ts";
 import { aiUsage, chooseAi, pickBalanced } from "./aiBroker.ts";
 import type { ExecutionResult } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
-import { referenceBudget } from "./projectContext.ts";
+import { CODE_EXTENSIONS, DOC_EXTENSIONS, referenceBudget } from "./projectContext.ts";
 import { isIntegrationTask } from "./taskValidator.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { WEB_ADAPTER_TYPES } from "./webHandoff.ts";
@@ -84,7 +84,9 @@ export function pickReviewer(store: Store, authorAiId: string | null, role: stri
   return svc ? { svc, ranked: [svc.id, ...usable.map((c) => c.aiId).filter((id) => id !== svc.id)] } : null;
 }
 
-const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".py", ".sql", ".sh"]);
+// Every kind of source the project context knows (.cs, .xaml, .csproj ... too): a reviewer that is not given the code asks for it, and the task is sent back for nothing.
+const TEXT_EXTENSIONS = new Set([...CODE_EXTENSIONS, ".sh"]);
+const isNote = (rel: string) => DOC_EXTENSIONS.has(path.extname(rel).toLowerCase());
 // What a chat page takes in one prompt comfortably (the free tiers handle far more, but typing it in takes time).
 const MAX_FILE_CHARS = 10_000;
 const MAX_TOTAL_CHARS = 24_000;
@@ -93,7 +95,8 @@ const MAX_TOTAL_CHARS = 24_000;
 export function readTaskFiles(store: Store, task: Task): { path: string; text: string; cut: boolean }[] {
   const out: { path: string; text: string; cut: boolean }[] = [];
   let total = 0;
-  const paths = [...new Set(store.listArtifacts(task.projectId).filter((a) => a.taskId === task.id && !a.path.startsWith(`${REVIEW_DIR}/`)).map((a) => a.path))];
+  // source first, notes and reports after: the room is limited and the code is what is being judged
+  const paths = [...new Set(store.listArtifacts(task.projectId).filter((a) => a.taskId === task.id && !a.path.startsWith(`${REVIEW_DIR}/`)).map((a) => a.path))].sort((a, b) => Number(isNote(a)) - Number(isNote(b)));
   for (const rel of paths) {
     if (total >= MAX_TOTAL_CHARS) break;
     if (!TEXT_EXTENSIONS.has(path.extname(rel).toLowerCase())) continue;
@@ -160,6 +163,11 @@ export async function reviewTask(input: { store: Store; reviewer: AiReviewer; mi
   const files = readTaskFiles(store, task);
   const reason = importanceOf(task, store.listArtifacts(projectId).filter((a) => a.taskId === task.id).length);
   if (!reason || files.length === 0) return null;
+  // a code task whose code could not be put in the prompt (unknown file type, unreadable): asking would only get "I cannot see the code" back
+  if (CODE_ROLES.has(task.role.trim().toLowerCase()) && files.every((f) => isNote(f.path))) {
+    store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_SKIPPED", payload: { reason: "レビューに渡せるコードのファイルがありません" } });
+    return null;
+  }
 
   const skip = (why: string) => {
     store.appendEvent({ projectId, taskId: task.id, type: "AI_REVIEW_SKIPPED", payload: { reason: why } });

@@ -5,14 +5,14 @@ import { SKIP_DIRS } from "./projectImport.ts";
 // A browser AI cannot open the project's files. What it gets instead is written into its prompt: the list of files (so it knows what
 // exists) and the excerpts of the files the task names (its inputs, or a file whose name the task text mentions).
 
-const CODE_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".toml", ".cs", ".xaml", ".csproj", ".py", ".go", ".rs", ".java", ".kt", ".swift", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".vue", ".svelte", ".sql"]);
+export const CODE_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".css", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".yaml", ".yml", ".toml", ".cs", ".xaml", ".csproj", ".py", ".go", ".rs", ".java", ".kt", ".swift", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".vue", ".svelte", ".sql"]);
 const SECRET_NAME = /(^\.env)|\.(pem|key|pfx|p12)$|secret|credential|id_rsa|password/i;
 export const MAX_TREE_FILES = 80;
 export const MAX_REF_FILE_CHARS = 12_000;
 export const MAX_REF_TOTAL_CHARS = 30_000;
 const MAX_NAMED_FILES = 4;
 const MAX_KEYWORD_FILES = 4;
-const DOC_EXTENSIONS = new Set([".md", ".txt"]);
+export const DOC_EXTENSIONS = new Set([".md", ".txt"]);
 
 /** How many characters of project files each site takes in one prompt (measured 2026-10-28 by sending a prompt whose last line held the answer: Gemini read 30k in ~45 s but its box keeps only ~33k of an 80k prompt (so 24k leaves room for the task text), Grok 40k in ~70 s, ChatGPT refused 40k as too long after ~6 min of typing it in; Claude is set below what it took; unlisted sites get a cautious default). */
 const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 60_000, gemini: 24_000, chatgpt: 10_000, grok: 40_000, copilot: 6_000 };
