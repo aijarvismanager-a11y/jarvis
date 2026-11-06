@@ -107,7 +107,7 @@ export class AiRoster {
       }
 
       // 2. take out what is gone (two checks in a row; and never when every site looks gone: that is the network, not the sites)
-      const checked = await Promise.all(manual.filter((s) => this.store.getAiService(s.id)?.automationLevel! <= 2).map(async (s) => [s, await this.siteStatus(s.url)] as const));
+      const checked = await Promise.all(manual.filter((s) => (this.store.getAiService(s.id)?.automationLevel ?? 99) <= 2).map(async (s) => [s, await this.siteStatus(s.url)] as const));
       const offline = checked.length > 1 && checked.every(([, st]) => st !== "alive");
       if (!offline) {
         for (const [s, st] of checked) {

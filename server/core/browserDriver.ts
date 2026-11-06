@@ -23,7 +23,7 @@ const BLOCKER_SNAPSHOT_EXPR = `(() => {
   // a dialog that is in the page but not on screen (Copilot keeps a hidden "セキュリティ チェックが必要です" one) is not a check
   const onScreen = (e) => { const r = e.getBoundingClientRect(); const st = getComputedStyle(e); return r.width >= 30 && r.height >= 30 && st.visibility !== 'hidden' && st.display !== 'none' && Number(st.opacity) !== 0; };
   const dialogs = [...document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog')].filter(onScreen).map((d) => (d.getAttribute('aria-label') || '') + ' ' + (d.innerText || '')).join(' ');
-  const CHALLENGE = /recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|funcaptcha|arkoselabs|geetest|captcha/i;
+  const CHALLENGE = /recaptcha|hcaptcha|challenges\\.cloudflare\\.com|turnstile|funcaptcha|arkoselabs|geetest|captcha/i;
   const frames = (root, depth) => {
     if (depth > 4) return false;
     // only a frame the person can see is a check to clear: many sites keep an invisible (0-size) challenge frame on every page
