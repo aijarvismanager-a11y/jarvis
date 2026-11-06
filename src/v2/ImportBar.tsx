@@ -29,15 +29,16 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
   const [leaveOut, setLeaveOut] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState(false);
   // Claude Code's own record of the talk about this folder, if there is one: offered as a checkbox
-  const [history, setHistory] = useState<{ sessions: number; lastAt: string | null } | null>(null);
+  // tagged with the folder it was found for, so a stale answer never shows for another folder
+  const [found, setFound] = useState<{ folder: string; sessions: number; lastAt: string | null } | null>(null);
+  const history = found && found.folder === folder.trim() && folder.trim().length >= 3 ? found : null;
   const [carry, setCarry] = useState(true);
   useEffect(() => {
     const f = folder.trim();
-    setHistory(null);
     if (f.length < 3) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      api.importHistory(f).then((h) => !cancelled && setHistory(h.found ? { sessions: h.sessions, lastAt: h.lastAt } : null)).catch(() => {});
+      api.importHistory(f).then((h) => !cancelled && setFound(h.found ? { folder: f, sessions: h.sessions, lastAt: h.lastAt } : null)).catch(() => {});
     }, 500);
     return () => {
       cancelled = true;
@@ -49,7 +50,7 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
     const openIt = () => setOpen(true);
     window.addEventListener("open-import", openIt);
     return () => window.removeEventListener("open-import", openIt);
-  }, []);
+  }, [setOpen]);
   const { busy, run } = useAction(setError);
   // The import is one long request; this asks the server how far it has got. Only polls while an import is running.
   const [progress, setProgress] = useState<ImportProgress | null>(null);
