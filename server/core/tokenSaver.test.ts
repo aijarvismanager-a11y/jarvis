@@ -11,7 +11,7 @@ describe("tokenSaver", () => {
     expect(chooseModel("coding", 5).model).toBe("opus");
   });
   it("only uses flags the CLI lists", () => {
-    const help = "  --model <m>\n  --effort <l>\n  --strict-mcp-config\n  --disable-slash-commands\n";
+    const help = "  --model <m>\n  --effort <l>\n  --strict-mcp-config\n  --disable-slash-commands\n  --exclude-dynamic-system-prompt-sections\n";
     const caps = parseSaverCapabilities(help);
     expect(saverArgs(caps, { model: "haiku", effort: "low" })).toEqual(["--disable-slash-commands", "--strict-mcp-config", "--exclude-dynamic-system-prompt-sections", "--model", "haiku", "--effort", "low"]);
     expect(saverArgs(parseSaverCapabilities("--print"), { model: "haiku", effort: "low" })).toEqual([]);
