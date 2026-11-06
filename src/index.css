@@ -21,8 +21,8 @@ body {
 }
 
 .prose-artifact {
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.85;
   color: #4a473f;
   overflow-wrap: anywhere;
 }
@@ -71,13 +71,13 @@ body {
   margin: 0 0 0.5em;
 }
 .prose-artifact h1 {
-  font-size: 17px;
+  font-size: 21px;
 }
 .prose-artifact h2 {
-  font-size: 15px;
+  font-size: 18px;
 }
 .prose-artifact h3 {
-  font-size: 13.5px;
+  font-size: 16px;
 }
 .prose-artifact p {
   margin: 0 0 0.9em;
@@ -92,7 +92,7 @@ body {
 }
 .prose-artifact code {
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 11.5px;
+  font-size: 13.5px;
   background: #f1efea;
   border-radius: 4px;
   padding: 0.1em 0.35em;

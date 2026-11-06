@@ -12,6 +12,7 @@ import { summaryLine } from "./summaryLine";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
+import { SayItHelper } from "../SayItHelper";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, ReportAction, ReportTodo } from "../types";
 
 /** A task's instruction is written for the AI and can run to several hundred characters: show the start, the rest on request. */
@@ -254,6 +255,7 @@ function RedirectControls({ mission, ctx }: { mission: { projectId: string; id: 
   if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>途中で依頼を変える</Button>;
   return (
     <div className="w-full">
+      <SayItHelper kind="change" value={text} onChange={setText} />
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="例: 検索機能を先に作って、画像アップロードは後回しにしてください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
       <p className="mt-1 text-[12px] text-muted">実行中の作業はここで止まります。完了済みの作業は残したまま新しい計画を提案するので、内容を確認して承認してください(承認するまで、止まった作業は置き換わりません)。</p>
       <div className="mt-1 flex gap-2">
@@ -279,6 +281,7 @@ function RetryControls({ task, ctx }: { task: Task; ctx: Ctx }) {
       {open && (
         <div className="mt-2">
           <p className="mb-1 text-[12px] text-muted">AIが作った内容に付け足すのではなく、やり直すAIへの「注文」を書く欄です。変えたい点がなければ、何も書かずに「この作業をやり直す」を押してください。</p>
+          <SayItHelper kind="retry" value={text} onChange={setText} />
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="例: 削除機能は後回しにして、一覧と登録だけ作ってください" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px] outline-none focus:border-accent" />
           <div className="mt-1 flex gap-2">
             <Button disabled={busy || !text.trim()} onClick={go}>この指示でやり直す</Button>
@@ -462,7 +465,9 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
           );
         })}
       </ol>
-      <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} placeholder="直してほしい点があれば入力(例: テストを厚く)" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
+      <p className="mb-1 text-[13px] font-semibold">この計画で合っていますか?</p>
+      <SayItHelper kind="plan" value={feedback} onChange={setFeedback} />
+      <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="直してほしい点があれば入力(例: テストを厚く)。合っていれば、何も書かずに「この計画で開始」を押してください" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
       <div className="flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
         <Button variant="ghost" disabled={busy || !feedback.trim()} onClick={() => act("reject")}>{busy ? "作り直し中…(1〜2分)" : "修正して再提案"}</Button>
@@ -487,6 +492,7 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
   return (
     <Card>
       <label htmlFor="goal" className="mb-2 block font-serif text-[18px] font-semibold">何を作りますか?</label>
+      <SayItHelper kind="first" value={goal} onChange={setGoal} />
       <textarea id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} rows={3} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
       <div className="mt-3">
         <Details summary="詳細設定(任意)">

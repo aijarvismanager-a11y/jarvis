@@ -13,6 +13,7 @@ import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSum
 import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
 import { HelpDialog } from "./HelpDialog";
+import { TextSizeControl } from "./TextSizeControl";
 import { QuotaChip } from "./screens/QuotaChip";
 import { LimitBanner } from "./screens/LimitBanner";
 import { RestingBanner } from "./screens/RestingBanner";
@@ -233,6 +234,7 @@ export default function V2App() {
             </details>
             <Button variant="ghost" onClick={() => setHelp(true)} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
+            <TextSizeControl />
             <QuotaChip onOpen={() => setScreen("ais")} />
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="min-w-0 max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
