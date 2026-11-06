@@ -6,11 +6,11 @@ export type ModelTier = "haiku" | "sonnet" | "opus";
 export type Effort = "low" | "medium" | "high";
 export type ModelChoice = { model: ModelTier; effort: Effort };
 
-export type SaverCapabilities = { model: boolean; effort: boolean; strictMcp: boolean; noSlash: boolean };
+export type SaverCapabilities = { model: boolean; effort: boolean; strictMcp: boolean; noSlash: boolean; stableCache?: boolean };
 
 export function parseSaverCapabilities(helpText: string): SaverCapabilities {
   const has = (flag: string) => new RegExp(`(^|[\\s,])${flag.replace(/-/g, "\\-")}(\\s|,|$|=)`, "m").test(helpText);
-  return { model: has("--model"), effort: has("--effort"), strictMcp: has("--strict-mcp-config"), noSlash: has("--disable-slash-commands") };
+  return { model: has("--model"), effort: has("--effort"), strictMcp: has("--strict-mcp-config"), noSlash: has("--disable-slash-commands"), stableCache: has("--exclude-dynamic-system-prompt-sections") };
 }
 
 const BASE: Record<string, ModelChoice> = {
@@ -45,6 +45,7 @@ export function saverArgs(caps: SaverCapabilities | undefined, choice: ModelChoi
   const args: string[] = [];
   if (caps.noSlash) args.push("--disable-slash-commands");
   if (caps.strictMcp) args.push("--strict-mcp-config");
+  if (caps.stableCache) args.push("--exclude-dynamic-system-prompt-sections"); // same system prompt across runs -> the prompt cache is reused
   if (choice && caps.model) args.push("--model", choice.model);
   if (choice && caps.effort) args.push("--effort", choice.effort);
   return args;
