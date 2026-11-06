@@ -8,7 +8,7 @@ import { SplitPreview } from "./SplitPreview";
 import { DepsCard } from "./DepsCard";
 import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
-import { summaryLine } from "./DevelopmentScreen";
+import { summaryLine } from "./summaryLine";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
