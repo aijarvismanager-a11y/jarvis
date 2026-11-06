@@ -5,8 +5,10 @@ describe("tokenSaver", () => {
   it("light work runs light, a failed attempt moves one step up", () => {
     expect(chooseModel("document").model).toBe("haiku");
     expect(chooseModel("coding")).toEqual({ model: "sonnet", effort: "medium" });
-    expect(chooseModel("coding", 1)).toEqual({ model: "opus", effort: "high" });
-    expect(chooseModel("document", 1).model).toBe("sonnet");
+    expect(chooseModel("coding", 1)).toEqual({ model: "sonnet", effort: "medium" });
+    expect(chooseModel("coding", 2)).toEqual({ model: "opus", effort: "high" });
+    expect(chooseModel("coding", 3, "別のAI(Qwen)のレビューで").model).toBe("sonnet");
+    expect(chooseModel("document", 2).model).toBe("sonnet");
     expect(chooseModel("unknown-role").model).toBe("sonnet");
     expect(chooseModel("coding", 5).model).toBe("opus");
   });

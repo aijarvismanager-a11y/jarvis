@@ -29,12 +29,17 @@ const BASE: Record<string, ModelChoice> = {
 const DEFAULT: ModelChoice = { model: "sonnet", effort: "medium" };
 const STEP: ModelTier[] = ["haiku", "sonnet", "opus"];
 
-/** The model and effort for a task: its role's base, one step up per earlier failed attempt (at most to opus / high). */
-export function chooseModel(role: string, retryCount = 0): ModelChoice {
+/**
+ * The model and effort for a task: its role's base. The first retry still runs on the base model (the failure text it is handed is
+ * usually enough); from the second retry on it goes one step up per failed attempt (at most opus / high). A retry caused by another
+ * AI's review is a wording or delivery problem, not a lack of ability, so it never goes up.
+ */
+export function chooseModel(role: string, retryCount = 0, failure?: string): ModelChoice {
   const base = BASE[role] ?? DEFAULT;
-  if (retryCount <= 0) return base;
-  const model = STEP[Math.min(STEP.length - 1, STEP.indexOf(base.model) + retryCount)];
-  return { model, effort: model === "opus" || retryCount >= 2 ? "high" : base.effort === "low" ? "medium" : "high" };
+  const steps = failure?.startsWith("別のAI(") ? 0 : Math.max(0, retryCount - 1);
+  if (steps === 0) return base;
+  const model = STEP[Math.min(STEP.length - 1, STEP.indexOf(base.model) + steps)];
+  return { model, effort: model === "opus" ? "high" : base.effort === "low" ? "medium" : "high" };
 }
 
 /** Set AI_ORCH_FULL_POWER=1 to run everything on the CLI's own default model (no saving). */

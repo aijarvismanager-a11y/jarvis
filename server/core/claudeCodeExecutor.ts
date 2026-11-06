@@ -215,7 +215,7 @@ export class ClaudeCodeExecutor implements TaskExecutor {
     return (this.caps = parseExecutorCapabilities(`${res.stdout}\n${res.stderr}`));
   }
 
-  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string; retryCount?: number }, shell: boolean = needsShell(this.command)): string[] {
+  buildArgs(caps: ExecutorCapabilities, task: Pick<Task, "role"> & { id?: string; retryCount?: number; failure?: string }, shell: boolean = needsShell(this.command)): string[] {
     if (!caps.print) throw new Error("このClaude Codeは非対話実行(--print)に対応していないため実行できません");
     // Without a way to deny prompts or restrict tools the run could hang or exceed its grants: refuse.
     if (!caps.acceptEdits) throw new Error("--permission-mode acceptEdits が使えないため、安全に作業を実行できません");
@@ -230,7 +230,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const { allowedTools, disallowedTools } = this.policy.restrictionsFor(task);
     if (allowedTools.length && caps.allowedTools) args.push("--allowed-tools", q(allowedTools.join(",")));
     if (disallowedTools.length) args.push("--disallowed-tools", q(disallowedTools.join(",")));
-    args.push(...saverArgs(caps.saver, chooseModel(task.role, task.retryCount ?? 0)));
+    args.push(...saverArgs(caps.saver, chooseModel(task.role, task.retryCount ?? 0, task.failure)));
     return args;
   }
 
@@ -310,8 +310,9 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
 
     const cwd = projectDir(this.store.projectsRoot, projectId);
     mkdirSync(cwd, { recursive: true });
-    const args = this.buildArgs(await this.capabilities(), task);
-    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure: this.previousFailure(task), hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)), designFiles: this.designFiles(task) });
+    const previousFailure = this.previousFailure(task);
+    const args = this.buildArgs(await this.capabilities(), { ...task, failure: previousFailure });
+    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure, hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)), designFiles: this.designFiles(task) });
 
     const before = snapshotDir(cwd);
     const snaps = this.opts.snapshots;
