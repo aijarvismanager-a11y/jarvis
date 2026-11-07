@@ -47,6 +47,8 @@ export type OrchestratorApiDeps = {
   healthChecker?: AiHealthChecker;
   /** Enables POST /ai-discovery; without it that endpoint answers 501. */
   discovery?: AiDiscovery;
+  /** Enables POST /follow-up-questions (questions to confirm, made from an AI's answer); without it that endpoint answers 501. */
+  followUps?: { ask(answer: string): Promise<string[]> };
   /** Enables /ai-scout (weekly search for new Google-sign-in AIs, proposals the person accepts or drops). */
   scout?: AiScout;
   /** Enables /ai-roster (weekly check of the manual AIs: raise to automatic, take out what is gone, put back). */
@@ -593,6 +595,14 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!deps.scout.dismiss(String(req.params.id))) return void res.status(404).json({ error: "その候補はありません" });
     res.json(deps.scout.state());
   }));
+  router.post(
+    "/follow-up-questions",
+    guarded(async (req, res) => {
+      if (!deps.followUps) return void res.status(501).json({ error: "確認の質問の機能が接続されていません" });
+      const { text } = z.object({ text: z.string().trim().min(20).max(30000) }).parse(req.body ?? {});
+      res.json({ questions: await deps.followUps.ask(text) });
+    }),
+  );
   // On-demand discovery (Phase 5): no-op when the registry already covers the request.
   router.post(
     "/ai-discovery",

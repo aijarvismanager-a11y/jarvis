@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
@@ -41,6 +43,59 @@ function taskTime(runs: Parameters<typeof summarizeUsage>[0], taskId: string): s
   const u = summarizeUsage(runs, new Set([taskId]));
   if (u.runs === 0 || u.durationMs === 0) return "";
   return `${formatDuration(u.durationMs)}${u.hasCost ? ` · ${formatCost(u.costUsd)}` : ""}`;
+}
+
+/** The AI's final answer for a finished task (tables included). It stays on screen; the live log above only exists while the AI works. */
+const FOLLOW_UPS = ["この内容の根拠や出典を教えて", "足りない項目や観点があれば追加して", "一番おすすめを1つ選んで、理由も教えて", "分かりにくいところを、やさしく説明し直して"];
+
+function TaskAnswer({ taskId, ctx, onNewRequest }: { taskId: string; ctx: Ctx; onNewRequest: (goal: string) => void }) {
+  const [question, setQuestion] = useState("");
+  const [questions, setQuestions] = useState<string[] | null>(null);
+  const [replies, setReplies] = useState<string[]>([]);
+  const { busy: asking, run: runAsk } = useAction(ctx.setError);
+  const run = [...ctx.overview.aiRuns].filter((r) => r.task_id === taskId && r.status === "succeeded" && r.executor !== "ai-review" && r.summary && r.summary.trim().length > 40).pop();
+  const [open, setOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
+  if (!run?.summary) return null;
+  const text = run.summary;
+  return (
+    <div className="ml-6 mt-1 rounded-lg border border-borderSoft bg-white px-3 py-2">
+      <div className="flex items-center gap-3">
+        <span className="text-[12px] font-semibold">AIの回答</span>
+        <button type="button" className="ml-auto text-[11.5px] text-accent hover:underline" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => undefined); }}>{copied ? "コピーしました" : "コピー"}</button>
+        <button type="button" className="text-[11.5px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "開く"}</button>
+      </div>
+      {open && <div className="prose-artifact mt-1 max-h-[480px] overflow-auto text-[13px]"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
+      {open && (
+        <div className="mt-2 border-t border-borderSoft pt-2">
+          <p className="mb-1 text-[12px] font-semibold">AIからの確認</p>
+          {!questions ? (
+            <Button variant="ghost" disabled={asking} onClick={() => void runAsk(async () => { const q = await api.followUpQuestions(text); setQuestions(q); setReplies(q.map(() => "")); })}>{asking ? "質問を考えています…(1分ほどかかります)" : "この回答について、確認の質問を作ってもらう"}</Button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[11.5px] text-muted">答えたいものだけ書いてください(空欄は飛ばされます)。</p>
+              {questions.map((q, i) => (
+                <div key={i}>
+                  <p className="text-[12.5px]">{i + 1}. {q}</p>
+                  <input value={replies[i] ?? ""} onChange={(e) => setReplies(replies.map((r, j) => (j === i ? e.target.value : r)))} maxLength={200} className="mt-0.5 w-full rounded-lg border border-border bg-bg p-1.5 text-[13px]" />
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" disabled={!replies.some((r) => r.trim())} onClick={() => onNewRequest(`前の回答について、次の確認への答えを反映して、やり直し・修正してください:\n${questions.map((q, i) => (replies[i]?.trim() ? `質問: ${q}\n答え: ${replies[i]!.trim()}` : "")).filter(Boolean).join("\n")}\n\n【前の回答】\n${text.slice(0, 2000)}`)}>答えをもとに新しい依頼を書く</Button>
+                <Button variant="ghost" onClick={() => setQuestions(null)}>質問をつくり直す</Button>
+              </div>
+            </div>
+          )}
+          <p className="mb-1 mt-3 text-[12px] font-semibold">この回答について、続けて聞く・頼む</p>
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
+            {FOLLOW_UPS.map((q) => <button key={q} type="button" className="rounded-full border border-border px-2.5 py-0.5 text-[11.5px] hover:bg-sidebar" onClick={() => setQuestion(q)}>{q}</button>)}
+          </div>
+          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={2} maxLength={500} placeholder="例: 表にコストの列も足して" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px]" />
+          <Button variant="ghost" disabled={!question.trim()} onClick={() => onNewRequest(`前の回答をもとに、次のことをお願いします:${question.trim()}\n\n【前の回答】\n${text.slice(0, 3000)}`)}>この内容で新しい依頼を書く</Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const LOG_MARK: Record<LogEntry["kind"], string> = { text: "💬", tool: "🔧", info: "•", error: "⚠" };
@@ -609,6 +664,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
                   {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
+                  {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} onNewRequest={writeRequest} />}
                   {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
                   {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
                 </li>

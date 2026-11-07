@@ -349,6 +349,6 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       const hint = explainClaudeFailure(combined);
       return { ok: false, summary: `${hint ? hint + " / " : ""}Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
     }
-    return { ok: true, summary: out.text.slice(0, 2000), artifacts: files, ...metrics };
+    return { ok: true, summary: out.text.slice(0, 20000), artifacts: files, ...metrics };
   }
 }
