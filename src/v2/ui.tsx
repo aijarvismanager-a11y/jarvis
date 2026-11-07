@@ -15,7 +15,7 @@ export function Card({ title, children, className = "", fold = false, open = fal
   if (fold) {
     return (
       <details open={open} className={`group rounded-xl border border-border bg-panel ${className}`}>
-        <summary className="flex cursor-pointer select-none items-center gap-2 p-4 text-[13px] font-semibold marker:content-none">
+        <summary className="flex cursor-pointer select-text items-center gap-2 p-4 text-[13px] font-semibold marker:content-none">
           <span aria-hidden className="text-muted transition-transform group-open:rotate-90">▸</span>
           <span className="flex flex-wrap items-center gap-2">{title}</span>
         </summary>
@@ -52,7 +52,7 @@ export function Badge({ tone = "neutral", children }: { tone?: keyof typeof TONE
 export function Details({ summary, children }: { summary: string; children: ReactNode }) {
   return (
     <details className="group rounded-lg border border-borderSoft bg-bg px-3 py-2">
-      <summary className="cursor-pointer select-none text-[12.5px] text-muted group-open:mb-2">{summary}</summary>
+      <summary className="cursor-pointer select-text text-[12.5px] text-muted group-open:mb-2">{summary}</summary>
       {children}
     </details>
   );

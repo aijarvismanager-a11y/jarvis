@@ -522,7 +522,7 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
               </p>
               {(long || t.expectedOutputs.length > 0 || after.length > 0) && (
                 <details className="mt-1 text-[13px]">
-                  <summary className="cursor-pointer select-none text-muted">詳しく見る</summary>
+                  <summary className="cursor-pointer select-text text-muted">詳しく見る</summary>
                   <div className="mt-1.5 space-y-1.5 leading-relaxed">
                     {long && <p className="whitespace-pre-wrap">{t.objective}</p>}
                     {after.length > 0 && <p className="text-muted">先に終わらせる作業: {after.map((n) => `作業${n}`).join("、")}</p>}

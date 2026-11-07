@@ -1,6 +1,6 @@
 // Desktop shell: a window around the same server the browser version uses (http://127.0.0.1:4173).
 // If no server is running it starts one (npm run app = build the screen + serve it) and stops it again on quit.
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const fs = require("node:fs");
@@ -213,6 +213,15 @@ async function start() {
   // Anything that is not the app itself (previews, source links, the manual) opens in the normal browser.
   // the screen can tell which installer's window it is shown in (and say so when the server it talks to is of another version)
   win.webContents.setUserAgent(`${win.webContents.getUserAgent()} AIOrchestratorDesktop/${app.getVersion()}`);
+  // The window has no menu bar, so give right-click its copy / paste menu (text could not be copied from the screen before).
+  win.webContents.on("context-menu", (_e, params) => {
+    const items = [];
+    if (params.linkURL) items.push({ label: "リンクのアドレスをコピー", click: () => require("electron").clipboard.writeText(params.linkURL) });
+    if (params.isEditable) items.push({ label: "切り取り", role: "cut", enabled: params.editFlags.canCut }, { label: "コピー", role: "copy", enabled: params.editFlags.canCopy }, { label: "貼り付け", role: "paste", enabled: params.editFlags.canPaste });
+    else if (params.selectionText) items.push({ label: "コピー", role: "copy" });
+    items.push({ label: "すべて選択", role: "selectAll" });
+    Menu.buildFromTemplate(items).popup();
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
     return { action: "deny" };

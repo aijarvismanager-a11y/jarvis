@@ -9,6 +9,13 @@ body {
   font-family: "Public Sans", system-ui, sans-serif;
   background: #fbf9f5;
   color: #2b2a26;
+  -webkit-user-select: text;
+  user-select: text; /* everything on screen can be selected and copied */
+}
+summary *,
+summary {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 ::-webkit-scrollbar {
