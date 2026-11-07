@@ -56,8 +56,21 @@ function TaskAnswer({ taskId, ctx, onNewRequest }: { taskId: string; ctx: Ctx; o
   const run = [...ctx.overview.aiRuns].filter((r) => r.task_id === taskId && r.status === "succeeded" && r.executor !== "ai-review" && r.summary && r.summary.trim().length > 40).pop();
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
+  // A web AI's answer is saved to a file and the run only says where ("…の回答を保存しました: a.md"): show the file's content, not that sentence.
+  const saved = (/回答を保存しました:\s*(.+)$/.exec(run?.summary ?? "")?.[1] ?? "").split(",").map((s) => s.trim()).filter((s) => /\.(md|txt)$/i.test(s)).slice(0, 3);
+  const savedKey = saved.join("|");
+  const projectId = ctx.project?.id;
+  const [fileText, setFileText] = useState<string | null>(null);
+  useEffect(() => {
+    if (!savedKey || !projectId) return setFileText(null);
+    let alive = true;
+    void Promise.all(savedKey.split("|").map((p) => api.artifactContent(projectId, p).catch(() => "")))
+      .then((parts) => alive && setFileText(parts.filter(Boolean).join("\n\n---\n\n") || null));
+    return () => { alive = false; };
+  }, [savedKey, projectId]);
   if (!run?.summary) return null;
-  const text = run.summary;
+  if (savedKey && fileText === null) return null; // the file is still being read (or cannot be): the saved-file notice alone says nothing useful
+  const text = fileText ?? run.summary;
   return (
     <div className="ml-6 mt-1 rounded-lg border border-borderSoft bg-white px-3 py-2">
       <div className="flex items-center gap-3">
@@ -66,7 +79,8 @@ function TaskAnswer({ taskId, ctx, onNewRequest }: { taskId: string; ctx: Ctx; o
         <button type="button" className="text-[11.5px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "開く"}</button>
       </div>
       {open && <div className="prose-artifact mt-1 max-h-[480px] overflow-auto text-[13px]"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
-      {open && (
+      {open && text.length < 80 && <p className="mt-1 text-[11.5px] text-muted">回答が短いため、確認の質問は出しません(AIが断った・使えなかった可能性があります)。</p>}
+      {open && text.length >= 80 && (
         <div className="mt-2 border-t border-borderSoft pt-2">
           <p className="mb-1 text-[12px] font-semibold">AIからの確認</p>
           {!questions ? (

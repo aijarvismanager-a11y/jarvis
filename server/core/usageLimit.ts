@@ -20,6 +20,9 @@ const LIMIT_PATTERNS: RegExp[] = [
   /(too many requests|rate limit(ed)?)/i,
   // Perplexity-style: free queries / Pro searches used up
   /(pro|free|daily|無料|クエリ|検索)[^\n.。]{0,25}(searches|queries|クエリ|検索|回数)[^\n.。]{0,30}(limit|left|remaining|reached|used|上限|制限|使い切|なくなり|残り\s*0)/i,
+  // credit-based sites (Genspark: "クレジットをすべて使い切りました")
+  /(クレジット|ポイント|credits?)[^\n。]{0,15}(使い切|なくなり|不足|残り\s*0|ありません)/i,
+  /(out of|ran out of|run out of|no) (more )?credits?|credits? (have been |are |is )?(exhausted|used up|depleted)/i,
   /(0|no) (pro )?(searches|queries) (left|remaining)/i,
   /(クエリ|検索)[^\n。]{0,12}(上限|制限|使い切)/,
   /(come back|try again|resets?|available again)[^\n.]{0,25}(later|tomorrow|in \d+|at \d)/i,

@@ -12,6 +12,7 @@ describe("web AI usage limit", () => {
   it("recognises a short 'limit reached' answer, not a long deliverable", () => {
     expect(looksLikeUsageLimit("無料枠の利用上限に達しました。明日またお試しください。")).toBe(true);
     expect(looksLikeUsageLimit("You've reached your daily message limit. Try again tomorrow.")).toBe(true);
+    expect(looksLikeUsageLimit("クレジットをすべて使い切りました。追加するには、こちらのページをご覧ください: [upgrade](https://www.genspark.ai/pricing)")).toBe(true);
     expect(looksLikeUsageLimit("Too many requests")).toBe(true);
     expect(looksLikeUsageLimit("# 設計書\nレート制限の設計方針を述べる。")).toBe(false);
     expect(looksLikeUsageLimit("上限に達しました。" + "あ".repeat(800))).toBe(false);
