@@ -45,69 +45,120 @@ function taskTime(runs: Parameters<typeof summarizeUsage>[0], taskId: string): s
   return `${formatDuration(u.durationMs)}${u.hasCost ? ` · ${formatCost(u.costUsd)}` : ""}`;
 }
 
-/** The AI's final answer for a finished task (tables included). It stays on screen; the live log above only exists while the AI works. */
+/** The AI's final answer for a task: what the run said, or (for a web AI, which saves its answer to a file) that file's content. */
+type AnswerSource = { summary: string; paths: string[] };
+function answerSource(ctx: Ctx, taskId: string): AnswerSource | null {
+  const run = [...ctx.overview.aiRuns].filter((r) => r.task_id === taskId && r.status === "succeeded" && r.executor !== "ai-review" && r.summary && r.summary.trim().length > 40).pop();
+  if (!run?.summary) return null;
+  const paths = (/回答を保存しました:\s*(.+)$/.exec(run.summary)?.[1] ?? "").split(",").map((s) => s.trim()).filter((s) => /\.(md|txt)$/i.test(s)).slice(0, 3);
+  return { summary: run.summary, paths };
+}
+async function loadAnswer(projectId: string, src: AnswerSource): Promise<string | null> {
+  if (!src.paths.length) return src.summary;
+  const parts = await Promise.all(src.paths.map((p) => api.artifactContent(projectId, p).catch(() => "")));
+  return parts.filter(Boolean).join("\n\n---\n\n") || null; // the file cannot be read: the "saved to" notice alone says nothing useful
+}
+
+function Markdown({ text }: { text: string }) {
+  return <div className="prose-artifact"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>;
+}
+
+/** One task's answer: folded away by default (a request has many), readable in full size, or in a large reading window. */
+function TaskAnswer({ taskId, ctx }: { taskId: string; ctx: Ctx }) {
+  const src = answerSource(ctx, taskId);
+  const key = src ? `${src.summary}` : "";
+  const projectId = ctx.project?.id;
+  const [text, setText] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [big, setBig] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!src || !projectId) return setText(null);
+    let alive = true;
+    void loadAnswer(projectId, src).then((t) => alive && setText(t));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, projectId]);
+  if (!text) return null;
+  const firstLine = text.replace(/[#>*|`\-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  const copy = () => { void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => undefined); };
+  return (
+    <div className="ml-6 mt-1 rounded-lg border border-borderSoft bg-white px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button type="button" className="min-w-0 flex-1 text-left text-[12.5px]" onClick={() => setOpen(!open)}>
+          <span className="font-semibold">AIの回答</span><span className="ml-2 text-muted">{open ? "" : `${firstLine}…`}</span>
+        </button>
+        <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setBig(true)}>大きく表示</button>
+        <button type="button" className="text-[12px] text-accent hover:underline" onClick={copy}>{copied ? "コピーしました" : "コピー"}</button>
+        <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "開く"}</button>
+      </div>
+      {open && <div className="mt-2"><Markdown text={text} /></div>}
+      {big && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/40 p-4" onClick={() => setBig(false)}>
+          <div className="my-4 w-full max-w-3xl rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center gap-3 border-b border-borderSoft pb-2">
+              <span className="font-semibold">AIの回答</span>
+              <button type="button" className="ml-auto text-[12.5px] text-accent hover:underline" onClick={copy}>{copied ? "コピーしました" : "コピー"}</button>
+              <Button variant="ghost" onClick={() => setBig(false)}>閉じる</Button>
+            </div>
+            <Markdown text={text} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const FOLLOW_UPS = ["この内容の根拠や出典を教えて", "足りない項目や観点があれば追加して", "一番おすすめを1つ選んで、理由も教えて", "分かりにくいところを、やさしく説明し直して"];
 
-function TaskAnswer({ taskId, ctx, onNewRequest }: { taskId: string; ctx: Ctx; onNewRequest: (goal: string) => void }) {
+/** Once per request (not per task): questions made from all the answers together, and a way to ask or ask for more. */
+function MissionFollowUp({ ctx, tasks, onNewRequest }: { ctx: Ctx; tasks: Task[]; onNewRequest: (goal: string) => void }) {
+  const projectId = ctx.project?.id;
+  const done = tasks.filter((t) => t.status === "completed").map((t) => ({ t, src: answerSource(ctx, t.id) })).filter((x) => x.src);
+  const key = done.map((x) => `${x.t.id}:${x.src!.summary}`).join("|");
+  const [combined, setCombined] = useState("");
+  useEffect(() => {
+    if (!projectId || done.length === 0) return setCombined("");
+    let alive = true;
+    const per = Math.max(700, Math.floor(11000 / done.length));
+    void Promise.all(done.map(async (x) => { const a = await loadAnswer(projectId, x.src!); return a && a.trim().length >= 80 ? `【作業${tasks.indexOf(x.t) + 1}:${roleLabel(x.t.role)}】\n${a.trim().slice(0, per)}` : ""; }))
+      .then((parts) => alive && setCombined(parts.filter(Boolean).join("\n\n")));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, projectId]);
   const [question, setQuestion] = useState("");
   const [questions, setQuestions] = useState<string[] | null>(null);
   const [replies, setReplies] = useState<string[]>([]);
   const { busy: asking, run: runAsk } = useAction(ctx.setError);
-  const run = [...ctx.overview.aiRuns].filter((r) => r.task_id === taskId && r.status === "succeeded" && r.executor !== "ai-review" && r.summary && r.summary.trim().length > 40).pop();
-  const [open, setOpen] = useState(true);
-  const [copied, setCopied] = useState(false);
-  // A web AI's answer is saved to a file and the run only says where ("…の回答を保存しました: a.md"): show the file's content, not that sentence.
-  const saved = (/回答を保存しました:\s*(.+)$/.exec(run?.summary ?? "")?.[1] ?? "").split(",").map((s) => s.trim()).filter((s) => /\.(md|txt)$/i.test(s)).slice(0, 3);
-  const savedKey = saved.join("|");
-  const projectId = ctx.project?.id;
-  const [fileText, setFileText] = useState<string | null>(null);
-  useEffect(() => {
-    if (!savedKey || !projectId) return setFileText(null);
-    let alive = true;
-    void Promise.all(savedKey.split("|").map((p) => api.artifactContent(projectId, p).catch(() => "")))
-      .then((parts) => alive && setFileText(parts.filter(Boolean).join("\n\n---\n\n") || null));
-    return () => { alive = false; };
-  }, [savedKey, projectId]);
-  if (!run?.summary) return null;
-  if (savedKey && fileText === null) return null; // the file is still being read (or cannot be): the saved-file notice alone says nothing useful
-  const text = fileText ?? run.summary;
+  if (!combined) return null;
+  const attach = `\n\n【これまでの回答(要点)】\n${combined.slice(0, 2200)}`;
   return (
-    <div className="ml-6 mt-1 rounded-lg border border-borderSoft bg-white px-3 py-2">
-      <div className="flex items-center gap-3">
-        <span className="text-[12px] font-semibold">AIの回答</span>
-        <button type="button" className="ml-auto text-[11.5px] text-accent hover:underline" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => undefined); }}>{copied ? "コピーしました" : "コピー"}</button>
-        <button type="button" className="text-[11.5px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "開く"}</button>
-      </div>
-      {open && <div className="prose-artifact mt-1 max-h-[480px] overflow-auto text-[13px]"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>}
-      {open && text.length < 80 && <p className="mt-1 text-[11.5px] text-muted">回答が短いため、確認の質問は出しません(AIが断った・使えなかった可能性があります)。</p>}
-      {open && text.length >= 80 && (
-        <div className="mt-2 border-t border-borderSoft pt-2">
-          <p className="mb-1 text-[12px] font-semibold">AIからの確認</p>
-          {!questions ? (
-            <Button variant="ghost" disabled={asking} onClick={() => void runAsk(async () => { const q = await api.followUpQuestions(text); setQuestions(q); setReplies(q.map(() => "")); })}>{asking ? "質問を考えています…(1分ほどかかります)" : "この回答について、確認の質問を作ってもらう"}</Button>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-[11.5px] text-muted">答えたいものだけ書いてください(空欄は飛ばされます)。</p>
-              {questions.map((q, i) => (
-                <div key={i}>
-                  <p className="text-[12.5px]">{i + 1}. {q}</p>
-                  <input value={replies[i] ?? ""} onChange={(e) => setReplies(replies.map((r, j) => (j === i ? e.target.value : r)))} maxLength={200} className="mt-0.5 w-full rounded-lg border border-border bg-bg p-1.5 text-[13px]" />
-                </div>
-              ))}
-              <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" disabled={!replies.some((r) => r.trim())} onClick={() => onNewRequest(`前の回答について、次の確認への答えを反映して、やり直し・修正してください:\n${questions.map((q, i) => (replies[i]?.trim() ? `質問: ${q}\n答え: ${replies[i]!.trim()}` : "")).filter(Boolean).join("\n")}\n\n【前の回答】\n${text.slice(0, 2000)}`)}>答えをもとに新しい依頼を書く</Button>
-                <Button variant="ghost" onClick={() => setQuestions(null)}>質問をつくり直す</Button>
-              </div>
+    <div className="mt-4 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
+      <p className="text-[13px] font-semibold">AIからの確認と、続きの依頼</p>
+      <p className="mb-2 text-[12px] text-muted">上のAIの回答をまとめて読んで、あなたに決めてほしいことを質問にします(作業ごとではなく、この依頼で1回です)。</p>
+      {!questions ? (
+        <Button variant="ghost" disabled={asking} onClick={() => void runAsk(async () => { const q = await api.followUpQuestions(combined); setQuestions(q); setReplies(q.map(() => "")); })}>{asking ? "質問を考えています…(1分ほどかかります)" : "確認の質問を作ってもらう"}</Button>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[11.5px] text-muted">答えたいものだけ書いてください(空欄は飛ばされます)。</p>
+          {questions.map((q, i) => (
+            <div key={i}>
+              <p className="text-[13px]">{i + 1}. {q}</p>
+              <input value={replies[i] ?? ""} onChange={(e) => setReplies(replies.map((r, j) => (j === i ? e.target.value : r)))} maxLength={200} className="mt-0.5 w-full rounded-lg border border-border bg-white p-1.5 text-[13px]" />
             </div>
-          )}
-          <p className="mb-1 mt-3 text-[12px] font-semibold">この回答について、続けて聞く・頼む</p>
-          <div className="mb-1.5 flex flex-wrap gap-1.5">
-            {FOLLOW_UPS.map((q) => <button key={q} type="button" className="rounded-full border border-border px-2.5 py-0.5 text-[11.5px] hover:bg-sidebar" onClick={() => setQuestion(q)}>{q}</button>)}
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" disabled={!replies.some((r) => r.trim())} onClick={() => onNewRequest(`これまでの回答について、次の確認への答えを反映して、やり直し・修正してください:\n${questions.map((q, i) => (replies[i]?.trim() ? `質問: ${q}\n答え: ${replies[i]!.trim()}` : "")).filter(Boolean).join("\n")}${attach}`)}>答えをもとに新しい依頼を書く</Button>
+            <Button variant="ghost" onClick={() => setQuestions(null)}>質問をつくり直す</Button>
           </div>
-          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={2} maxLength={500} placeholder="例: 表にコストの列も足して" className="w-full rounded-lg border border-border bg-bg p-2 text-[13px]" />
-          <Button variant="ghost" disabled={!question.trim()} onClick={() => onNewRequest(`前の回答をもとに、次のことをお願いします:${question.trim()}\n\n【前の回答】\n${text.slice(0, 3000)}`)}>この内容で新しい依頼を書く</Button>
         </div>
       )}
+      <p className="mb-1 mt-3 text-[12px] font-semibold">自分で続きを頼む</p>
+      <div className="mb-1.5 flex flex-wrap gap-1.5">
+        {FOLLOW_UPS.map((q) => <button key={q} type="button" className="rounded-full border border-border px-2.5 py-0.5 text-[11.5px] hover:bg-sidebar" onClick={() => setQuestion(q)}>{q}</button>)}
+      </div>
+      <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={2} maxLength={500} placeholder="例: 表にコストの列も足して" className="w-full rounded-lg border border-border bg-white p-2 text-[13px]" />
+      <Button variant="ghost" disabled={!question.trim()} onClick={() => onNewRequest(`これまでの回答をもとに、次のことをお願いします:${question.trim()}${attach}`)}>この内容で新しい依頼を書く</Button>
     </div>
   );
 }
@@ -678,13 +729,14 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                   </div>
                   {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
                   {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
-                  {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} onNewRequest={writeRequest} />}
+                  {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} />}
                   {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
                   {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
                 </li>
               ))}
             </ul>
           )}
+          {["completed", "failed"].includes(mission.status) && <MissionFollowUp ctx={ctx} tasks={tasks} onNewRequest={writeRequest} />}
           {tasks.length === 0 && mission.status === "draft" && (
             <p className="mt-3 text-[12.5px] text-muted">この依頼にはまだ計画がありません。下のフォームから新しい依頼を始められます(この依頼は不要なら「中止」してください)。</p>
           )}
