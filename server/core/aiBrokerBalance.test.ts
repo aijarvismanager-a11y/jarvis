@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type Db } from "./db.ts";
 import { Store } from "./store.ts";
-import { AIBroker, NEAR_BEST, aiUsage, capabilityForTaskRole, pickBalanced, type BrokerCandidate } from "./aiBroker.ts";
+import { AIBroker, NEAR_BEST, aiUsage, reliabilityPenalties, capabilityForTaskRole, pickBalanced, type BrokerCandidate } from "./aiBroker.ts";
 import { pickReviewer, reviewCapabilityFor } from "./aiReview.ts";
 import { IDEATION_SCORES, applyClaudeCodeReview, applyIdeationCapability } from "./aiRegistry.ts";
 import { setWebAiSettings } from "./webAiSites.ts";
@@ -204,3 +204,22 @@ describe("sparing the Claude plan", () => {
     expect(d.ranked.map((c) => c.aiId)).toContain("claude-web");
   });
 });
+
+describe("reliability penalty", () => {
+  const rec = (aiId: string, status: "succeeded" | "failed") => store.recordAiRun({ projectId: "p1", aiId, executor: "web-ai", status });
+  it("marks down a web AI that keeps failing, once it has run enough, and leaves the others alone", () => {
+    const [flaky, steady, fresh] = ["flaky", "steady", "fresh"];
+    for (const id of [flaky, steady, fresh]) web(id, id, { writing: 4 });
+    for (let i = 0; i < 2; i++) rec(flaky, "succeeded");
+    for (let i = 0; i < 2; i++) rec(flaky, "failed");
+    for (let i = 0; i < 6; i++) rec(steady, "succeeded");
+    rec(steady, "failed");
+    for (let i = 0; i < 3; i++) rec(fresh, "failed"); // too few runs to judge
+    const r = reliabilityPenalties(store);
+    expect(r.penalties[flaky]).toBe(10);
+    expect(r.notes[flaky]).toContain("4回中2回失敗");
+    expect(r.penalties[steady]).toBeUndefined();
+    expect(r.penalties[fresh]).toBeUndefined();
+  });
+});
+

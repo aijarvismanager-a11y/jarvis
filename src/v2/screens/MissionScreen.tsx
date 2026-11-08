@@ -675,10 +675,9 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
   };
   const start = () =>
     run(async () => {
-      if (goal.trim().length < 400) {
-        const q = await api.clarifyRequest(goal.trim()).catch(() => [] as string[]); // asking is a help: if it fails, just go on
-        if (q.length) { setQuestions(q); setReplies(q.map(() => "")); return; }
-      }
+      // the AI itself judges whether the request is concrete enough (it answers with no questions when it is), whatever its length
+      const q = await api.clarifyRequest(goal.trim()).catch(() => [] as string[]); // asking is a help: if it fails, just go on
+      if (q.length) { setQuestions(q); setReplies(q.map(() => "")); return; }
       await create(goal);
     });
   return (

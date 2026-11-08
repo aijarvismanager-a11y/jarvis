@@ -99,6 +99,8 @@ export type BrokerOptions = {
   nearBest?: number;
   /** points taken off an AI's total while its allowance runs low (the Claude plan): it stays a fallback but others are tried first */
   penalties?: Record<string, number>;
+  /** Why an AI was marked down (shown in its notes); without an entry the quota wording is used. */
+  penaltyNotes?: Record<string, string>;
   /** AIs left out for now, with the reason (a bot check that is waiting for the person; see botCheck.ts). */
   restingAis?: Record<string, string>;
   /** AIs that already failed this task; skipped so a retry falls back to the next candidate. */
@@ -212,6 +214,30 @@ export function aiUsage(store: Store, scope: { missionId?: string; taskId?: stri
   return out;
 }
 
+const RELIABILITY_DAYS = 14;
+const RELIABILITY_MIN_RUNS = 4;
+const RELIABILITY_FAIL_FROM = 0.25;
+
+/**
+ * Web AIs that keep failing in the app's hands (a changed page, no answer in time) are marked down, so the work goes first to the ones that
+ * answer. Looks at the last two weeks, needs a few runs before judging, and never touches Claude Code. A site that said "limit reached" is
+ * rested elsewhere (usageLimit), and a failure the person has to clear is not counted by the executor as a run failure of the AI itself.
+ */
+export function reliabilityPenalties(store: Store, now = Date.now()): { penalties: Record<string, number>; notes: Record<string, string> } {
+  const since = new Date(now - RELIABILITY_DAYS * 86_400_000).toISOString();
+  const rows = store.db.prepare("SELECT ai_id, COUNT(*) AS n, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS bad FROM ai_runs WHERE executor = 'web-ai' AND ai_id IS NOT NULL AND started_at >= ? AND status IN ('succeeded', 'failed') GROUP BY ai_id").all(since) as { ai_id: string; n: number; bad: number }[];
+  const penalties: Record<string, number> = {};
+  const notes: Record<string, string> = {};
+  for (const r of rows) {
+    const rate = r.bad / r.n;
+    if (r.n < RELIABILITY_MIN_RUNS || rate < RELIABILITY_FAIL_FROM) continue;
+    const penalty = round(Math.min(10, rate * 20), 1);
+    penalties[r.ai_id] = penalty;
+    notes[r.ai_id] = `最近${RELIABILITY_DAYS}日で${r.n}回中${r.bad}回失敗しているため${round(penalty / 5, 1)}点下げています`;
+  }
+  return { penalties, notes };
+}
+
 export function chooseAi(services: AiService[], capability: string, options: BrokerOptions = {}): BrokerDecision {
   const budgetPolicy = options.budgetPolicy ?? "free_only";
   const excluded: BrokerDecision["excluded"] = [];
@@ -227,7 +253,7 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
     if (penalty > 0) {
       candidate.total = round(candidate.total - penalty);
       candidate.score10 = round(candidate.total / 5, 1);
-      candidate.notes.push(`利用枠が残り少ないため${round(penalty / 5, 1)}点下げています`);
+      candidate.notes.push(options.penaltyNotes?.[s.id] ?? `利用枠が残り少ないため${round(penalty / 5, 1)}点下げています`);
     }
     if (s.accessMode === "web" && s.automationLevel <= 2 && !options.allowManualText) {
       // an AI that needs a person to carry text or files between sites does not fit this app: it is never chosen (pictures become SVG, music/video are put on hold)
@@ -324,6 +350,11 @@ export class AIBroker {
 
   select(task: Pick<Task, "role"> & Partial<Pick<Task, "id" | "missionId">>, options: BrokerOptions = {}): BrokerDecision {
     const usage = options.usage ?? aiUsage(this.store, { missionId: task.missionId, taskId: task.id });
-    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), nearBest: TASK_NEAR_BEST, penalties: this.claudePenalties(), restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
+    const quota = this.claudePenalties();
+    const reliability = reliabilityPenalties(this.store);
+    const penalties: Record<string, number> = { ...quota };
+    for (const [id, p] of Object.entries(reliability.penalties)) penalties[id] = (penalties[id] ?? 0) + p;
+    const penaltyNotes = Object.fromEntries(Object.entries(reliability.notes).filter(([id]) => !(id in quota)));
+    return chooseAi(this.store.listAiServices(), capabilityForTaskRole(task.role), { allowManualText: this.store.getSetting<boolean>(MANUAL_TEXT_KEY, false), nearBest: TASK_NEAR_BEST, penalties, penaltyNotes, restingAis: this.restingAis(), ...options, usage, seed: options.seed ?? task.id });
   }
 }
