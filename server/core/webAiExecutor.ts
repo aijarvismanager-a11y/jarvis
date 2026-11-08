@@ -116,6 +116,9 @@ export const decodeSvgText = (text: string): string => text.replace(/[«＜]/g, 
 
 export const isSvgTask = (task: Pick<Task, "objective">): boolean => SVG_SUFFIX.test(task.objective);
 
+/** A one-line answer shorter than this that is just the site's name is a page title, not an answer. */
+export const MIN_DOCUMENT_CHARS = 60;
+
 export class WebAiExecutor implements TaskExecutor {
   readonly name = "web-ai";
   /** Registry adapter types this executor can run: every web AI starts as `manual` (Level 1). */
@@ -561,6 +564,13 @@ export class WebAiExecutor implements TaskExecutor {
     } else {
       files = [[`web-ai/${slug(task.role)}-${task.id.slice(0, 8)}.md`, text]];
     }
+    // The page's own title ("プロジェクト - Recraft") read back as if it were the answer is not the work: refuse it (the engine hands the task to another AI)
+    const brand = svc.name.split(/[\s(（]/)[0]!.toLowerCase();
+    const tooShort = files.filter(([rel, raw]) => {
+      const body = cleanFileText(rel, raw).trim();
+      return /\.(md|txt)$/i.test(rel) && body.length < MIN_DOCUMENT_CHARS && !body.includes("\n") && brand.length >= 3 && body.toLowerCase().includes(brand);
+    });
+    if (tooShort.length) return { ok: false, aiId: svc.id, automationLevel: level, summary: `${svc.name}の回答が、サイトの題名だけで成果物として使えません: ${tooShort.map(([rel]) => rel).join(", ")}。ほかのAIに回します` };
     const saved: string[] = [];
     // A site answers in chat, so it cannot append to a long existing file: its text would replace the whole history (TESTLOG, PLAN...). Leave the file alone and let Claude Code do it.
     for (const [rel, raw] of files) {

@@ -37,6 +37,14 @@ describe("text work goes only to AIs the app can operate by itself", () => {
     expect(chooseAi(far, "image_generation").selected?.aiId).toBe("auto-weak");
   });
 
+  it("never gives written work to a picture-only AI", () => {
+    const art = svc("art-only", 3, { image_generation: 5 });
+    const d = chooseAi([art, svc("auto-ok", 3, { research: 3 })], "unclassified");
+    expect(d.selected?.aiId).toBe("auto-ok");
+    expect(d.excluded.find((e) => e.aiId === "art-only")?.reason).toContain("専用");
+    expect(chooseAi([art], "image_generation").selected?.aiId).toBe("art-only");
+  });
+
   it("can be switched back by the hidden setting", () => {
     expect(chooseAi(list, "research", { allowManualText: true }).selected?.aiId).toBe("manual-star");
   });

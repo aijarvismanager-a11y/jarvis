@@ -72,6 +72,8 @@ describe("PermissionPolicy", () => {
     const p = new PermissionPolicy();
     const code = p.restrictionsFor({ role: "coding" });
     expect(code.allowedTools).toContain("Bash(npm:*)");
+    expect(code.allowedTools).toContain("Bash(dotnet build:*)");
+    expect(code.allowedTools).toContain("Bash(dotnet test:*)");
     expect(code.disallowedTools).toEqual(expect.arrayContaining(["WebFetch", "Bash(git push:*)", "Bash(rm:*)"]));
     expect(p.restrictionsFor({ role: "research" }).allowedTools).toEqual([]);
   });

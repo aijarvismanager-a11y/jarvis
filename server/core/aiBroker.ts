@@ -260,6 +260,11 @@ export function chooseAi(services: AiService[], capability: string, options: Bro
       excluded.push({ aiId: s.id, name: s.name, reason: "人の操作が要る(手動・半自動)ため、担当には選びません(自動で使えるようになるまで待ちです)" });
       continue;
     }
+    if (!isMediaCapability(capability) && s.capabilities.length > 0 && s.capabilities.every(isMediaCapability)) {
+      // a picture / video / music / voice maker answers a text task with a page title: never a candidate for written work
+      excluded.push({ aiId: s.id, name: s.name, reason: "画像・動画・音楽・音声づくり専用のため、文章やコードの作業には選びません" });
+      continue;
+    }
     const resting = options.restingAis?.[s.id];
     if (resting) {
       excluded.push({ aiId: s.id, name: s.name, reason: resting });
