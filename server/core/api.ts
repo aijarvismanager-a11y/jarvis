@@ -27,6 +27,7 @@ import { autoReflectKey, isSyncBusy, withSyncLock } from "./autoReflect.ts";
 import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
+import { loadAcceptance, runAcceptance, type AcceptanceRunner } from "./acceptance.ts";
 import { createDeliveryFolder } from "./deliveryFolder.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
@@ -48,6 +49,8 @@ export type OrchestratorApiDeps = {
   /** Enables POST /ai-discovery; without it that endpoint answers 501. */
   discovery?: AiDiscovery;
   /** Enables POST /follow-up-questions (questions to confirm, made from an AI's answer); without it that endpoint answers 501. */
+  /** Enables the acceptance check (does the finished request give what was asked?); without it those endpoints answer 501. */
+  acceptance?: AcceptanceRunner;
   followUps?: { ask(answer: string): Promise<string[]>; clarify?(request: string): Promise<string[]> };
   /** Enables /ai-scout (weekly search for new Google-sign-in AIs, proposals the person accepts or drops). */
   scout?: AiScout;
@@ -480,6 +483,21 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       }
     }, deps.appRoot ? verifyInfo(store, deps.appRoot, String(req.params.projectId)) : undefined) });
   });
+  const readInProject = (projectId: string) => (rel: string) => {
+    try {
+      return readFileSync(resolveInProject(store.projectsRoot, projectId, rel), "utf-8").slice(0, MAX_ARTIFACT_BYTES);
+    } catch {
+      return null;
+    }
+  };
+  router.get("/projects/:projectId/missions/:missionId/acceptance", (req, res) => {
+    res.json({ acceptance: loadAcceptance(store, String(req.params.missionId)) });
+  });
+  router.post("/projects/:projectId/missions/:missionId/acceptance", guarded(async (req, res) => {
+    if (!deps.acceptance) return void res.status(501).json({ error: "希望のチェックの機能が接続されていません" });
+    const projectId = String(req.params.projectId);
+    res.json({ acceptance: await runAcceptance(store, deps.acceptance, projectId, String(req.params.missionId), readInProject(projectId)) });
+  }));
   // Why each task has the AI it has: the selection events of the whole project (the plain events list only keeps the latest 200).
   router.get("/projects/:projectId/ai-selections", (req, res) => {
     const projectId = String(req.params.projectId);

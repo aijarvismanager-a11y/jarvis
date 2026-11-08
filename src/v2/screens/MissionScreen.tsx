@@ -15,7 +15,7 @@ import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
 import { SayItHelper } from "../SayItHelper";
-import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, ReportAction, ReportTodo } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, Acceptance, ReportAction, ReportTodo } from "../types";
 
 /** A task's instruction is written for the AI and can run to several hundred characters: show the start, the rest on request. */
 function TaskObjective({ text }: { text: string }) {
@@ -245,6 +245,62 @@ function TodoCard({ todo, ctx, missionId, onNewRequest }: { todo: ReportTodo; ct
           <Button key={i} variant={i === todo.actions.length - 1 && todo.required ? "primary" : "ghost"} disabled={busy} onClick={() => act(a)}>{a.kind === "copy" && copied === a.text ? "コピーしました" : a.label}</Button>
         ))}
       </div>
+    </div>
+  );
+}
+
+const ACCEPT_LABEL = { met: "満たしている", partial: "一部だけ", unmet: "満たしていない", unknown: "判断できない" } as const;
+const ACCEPT_TONE = { met: "ok", partial: "warn", unmet: "bad", unknown: "neutral" } as const;
+
+/** "Did it give what I asked for?": the request taken apart into wishes, each marked with the evidence found. Made by itself when a request finishes. */
+function AcceptancePanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx: Ctx; projectId: string; missionId: string; status: string; onNewRequest: (goal: string) => void }) {
+  const [acc, setAcc] = useState<Acceptance | null>(null);
+  const [waited, setWaited] = useState(0);
+  const { busy, run } = useAction(ctx.setError);
+  useEffect(() => {
+    let alive = true;
+    setAcc(null);
+    setWaited(0);
+    api.acceptance(projectId, missionId).then((a) => alive && setAcc(a)).catch(() => undefined);
+    return () => { alive = false; };
+  }, [projectId, missionId, status]);
+  // the server starts the check as soon as the request finishes (about a minute): look again a few times before offering the button
+  useEffect(() => {
+    if (acc || waited >= 6) return;
+    const id = setTimeout(() => { api.acceptance(projectId, missionId).then((a) => (a ? setAcc(a) : setWaited((w) => w + 1))).catch(() => setWaited((w) => w + 1)); }, 15000);
+    return () => clearTimeout(id);
+  }, [acc, waited, projectId, missionId]);
+  const check = () => run(async () => { setAcc(await api.runAcceptance(projectId, missionId)); });
+  if (!acc) {
+    return (
+      <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
+        <p className="text-[13px] font-semibold">依頼どおりにできたかのチェック</p>
+        <p className="mb-2 text-[12px] text-muted">{waited < 6 ? "AIが、依頼の希望を1つずつ見て、満たしているか確かめています(1分ほど)。" : "まだチェックされていません。"}</p>
+        <Button variant="ghost" disabled={busy} onClick={() => void check()}>{busy ? "チェック中…(1〜3分)" : "いまチェックする"}</Button>
+      </div>
+    );
+  }
+  const bad = acc.items.filter((i) => i.status === "unmet" || i.status === "partial");
+  return (
+    <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold">依頼どおりにできたかのチェック</span>
+        {acc.score !== null && <Badge tone={acc.score >= 85 ? "ok" : acc.score >= 50 ? "warn" : "bad"}>希望の達成度 {acc.score}%</Badge>}
+        <Button variant="ghost" disabled={busy} onClick={() => void check()}>{busy ? "チェック中…" : "もう一度チェック"}</Button>
+      </div>
+      {acc.summary && <p className="mt-1 text-[13px]">{acc.summary}</p>}
+      <ul className="mt-2 divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
+        {acc.items.map((i, n) => (
+          <li key={n} className="px-3 py-2 text-[12.5px] leading-relaxed">
+            <div className="flex flex-wrap items-center gap-2"><Badge tone={ACCEPT_TONE[i.status]}>{ACCEPT_LABEL[i.status]}</Badge><span>{i.requirement}</span></div>
+            {i.evidence && <p className="mt-0.5 text-muted">{i.evidence}</p>}
+          </li>
+        ))}
+      </ul>
+      {bad.length > 0 && (
+        <Button variant="ghost" onClick={() => onNewRequest(`前回の依頼のうち、次の点が足りていません。直してください:\n${bad.map((i) => `- ${i.requirement}${i.fix ? `(${i.fix})` : ""}`).join("\n")}`)}>足りない点だけ、直してもらう</Button>
+      )}
+      <p className="mt-1.5 text-[11px] text-muted">これはAIの目で見た判定です。画面や動きは、ご自身でも一度ご確認ください。</p>
     </div>
   );
 }
@@ -739,6 +795,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           )}
           {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
+          {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {usage.runs > 0 && (
             <p className="mt-2 text-[12px] text-muted">

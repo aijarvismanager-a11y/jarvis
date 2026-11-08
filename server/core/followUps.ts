@@ -54,7 +54,8 @@ export class FollowUpAsker {
     return this.run(buildClarifyPrompt(request), true);
   }
 
-  private async run(prompt: string, allowEmpty: boolean): Promise<string[]> {
+  /** One light `claude --print` run that may not touch files; returns its raw output. Also used for other short judgements (acceptance check). */
+  async exec(prompt: string, choice: { model: "haiku" | "sonnet" | "opus"; effort: "low" | "medium" | "high" }, timeoutMs: number): Promise<string> {
     if (!this.caps) {
       const help = await this.runner(this.command, ["--help"], { cwd: this.opts.cwd, timeoutMs: 30_000 });
       this.caps = parseCliCapabilities(`${help.stdout}\n${help.stderr}`);
@@ -65,11 +66,16 @@ export class FollowUpAsker {
     if (caps.outputFormatJson) args.push("--output-format", "json");
     if (caps.permissionModePlan) args.push("--permission-mode", "plan");
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
-    args.push(...saverArgs(caps.saver, { model: "haiku", effort: "low" }));
-    const res = await this.runner(this.command, args, { input: prompt, cwd: this.opts.cwd, timeoutMs: this.opts.timeoutMs ?? 3 * 60_000 });
-    if (res.timedOut) throw new Error("質問づくりが3分以内に終わりませんでした。もう一度試してください");
+    args.push(...saverArgs(caps.saver, choice));
+    const res = await this.runner(this.command, args, { input: prompt, cwd: this.opts.cwd, timeoutMs: this.opts.timeoutMs ?? timeoutMs });
+    if (res.timedOut) throw new Error("処理が時間内に終わりませんでした。もう一度試してください");
     if (res.code !== 0) throw new Error(explainClaudeFailure(`${res.stdout}\n${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code})`);
-    const questions = parseFollowUps(res.stdout);
+    return res.stdout;
+  }
+
+  private async run(prompt: string, allowEmpty: boolean): Promise<string[]> {
+    const stdout = await this.exec(prompt, { model: "haiku", effort: "low" }, 3 * 60_000);
+    const questions = parseFollowUps(stdout);
     if (questions.length === 0 && !allowEmpty) throw new Error("確認の質問を作れませんでした。もう一度試してください");
     return questions;
   }

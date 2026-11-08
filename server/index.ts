@@ -23,6 +23,7 @@ import { WEB_ADAPTER_TYPES, WebHandoffHub } from "./core/webHandoff.ts";
 import { AppSmokeTester } from "./core/appSmokeTest.ts";
 import { TaskLogStore } from "./core/taskLog.ts";
 import { FollowUpAsker } from "./core/followUps.ts";
+import { loadAcceptance, runAcceptance } from "./core/acceptance.ts";
 import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
@@ -126,20 +127,25 @@ const webExecutor = new WebAiExecutor(coreStore, webHub, { driver: webDriver });
 const executor = new RoutingExecutor(coreStore, claudeExecutor, webExecutor);
 const scout = new AiScout(coreStore, { asker: webExecutor });
 const roster = new AiRoster(coreStore, { probe: async (svc) => webExecutor.probe(svc) });
+const followUpAsker = new FollowUpAsker({ cwd: ROOT });
 const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
   aiReview: { reviewer: webExecutor },
   validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots, runsOnWebChat: (task) => { const svc = task.selectedAi ? coreStore.getAiService(task.selectedAi) : null; return !!svc && (WEB_ADAPTER_TYPES as readonly string[]).includes(svc.adapterType) && !needsCodeExecutor(task); } }),
   broker: new AIBroker(coreStore),
-  onMissionCompleted: (projectId, missionId) =>
+  onMissionCompleted: (projectId, missionId) => {
+    // a second look at "did it give what was asked?" - best effort, never blocks anything
+    const read = (rel: string) => { try { return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000); } catch { return null; } };
+    if (!loadAcceptance(coreStore, missionId)) void runAcceptance(coreStore, followUpAsker, projectId, missionId, read).catch(() => undefined);
     void autoReflectMission(coreStore, path.join(ROOT, "backups", "sync"), projectId, missionId, (rel) => {
       try {
         return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000);
       } catch {
         return null;
       }
-    }).then((r) => (r.applied > 0 ? runVerification(coreStore, ROOT, projectId, missionId) : undefined)),
+    }).then((r) => (r.applied > 0 ? runVerification(coreStore, ROOT, projectId, missionId) : undefined));
+  },
 });
 // A restart leaves approved missions marked "running" with no loop behind them: pick them up again.
 for (const project of coreStore.listProjects()) {
@@ -158,7 +164,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, followUps: new FollowUpAsker({ cwd: ROOT }), healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, roster, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, followUps: followUpAsker, acceptance: followUpAsker, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, roster, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.
