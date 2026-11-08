@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FollowUpAsker, buildFollowUpPrompt, parseFollowUps } from "./followUps.ts";
+import { FollowUpAsker, buildClarifyPrompt, buildFollowUpPrompt, parseFollowUps } from "./followUps.ts";
 
 describe("follow-up questions", () => {
   it("reads the questions out of Claude's json output", () => {
@@ -19,5 +19,16 @@ describe("follow-up questions", () => {
     const run = calls[1]!;
     expect(run.args).toContain("plan");
     expect(run.input).toBe(buildFollowUpPrompt("| a | b |\n|---|---|\n| 1 | 2 |"));
+  });
+  it("asks about an unplanned request, and accepts \"nothing to ask\"", async () => {
+    const runner = async (_c: string, args: string[], o: { input?: string }) => {
+      if (args.includes("--help")) return { code: 0, stdout: "--print --output-format json --permission-mode plan", stderr: "", timedOut: false };
+      const q = o.input?.includes("ECHO") ? ["誰が使いますか?"] : [];
+      return { code: 0, stdout: JSON.stringify({ result: JSON.stringify({ questions: q }) }), stderr: "", timedOut: false };
+    };
+    const asker = new FollowUpAsker({ runner: runner as never });
+    expect(await asker.clarify("ECHO 在庫アプリ")).toEqual(["誰が使いますか?"]);
+    expect(await asker.clarify("とても具体的な依頼")).toEqual([]);
+    expect(buildClarifyPrompt("在庫アプリ")).toContain("在庫アプリ");
   });
 });

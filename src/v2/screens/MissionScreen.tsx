@@ -602,18 +602,34 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
   const [tech, setTech] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const lines = (s: string) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  // Before planning, a vague request gets a few questions (once); the answers are written into the request so the plan starts from them.
+  const [questions, setQuestions] = useState<string[] | null>(null);
+  const [replies, setReplies] = useState<string[]>([]);
+  const create = (text: string) =>
+    run(async () => {
+      const project = await ctx.ensureProject(deriveProjectName(text));
+      await api.createMission(project.id, text.trim(), lines(constraints), tech.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean));
+      setGoal("");
+      setQuestions(null);
+      onStarted();
+    });
+  const withAnswers = () => {
+    const qa = (questions ?? []).map((q, i) => (replies[i]?.trim() ? `- ${q} → ${replies[i]!.trim()}` : "")).filter(Boolean);
+    return qa.length ? `${goal.trim()}\n\n【確認して決まったこと】\n${qa.join("\n")}` : goal;
+  };
   const start = () =>
     run(async () => {
-      const project = await ctx.ensureProject(deriveProjectName(goal));
-      await api.createMission(project.id, goal.trim(), lines(constraints), tech.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean));
-      setGoal("");
-      onStarted();
+      if (goal.trim().length < 400) {
+        const q = await api.clarifyRequest(goal.trim()).catch(() => [] as string[]); // asking is a help: if it fails, just go on
+        if (q.length) { setQuestions(q); setReplies(q.map(() => "")); return; }
+      }
+      await create(goal);
     });
   return (
     <Card>
       <label htmlFor="goal" className="mb-2 block font-serif text-[18px] font-semibold">何を作りますか?</label>
       <SayItHelper kind="first" value={goal} onChange={setGoal} />
-      <textarea id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} rows={3} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
+      <textarea id="goal" value={goal} onChange={(e) => { setGoal(e.target.value); setQuestions(null); }} rows={3} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
       <div className="mt-3">
         <Details summary="詳細設定(任意)">
           <label className="mb-1 block text-[12px] text-muted">守ってほしい条件(1行に1つ)</label>
@@ -622,9 +638,28 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
           <input value={tech} onChange={(e) => setTech(e.target.value)} className="w-full rounded-lg border border-border bg-panel p-2 text-[13px]" />
         </Details>
       </div>
-      <div className="mt-3">
-        <Button disabled={busy || !goal.trim()} onClick={start}>{busy ? "計画を作成中…(数十秒かかります)" : "開発を開始"}</Button>
-      </div>
+      {questions ? (
+        <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
+          <p className="text-[13px] font-semibold">作り始める前に、いくつか確認させてください</p>
+          <p className="mb-2 text-[12px] text-muted">答えたいものだけ書いてください(空欄は、AIにおまかせになります)。答えは依頼に書き足されます。</p>
+          <div className="space-y-2">
+            {questions.map((q, i) => (
+              <div key={i}>
+                <p className="text-[13px]">{i + 1}. {q}</p>
+                <input value={replies[i] ?? ""} onChange={(e) => setReplies(replies.map((r, j) => (j === i ? e.target.value : r)))} maxLength={200} className="mt-0.5 w-full rounded-lg border border-border bg-white p-1.5 text-[13px]" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button disabled={busy} onClick={() => void create(withAnswers())}>{busy ? "計画を作成中…(数十秒かかります)" : "この答えで開発を開始"}</Button>
+            <Button variant="ghost" disabled={busy} onClick={() => void create(goal)}>確認せず、このまま開始</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <Button disabled={busy || !goal.trim()} onClick={start}>{busy ? "依頼を確認中…(数十秒かかります)" : "開発を開始"}</Button>
+        </div>
+      )}
     </Card>
   );
 }
