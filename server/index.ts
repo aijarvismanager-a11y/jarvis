@@ -24,6 +24,7 @@ import { AppSmokeTester } from "./core/appSmokeTest.ts";
 import { TaskLogStore } from "./core/taskLog.ts";
 import { FollowUpAsker } from "./core/followUps.ts";
 import { loadAcceptance, runAcceptance } from "./core/acceptance.ts";
+import { loadNextIdeas, runNextIdeas } from "./core/nextIdeas.ts";
 import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { DesktopCompare } from "./core/desktopCompare.ts";
@@ -140,7 +141,9 @@ const engine = new MissionEngine(coreStore, {
   onMissionCompleted: (projectId, missionId) => {
     // a second look at "did it give what was asked?" - best effort, never blocks anything
     const read = (rel: string) => { try { return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000); } catch { return null; } };
-    if (!loadAcceptance(coreStore, missionId)) void runAcceptance(coreStore, followUpAsker, projectId, missionId, read).catch(() => undefined);
+    // then "what to ask for next" (it reads the check's findings, so it waits for the check)
+    const check = loadAcceptance(coreStore, missionId) ? Promise.resolve() : runAcceptance(coreStore, followUpAsker, projectId, missionId, read).then(() => undefined).catch(() => undefined);
+    if (!loadNextIdeas(coreStore, missionId)) void check.then(() => runNextIdeas(coreStore, followUpAsker, projectId, missionId, read)).catch(() => undefined);
     void autoReflectMission(coreStore, path.join(ROOT, "backups", "sync"), projectId, missionId, (rel) => {
       try {
         return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000);

@@ -15,7 +15,7 @@ import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
 import { SayItHelper } from "../SayItHelper";
-import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, Acceptance, ReportAction, ReportTodo } from "../types";
+import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, Acceptance, NextIdeas, ReportAction, ReportTodo } from "../types";
 
 /** A task's instruction is written for the AI and can run to several hundred characters: show the start, the rest on request. */
 function TaskObjective({ text }: { text: string }) {
@@ -302,6 +302,62 @@ function AcceptancePanel({ ctx, projectId, missionId, status, onNewRequest }: { 
       )}
       <p className="mt-1.5 text-[11px] text-muted">これはAIの目で見た判定です。画面や動きは、ご自身でも一度ご確認ください。</p>
     </div>
+  );
+}
+
+const EFFORT_LABEL = { small: "30分ほど", medium: "1〜2時間", large: "大きめ(最初の一歩から)" } as const;
+
+/** "What should I ask for next?": a few proposed next requests, one marked as the recommendation. Made by itself after the check. */
+function NextIdeasPanel({ ctx, projectId, missionId, status, onPick }: { ctx: Ctx; projectId: string; missionId: string; status: string; onPick: (request: string) => void }) {
+  const [ideas, setIdeas] = useState<NextIdeas | null>(null);
+  const [waited, setWaited] = useState(0);
+  const { busy, run } = useAction(ctx.setError);
+  useEffect(() => {
+    let alive = true;
+    setIdeas(null);
+    setWaited(0);
+    api.nextIdeas(projectId, missionId).then((a) => alive && setIdeas(a)).catch(() => undefined);
+    return () => { alive = false; };
+  }, [projectId, missionId, status]);
+  // the server makes them right after the acceptance check (together about two to three minutes): look again before offering the button
+  useEffect(() => {
+    if (ideas || waited >= 16) return;
+    const id = setTimeout(() => { api.nextIdeas(projectId, missionId).then((a) => (a ? setIdeas(a) : setWaited((w) => w + 1))).catch(() => setWaited((w) => w + 1)); }, 15000);
+    return () => clearTimeout(id);
+  }, [ideas, waited, projectId, missionId]);
+  const make = () => run(async () => { setIdeas(await api.makeNextIdeas(projectId, missionId)); });
+  if (!ideas) {
+    return (
+      <section className="rounded-xl border border-borderSoft bg-panel p-4" aria-label="おすすめの次の案件">
+        <p className="text-[13px] font-semibold">おすすめの次の案件</p>
+        <p className="mb-2 text-[12px] text-muted">{waited < 16 ? "AIが、次に頼むとよいことを考えています(2〜3分)。できると、ここに出ます。" : "まだ提案が作られていません。"}</p>
+        <Button variant="ghost" disabled={busy} onClick={() => void make()}>{busy ? "考えています…(1〜3分)" : "いま考えてもらう"}</Button>
+      </section>
+    );
+  }
+  return (
+    <section className="rounded-xl border border-borderSoft bg-panel p-4" aria-label="おすすめの次の案件">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold">おすすめの次の案件</span>
+        <Button variant="ghost" disabled={busy} onClick={() => void make()}>{busy ? "考え直しています…" : "考え直してもらう"}</Button>
+      </div>
+      <p className="mb-2 text-[12px] text-muted">いま終わったことの次に、頼むとよさそうなことです。選ぶと、依頼の文が入力欄に入ります(そのまま開始せず、読んで直せます)。</p>
+      <ul className="space-y-2">
+        {ideas.ideas.map((idea, n) => (
+          <li key={n} className={`rounded-lg border px-3.5 py-3 ${idea.recommended ? "border-accent bg-[#FBF1EC]" : "border-borderSoft bg-white"}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              {idea.recommended && <Badge tone="warn">おすすめ</Badge>}
+              <span className="font-serif text-[15px] font-semibold">{idea.title}</span>
+              <span className="text-[11.5px] text-muted">目安: {EFFORT_LABEL[idea.effort]}</span>
+            </div>
+            <p className="mt-1 text-[13px]">{idea.why}</p>
+            <Details summary="依頼の文を見る"><p className="whitespace-pre-wrap text-[12.5px] text-[#4a473f]">{idea.request}</p></Details>
+            <div className="mt-2"><Button variant={idea.recommended ? "primary" : "ghost"} onClick={() => onPick(idea.request)}>この案件の依頼を書く</Button></div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-[11px] text-muted">AIが作った提案です。やりたいことと違うときは、下の入力欄に自由に書いて頼めます。</p>
+    </section>
   );
 }
 
@@ -768,6 +824,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       ) : (
         <NextStepBanner step={step} />
       )}
+      {mission?.status === "completed" && !starting && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
       <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[900px]:items-start">

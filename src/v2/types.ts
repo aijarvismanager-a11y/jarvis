@@ -135,3 +135,5 @@ export type AllResting = { since: string; until: string; tasks: number; ais: Res
 export type ClaudeLimit = { warn: boolean; utilization: number | null; resetsAt: string | null; until: string | null; policy: "wait" | "reroute" | null };
 export type AcceptanceItem = { requirement: string; status: "met" | "partial" | "unmet" | "unknown"; evidence: string; fix?: string };
 export type Acceptance = { missionId: string; at: string; items: AcceptanceItem[]; summary: string; score: number | null };
+export type NextIdea = { title: string; why: string; request: string; effort: "small" | "medium" | "large"; recommended: boolean };
+export type NextIdeas = { missionId: string; at: string; ideas: NextIdea[] };

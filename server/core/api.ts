@@ -29,6 +29,7 @@ import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hash
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import { loadAcceptance, runAcceptance, type AcceptanceRunner } from "./acceptance.ts";
+import { loadNextIdeas, runNextIdeas } from "./nextIdeas.ts";
 import { createDeliveryFolder } from "./deliveryFolder.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { ApprovalHub } from "./approvalHub.ts";
@@ -500,6 +501,15 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!deps.acceptance) return void res.status(501).json({ error: "希望のチェックの機能が接続されていません" });
     const projectId = String(req.params.projectId);
     res.json({ acceptance: await runAcceptance(store, deps.acceptance, projectId, String(req.params.missionId), readInProject(projectId)) });
+  }));
+  // "What to ask for next": a few proposed next requests (one recommended), made by itself when a request finishes; this can remake them.
+  router.get("/projects/:projectId/missions/:missionId/next-ideas", (req, res) => {
+    res.json({ nextIdeas: loadNextIdeas(store, String(req.params.missionId)) });
+  });
+  router.post("/projects/:projectId/missions/:missionId/next-ideas", guarded(async (req, res) => {
+    if (!deps.acceptance) return void res.status(501).json({ error: "次の案件の提案の機能が接続されていません" });
+    const projectId = String(req.params.projectId);
+    res.json({ nextIdeas: await runNextIdeas(store, deps.acceptance, projectId, String(req.params.missionId), readInProject(projectId)) });
   }));
   // Why each task has the AI it has: the selection events of the whole project (the plain events list only keeps the latest 200).
   router.get("/projects/:projectId/ai-selections", (req, res) => {

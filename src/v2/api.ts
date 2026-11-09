@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, NextIdeas, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo } from "./types";
 
 const BASE = "/api/v2";
 
@@ -92,6 +92,8 @@ export const api = {
     request<{ status: string; entries: LogEntry[] }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/log?after=${after}`),
   missionReport: (projectId: string, missionId: string) => request<{ report: MissionReport }>(`${mission(projectId, missionId)}/report`).then((r) => r.report),
   acceptance: (projectId: string, missionId: string) => request<{ acceptance: Acceptance | null }>(`${mission(projectId, missionId)}/acceptance`).then((r) => r.acceptance),
+  nextIdeas: (projectId: string, missionId: string) => request<{ nextIdeas: NextIdeas | null }>(`${mission(projectId, missionId)}/next-ideas`).then((r) => r.nextIdeas),
+  makeNextIdeas: (projectId: string, missionId: string) => request<{ nextIdeas: NextIdeas }>(`${mission(projectId, missionId)}/next-ideas`, "POST", {}).then((r) => r.nextIdeas),
   runAcceptance: (projectId: string, missionId: string) => request<{ acceptance: Acceptance }>(`${mission(projectId, missionId)}/acceptance`, "POST", {}).then((r) => r.acceptance),
   taskChanges: (projectId: string, taskId: string) => request<{ changes: TaskChanges | null }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/changes`).then((r) => r.changes),
   rollbackTask: (projectId: string, taskId: string) => request<{ restored: string[] }>(`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/rollback`, "POST", {}),
