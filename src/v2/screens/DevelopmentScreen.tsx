@@ -67,7 +67,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
             <ul>
               {outputs.map((a) => (
                 <li key={a.id}>
-                  <button onClick={() => ctx.openArtifact(a)} className="text-accent hover:underline">{a.path}</button>
+                  <button onClick={() => ctx.openArtifact(a)} className="break-all text-left text-accent hover:underline">{a.path}</button>
                   <span className="ml-2 text-muted">v{a.version}</span>
                 </li>
               ))}

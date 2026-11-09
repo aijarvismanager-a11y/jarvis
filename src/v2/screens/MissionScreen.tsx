@@ -746,7 +746,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
   const myHandoffs = handoffs.filter((h) => h.projectId === project?.id);
-  const recent = [...overview.artifacts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
+  const recent = [...overview.artifacts].filter((a) => !/(^|\/)(bin|obj|node_modules|publish|dist)\//i.test(a.path)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
   const act = (action: "pause" | "cancel" | "resume" | "run" | "replan") =>
     run(async () => {
       if (!mission) return;
@@ -860,7 +860,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           <ul className="space-y-1">
             {recent.map((a) => (
               <li key={a.id}>
-                <button onClick={() => ctx.openArtifact(a)} className="text-[13px] text-accent hover:underline">{a.path}</button>
+                <button onClick={() => ctx.openArtifact(a)} className="break-all text-left text-[13px] text-accent hover:underline">{a.path}</button>
                 <span className="ml-2 text-[11px] text-muted">{formatTime(a.createdAt)}</span>
               </li>
             ))}

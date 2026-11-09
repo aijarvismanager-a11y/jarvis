@@ -64,9 +64,9 @@ export function SplitPreview({ ctx }: { ctx: Ctx }) {
             <button key={m.id} aria-pressed={mode === m.id} onClick={() => setMode(m.id)} className={`px-3 py-1.5 text-[12.5px] font-semibold ${mode === m.id ? "bg-accent text-white" : "bg-panel hover:bg-sidebar"}`}>{m.label}</button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-[12.5px]">
-          <span className="text-muted">ビフォーの基準</span>
-          <select value={baseline} onChange={(e) => setPicked(e.target.value)} disabled={snaps.length === 0} className="max-w-[18rem] rounded-lg border border-border bg-panel px-2 py-1 text-[12.5px]">
+        <label className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 text-[12.5px]">
+          <span className="shrink-0 whitespace-nowrap text-muted">ビフォーの基準</span>
+          <select value={baseline} onChange={(e) => setPicked(e.target.value)} disabled={snaps.length === 0} className="min-w-0 max-w-full rounded-lg border border-border bg-panel px-2 py-1 text-[12.5px] sm:max-w-[18rem]">
             {snaps.length === 0 && <option value="">(まだありません)</option>}
             {snaps.map((s, i) => <option key={s.name} value={s.name}>{i === 0 ? "最初の状態 → " : ""}{s.objective ? `「${s.objective.slice(0, 24)}」の前` : s.taskId}</option>)}
           </select>
