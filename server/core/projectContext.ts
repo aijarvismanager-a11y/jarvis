@@ -14,6 +14,9 @@ const MAX_NAMED_FILES = 4;
 const MAX_KEYWORD_FILES = 4;
 export const DOC_EXTENSIONS = new Set([".md", ".txt"]);
 
+/** Files a build or tool writes by itself (bin/obj, *.deps.json, lock files, minified bundles): never a deliverable to read or judge. */
+export const isGeneratedFile = (rel: string): boolean => /(^|\/)(bin|obj|node_modules|publish|dist)\//i.test(rel) || /\.(deps|runtimeconfig(\.dev)?)\.json$|(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$|\.min\.(js|css)$/i.test(rel);
+
 /** How many characters of project files each site takes in one prompt (measured 2026-10-28 by sending a prompt whose last line held the answer: Gemini read 30k in ~45 s but its box keeps only ~33k of an 80k prompt (so 24k leaves room for the task text), Grok 40k in ~70 s, ChatGPT refused 40k as too long after ~6 min of typing it in; Claude is set below what it took; unlisted sites get a cautious default). */
 const REFERENCE_BUDGET: Record<string, number> = { "claude-web": 60_000, gemini: 24_000, chatgpt: 10_000, grok: 40_000, copilot: 6_000 };
 export const referenceBudget = (aiId?: string | null) => (aiId && REFERENCE_BUDGET[aiId]) || MAX_REF_TOTAL_CHARS;

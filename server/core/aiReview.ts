@@ -4,7 +4,7 @@ import { botCheckExclusions } from "./botCheck.ts";
 import { aiUsage, chooseAi, pickBalanced } from "./aiBroker.ts";
 import type { ExecutionResult } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
-import { CODE_EXTENSIONS, DOC_EXTENSIONS, referenceBudget } from "./projectContext.ts";
+import { CODE_EXTENSIONS, DOC_EXTENSIONS, isGeneratedFile, referenceBudget } from "./projectContext.ts";
 import { isIntegrationTask } from "./taskValidator.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
 import { WEB_ADAPTER_TYPES } from "./webHandoff.ts";
@@ -96,7 +96,7 @@ export function readTaskFiles(store: Store, task: Task): { path: string; text: s
   const out: { path: string; text: string; cut: boolean }[] = [];
   let total = 0;
   // source first, notes and reports after: the room is limited and the code is what is being judged
-  const paths = [...new Set(store.listArtifacts(task.projectId).filter((a) => a.taskId === task.id && !a.path.startsWith(`${REVIEW_DIR}/`)).map((a) => a.path))].sort((a, b) => Number(isNote(a)) - Number(isNote(b)));
+  const paths = [...new Set(store.listArtifacts(task.projectId).filter((a) => a.taskId === task.id && !a.path.startsWith(`${REVIEW_DIR}/`) && !isGeneratedFile(a.path)).map((a) => a.path))].sort((a, b) => Number(isNote(a)) - Number(isNote(b)));
   for (const rel of paths) {
     if (total >= MAX_TOTAL_CHARS) break;
     if (!TEXT_EXTENSIONS.has(path.extname(rel).toLowerCase())) continue;

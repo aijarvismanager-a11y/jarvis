@@ -33,3 +33,23 @@ describe("acceptance check", () => {
     expect(p).toContain("L2 OK");
   });
 });
+
+describe("what the check reads", () => {
+  it("keeps the start and the end of a long file, and leaves a short one whole", async () => {
+    const { excerptOf } = await import("./acceptance.ts");
+    expect(excerptOf("short", 100)).toBe("short");
+    const long = `HEAD${"x".repeat(5000)}TAIL`;
+    const cut = excerptOf(long, 600);
+    expect(cut.startsWith("HEAD")).toBe(true);
+    expect(cut.endsWith("TAIL")).toBe(true);
+    expect(cut.length).toBeLessThan(700);
+  });
+
+  it("does not treat build output as a deliverable", async () => {
+    const { isGeneratedFile } = await import("./projectContext.ts");
+    expect(isGeneratedFile("src/Fence.App/bin/Debug/net8.0/Gage.deps.json")).toBe(true);
+    expect(isGeneratedFile("package-lock.json")).toBe(true);
+    expect(isGeneratedFile("docs/test-results.md")).toBe(false);
+    expect(isGeneratedFile("src/App.cs")).toBe(false);
+  });
+});

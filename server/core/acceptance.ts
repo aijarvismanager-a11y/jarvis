@@ -1,5 +1,6 @@
 import { extractPlanJson } from "./planner.ts";
 import { isHistoryFile } from "./missionReport.ts";
+import { isGeneratedFile } from "./projectContext.ts";
 import type { Store } from "./store.ts";
 
 // Acceptance check: after a request has finished, a second look at "did the result give the person what they asked for?".
@@ -18,8 +19,17 @@ export type AcceptanceInput = {
 const STATUSES: AcceptanceStatus[] = ["met", "partial", "unmet", "unknown"];
 export const acceptanceKey = (missionId: string) => `acceptance:${missionId}`;
 
-const PER_FILE = 2400;
-const TOTAL_BUDGET = 22_000;
+const PER_FILE = 6000;
+const TOTAL_BUDGET = 48_000;
+
+/** A file's text shortened to `max` characters: a long file keeps its start and its END (a report's conclusion and a log's result are at the bottom). */
+export function excerptOf(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const half = Math.floor((max - 30) / 2);
+  return `${text.slice(0, half)}
+…(中略 ${text.length - half * 2} 文字)…
+${text.slice(text.length - half)}`;
+}
 
 /** What the check gets to read: the request, each task's own words about what it did, the checks that passed, and the start of each deliverable. */
 export function gatherAcceptanceInput(store: Store, projectId: string, missionId: string, readArtifact: (rel: string) => string | null): AcceptanceInput {
@@ -36,12 +46,12 @@ export function gatherAcceptanceInput(store: Store, projectId: string, missionId
     tasks: tasks.map((t, i) => {
       const run = [...runs].filter((r) => r.task_id === t.id).pop();
       const check = [...validations].filter((v) => v.task_id === t.id).pop();
-      const paths = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))].filter((p) => !isHistoryFile(p)).slice(0, 4);
+      const paths = [...new Set(artifacts.filter((a) => a.taskId === t.id).map((a) => a.path))].filter((p) => !isHistoryFile(p) && !isGeneratedFile(p)).sort((x, y) => Number(/\.(md|txt)$/i.test(y)) - Number(/\.(md|txt)$/i.test(x))).slice(0, 5);
       const files = paths.flatMap((path) => {
         if (budget <= 0) return [];
         const text = readArtifact(path);
         if (!text) return [];
-        const excerpt = text.slice(0, Math.min(PER_FILE, budget));
+        const excerpt = excerptOf(text, Math.min(PER_FILE, budget));
         budget -= excerpt.length;
         return [{ path, excerpt }];
       });
