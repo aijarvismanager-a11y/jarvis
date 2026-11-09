@@ -55,3 +55,19 @@ describe("SnapshotManager", () => {
     expect(await snaps.listFiles("p1", "t-before")).toEqual(["site/index.html"]);
   });
 });
+
+describe("SnapshotManager.exportTo", () => {
+  it("writes the folder as it was at a capture into another folder", async () => {
+    const { snaps, dir } = setup();
+    mkdirSync(path.join(dir, "src"), { recursive: true });
+    writeFileSync(path.join(dir, "src", "a.cs"), "old");
+    await snaps.capture("p1", "t-before");
+    writeFileSync(path.join(dir, "src", "a.cs"), "new");
+    writeFileSync(path.join(dir, "later.txt"), "x");
+    await snaps.capture("p1", "t-after");
+    const out = path.join(path.dirname(dir), "exported");
+    await snaps.exportTo("p1", "t-before", out);
+    expect(readFileSync(path.join(out, "src", "a.cs"), "utf8")).toBe("old");
+    expect(existsSync(path.join(out, "later.txt"))).toBe(false);
+  });
+});

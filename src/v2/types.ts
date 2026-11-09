@@ -71,6 +71,7 @@ export type Preview = {
   log: string;
   kind?: "web" | "desktop";
 };
+export type DesktopCompareInfo = { supported: boolean; state: "idle" | "working" | "done" | "error"; message: string; startedAt: string | null; baseline: string | null; before: boolean; after: boolean; log: string };
 export type LogEntry = { seq: number; at: string; kind: "text" | "tool" | "info" | "error"; text: string };
 export type Approval = { id: string; projectId: string; taskId: string; level: "READ" | "WORKSPACE_WRITE" | "NETWORK" | "DEPLOY" | "DESTRUCTIVE"; reason: string; createdAt: string };
 export type Handoff = {

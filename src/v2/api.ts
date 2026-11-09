@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo } from "./types";
 
 const BASE = "/api/v2";
 
@@ -99,6 +99,9 @@ export const api = {
   snapshotSiteUrl: (projectId: string, name: string, which: "before" | "after") => `${BASE}/projects/${encodeURIComponent(projectId)}/snapshot-site/${encodeURIComponent(name)}/${which}/`,
   preview: (projectId: string) => request<{ preview: Preview | null }>(`/projects/${encodeURIComponent(projectId)}/preview`).then((r) => r.preview),
   startPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/start`, "POST", {}).then((r) => r.preview),
+  desktopCompare: (projectId: string) => request<{ compare: DesktopCompareInfo }>(`/projects/${encodeURIComponent(projectId)}/desktop-compare`).then((r) => r.compare),
+  startDesktopCompare: (projectId: string, baseline: string) => request<{ compare: DesktopCompareInfo }>(`/projects/${encodeURIComponent(projectId)}/desktop-compare/start`, "POST", { baseline }).then((r) => r.compare),
+  desktopCompareImage: (projectId: string, which: "before" | "after", stamp: string) => `${BASE}/projects/${encodeURIComponent(projectId)}/desktop-compare/image/${which}?t=${encodeURIComponent(stamp)}`,
   stopPreview: (projectId: string) => request<{ preview: Preview }>(`/projects/${encodeURIComponent(projectId)}/preview/stop`, "POST", {}).then((r) => r.preview),
   approvals: () => request<{ approvals: Approval[] }>("/approvals").then((r) => r.approvals),
   answerApproval: (id: string, approve: boolean) => request<{ ok: boolean }>(`/approvals/${encodeURIComponent(id)}/${approve ? "approve" : "deny"}`, "POST", {}),

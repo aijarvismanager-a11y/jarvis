@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { projectDir } from "./paths.ts";
@@ -81,6 +81,25 @@ export class SnapshotManager {
       const gitDir = this.gitDir(projectId);
       return new Promise<Buffer | null>((resolve) => {
         execFile(this.gitCommand, [`--git-dir=${gitDir}`, "show", `refs/snapshots/${name}:${rel}`], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024, windowsHide: true }, (err, stdout) => resolve(err ? null : stdout));
+      });
+    });
+  }
+
+  /** Writes the whole folder as it was at capture `name` into `destDir` (git archive piped to tar). */
+  exportTo(projectId: string, name: string, destDir: string): Promise<void> {
+    return this.serial(projectId, async () => {
+      if (!existsSync(path.join(this.gitDir(projectId), "HEAD"))) throw new Error("この時点の保存データがありません");
+      mkdirSync(destDir, { recursive: true });
+      await new Promise<void>((resolve, reject) => {
+        const git = spawn(this.gitCommand, [`--git-dir=${this.gitDir(projectId)}`, "archive", "--format=tar", `refs/snapshots/${name}`], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+        const tar = spawn("tar", ["-x", "-C", destDir], { windowsHide: true, stdio: ["pipe", "ignore", "pipe"] });
+        let err = "";
+        git.stderr.on("data", (b: Buffer) => (err += b.toString()));
+        tar.stderr.on("data", (b: Buffer) => (err += b.toString()));
+        git.stdout.pipe(tar.stdin);
+        git.once("error", reject);
+        tar.once("error", reject);
+        tar.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`保存データの取り出しに失敗しました: ${err.slice(0, 300)}`))));
       });
     });
   }

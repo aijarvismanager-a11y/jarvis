@@ -141,3 +141,17 @@ describe("desktop app preview", () => {
     expect(findDesktopProject(path.join(projectsRoot, "web"))).toBeNull();
   });
 });
+
+describe("desktop before/after", () => {
+  it("is offered only for a windowed desktop app", async () => {
+    const { DesktopCompare } = await import("./desktopCompare.ts");
+    const { SnapshotManager } = await import("./snapshotManager.ts");
+    const dc = new DesktopCompare(projectsRoot, new SnapshotManager(projectsRoot));
+    write("web2", "package.json", "{}");
+    write("win2", "src/App/App.csproj", "<Project><PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup></Project>");
+    expect(dc.supported("web2")).toBe(false);
+    expect(dc.supported("win2")).toBe(process.platform === "win32");
+    expect(dc.status("web2").state).toBe("idle");
+    expect(() => dc.start("web2", "x-1")).toThrow(/デスクトップアプリではない/);
+  });
+});

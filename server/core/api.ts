@@ -18,6 +18,7 @@ import type { TaskLogStore } from "./taskLog.ts";
 import type { SystemCheck } from "./systemCheck.ts";
 import type { DepsInstaller } from "./depsInstaller.ts";
 import { MIME, type PreviewManager } from "./previewManager.ts";
+import type { DesktopCompare } from "./desktopCompare.ts";
 import { ImportTooLargeError, analysisPlan, copyImport, scanImportSource } from "./projectImport.ts";
 import { carryHistory, historyInfo } from "./conversationHistory.ts";
 import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiReview.ts";
@@ -62,6 +63,8 @@ export type OrchestratorApiDeps = {
   logs?: TaskLogStore;
   /** Enables the preview endpoints (run the project's app while it is being built). */
   previews?: PreviewManager;
+  /** Enables before/after pictures for desktop (.NET windowed) apps. */
+  desktopCompare?: DesktopCompare;
   /** Enables installing the dependencies of an imported project (so its preview can start). */
   deps?: DepsInstaller;
   /** Enables the per-task changes (diff) and rollback endpoints. */
@@ -909,6 +912,25 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       res.json({ preview: deps.previews.start(String(req.params.projectId)) });
     }),
   );
+  // ---- Before/after for desktop apps: a picture of each window, side by side ------------------------
+  router.get("/projects/:projectId/desktop-compare", (req, res) => {
+    const projectId = String(req.params.projectId);
+    res.json({ compare: deps.desktopCompare?.status(projectId) ?? { supported: false, state: "idle", message: "", startedAt: null, baseline: null, before: false, after: false, log: "" } });
+  });
+  router.post(
+    "/projects/:projectId/desktop-compare/start",
+    guarded((req, res) => {
+      if (!deps.desktopCompare) return void res.status(501).json({ error: "この機能が接続されていません" });
+      const baseline = z.object({ baseline: z.string().regex(/^[\w.-]+$/) }).parse(req.body).baseline;
+      res.json({ compare: deps.desktopCompare.start(String(req.params.projectId), baseline) });
+    }),
+  );
+  router.get("/projects/:projectId/desktop-compare/image/:which", (req, res) => {
+    const which = String(req.params.which);
+    const png = which === "before" || which === "after" ? deps.desktopCompare?.image(String(req.params.projectId), which) : null;
+    if (!png) return void res.status(404).type("text/plain").send("まだ画像がありません");
+    res.set({ "content-type": "image/png", "cache-control": "no-store" }).send(png);
+  });
   router.post(
     "/projects/:projectId/preview/stop",
     guarded((req, res) => {

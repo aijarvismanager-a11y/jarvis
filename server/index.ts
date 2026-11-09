@@ -26,6 +26,7 @@ import { FollowUpAsker } from "./core/followUps.ts";
 import { loadAcceptance, runAcceptance } from "./core/acceptance.ts";
 import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
+import { DesktopCompare } from "./core/desktopCompare.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
 import { autoReflectMission } from "./core/autoReflect.ts";
@@ -117,6 +118,8 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => { cons
 process.once("exit", (code) => console.log(`[ai-orchestrator] ${new Date().toISOString()} exiting (code ${code})`));
 const taskLogs = new TaskLogStore();
 const snapshots = new SnapshotManager(path.join(ROOT, "projects"));
+const desktopCompare = new DesktopCompare(path.join(ROOT, "projects"), snapshots);
+process.once("exit", () => desktopCompare.stopAll());
 const claudeExecutor = new ClaudeCodeExecutor(coreStore, { policy: new PermissionPolicy(undefined, approvals.gate), logs: taskLogs, snapshots });
 // Web AI automation (Phase 6): off until the user switches it on (PUT /api/v2/web-ai/settings).
 // Level 2/3 drive the user's own Edge/Chrome/Brave in a dedicated profile; Level 1 needs no browser.
@@ -164,7 +167,7 @@ function restartSelf(): void {
 }
 app.use(
   "/api/v2",
-  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, logs: taskLogs, snapshots, tokenMatches, followUps: followUpAsker, acceptance: followUpAsker, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, roster, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
+  createOrchestratorRouter({ store: coreStore, engine, canExecute: true, system: new SystemCheck(), pickFolder, deps: new DepsInstaller(path.join(ROOT, "projects")), restart: process.platform === "win32" && !INSTALLED ? restartSelf : undefined, syncBackupsRoot: path.join(ROOT, "backups", "sync"), appRoot: ROOT, newProjectRoot: () => newProjectRoot(coreStore), approvals, previews, desktopCompare, logs: taskLogs, snapshots, tokenMatches, followUps: followUpAsker, acceptance: followUpAsker, healthChecker: new AiHealthChecker(coreStore), discovery: new AiDiscovery(coreStore), scout, roster, executableAdapters: () => [...executor.adapterTypes], webAi: { hub: webHub, browserAvailable: () => browserExecutable !== null, status: () => webExecutor.browserStatus(), openLogin: (url) => webDriver?.openForLogin(url), probe: async (aiId) => { const svc = coreStore.getAiService(aiId); return svc ? webExecutor.probe(svc) : { ok: false, reason: "AIが見つかりません" }; }, importSignIn: async () => { if (!webDriver) throw new Error("ブラウザが見つかりません"); return webDriver.importSignIn(); } } }),
 );
 
 // Lets the UI tell the user when this process is running older code than what is on disk.
