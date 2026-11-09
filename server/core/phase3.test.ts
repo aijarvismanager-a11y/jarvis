@@ -76,6 +76,9 @@ describe("PermissionPolicy", () => {
     expect(code.allowedTools).toContain("Bash(dotnet test:*)");
     expect(code.disallowedTools).toEqual(expect.arrayContaining(["WebFetch", "Bash(git push:*)", "Bash(rm:*)"]));
     expect(p.restrictionsFor({ role: "research" }).allowedTools).toEqual([]);
+    // a test-role task that must RUN dotnet build/test gets the build commands; one that only reads does not
+    expect(p.restrictionsFor({ role: "test", objective: "dotnet build Gage.sln と dotnet test を実行する" }).allowedTools).toContain("Bash(dotnet test:*)");
+    expect(p.restrictionsFor({ role: "test", objective: "テスト観点を一覧にする" }).allowedTools).toEqual([]);
   });
 
   it("grants a level only when the gate approves, then lifts that deny list", async () => {

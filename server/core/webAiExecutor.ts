@@ -9,7 +9,7 @@ import path from "node:path";
 import { WebAiBlockedError, WebAiBrowserError, WebAiProfileBusyError, WebAiPromptTooLongError, type WebChatDriver, type WebChatPage } from "./browserDriver.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { resolveInProject } from "./paths.ts";
-import { isWriteTask } from "./scheduler.ts";
+import { isWriteTask, runsBuildOrTests } from "./scheduler.ts";
 import { isHistoryFile } from "./missionReport.ts";
 import { isHistoryTask } from "./planner.ts";
 import type { AiService, Mission, Store, Task } from "./store.ts";
@@ -101,7 +101,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Tasks a web chat cannot do: editing code, or updating the project's running records (TESTLOG, PLAN...), which a chat answer would overwrite whole. They go straight to the code executor instead of failing on the site first. */
-export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || isHistoryTask(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
+export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || runsBuildOrTests(task) || isHistoryTask(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
 
 /** A source / test file: a chat page turns "/" and "[a](b)" in code into links and escapes (measured: 5 tries in a row of a broken test file), so code is written by the code executor. */
 const isSourceFile = (rel: string): boolean => /\.(m?js|cjs|jsx|tsx?|py|cs|java|go|rs|sh|ps1|css|html)$/i.test(rel.trim());

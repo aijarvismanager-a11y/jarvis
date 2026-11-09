@@ -1,4 +1,4 @@
-import { isWriteTask } from "./scheduler.ts";
+import { isWriteTask, runsBuildOrTests } from "./scheduler.ts";
 import type { Task } from "./store.ts";
 
 // Permission Policy (spec §24, §25). Five levels; ordinary development gets
@@ -18,7 +18,7 @@ export const denyAll: ApprovalGate = async () => false;
 // Tool patterns use the `prefix:*` form, which has no spaces and so survives cmd.exe argument joining.
 // Build and test commands of the common toolchains: without them an AI cannot check its own work in a .NET / Rust / Go / Python project
 // (a headless run has nobody to approve a command, so anything not listed is refused). They run the project's own code, like npm test.
-const BUILD_TEST_TOOLS = ["Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(cargo build:*)", "Bash(cargo test:*)", "Bash(cargo check:*)", "Bash(go build:*)", "Bash(go test:*)", "Bash(go vet:*)", "Bash(pytest:*)", "Bash(python -m pytest:*)"];
+const BUILD_TEST_TOOLS = ["Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(dotnet sln:*)", "Bash(dotnet --version:*)", "Bash(dotnet --list-sdks:*)", "Bash(cargo build:*)", "Bash(cargo test:*)", "Bash(cargo check:*)", "Bash(go build:*)", "Bash(go test:*)", "Bash(go vet:*)", "Bash(pytest:*)", "Bash(python -m pytest:*)"];
 const PACKAGE_MANAGER_TOOLS = ["Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", ...BUILD_TEST_TOOLS, "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)"];
 const NETWORK_DENY = ["WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(Invoke-WebRequest:*)", "Bash(iwr:*)"];
 const DEPLOY_DENY = ["Bash(git push:*)", "Bash(npm publish:*)", "Bash(npx vercel:*)", "Bash(npx netlify:*)", "Bash(docker push:*)", "Bash(gh release:*)"];
@@ -83,10 +83,10 @@ export class PermissionPolicy {
   }
 
   /** CLI tool allow/deny lists for a task given the currently granted levels. */
-  restrictionsFor(task: Pick<Task, "role"> & { id?: string }): ToolRestrictions {
+  restrictionsFor(task: Pick<Task, "role"> & Partial<Pick<Task, "objective">> & { id?: string }): ToolRestrictions {
     const writes = isWriteTask(task);
     const has = (level: PermissionLevel) => this.isGranted(level, task.id);
-    const allowedTools = writes && has("WORKSPACE_WRITE") ? [...PACKAGE_MANAGER_TOOLS] : [];
+    const allowedTools = (writes || runsBuildOrTests(task)) && has("WORKSPACE_WRITE") ? [...PACKAGE_MANAGER_TOOLS] : [];
     const disallowedTools: string[] = [];
     if (!has("NETWORK")) disallowedTools.push(...NETWORK_DENY);
     if (!has("DEPLOY")) disallowedTools.push(...DEPLOY_DENY);

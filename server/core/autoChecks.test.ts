@@ -104,6 +104,7 @@ describe("needsCodeExecutor", () => {
   it("keeps code edits and the project's running records off the web chats", async () => {
     const { needsCodeExecutor } = await import("./webAiExecutor.ts");
     expect(needsCodeExecutor({ role: "coding", expectedOutputs: [] })).toBe(true);
+    expect(needsCodeExecutor({ role: "test", objective: "dotnet build Gage.sln と dotnet test を実行し結果を書く", expectedOutputs: ["docs/test-results.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["TESTLOG.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["PLAN.md", "ARCHITECTURE.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "test", expectedOutputs: ["test/apiSplit.test.js"] })).toBe(true); // a chat page mangles code (5 broken test files in a row)
