@@ -19,7 +19,9 @@ export const denyAll: ApprovalGate = async () => false;
 // Build and test commands of the common toolchains: without them an AI cannot check its own work in a .NET / Rust / Go / Python project
 // (a headless run has nobody to approve a command, so anything not listed is refused). They run the project's own code, like npm test.
 const BUILD_TEST_TOOLS = ["Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(dotnet sln:*)", "Bash(dotnet --version:*)", "Bash(dotnet --list-sdks:*)", "Bash(cargo build:*)", "Bash(cargo test:*)", "Bash(cargo check:*)", "Bash(go build:*)", "Bash(go test:*)", "Bash(go vet:*)", "Bash(pytest:*)", "Bash(python -m pytest:*)"];
-const PACKAGE_MANAGER_TOOLS = ["Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", ...BUILD_TEST_TOOLS, "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)"];
+// Read-only helpers the model chains onto a build ("cd x && dotnet build > out.txt; tail out.txt"): a chained command is checked part by part, so one unlisted part refused the whole line.
+const SHELL_HELPER_TOOLS = ["Bash(cd:*)", "Bash(echo:*)", "Bash(tail:*)", "Bash(head:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(wc:*)"];
+const PACKAGE_MANAGER_TOOLS = ["Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", ...BUILD_TEST_TOOLS, ...SHELL_HELPER_TOOLS, "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)"];
 const NETWORK_DENY = ["WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(Invoke-WebRequest:*)", "Bash(iwr:*)"];
 const DEPLOY_DENY = ["Bash(git push:*)", "Bash(npm publish:*)", "Bash(npx vercel:*)", "Bash(npx netlify:*)", "Bash(docker push:*)", "Bash(gh release:*)"];
 const DESTRUCTIVE_DENY = ["Bash(rm:*)", "Bash(del:*)", "Bash(rmdir:*)", "Bash(rd:*)", "Bash(Remove-Item:*)", "Bash(git reset:*)", "Bash(git clean:*)", "Bash(format:*)"];

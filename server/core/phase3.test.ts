@@ -74,6 +74,8 @@ describe("PermissionPolicy", () => {
     expect(code.allowedTools).toContain("Bash(npm:*)");
     expect(code.allowedTools).toContain("Bash(dotnet build:*)");
     expect(code.allowedTools).toContain("Bash(dotnet test:*)");
+    expect(code.allowedTools).toEqual(expect.arrayContaining(["Bash(tail:*)", "Bash(grep:*)", "Bash(cd:*)"]));
+    expect(code.allowedTools).not.toContain("Bash(rm:*)");
     expect(code.disallowedTools).toEqual(expect.arrayContaining(["WebFetch", "Bash(git push:*)", "Bash(rm:*)"]));
     expect(p.restrictionsFor({ role: "research" }).allowedTools).toEqual([]);
     // a test-role task that must RUN dotnet build/test gets the build commands; one that only reads does not
