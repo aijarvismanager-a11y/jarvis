@@ -127,3 +127,17 @@ require("http").createServer((q, r) => { r.setHeader("content-type", "text/html"
     }
   }, 120_000);
 });
+
+describe("desktop app preview", () => {
+  it("finds the windowed app's project, not a test or library project", async () => {
+    const { findDesktopProject } = await import("./desktopPreview.ts");
+    write("d", "src/App/App.csproj", "<Project><PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF></PropertyGroup></Project>");
+    write("d", "src/Lib/Lib.csproj", "<Project><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+    write("d", "tests/App.Tests/App.Tests.csproj", "<Project><PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup></Project>");
+    write("d", "src/App/bin/Debug/Old.csproj", "<Project><PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup></Project>");
+    const hit = findDesktopProject(path.join(projectsRoot, "d"));
+    expect(hit && path.relative(path.join(projectsRoot, "d"), hit).split(path.sep).join("/")).toBe("src/App/App.csproj");
+    write("web", "package.json", "{}");
+    expect(findDesktopProject(path.join(projectsRoot, "web"))).toBeNull();
+  });
+});

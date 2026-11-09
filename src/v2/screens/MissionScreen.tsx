@@ -479,6 +479,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
   const refresh = usePoll(async () => setPreview(await api.preview(projectId)), 2500, [projectId]);
   const state = preview?.state ?? "stopped";
   const active = state === "starting" || state === "running";
+  const desktop = preview?.kind === "desktop";
   return (
     <Card fold title="動かして確認する(作りかけの画面を実際に試す)">
       <div className="flex flex-wrap items-center gap-2">
@@ -492,7 +493,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
           <Button disabled={busy} onClick={() => run(async () => { setPreview(await api.startPreview(projectId)); refresh(); })}>{state === "error" ? "もう一度起動" : "起動して見る"}</Button>
         )}
       </div>
-      {preview?.message && state !== "running" && <p className="mt-2 text-[13px]">{preview.message}</p>}
+      {preview?.message && (state !== "running" || desktop) && <p className="mt-2 text-[13px]">{preview.message}</p>}
       {state === "running" && preview?.check && (
         preview.check.ok ? (
           <p className="mt-2 text-[12.5px] text-status-done">画面を開いて確認しました。エラーは出ていません。</p>
@@ -504,7 +505,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
         )
       )}
       {preview?.log && state === "error" && <Details summary="ログを見る"><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{preview.log}</pre></Details>}
-      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。依頼が作業中のファイルを読むため、動きが不安定なことがあります。</p>
+      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。依頼が作業中のファイルを読むため、動きが不安定なことがあります。デスクトップアプリは、作業中のフォルダをコピーしてビルドし、別のウィンドウで開きます(止めるときは「停止」か、アプリのウィンドウを閉じます)。</p>
     </Card>
   );
 }

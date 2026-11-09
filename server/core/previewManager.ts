@@ -5,6 +5,7 @@ import { detectApps, freePort, missingDeps, probePage, startServer, waitReady, t
 import { findBrowserExecutable } from "./browserDriver.ts";
 import { killTree } from "./commandRunner.ts";
 import { projectDir } from "./paths.ts";
+import { findDesktopProject, removeDir, startDesktopApp } from "./desktopPreview.ts";
 
 // Preview: lets the user open what has been built so far, while the mission is
 // still running. It starts the project's own dev servers (the same detection as
@@ -22,6 +23,8 @@ export type PreviewStatus = {
   /** Result of opening the page once after it came up (blank page / errors), when a browser was available. */
   check: { ok: boolean; problems: string[] } | null;
   log: string;
+  /** "desktop": the app opens its own window on this PC (there is no page to show). */
+  kind?: "web" | "desktop";
 };
 
 const MAX_PREVIEWS = 2;
@@ -72,7 +75,7 @@ function staticServer(dir: string, port: number): Promise<http.Server> {
   });
 }
 
-type Entry = { status: PreviewStatus; procs: Started[]; server: http.Server | null; token: number };
+type Entry = { status: PreviewStatus; procs: Started[]; server: http.Server | null; token: number; tmp?: string | null };
 
 export class PreviewManager {
   private readonly entries = new Map<string, Entry>();
@@ -86,6 +89,10 @@ export class PreviewManager {
   status(projectId: string): PreviewStatus {
     const e = this.entries.get(projectId);
     if (!e) return IDLE;
+    // a desktop app the user closed: nothing is running any more
+    if (e.status.kind === "desktop" && e.status.state === "running" && e.procs.length > 0 && e.procs[e.procs.length - 1].exited()) {
+      e.status = { ...e.status, state: "stopped", message: "アプリのウィンドウが閉じられました。もう一度見るときは「起動して見る」を押してください" };
+    }
     return { ...e.status, log: e.procs.map((p) => p.log()).filter(Boolean).join("\n---\n").slice(-1500) };
   }
 
@@ -96,7 +103,7 @@ export class PreviewManager {
     this.stop(projectId);
     const live = [...this.entries.values()].filter((e) => e.status.state === "starting" || e.status.state === "running").length;
     if (live >= (this.opts.maxPreviews ?? MAX_PREVIEWS)) throw new Error(`同時に動かせるプレビューは${this.opts.maxPreviews ?? MAX_PREVIEWS}件までです。ほかのプレビューを止めてください`);
-    const entry: Entry = { status: { ...IDLE, state: "starting", message: "起動しています…", startedAt: new Date().toISOString() }, procs: [], server: null, token: ++this.seq };
+    const entry: Entry = { status: { ...IDLE, kind: "web", state: "starting", message: "起動しています…", startedAt: new Date().toISOString() }, procs: [], server: null, token: ++this.seq };
     this.entries.set(projectId, entry);
     void this.boot(projectId, entry);
     return this.status(projectId);
@@ -108,6 +115,7 @@ export class PreviewManager {
     this.entries.delete(projectId);
     for (const p of e.procs) killTree(p.proc.pid);
     e.server?.close();
+    removeDir(e.tmp);
   }
 
   stopAll(): void {
@@ -151,6 +159,16 @@ export class PreviewManager {
         } else {
           url = apiOrigin;
         }
+      } else if (existsSync(root) && findDesktopProject(root)) {
+        // a windowed .NET app (WPF / WinForms): build a copy and open its window
+        const csproj = findDesktopProject(root)!;
+        entry.status = { ...entry.status, kind: "desktop", message: "アプリをビルドしています…(初回は数分かかることがあります)" };
+        const res = await startDesktopApp(root, csproj, entry, { alive });
+        entry.tmp = res.dir;
+        if (!alive()) return removeDir(res.dir);
+        if (!res.ok) return fail(res.reason);
+        entry.status = { ...entry.status, state: "running", url: null, kind: "desktop", message: "アプリのウィンドウが開きました。ウィンドウが見えないときは、タスクバーを確認してください" };
+        return;
       } else {
         const dir = existsSync(root) ? findStaticRoot(root) : null;
         if (!dir) return fail("起動できるものが見つかりません(package.json の dev/start スクリプトも index.html もありません)");

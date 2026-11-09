@@ -69,6 +69,7 @@ export type Preview = {
   startedAt: string | null;
   check: { ok: boolean; problems: string[] } | null;
   log: string;
+  kind?: "web" | "desktop";
 };
 export type LogEntry = { seq: number; at: string; kind: "text" | "tool" | "info" | "error"; text: string };
 export type Approval = { id: string; projectId: string; taskId: string; level: "READ" | "WORKSPACE_WRITE" | "NETWORK" | "DEPLOY" | "DESTRUCTIVE"; reason: string; createdAt: string };

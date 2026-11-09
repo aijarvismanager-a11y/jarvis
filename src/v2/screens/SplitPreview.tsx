@@ -52,6 +52,7 @@ export function SplitPreview({ ctx }: { ctx: Ctx }) {
 
   const state = preview?.state ?? "stopped";
   const running = state === "running" && preview?.url;
+  const live = state === "running";
   const baseline = effective;
   const beforeSrc = baseline ? api.snapshotSiteUrl(projectId, baseline, "before") : null;
   const chosen = snaps.find((s) => s.name === baseline);
@@ -73,16 +74,16 @@ export function SplitPreview({ ctx }: { ctx: Ctx }) {
         </label>
         <label className="flex items-center gap-1 text-[12.5px]"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />変更で自動更新</label>
         <Button variant="ghost" onClick={() => { setReloads((n) => n + 1); refreshSnaps(); }}>再読み込み</Button>
-        {running ? (
+        {live ? (
           <Button variant="ghost" disabled={busy} onClick={() => run(async () => { setPreview(await api.stopPreview(projectId)); })}>停止</Button>
         ) : (
           <Button disabled={busy || state === "starting"} onClick={() => run(async () => { setPreview(await api.startPreview(projectId)); refreshPreview(); })}>{state === "starting" ? "起動中…" : "ライブを起動"}</Button>
         )}
       </div>
-      {preview?.message && !running && state !== "stopped" && <p className="mt-2 text-[12.5px]">{preview.message}</p>}
+      {preview?.message && (!running || preview.kind === "desktop") && state !== "stopped" && <p className="mt-2 text-[12.5px]">{preview.message}</p>}
       <div className={`mt-3 flex gap-3 ${mode === "split" ? "flex-col md:flex-row" : "flex-col"}`}>
         {mode !== "after" && <Pane title="ビフォー" tone="neutral" src={beforeSrc} frameKey={`b|${baseline}|${reloads}`} empty="作業が始まると、その直前の状態がここに残ります。" />}
-        {mode !== "before" && <Pane title="アフター(ライブ)" tone="ok" src={running ? preview!.url : null} frameKey={`a|${preview?.url}|${liveKey}`} empty={state === "starting" ? "起動しています…" : "「ライブを起動」を押すと、作りかけの画面がここに映ります。"} />}
+        {mode !== "before" && <Pane title="アフター(ライブ)" tone="ok" src={running ? preview!.url : null} frameKey={`a|${preview?.url}|${liveKey}`} empty={preview?.kind === "desktop" && state === "running" ? "デスクトップアプリは、別のウィンドウで開いています(この枠には映りません)。" : state === "starting" ? "起動しています…" : "「ライブを起動」を押すと、作りかけの画面がここに映ります。"} />}
       </div>
       <p className="mt-2 text-[11.5px] text-muted">
         ビフォーは{chosen ? `「${chosen.objective || chosen.taskId}」を始める直前` : "(基準なし)"}のファイルをそのまま表示します。アフターは作りかけの実物で、ファイルが変わるたびに自動で読み込み直します。HTMLなど画面のあるものだけ見られます。
