@@ -2,13 +2,13 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ClaudeCodeExecutor, buildTaskPrompt, changedFiles, parseExecutorCapabilities, parseRunOutput, snapshotDir } from "./claudeCodeExecutor.ts";
+import { ClaudeCodeExecutor, buildTaskPrompt, changedFiles, parseDeniedCommands, parseExecutorCapabilities, parseRunOutput, snapshotDir } from "./claudeCodeExecutor.ts";
 import type { CommandRunner } from "./commandRunner.ts";
 import { spawnRunner } from "./commandRunner.ts";
 import { openDatabase, type Db } from "./db.ts";
 import { limitStoppedTasks, saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { MissionEngine } from "./missionEngine.ts";
-import { PermissionPolicy, classifyCommand, requestedElevatedLevels } from "./permissionPolicy.ts";
+import { PermissionPolicy, approvableCommands, classifyCommand, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { Store, type Task } from "./store.ts";
 import { ProjectValidator, declaredPaths } from "./taskValidator.ts";
 
@@ -373,5 +373,71 @@ describe("spawnRunner", () => {
   it("passes stdin through and captures output", async () => {
     const res = await spawnRunner(process.execPath, ["-e", "process.stdin.pipe(process.stdout)"], { input: "hello" });
     expect(res).toMatchObject({ stdout: "hello", code: 0 });
+  });
+});
+
+describe("commands refused for lack of an approval", () => {
+  const FFMPEG = "installer/_work/tools/ffmpeg.exe -n -f lavfi -i testsrc2 tests/manual-assets/sample.mp4";
+  const refusedRun = JSON.stringify({ type: "result", result: "", permission_denials: [{ tool_name: "Bash", tool_input: { command: FFMPEG } }] });
+
+  it("reads the refused commands from the result event and from tool_use / tool_result pairs", () => {
+    expect(parseDeniedCommands(refusedRun)).toEqual([FFMPEG]);
+    const stream = [
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "u1", name: "Bash", input: { command: "make-clip.exe a b" } }, { type: "tool_use", id: "u2", name: "Bash", input: { command: "ls" } }] } }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "u1", is_error: true, content: "Permission for this tool use was denied. It requires approval, and this session has no approval surface" }, { type: "tool_result", tool_use_id: "u2", is_error: false, content: "ok" }] } }),
+    ].join("\n");
+    expect(parseDeniedCommands(stream)).toEqual(["make-clip.exe a b"]);
+    expect(parseDeniedCommands("plain text")).toEqual([]);
+  });
+
+  it("offers only programs an approval can safely allow", () => {
+    const allowed = new PermissionPolicy().restrictionsFor({ role: "coding" }).allowedTools;
+    expect(approvableCommands(FFMPEG, allowed)).toEqual([{ program: "installer/_work/tools/ffmpeg.exe", part: FFMPEG }]);
+    expect(approvableCommands("cd x && dotnet build a.sln", allowed)).toEqual([]); // already allowed
+    expect(approvableCommands("rm -rf x", allowed)).toEqual([]); // needs a higher level
+    expect(approvableCommands("powershell -File a.ps1", allowed)).toEqual([]); // runs anything
+    expect(approvableCommands("cd x && tool.exe --go", allowed).map((a) => a.program)).toEqual(["tool.exe"]);
+  });
+
+  it("asks, then runs again with the program allowed for that task only", async () => {
+    const task = makeTask({ expectedOutputs: ["out/sample.mp4"] });
+    const asked: string[] = [];
+    const policy = new PermissionPolicy(undefined, async (req) => { asked.push(req.command ?? ""); return true; });
+    let n = 0;
+    const { calls, runner } = fakeClaude((call) => {
+      if (++n === 1) return { stdout: refusedRun };
+      mkdirSync(path.join(call.cwd!, "out"), { recursive: true });
+      writeFileSync(path.join(call.cwd!, "out", "sample.mp4"), "x");
+      return { stdout: JSON.stringify({ result: "done" }) };
+    });
+    const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
+    expect(res.ok).toBe(true);
+    expect(asked).toEqual([FFMPEG]);
+    const runs = calls.filter((c) => c.args[0] !== "--help");
+    expect(runs).toHaveLength(2);
+    expect(runs[0].args.join(" ")).not.toContain("ffmpeg.exe");
+    expect(runs[1].args.join(" ")).toContain("Bash(installer/_work/tools/ffmpeg.exe:*)");
+    expect(policy.restrictionsFor({ role: "coding", id: "other" }).allowedTools.join(" ")).not.toContain("ffmpeg.exe");
+  });
+
+  it("stops for good, without a second run, when the user refuses", async () => {
+    const task = makeTask({ expectedOutputs: ["out/sample.mp4"] });
+    const policy = new PermissionPolicy(undefined, async () => false);
+    const { calls, runner } = fakeClaude(() => ({ stdout: refusedRun }));
+    const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
+    expect(res.ok).toBe(false);
+    expect(res.retryable).toBe(false);
+    expect(res.summary).toContain("許可されなかった");
+    expect(calls.filter((c) => c.args[0] !== "--help")).toHaveLength(1);
+  });
+
+  it("does not ask when the expected files were made anyway", async () => {
+    const task = makeTask({ expectedOutputs: ["a.txt"] });
+    let asked = 0;
+    const policy = new PermissionPolicy(undefined, async () => { asked++; return true; });
+    const { runner } = fakeClaude((call) => { writeFileSync(path.join(call.cwd!, "a.txt"), "x"); return { stdout: refusedRun }; });
+    const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
+    expect(res.ok).toBe(true);
+    expect(asked).toBe(0);
   });
 });

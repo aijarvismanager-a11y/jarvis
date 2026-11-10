@@ -7,7 +7,7 @@ import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
 import { claudeLimitUntil, noteClaudeLimitHit, parseRateLimit, readClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { chooseModel, parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
-import { PermissionPolicy, requestedElevatedLevels } from "./permissionPolicy.ts";
+import { PermissionPolicy, approvableCommands, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
 import { HISTORY_NOTES_PATH, STATUS_REPORT_PATH } from "./projectImport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -175,7 +175,38 @@ export function parseRunMetrics(stdout: string): { costUsd?: number; inputTokens
   return {};
 }
 
-const quoteForShell = (v: string) => `"${v.replace(/"/g, "")}"`;
+/**
+ * Shell commands the run was refused because they needed an approval that nobody could give (`--permission-prompts none`).
+ * Read from the stream-json events: a Bash tool_use whose tool_result is an error saying it requires approval.
+ */
+export function parseDeniedCommands(stdout: string): string[] {
+  const commands = new Map<string, string>();
+  const denied = new Set<string>();
+  const out: string[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line.includes('"type"')) continue;
+    let ev: { type?: string; message?: { content?: unknown }; permission_denials?: unknown };
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (Array.isArray(ev.permission_denials)) {
+      for (const d of ev.permission_denials as { tool_name?: string; tool_input?: { command?: unknown } }[]) {
+        if (d?.tool_name === "Bash" && typeof d.tool_input?.command === "string") out.push(d.tool_input.command);
+      }
+    }
+    const content = ev.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content as { type?: string; id?: string; name?: string; input?: { command?: unknown }; tool_use_id?: string; is_error?: boolean; content?: unknown }[]) {
+      if (c.type === "tool_use" && c.name === "Bash" && c.id && typeof c.input?.command === "string") commands.set(c.id, c.input.command);
+      if (c.type === "tool_result" && c.tool_use_id && c.is_error) {
+        const text = typeof c.content === "string" ? c.content : JSON.stringify(c.content ?? "");
+        if (/requires approval|no approval surface|was denied/i.test(text)) denied.add(c.tool_use_id);
+      }
+    }
+  }
+  for (const id of denied) { const cmd = commands.get(id); if (cmd) out.push(cmd); }
+  return [...new Set(out)];
+}
+
+const quoteForShell =(v: string) => `"${v.replace(/"/g, "")}"`;
 
 export class ClaudeCodeExecutor implements TaskExecutor {
   readonly name = "claude-code";
@@ -309,6 +340,30 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       }
     }
 
+    // A run refused a command that nobody was there to approve: ask on the screen, then run again with that program allowed
+    // (for this task only). A refusal by the user stops the task for good instead of failing the same way again.
+    for (let pass = 0; pass < 4; pass++) {
+      const { refused, ...result } = await this.attempt(task, ctx);
+      if (!refused?.length) return result;
+      const allowed = this.policy.restrictionsFor(task).allowedTools;
+      const askable = refused.flatMap((line) => approvableCommands(line, allowed));
+      const programs = askable.filter((a, i) => askable.findIndex((b) => b.program === a.program) === i);
+      if (!programs.length) return { ...result, summary: `${result.summary}\n\n(実行できなかったコマンド: ${refused[0].slice(0, 200)} — 承認で許可できない種類のコマンドです)` };
+      for (const { program, part } of programs) {
+        const ok = await this.policy.ensureCommand({ projectId, taskId: task.id, level: "WORKSPACE_WRITE", reason: task.objective, command: part, signal: ctx.signal }, program);
+        if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
+        if (!ok) {
+          this.store.appendEvent({ projectId, taskId: task.id, type: "APPROVAL_DENIED", payload: { level: "WORKSPACE_WRITE", command: part } });
+          return { ok: false, retryable: false, summary: `コマンド「${program}」の実行が許可されなかったため、この作業は進められませんでした` };
+        }
+      }
+    }
+    return { ok: false, retryable: false, summary: "許可したあとも、承認の要るコマンドが続いたため止めました" };
+  }
+
+  /** One run of Claude Code. `refused` lists the shell commands it was refused while the run failed or left expected files missing. */
+  private async attempt(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult & { refused?: string[] }> {
+    const { projectId } = task;
     const cwd = projectDir(this.store.projectsRoot, projectId);
     mkdirSync(cwd, { recursive: true });
     const previousFailure = this.previousFailure(task);
@@ -345,11 +400,15 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     if (AUTH_ERROR.test(combined) && (res.code !== 0 || out.isError)) {
       return { ok: false, summary: "Claude Codeにログインできていません。ターミナルで claude を起動してログインしてください", artifacts: files, ...metrics };
     }
-    if (res.code !== 0 || out.isError) {
+    const failed = res.code !== 0 || out.isError;
+    const missing = task.expectedOutputs.some((p) => { try { return statSync(path.join(cwd, p)).size === 0; } catch { return true; } });
+    const denied = failed || missing ? parseDeniedCommands(res.stdout) : [];
+    const refused = denied.length ? denied : undefined;
+    if (failed) {
       if (CLAUDE_LIMIT_TEXT.test(combined.toLowerCase())) noteClaudeLimitHit(this.store);
       const hint = explainClaudeFailure(combined);
-      return { ok: false, summary: `${hint ? hint + " / " : ""}Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics };
+      return { ok: false, summary: `${hint ? hint + " / " : ""}Claude Codeが失敗しました(code=${res.code}): ${(out.text || res.stderr).slice(-1500)}`, artifacts: files, ...metrics, refused };
     }
-    return { ok: true, summary: out.text.slice(0, 20000), artifacts: files, ...metrics };
+    return { ok: true, summary: out.text.slice(0, 20000), artifacts: files, ...metrics, refused };
   }
 }

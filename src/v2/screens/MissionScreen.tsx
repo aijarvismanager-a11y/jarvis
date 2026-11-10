@@ -594,9 +594,10 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
     <Card className="border-accent/40">
       <div className="mb-2 flex items-center gap-2">
         <Badge tone="warn">許可が必要</Badge>
-        <span className="text-[13px] font-semibold">{APPROVAL_LEVEL[approval.level]}を伴う作業です</span>
+        <span className="text-[13px] font-semibold">{approval.command ? "このコマンドの実行を許可しますか" : `${APPROVAL_LEVEL[approval.level]}を伴う作業です`}</span>
       </div>
       <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
+      {approval.command && <p className="mt-2 break-all rounded bg-black/20 px-2 py-1 font-mono text-[12px]">{approval.command}</p>}
       <p className="mt-1 text-[12px] text-muted">許可しても、この作業の間だけ有効です。他の作業には広がりません。拒否するとこの作業は失敗として止まります。押すまで、この作業は止まったまま待ちます(自動では拒否しません)。</p>
       <div className="mt-3 flex gap-2">
         <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>

@@ -10,7 +10,7 @@ import type { Task } from "./store.ts";
 export const PERMISSION_LEVELS = ["READ", "WORKSPACE_WRITE", "NETWORK", "DEPLOY", "DESTRUCTIVE"] as const;
 export type PermissionLevel = (typeof PERMISSION_LEVELS)[number];
 
-export type ApprovalRequest = { projectId: string; taskId: string; level: PermissionLevel; reason: string; /** aborts the wait when the task is paused/cancelled */ signal?: AbortSignal };
+export type ApprovalRequest = { projectId: string; taskId: string; level: PermissionLevel; reason: string; /** set when the approval is for one specific shell command the run was refused */ command?: string; /** aborts the wait when the task is paused/cancelled */ signal?: AbortSignal };
 /** Asks the user. The default gate denies; the UI (Phase 7) supplies a real one. */
 export type ApprovalGate = (req: ApprovalRequest) => Promise<boolean>;
 export const denyAll: ApprovalGate = async () => false;
@@ -37,6 +37,37 @@ export function classifyCommand(commandLine: string): PermissionLevel {
   if (/\b(npm|pnpm|yarn)\s+(install|i|add|ci)\b/.test(c) || /\bpip3?\s+install\b/.test(c)) return "NETWORK";
   if (/^(ls|dir|cat|type|echo|pwd|cd|git\s+(status|diff|log|show))\b/.test(c)) return "READ";
   return "WORKSPACE_WRITE";
+}
+
+// Programs that run arbitrary code: allowing the program name would allow anything, so a refused call of one of these is never offered for approval.
+const INTERPRETERS = new Set(["powershell", "powershell.exe", "pwsh", "pwsh.exe", "cmd", "cmd.exe", "bash", "sh", "zsh", "wsl", "python", "python3", "py", "node", "npx", "eval", "start", "sudo"]);
+
+function unquote(s: string): string {
+  return s.replace(/^["']|["']$/g, "");
+}
+
+function patternBody(pattern: string): string | null {
+  const m = /^Bash\((.*):\*\)$/.exec(pattern);
+  return m ? m[1] : null;
+}
+
+/**
+ * The programs in a refused shell line that an approval could allow, with the line part each came from.
+ * A program is skipped when it is already allowed, would need a higher level (delete / deploy / network), or can run arbitrary code.
+ */
+export function approvableCommands(commandLine: string, alreadyAllowed: string[]): { program: string; part: string }[] {
+  const out: { program: string; part: string }[] = [];
+  for (const raw of commandLine.split(/&&|\|\||;|\|/)) {
+    const part = raw.trim();
+    if (!part) continue;
+    const program = unquote(part.split(/\s+/)[0]);
+    if (!program || /[()",`$<>&]/.test(program) || INTERPRETERS.has(program.toLowerCase())) continue;
+    if (alreadyAllowed.some((p) => { const b = patternBody(p); return b !== null && part.toLowerCase().startsWith(b.toLowerCase()); })) continue;
+    const level = classifyCommand(part);
+    if (level !== "WORKSPACE_WRITE" && level !== "READ") continue;
+    if (!out.some((o) => o.program === program)) out.push({ program, part });
+  }
+  return out;
 }
 
 /** Levels above the default that the task's own wording asks for (deploy / delete). */
@@ -84,11 +115,26 @@ export class PermissionPolicy {
     return true;
   }
 
+  /** Programs the user approved for one specific task (`Bash(prog:*)`): like level grants, they never reach other tasks. */
+  private readonly commandGrants = new Map<string, Set<string>>();
+
+  /** Asks the user whether this task may run `program` (a command its run was refused). Approving allows that program for this task only. */
+  async ensureCommand(req: ApprovalRequest, program: string): Promise<boolean> {
+    const pattern = `Bash(${program}:*)`;
+    if (this.commandGrants.get(req.taskId)?.has(pattern)) return true;
+    if (!(await this.gate({ ...req, level: "WORKSPACE_WRITE" }))) return false;
+    const set = this.commandGrants.get(req.taskId) ?? new Set<string>();
+    set.add(pattern);
+    this.commandGrants.set(req.taskId, set);
+    return true;
+  }
+
   /** CLI tool allow/deny lists for a task given the currently granted levels. */
   restrictionsFor(task: Pick<Task, "role"> & Partial<Pick<Task, "objective">> & { id?: string }): ToolRestrictions {
     const writes = isWriteTask(task);
     const has = (level: PermissionLevel) => this.isGranted(level, task.id);
     const allowedTools = (writes || runsBuildOrTests(task)) && has("WORKSPACE_WRITE") ? [...PACKAGE_MANAGER_TOOLS] : [];
+    if (task.id) allowedTools.push(...(this.commandGrants.get(task.id) ?? []));
     const disallowedTools: string[] = [];
     if (!has("NETWORK")) disallowedTools.push(...NETWORK_DENY);
     if (!has("DEPLOY")) disallowedTools.push(...DEPLOY_DENY);
