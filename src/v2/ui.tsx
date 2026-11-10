@@ -39,7 +39,15 @@ export function GoalText({ goal, className = "" }: { goal: string; className?: s
   if (!long) return <p className={className}>{head}</p>;
   return (
     <div>
-      <p className={className}>{open ? goalText(goal) : head}</p>
+      {open ? (
+        <div className={`${className} space-y-2 leading-relaxed`}>
+          {goalText(goal).split(/\n\s*\n/).map((para, i) => (
+            <p key={i} className="whitespace-pre-wrap break-words">{para.trim()}</p>
+          ))}
+        </div>
+      ) : (
+        <p className={className}>{head}</p>
+      )}
       <button type="button" className="mt-1 text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "全文を見る"}</button>
     </div>
   );
