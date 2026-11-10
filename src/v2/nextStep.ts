@@ -9,7 +9,11 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
   const { project, mission, approvals, handoffs } = ctx;
   const mine = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project?.id);
   if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "下の入力欄に、作りたいものを普通の言葉で書いて「開発を開始」を押します。まず AI が計画を立てます(数十秒かかります)。" };
-  if (mine(approvals).length > 0) return { tone: "go", title: "あなたの許可が必要です", detail: "AI が、削除や公開などを伴う作業をしようとしています。内容を読んで「許可して続ける」か「拒否する」を選んでください。" };
+  if (mine(approvals).length > 0) {
+    // an approval for one command (the AI was refused it) reads differently from one for a deletion / publishing
+    const command = mine(approvals).some((a) => a.command);
+    return { tone: "go", title: "あなたの許可が必要です", detail: command ? "AI が、まだ許可されていないコマンドを実行しようとしています。下のカードのコマンドを読んで、よければ「許可して続ける」、だめなら「拒否する」を選んでください。" : "AI が、削除や公開などを伴う作業をしようとしています。内容を読んで「許可して続ける」か「拒否する」を選んでください。" };
+  }
   if (mine(handoffs).length > 0) return { tone: "go", title: "あなたの操作が必要です", detail: "別の AI(ChatGPT など)に、指示文を貼り付けて送り、返ってきた回答をここへ貼り付けてください。下のカードの手順どおりに進めます。" };
   switch (mission.status) {
     case "planning":

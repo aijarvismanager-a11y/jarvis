@@ -29,6 +29,7 @@ import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { DesktopCompare } from "./core/desktopCompare.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
+import { describePrevious, readMarker, startAliveMarker } from "./core/aliveMarker.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
 import { autoReflectMission } from "./core/autoReflect.ts";
 import { runVerification } from "./core/postVerify.ts";
@@ -117,6 +118,12 @@ process.once("exit", () => previews.stopAll());
 // Say why the server went away (a signal, or a normal exit): a stop with nothing in the log cannot be explained afterwards.
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => { console.log(`[ai-orchestrator] ${new Date().toISOString()} stopped by ${sig}`); process.exit(0); });
 process.once("exit", (code) => console.log(`[ai-orchestrator] ${new Date().toISOString()} exiting (code ${code})`));
+{
+  const aliveFile = path.join(ROOT, "data", "server-alive.json");
+  const note = describePrevious(readMarker(aliveFile));
+  if (note) console.log(`[ai-orchestrator] ${new Date().toISOString()} ${note}`);
+  startAliveMarker(aliveFile);
+}
 const taskLogs = new TaskLogStore();
 const snapshots = new SnapshotManager(path.join(ROOT, "projects"));
 const desktopCompare = new DesktopCompare(path.join(ROOT, "projects"), snapshots);

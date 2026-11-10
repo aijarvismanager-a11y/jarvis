@@ -20,3 +20,16 @@ describe("nextStep while every AI is resting", () => {
     expect(step.title).toContain("使えるAIがありません");
   });
 });
+
+describe("nextStep while an approval waits", () => {
+  const withApprovals = (approvals: object[]) => ({ ...ctx("running"), approvals }) as unknown as Ctx;
+  it("names a refused command, not a deletion, when the approval is for one command", () => {
+    const step = nextStep(withApprovals([{ projectId: "p", command: "powershell -File a.ps1" }]), [], () => {});
+    expect(step.title).toBe("あなたの許可が必要です");
+    expect(step.detail).toContain("コマンド");
+    expect(step.detail).not.toContain("削除");
+  });
+  it("keeps the deletion / publishing wording for the other approvals", () => {
+    expect(nextStep(withApprovals([{ projectId: "p", level: "DEPLOY" }]), [], () => {}).detail).toContain("削除や公開");
+  });
+});
