@@ -78,6 +78,8 @@ export default function V2App() {
   const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId]);
 
   const [offline, setOffline] = useState(false);
+  // When the screen last got an answer from the server: shown while offline, so old content is not taken for current.
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
   const [help, setHelp] = useState(false);
   // The server keeps running old code after the source changes; ask for a restart when that is the case.
   const [outdated, setOutdated] = useState(false);
@@ -154,6 +156,7 @@ export default function V2App() {
       try {
         list = await api.projects();
         setOffline(false);
+        setSyncedAt(Date.now());
       } catch {
         // server unreachable: keep what is on screen, say so, and let the next poll retry
         setOffline(true);
@@ -285,21 +288,31 @@ export default function V2App() {
             <p className="mt-1 text-[12px]">どの窓? 「使うAI」の「ログインして使えるようにする」で開いた、AIのページ(例: ideogram.ai)の窓です。タスクバーに別の窓として並びます。見当たらないときは、最小化された窓や、ほかの画面にある窓も探してください。ふだん使っているブラウザの窓は、関係ありません。</p>
           </div>
         )}
-        {offline && <div role="alert" className="mb-3 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[13px] text-[#9B2C2C]">サーバーに接続できません。表示は最後に取得した内容です。サーバーが起動しているか確認してください(自動で再接続を試みます)。</div>}
+        {offline && (
+          // stays at the top while scrolling: the content below is old and its buttons are switched off until the server answers again
+          <div role="alert" className="sticky top-2 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2.5 text-[13px] text-[#9B2C2C] shadow-md">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">サーバーに接続できません{syncedAt ? `(最後に取得したのは ${new Date(syncedAt).toLocaleTimeString("ja-JP")})` : ""}</p>
+              <p className="mt-0.5">下の表示は、そのときの古い内容です。いまの作業の状況や、許可の依頼とは違うことがあります。ボタンは、つながるまで押せません。サーバーが起動しているか確認してください。数秒ごとに自動で再接続を試みます。</p>
+            </div>
+            <Button variant="ghost" onClick={() => refresh()}>今すぐ再接続する</Button>
+          </div>
+        )}
         <LimitBanner setError={setError} />
         <RestingBanner setError={setError} />
         <ErrorBar message={error} onClose={() => setError(null)} />
         {!loaded ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
         ) : (
-          <>
+          // inert while offline: old content stays readable but its buttons cannot be pressed (they could not reach the server anyway)
+          <div inert={offline} aria-disabled={offline || undefined} className={offline ? "opacity-50 saturate-50 transition-opacity" : "transition-opacity"}>
             {screen === "mission" && <MissionScreen ctx={ctx} />}
             {screen === "development" && <DevelopmentScreen ctx={ctx} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
             {screen === "projects" && <ProjectsScreen currentId={projectId} onOpen={(id, to) => { choose(id); setScreen(to); }} />}
             {(screen === "ais" || screen === "settings") && <SettingsScreen section={screen === "ais" ? "ai" : "app"} services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
-          </>
+          </div>
         )}
       </main>
     </div>
