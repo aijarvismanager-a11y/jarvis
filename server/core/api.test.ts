@@ -188,6 +188,13 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "taskNotes", "tasks"]);
   });
 
+  it("does not list .NET build output that was registered as an artifact (it stays in the database)", async () => {
+    for (const p of ["src/App/Main.cs", "src/App/obj/project.assets.json", "src/App/bin/Debug/net8.0-windows/App.dll", "bin/cli.js"]) store.createArtifact({ projectId: "p1", path: p, createdBy: "test" });
+    const o = (await (await call("/projects/p1/overview")).json()) as { artifacts: { path: string }[] };
+    expect(o.artifacts.map((a) => a.path).sort()).toEqual(["bin/cli.js", "src/App/Main.cs"]);
+    expect(store.listArtifacts("p1")).toHaveLength(4);
+  });
+
   it("summarises every project: newest request, counts and last activity", async () => {
     await call("/projects/p1/missions", "POST", { goal: "first" });
     await call("/projects/p1/missions", "POST", { goal: "second" });

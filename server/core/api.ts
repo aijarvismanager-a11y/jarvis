@@ -94,6 +94,10 @@ const createSchema = z.object({
   technologyPreferences: z.array(z.string().max(200)).max(50).default([]),
 });
 const MAX_ARTIFACT_BYTES = 1_000_000;
+// .NET build output that older runs registered as "artifacts" (86% of one project's rows). It is kept in the database but not listed:
+// the screen asks for the list every few seconds, and it was over 1 MB.
+const BUILD_OUTPUT = /(^|\/)obj\/|(^|\/)bin\/(Debug|Release|x64|x86|net[\d.]+)/i;
+export const isBuildOutput = (artifactPath: string) => BUILD_OUTPUT.test(artifactPath);
 // `run` is only read by /approve: approve and start in one request, so a failure in between cannot leave an approved plan idle.
 const feedbackSchema = z.object({ feedback: z.string().trim().max(4000).default(""), run: z.boolean().default(false) });
 
@@ -180,7 +184,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.get("/projects-summary", (_req, res) => {
     const summary = store.listProjects().map((p) => {
       const missions = [...store.listMissions(p.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      const artifacts = store.listArtifacts(p.id);
+      const artifacts = store.listArtifacts(p.id).filter((a) => !isBuildOutput(a.path));
       const latest = missions[0] ?? null;
       const last = [p.createdAt, ...missions.map((m) => m.updatedAt), ...artifacts.map((x) => x.createdAt)].sort().pop() ?? p.createdAt;
       // requests still "running" or "planning": they block putting the project away, and an old one is usually stuck
@@ -322,7 +326,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       missions: store.listMissions(projectId),
       tasks,
       taskNotes: taskNotes(store, projectId, tasks),
-      artifacts: store.listArtifacts(projectId),
+      artifacts: store.listArtifacts(projectId).filter((a) => !isBuildOutput(a.path)),
       aiRuns: store.listAiRuns(projectId),
     });
   });

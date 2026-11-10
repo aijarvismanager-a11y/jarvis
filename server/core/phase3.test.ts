@@ -261,6 +261,23 @@ describe("ClaudeCodeExecutor", () => {
     writeFileSync(path.join(dir, "a.txt"), "changed!");
     expect(changedFiles(before, snapshotDir(dir))).toEqual(["a.txt", "b.txt"]);
   });
+
+  it("leaves .NET build output (bin/ obj/ beside a project file) out, but keeps a bin/ that is source", () => {
+    const net = path.join(root, "net");
+    mkdirSync(path.join(net, "src", "App", "bin", "Debug"), { recursive: true });
+    mkdirSync(path.join(net, "src", "App", "obj"), { recursive: true });
+    mkdirSync(path.join(net, "src", "App", "Views"), { recursive: true });
+    writeFileSync(path.join(net, "src", "App", "App.csproj"), "<Project/>");
+    writeFileSync(path.join(net, "src", "App", "bin", "Debug", "App.dll"), "x");
+    writeFileSync(path.join(net, "src", "App", "obj", "project.assets.json"), "{}");
+    writeFileSync(path.join(net, "src", "App", "Views", "Main.xaml"), "<a/>");
+    expect([...snapshotDir(net).keys()].sort()).toEqual(["src/App/App.csproj", "src/App/Views/Main.xaml"]);
+    const node = path.join(root, "nodecli");
+    mkdirSync(path.join(node, "bin"), { recursive: true });
+    writeFileSync(path.join(node, "package.json"), "{}");
+    writeFileSync(path.join(node, "bin", "cli.js"), "#!/usr/bin/env node");
+    expect([...snapshotDir(node).keys()].sort()).toEqual(["bin/cli.js", "package.json"]);
+  });
 });
 
 describe("ProjectValidator", () => {

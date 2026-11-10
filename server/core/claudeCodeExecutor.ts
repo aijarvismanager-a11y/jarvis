@@ -47,7 +47,7 @@ export function parseExecutorCapabilities(helpText: string): ExecutorCapabilitie
 }
 
 const AUTH_ERROR = /not logged in|\/login|invalid api key|oauth (token|session)|failed to authenticate|authenticat(e|ion)[_ ](error|failed)|session expired|unauthorized/i;
-const SKIP_DIRS = new Set(["node_modules", ".git"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", ".vs", "__pycache__"]);
 const MAX_SNAPSHOT_FILES = 20_000;
 const MAX_ARTIFACTS = 200;
 export { STATUS_REPORT_PATH };
@@ -66,11 +66,15 @@ export function snapshotDir(dir: string): Snapshot {
     } catch {
       return;
     }
+    // bin/ and obj/ next to a .NET project file are build output (a dougasoft project had 2268 of its 2641 "artifacts" there, which made every
+    // screen refresh download 1.2 MB). A bin/ in any other project (a Node CLI's bin/cli.js) is source and stays.
+    const dotnetProject = entries.some((x) => x.isFile() && /\.(cs|fs|vb)proj$/i.test(x.name));
     for (const e of entries) {
       if (e.isSymbolicLink()) continue; // never follow links out of the project
       const childRel = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) walk(path.join(current, e.name), childRel);
+        if (SKIP_DIRS.has(e.name) || (dotnetProject && /^(bin|obj)$/i.test(e.name))) continue;
+        walk(path.join(current, e.name), childRel);
       } else if (e.isFile()) {
         const st = statSync(path.join(current, e.name));
         out.set(childRel, `${st.mtimeMs}:${st.size}`);
