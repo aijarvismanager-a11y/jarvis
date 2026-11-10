@@ -31,6 +31,10 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
   // What was fetched, tagged with what it was fetched for: anything stale is ignored instead of being cleared in an effect.
   const [loaded, setLoaded] = useState<{ key: string; content: string | null; failure: string | null } | null>(null);
   const projectId = ctx.project?.id;
+  // A picture (.svg) is shown as a picture; this turns on its source text instead. Resets when another file is chosen.
+  const [showSourceFor, setShowSourceFor] = useState<string | null>(null);
+  const showSource = !!selected && showSourceFor === selected.path;
+  const setShowSource = (on: boolean) => setShowSourceFor(on && selected ? selected.path : null);
 
   // Newest version of each path.
   const latest = useMemo(() => {
@@ -109,10 +113,19 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
               <p className="text-[13px] text-[#9B2C2C]">{failure}</p>
             ) : content === null ? (
               <p className="text-[13px] text-muted">読み込み中…</p>
+            ) : /\.svg$/i.test(shown.path) && !showSource ? (
+              <div>
+                {/* an <img> never runs scripts inside the SVG, so a picture an AI drew is safe to show */}
+                <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`} alt={shown.path} className="block w-full rounded-lg border border-borderSoft bg-bg" />
+                <button onClick={() => setShowSource(true)} className="mt-2 text-[12px] text-muted hover:underline">図のソース(文字)を見る</button>
+              </div>
             ) : shown.path.endsWith(".md") ? (
               <div className="prose-artifact"><ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown></div>
             ) : (
-              <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink p-3.5 font-mono text-[12px] leading-relaxed text-[#E9E4D9]">{content}</pre>
+              <>
+                {/\.svg$/i.test(shown.path) && <button onClick={() => setShowSource(false)} className="mb-2 text-[12px] text-accent hover:underline">← 図として見る</button>}
+                <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink p-3.5 font-mono text-[12px] leading-relaxed text-[#E9E4D9]">{content}</pre>
+              </>
             )}
           </>
         )}
