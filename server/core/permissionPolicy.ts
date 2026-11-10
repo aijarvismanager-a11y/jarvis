@@ -55,17 +55,26 @@ function patternBody(pattern: string): string | null {
  * The programs in a refused shell line that an approval could allow, with the line part each came from.
  * A program is skipped when it is already allowed, would need a higher level (delete / deploy / network), or can run arbitrary code.
  */
-export function approvableCommands(commandLine: string, alreadyAllowed: string[]): { program: string; part: string }[] {
-  const out: { program: string; part: string }[] = [];
+export function approvableCommands(commandLine: string, alreadyAllowed: string[]): { pattern: string; part: string }[] {
+  const out: { pattern: string; part: string }[] = [];
   for (const raw of commandLine.split(/&&|\|\||;|\|/)) {
     const part = raw.trim();
     if (!part) continue;
     const program = unquote(part.split(/\s+/)[0]);
-    if (!program || /[()",`$<>&]/.test(program) || INTERPRETERS.has(program.toLowerCase())) continue;
+    if (!program || /[()",`$<>&]/.test(program)) continue;
     if (alreadyAllowed.some((p) => { const b = patternBody(p); return b !== null && part.toLowerCase().startsWith(b.toLowerCase()); })) continue;
     const level = classifyCommand(part);
     if (level !== "WORKSPACE_WRITE" && level !== "READ") continue;
-    if (!out.some((o) => o.program === program)) out.push({ program, part });
+    let pattern: string;
+    if (INTERPRETERS.has(program.toLowerCase())) {
+      // Allowing the program would allow anything it can run, so only this exact line is allowed, and only when it runs a file
+      // (no inline code). The person sees the whole line on the approval card.
+      if (/[,()"`$<>&]/.test(part) || /\s-(c|command|e|ec|encodedcommand)\b/i.test(part) || /\s\/[ck]\b/i.test(part)) continue;
+      pattern = `Bash(${part})`;
+    } else {
+      pattern = `Bash(${program}:*)`;
+    }
+    if (!out.some((o) => o.pattern === pattern)) out.push({ pattern, part });
   }
   return out;
 }
@@ -118,9 +127,8 @@ export class PermissionPolicy {
   /** Programs the user approved for one specific task (`Bash(prog:*)`): like level grants, they never reach other tasks. */
   private readonly commandGrants = new Map<string, Set<string>>();
 
-  /** Asks the user whether this task may run `program` (a command its run was refused). Approving allows that program for this task only. */
-  async ensureCommand(req: ApprovalRequest, program: string): Promise<boolean> {
-    const pattern = `Bash(${program}:*)`;
+  /** Asks the user whether this task may run a command its run was refused. Approving allows `pattern` (a program, or one exact line) for this task only. */
+  async ensureCommand(req: ApprovalRequest, pattern: string): Promise<boolean> {
     if (this.commandGrants.get(req.taskId)?.has(pattern)) return true;
     if (!(await this.gate({ ...req, level: "WORKSPACE_WRITE" }))) return false;
     const set = this.commandGrants.get(req.taskId) ?? new Set<string>();

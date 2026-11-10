@@ -347,14 +347,14 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
       if (!refused?.length) return result;
       const allowed = this.policy.restrictionsFor(task).allowedTools;
       const askable = refused.flatMap((line) => approvableCommands(line, allowed));
-      const programs = askable.filter((a, i) => askable.findIndex((b) => b.program === a.program) === i);
+      const programs = askable.filter((a, i) => askable.findIndex((b) => b.pattern === a.pattern) === i);
       if (!programs.length) return { ...result, summary: `${result.summary}\n\n(実行できなかったコマンド: ${refused[0].slice(0, 200)} — 承認で許可できない種類のコマンドです)` };
-      for (const { program, part } of programs) {
-        const ok = await this.policy.ensureCommand({ projectId, taskId: task.id, level: "WORKSPACE_WRITE", reason: task.objective, command: part, signal: ctx.signal }, program);
+      for (const { pattern, part } of programs) {
+        const ok = await this.policy.ensureCommand({ projectId, taskId: task.id, level: "WORKSPACE_WRITE", reason: task.objective, command: part, signal: ctx.signal }, pattern);
         if (ctx.signal.aborted) return { ok: false, summary: "中断されました" };
         if (!ok) {
           this.store.appendEvent({ projectId, taskId: task.id, type: "APPROVAL_DENIED", payload: { level: "WORKSPACE_WRITE", command: part } });
-          return { ok: false, retryable: false, summary: `コマンド「${program}」の実行が許可されなかったため、この作業は進められませんでした` };
+          return { ok: false, retryable: false, summary: `コマンド「${part.slice(0, 120)}」の実行が許可されなかったため、この作業は進められませんでした` };
         }
       }
     }

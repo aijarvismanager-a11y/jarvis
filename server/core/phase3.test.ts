@@ -392,11 +392,15 @@ describe("commands refused for lack of an approval", () => {
 
   it("offers only programs an approval can safely allow", () => {
     const allowed = new PermissionPolicy().restrictionsFor({ role: "coding" }).allowedTools;
-    expect(approvableCommands(FFMPEG, allowed)).toEqual([{ program: "installer/_work/tools/ffmpeg.exe", part: FFMPEG }]);
+    expect(approvableCommands(FFMPEG, allowed)).toEqual([{ pattern: "Bash(installer/_work/tools/ffmpeg.exe:*)", part: FFMPEG }]);
     expect(approvableCommands("cd x && dotnet build a.sln", allowed)).toEqual([]); // already allowed
     expect(approvableCommands("rm -rf x", allowed)).toEqual([]); // needs a higher level
-    expect(approvableCommands("powershell -File a.ps1", allowed)).toEqual([]); // runs anything
-    expect(approvableCommands("cd x && tool.exe --go", allowed).map((a) => a.program)).toEqual(["tool.exe"]);
+    // a program that runs anything is allowed for that exact line only, and never with inline code
+    const run = "powershell -NoProfile -ExecutionPolicy Bypass -File tests/a.ps1";
+    expect(approvableCommands(run, allowed)).toEqual([{ pattern: `Bash(${run})`, part: run }]);
+    expect(approvableCommands("powershell -Command Get-Date", allowed)).toEqual([]);
+    expect(approvableCommands('python -c "import os"', allowed)).toEqual([]);
+    expect(approvableCommands("cd x && tool.exe --go", allowed).map((a) => a.pattern)).toEqual(["Bash(tool.exe:*)"]);
   });
 
   it("asks, then runs again with the program allowed for that task only", async () => {
