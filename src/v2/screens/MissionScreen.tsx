@@ -824,7 +824,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       ) : (
         <NextStepBanner step={step} />
       )}
-      {mission?.status === "completed" && !starting && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
+      {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
       <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[900px]:items-start">
