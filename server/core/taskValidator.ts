@@ -46,6 +46,21 @@ export function isLaunchCheckTask(task: Pick<Task, "role" | "objective">): boole
   return !isWriteTask(task) && /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) && /起動|ブラウザ|画面/.test(task.objective) && /確認|試|動作/.test(task.objective);
 }
 
+/**
+ * Why a Markdown deliverable looks cut off, or null when it does not. A web chat answer that was read while it was still being written
+ * ends mid-way (a real one stopped at the heading "### 2-2. 設"); two signs are certain enough to send it back:
+ * a code fence that was opened and never closed, and a last line that is only a heading (a section with nothing under it).
+ */
+export function truncationReason(markdown: string): string | null {
+  const text = markdown.replace(/\r\n/g, "\n").trimEnd();
+  if (!text) return null;
+  const fences = text.split("\n").filter((l) => /^\s*(```|~~~)/.test(l)).length;
+  if (fences % 2 === 1) return "コードブロック(```)が閉じられないまま終わっています";
+  const last = text.split("\n").filter((l) => l.trim()).pop() ?? "";
+  if (/^#{1,6}\s/.test(last) && text.split("\n").filter((l) => l.trim()).length > 1) return `最後の行が見出し「${last.trim().slice(0, 40)}」だけで、中身がありません`;
+  return null;
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -74,6 +89,18 @@ export class ProjectValidator implements TaskValidator {
     if (isWriteTask(task) && wanted.length === 0 && changed.length === 0) {
       return { passed: false, level: 1, detail: "コード作業の作業ですが、ファイルが1つも作成・変更されていません" };
     }
+
+    // L1.5: a Markdown deliverable that ends mid-way was cut off while it was being read or written: send it back to be finished
+    const cutOff: string[] = [];
+    for (const rel of wanted.filter((p) => /\.md$/i.test(p))) {
+      try {
+        const reason = truncationReason(readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? "");
+        if (reason) cutOff.push(`${rel}: ${reason}`);
+      } catch {
+        /* unreadable: the existence check above already decided */
+      }
+    }
+    if (cutOff.length) return { passed: false, level: 1, detail: `成果物が途中で終わっているようです。最後まで書き直してください。\n${cutOff.join("\n")}` };
 
     // L2: syntax of what was produced
     const toCheck = [...new Set([...wanted, ...changed])].slice(0, MAX_SYNTAX_FILES);

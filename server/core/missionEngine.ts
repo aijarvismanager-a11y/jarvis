@@ -47,7 +47,10 @@ export interface TaskValidator {
   validate(task: Task, result: ExecutionResult): Promise<{ passed: boolean; detail?: string; level?: number }>;
 }
 
-export type PlanProposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
+/** This many failures in a row with the same reason stop the automatic retries (the limit of MAX_RETRIES stays for different reasons). */
+export const SAME_FAILURE_LIMIT = 3;
+
+export type PlanProposal ={ kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
 
 const proposalKey = (missionId: string) => `plan:${missionId}`;
 
@@ -249,8 +252,19 @@ export class MissionEngine {
       refreshReadiness(this.store, projectId, missionId, MAX_RETRIES, (t) => this.noRetry.has(t.id));
       let tasks = this.missionTasks(projectId, missionId);
 
-      // automatic retry, bounded by MAX_RETRIES
-      for (const t of tasks.filter((x) => x.status === "failed" && x.retryCount < MAX_RETRIES && !this.noRetry.has(x.id))) retryTask(this.store, projectId, t.id);
+      // automatic retry, bounded by MAX_RETRIES, and stopped early when the same failure keeps coming back (a retry that fails the same way cannot help)
+      let stopped = false;
+      for (const t of tasks.filter((x) => x.status === "failed" && x.retryCount < MAX_RETRIES && !this.noRetry.has(x.id))) {
+        if (this.failsTheSameWay(projectId, t.id)) {
+          this.noRetry.add(t.id);
+          this.store.appendEvent({ projectId, taskId: t.id, type: "RETRY_STOPPED", payload: { reason: `同じ理由で${SAME_FAILURE_LIMIT}回続けて失敗したため、自動のやり直しを止めました` } });
+          stopped = true;
+          continue;
+        }
+        retryTask(this.store, projectId, t.id);
+      }
+      // what waits behind a task that will not be retried is blocked now, not left "pending" in a mission that then fails
+      if (stopped) refreshReadiness(this.store, projectId, missionId, MAX_RETRIES, (t) => this.noRetry.has(t.id));
       tasks = this.missionTasks(projectId, missionId);
 
       const ready = tasks.filter((t) => t.status === "ready");
@@ -278,6 +292,28 @@ export class MissionEngine {
       }
       return this.requireMission(projectId, missionId).status;
     }
+  }
+
+  /**
+   * The last SAME_FAILURE_LIMIT failures of this task (since the person last retried it by hand) all gave the same reason.
+   * Numbers and spacing are ignored, so "(3分)" and "(20分)" or a changed file size do not hide a repeat.
+   */
+  private failsTheSameWay(projectId: string, taskId: string): boolean {
+    const rows = this.store.db.prepare("SELECT type, payload FROM events WHERE project_id = ? AND task_id = ? AND type IN ('TASK_TRANSITION', 'TASK_MANUAL_RETRY') ORDER BY id DESC LIMIT 60").all(projectId, taskId) as { type: string; payload: string }[];
+    const reasons: string[] = [];
+    for (const r of rows) {
+      if (r.type === "TASK_MANUAL_RETRY") break;
+      let p: { to?: string; reason?: string };
+      try {
+        p = JSON.parse(r.payload) as { to?: string; reason?: string };
+      } catch {
+        continue;
+      }
+      if (p.to !== "failed") continue;
+      reasons.push(String(p.reason ?? "").replace(/\d+/g, "#").replace(/\s+/g, " ").trim().slice(0, 300));
+      if (reasons.length >= SAME_FAILURE_LIMIT) break;
+    }
+    return reasons.length >= SAME_FAILURE_LIMIT && reasons.every((x) => x === reasons[0]) && reasons[0] !== "";
   }
 
   private start(mission: Mission, task: Task): void {

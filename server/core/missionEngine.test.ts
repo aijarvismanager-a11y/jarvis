@@ -149,7 +149,8 @@ describe("running the graph", () => {
   });
 
   it("a failing validator fails the task (and it is retried)", async () => {
-    const validator: TaskValidator = { validate: async (_t, _r) => ({ passed: false, detail: "lint" }) };
+    let n = 0; // the reason differs each time, so the same-failure cap does not apply here
+    const validator: TaskValidator = { validate: async (_t, _r) => ({ passed: false, detail: "lint" + "x".repeat(++n) }) };
     const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"))]), executor: new FakeExecutor(), validator });
     const mid = await started(engine);
     expect(await engine.run(pid, mid)).toBe("failed");
@@ -169,7 +170,7 @@ describe("retry", () => {
   });
 
   it("gives up after exactly 5 retries (6 executions), blocks dependents and fails the mission", async () => {
-    const exec = new FakeExecutor((task) => (task.objective === "a" ? { ok: false, summary: "always" } : { ok: true }));
+    const exec = new FakeExecutor((task, attempt) => (task.objective === "a" ? { ok: false, summary: "always" + "x".repeat(attempt) } : { ok: true }));
     const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
     const mid = await started(engine);
     expect(await engine.run(pid, mid)).toBe("failed");
@@ -184,7 +185,7 @@ describe("retry", () => {
     const seen: string[][] = [];
     const exec = new FakeExecutor((task, attempt) => {
       if (task.objective === "a") seen.push(task.constraints);
-      return task.objective === "a" && attempt <= 6 ? { ok: false, summary: "always" } : { ok: true };
+      return task.objective === "a" && attempt <= 6 ? { ok: false, summary: "always" + "x".repeat(attempt) } : { ok: true };
     });
     const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
     const mid = await started(engine);
