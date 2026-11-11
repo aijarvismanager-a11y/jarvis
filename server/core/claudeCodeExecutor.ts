@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskExecutor } from "./missionEngine.ts";
-import { claudeLimitUntil, noteClaudeLimitHit, parseRateLimit, readClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
+import { claudeLimitUntil, noteClaudeLimitHit, parseRateLimit, effectiveClaudeLimitPolicy, readClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { chooseModel, parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, approvableCommands, requestedElevatedLevels } from "./permissionPolicy.ts";
@@ -312,9 +312,8 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     const until = claudeLimitUntil(this.store);
     if (!until) return null;
     const at = new Date(until).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-    const policy = readClaudeLimitPolicy(this.store);
+    const policy = effectiveClaudeLimitPolicy(this.store); // nobody has to choose: unless "wait" was picked, the work goes to the other AIs
     if (policy === "reroute") return { ok: false, summary: `Claude の利用上限に達しているため(${at}にリセット)、ほかのAIに回します` };
-    if (policy !== "wait") return { ok: false, summary: `Claude の利用上限に達しています(${at}にリセット)。画面の上で「リセットまで待つ」か「ほかのAIに回す」を選んでください。選ぶと、この作業は自動で続きます`, retryable: false };
     const { projectId } = task;
     transitionTask(this.store, projectId, task.id, "waiting", `Claude の利用上限のため、${at}のリセットまで待っています`);
     try {
@@ -327,7 +326,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     } catch {
       return { ok: false, summary: "中断されました" };
     }
-    if (readClaudeLimitPolicy(this.store) === "reroute") return { ok: false, summary: "ほかのAIに回します" };
+    if (effectiveClaudeLimitPolicy(this.store) === "reroute") return { ok: false, summary: "ほかのAIに回します" };
     transitionTask(this.store, projectId, task.id, "running", "リセットされたため、続けます");
     return null;
   }

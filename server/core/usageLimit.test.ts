@@ -70,12 +70,12 @@ describe("Claude plan limit", () => {
     expect(claudeLimitUntil(s, now)).toBe("2026-10-29T01:00:00.000Z");
   });
 
-  it("rests the Claude AIs only when the person chose to hand the work on", () => {
+  it("rests the Claude AIs by itself, unless the person chose to wait", () => {
     const s = store();
     const now = Date.parse("2026-10-29T00:00:00Z");
     saveClaudeQuota(s, rejected("2026-10-29T03:00:00Z"));
     const ids = ["claude-code", "claude-web", "chatgpt"];
-    expect(claudeLimitExclusions(s, ids, now)).toEqual({});
+    expect(Object.keys(claudeLimitExclusions(s, ids, now))).toEqual(["claude-code", "claude-web"]); // nothing chosen: handed on automatically
     saveClaudeLimitPolicy(s, "wait");
     expect(claudeLimitExclusions(s, ids, now)).toEqual({});
     saveClaudeLimitPolicy(s, "reroute");

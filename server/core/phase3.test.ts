@@ -144,14 +144,14 @@ describe("ClaudeCodeExecutor", () => {
     const rejectedUntil = (ms: number) => saveClaudeQuota(store, { fiveHour: { utilization: 1, resetsAt: new Date(Date.now() + ms).toISOString() }, sevenDay: null, status: "rejected", checkedAt: new Date().toISOString() });
     const ok = () => fakeClaude(() => ({ stdout: JSON.stringify({ is_error: false, result: "done" }) }));
 
-    it("stops with a sentence that asks for the choice, and does not call Claude Code, while nothing is chosen", async () => {
+    it("hands the work on by itself, without calling Claude Code, while nobody has chosen", async () => {
       rejectedUntil(3_600_000);
       const task = makeTask();
       const f = ok();
       const r = await new ClaudeCodeExecutor(store, { runner: f.runner }).execute(task, ctx(task));
       expect(r.ok).toBe(false);
-      expect(r.summary).toContain("選んでください");
-      expect(r.retryable).toBe(false); // the engine must not burn its automatic retries on a task that cannot run yet
+      expect(r.summary).toContain("ほかのAIに回します");
+      expect(r.summary).not.toContain("選んでください"); // nobody is asked to decide
       expect(f.calls.some((c) => c.args[0] !== "--help")).toBe(false);
     });
 

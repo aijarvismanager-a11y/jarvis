@@ -61,6 +61,8 @@ const POLICY_KEY = "claude_limit_policy";
 export const CLAUDE_WARN_AT = 0.9;
 
 export const readClaudeLimitPolicy = (store: Store): ClaudeLimitPolicy | null => store.getSetting<ClaudeLimitPolicy | null>(POLICY_KEY, null);
+/** What happens at the limit. Nobody has to choose: unless the person picked "wait", the work goes to the other AIs by itself. */
+export const effectiveClaudeLimitPolicy = (store: Store): ClaudeLimitPolicy => readClaudeLimitPolicy(store) ?? "reroute";
 export const saveClaudeLimitPolicy = (store: Store, p: ClaudeLimitPolicy | null) => store.setSetting(POLICY_KEY, p);
 
 /** Until when Claude Code cannot be used, when the last report says the plan is exhausted and the reset is still ahead. */
@@ -84,7 +86,7 @@ export function noteClaudeLimitHit(store: Store, now = Date.now()): void {
 /** The Claude AIs that share the plan (Claude Code and claude.ai chat), with why they rest, while the person chose to hand the work on. */
 export function claudeLimitExclusions(store: Store, aiIds: string[], now = Date.now()): Record<string, string> {
   const until = claudeLimitUntil(store, now);
-  if (!until || readClaudeLimitPolicy(store) !== "reroute") return {};
+  if (!until || effectiveClaudeLimitPolicy(store) !== "reroute") return {};
   const at = new Date(until).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
   return Object.fromEntries(aiIds.filter((id) => id.startsWith("claude")).map((id) => [id, `Claude の利用上限に達したため、${at}のリセットまで、ほかのAIに回しています`]));
 }
