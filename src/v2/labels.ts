@@ -148,6 +148,12 @@ const SHORT_GOAL_AT = 90;
 /** A long request as a one-line heading: its first sentence (or the first part), the rest is for "全文を見る". */
 export const shortGoal = (goal: string): { head: string; long: boolean } => {
   const t = goalText(goal).replace(/\s+/g, " ").trim();
+  // 「答えをもとに新しい依頼を書く」で作った依頼は、先頭が毎回同じ定型文なので、見出しには中身(最初の答え)を出す
+  const follow = /^これまでの回答について、次の確認への答えを反映して、やり直し・修正してください:\s*質問:.*?答え:\s*(.+?)(?=\s質問:|\s*【これまでの回答|$)/.exec(t);
+  if (follow?.[1]) {
+    const a = follow[1].trim();
+    return { head: `前回の回答への続き: ${a.length > 60 ? `${a.slice(0, 60)}…` : a}`, long: true };
+  }
   if (t.length <= SHORT_GOAL_AT) return { head: t, long: false };
   const cut = t.search(/[。!?！？]/);
   if (cut > 8 && cut < SHORT_GOAL_AT) return { head: t.slice(0, cut + 1), long: true };
@@ -156,7 +162,23 @@ export const shortGoal = (goal: string): { head: string; long: boolean } => {
   return { head: comma >= 30 ? `${t.slice(0, comma)}…` : `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
 };
 
-export const deriveProjectName = (goal: string) => {
+/**
+ * 続きの依頼に付ける「これまでの回答(要点)」。先頭の1件だけで字数を使い切って後ろの作業が丸ごと消えたり、
+ * 文の途中で切れたりしないよう、作業ごとに同じ字数ずつ割り振り、句点・改行のところで切る。
+ */
+export function condenseAnswers(combined: string, limit: number): string {
+  if (combined.length <= limit) return combined;
+  const parts = combined.split(/\n\n(?=【作業\d+:)/);
+  const per = Math.floor(limit / parts.length);
+  return parts.map((p) => {
+    if (p.length <= per) return p;
+    const head = p.slice(0, per);
+    const at = Math.max(head.lastIndexOf("。"), head.lastIndexOf("\n"));
+    return `${at > per * 0.5 ? head.slice(0, at + 1) : head}…(以下略)`;
+  }).join("\n\n");
+}
+
+export const deriveProjectName =(goal: string) => {
   const t = goal.trim().replace(/\s+/g, " ");
   if (!t) return "新しいプロジェクト";
   const cut = t.search(/[、。!?！？,.]/);

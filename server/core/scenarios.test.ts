@@ -8,7 +8,7 @@ import { MissionEngine, SAME_FAILURE_LIMIT, type ExecutionResult, type TaskExecu
 import type { PlanRequest, Planner } from "./planner.ts";
 import type { PlanDraft } from "./taskGraph.ts";
 import { transitionTask } from "./taskStateMachine.ts";
-import { ProjectValidator, truncationReason } from "./taskValidator.ts";
+import { ProjectValidator, scriptInsteadOfDocument, truncationReason } from "./taskValidator.ts";
 import { projectDir } from "./paths.ts";
 import { parseDeniedCommands, parseRunOutput } from "./claudeCodeExecutor.ts";
 import { PermissionPolicy, approvableCommands, classifyCommand } from "./permissionPolicy.ts";
@@ -153,6 +153,11 @@ describe("a deliverable that is not what it should be", () => {
     expect(truncationReason("# a\n\nbody\n\n### 2-2. 設")).toContain("見出し");
     expect(truncationReason("text\n```js\nx")).toContain("コードブロック");
     expect(truncationReason("# only a title")).toBeNull(); // a one-line file is not "cut"
+    // a chat AI that answers with the program that would write the document: the file holds code, not the document
+    const script = '```\ncontent = """# レビュー\\n本文"""\nimport os\nwith open("_ai-records/x/review.md", "w", encoding="utf-8") as f:\n    f.write(content)\n```';
+    expect(scriptInsteadOfDocument(script)).toContain("プログラム");
+    expect(scriptInsteadOfDocument("# レビュー\n\n本文。\n\n```\nopen('a.md','w')\n```\n")).toBeNull(); // prose with a code sample is a document
+    expect(scriptInsteadOfDocument("```js\nconsole.log(1)\n```")).toBeNull(); // code that does not write a document
     expect(truncationReason("# a\n\nbody\n\n```\ncode\n```\n")).toBeNull();
     expect(truncationReason("| a | b |\n|---|---|\n| 1 | 2 |")).toBeNull();
     expect(truncationReason("")).toBeNull();

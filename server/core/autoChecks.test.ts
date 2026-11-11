@@ -104,6 +104,13 @@ describe("needsCodeExecutor", () => {
   it("keeps code edits and the project's running records off the web chats", async () => {
     const { needsCodeExecutor } = await import("./webAiExecutor.ts");
     expect(needsCodeExecutor({ role: "coding", expectedOutputs: [] })).toBe(true);
+    // a screen check starts the app and looks at it: a web AI would invent the result from old records
+    expect(needsCodeExecutor({ role: "test", objective: "tools/ui-probe(launch → resize 1000 600 → shot)で各画面を撮影し、ずれを判定する", expectedOutputs: ["docs/screenshots/a.png"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "test", objective: "修正後のアプリを再起動し、1000x600の再撮影とずれなしを確認する", expectedOutputs: ["_ai-records/x.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "research", objective: "tools/ui-probeの使い方を読んで整理する", expectedOutputs: ["_ai-records/c.md"] })).toBe(false);
+    // adding to a record that already exists must not be a chat answer (it replaces the whole file)
+    expect(needsCodeExecutor({ role: "document", objective: "結果を既存の記録へ反映する: docs/report.mdの§1結果表を更新し、追記する", expectedOutputs: ["docs/report.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "document", objective: "新しい利用者向けの説明書を書く", expectedOutputs: ["docs/guide.md"] })).toBe(false);
     expect(needsCodeExecutor({ role: "test", objective: "dotnet build Gage.sln と dotnet test を実行し結果を書く", expectedOutputs: ["docs/test-results.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["TESTLOG.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", expectedOutputs: ["PLAN.md", "ARCHITECTURE.md"] })).toBe(true);

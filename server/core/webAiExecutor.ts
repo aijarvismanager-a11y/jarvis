@@ -101,7 +101,14 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Tasks a web chat cannot do: editing code, or updating the project's running records (TESTLOG, PLAN...), which a chat answer would overwrite whole. They go straight to the code executor instead of failing on the site first. */
-export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || runsBuildOrTests(task) || isHistoryTask(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
+export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || runsBuildOrTests(task) || isHistoryTask(task) || updatesExistingRecords(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
+
+/**
+ * A document task that adds to or corrects records the project already has ("既存の記録へ反映", "…に追記する", CLAUDE.md の作業履歴を更新).
+ * A chat answer replaces the whole file, so the earlier sections are lost (measured: a report rewritten by a web AI dropped three sections of it).
+ */
+export const updatesExistingRecords = (task: Pick<Task, "role"> & Partial<Pick<Task, "objective">>): boolean =>
+  /^(document|documentation|docs|doc|ドキュメント作成|文書作成)$/i.test(task.role.trim()) && /既存の(記録|ドキュメント|文書|ファイル|履歴)|へ反映|に反映|に追記|へ追記|追記する|CLAUDE\.md|作業履歴/.test(task.objective ?? "");
 
 /** A source / test file: a chat page turns "/" and "[a](b)" in code into links and escapes (measured: 5 tries in a row of a broken test file), so code is written by the code executor. */
 const isSourceFile = (rel: string): boolean => /\.(m?js|cjs|jsx|tsx?|py|cs|java|go|rs|sh|ps1|css|html)$/i.test(rel.trim());

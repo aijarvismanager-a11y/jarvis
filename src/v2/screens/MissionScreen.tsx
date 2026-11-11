@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -80,13 +80,16 @@ function TaskAnswer({ taskId, ctx }: { taskId: string; ctx: Ctx }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, projectId]);
   if (!text) return null;
-  const firstLine = text.replace(/[#>*|`\-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  // 見出し・箇条書きの記号は行頭だけ外す(文中の「-」を消すと status-report.md や 2026-11-11 が崩れる)
+  const flat = text.split(/\r?\n/).map((l) => l.replace(/^[\s#>*|`・-]+/, "").replace(/[*`|]/g, "").trim()).filter(Boolean).join(" ").replace(/\s+/g, " ");
+  const firstLine = flat.slice(0, 60);
+  const cut = flat.length > 60;
   const copy = () => { void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => undefined); };
   return (
     <div className="ml-6 mt-1 rounded-lg border border-borderSoft bg-white px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <button type="button" className="min-w-0 flex-1 text-left text-[12.5px]" onClick={() => setOpen(!open)}>
-          <span className="font-semibold">AIの回答</span><span className="ml-2 text-muted">{open ? "" : `${firstLine}…`}</span>
+          <span className="font-semibold">AIの回答</span><span className="ml-2 text-muted">{open ? "" : `${firstLine}${cut ? "…" : ""}`}</span>
         </button>
         <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setBig(true)}>大きく表示</button>
         <button type="button" className="text-[12px] text-accent hover:underline" onClick={copy}>{copied ? "コピーしました" : "コピー"}</button>
@@ -131,7 +134,7 @@ function MissionFollowUp({ ctx, tasks, onNewRequest }: { ctx: Ctx; tasks: Task[]
   const [replies, setReplies] = useState<string[]>([]);
   const { busy: asking, run: runAsk } = useAction(ctx.setError);
   if (!combined) return null;
-  const attach = `\n\n【これまでの回答(要点)】\n${combined.slice(0, 2200)}`;
+  const attach = `\n\n【これまでの回答(要点)】\n${condenseAnswers(combined, 2200)}`;
   return (
     <div className="mt-4 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
       <p className="text-[13px] font-semibold">AIからの確認と、続きの依頼</p>

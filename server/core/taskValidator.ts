@@ -61,6 +61,19 @@ export function truncationReason(markdown: string): string | null {
   return null;
 }
 
+/**
+ * A .md deliverable whose whole content is a script that would WRITE that document (a chat AI answers "here is the code that creates the file"):
+ * the file then holds code, not the document. Measured on a final review that was saved as a Python program.
+ */
+export function scriptInsteadOfDocument(markdown: string): string | null {
+  const lines = markdown.replace(/\r\n/g, "\n").trim().split("\n");
+  if (lines.length < 3 || !/^\s*(```|~~~)/.test(lines[0] ?? "")) return null;
+  const body = lines.slice(1, /^\s*(```|~~~)\s*$/.test(lines[lines.length - 1] ?? "") ? -1 : undefined).join("\n");
+  // it is a script that writes a file, with no prose outside the code
+  if (/\bopen\(\s*["'][^"']+\.md["']\s*,\s*["']w|writeFileSync\(|Set-Content|Out-File|>\s*\S+\.md\b|makedirs\(/i.test(body)) return "中身が、文書を書き出すプログラム(コード)になっています。コードではなく、文書の本文そのものを書いてください";
+  return null;
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -94,7 +107,8 @@ export class ProjectValidator implements TaskValidator {
     const cutOff: string[] = [];
     for (const rel of wanted.filter((p) => /\.md$/i.test(p))) {
       try {
-        const reason = truncationReason(readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? "");
+        const text = readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, rel)) ?? "";
+        const reason = scriptInsteadOfDocument(text) ?? truncationReason(text);
         if (reason) cutOff.push(`${rel}: ${reason}`);
       } catch {
         /* unreadable: the existence check above already decided */
