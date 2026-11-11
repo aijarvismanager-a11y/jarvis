@@ -9,6 +9,7 @@ import { chooseModel, parseSaverCapabilities, saverArgs, type SaverCapabilities 
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, approvableCommands, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
+import { fileURLToPath } from "node:url";
 import { HISTORY_NOTES_PATH, STATUS_REPORT_PATH } from "./projectImport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { Mission, Store, Task } from "./store.ts";
@@ -91,6 +92,15 @@ export function changedFiles(before: Snapshot, after: Snapshot): string[] {
   return changed.sort();
 }
 
+const UI_PROBE = fileURLToPath(new URL("../../tools/ui-probe.mjs", import.meta.url));
+/** Tasks that must look at the running app (a screen, a window size, the Tab order, a click...). */
+export const SCREEN_CHECK = /実機|画面|スクリーンショット|ウィンドウ|ウェルカム|フォーカス枠|Tab ?順|レイアウト|崩れ|\d{3,4}\s*[x×]\s*\d{3,4}/;
+export const screenCheckLines = (probe: string): string[] => [
+  `【画面の確認】アプリを動かして見る作業では、承認なしで使える専用ツールがあります: node "${probe}" <命令>(カレントはこのプロジェクト)。`,
+  '命令: launch <exe/dll のパス(プロジェクト内)> / resize <幅> <高さ> / shot <保存する.png(プロジェクト内)> / click <x> <y>(窓の左上から) / keys "{TAB}" / tab-order [回数] / controls(名前つき部品と状態) / stop。',
+  "launch → resize 1000 600 → shot の順に使い、撮った PNG は Read ツールで開いて目で確認してください。終わったら必ず stop。それ以外の方法でアプリを起動しないでください(承認が必要になります)。",
+];
+
 export function buildTaskPrompt(input: {
   task: Pick<Task, "role" | "objective" | "inputs" | "expectedOutputs" | "constraints">;
   mission: Pick<Mission, "goal">;
@@ -101,6 +111,8 @@ export function buildTaskPrompt(input: {
   hasHistoryNotes?: boolean;
   /** Design files (SVG) drawn by another AI: they are built exactly as drawn. */
   designFiles?: string[];
+  /** Windows: the screen-check tool (tools/ui-probe.mjs), offered to tasks that must look at the running app. */
+  uiProbe?: string;
 }): string {
   const { task, mission } = input;
   const lines = [
@@ -124,6 +136,7 @@ export function buildTaskPrompt(input: {
       "ファイル先頭のコメントにある色コード・フォント・余白、SVGの形・配置・文言は一切変えないこと。足りない部分だけを補い、補った点は最後の報告に書くこと。自分の好みで配色やレイアウトを変えないこと。",
     );
   }
+  if (input.uiProbe && SCREEN_CHECK.test(`${task.objective} ${mission.goal}`)) lines.push(...screenCheckLines(input.uiProbe));
   if (input.previousFailure) {
     lines.push(
       "【前回の試行は失敗しました】原因を解析し、同じ失敗を繰り返さないよう根本原因を直してください。失敗内容:",
@@ -371,7 +384,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     mkdirSync(cwd, { recursive: true });
     const previousFailure = this.previousFailure(task);
     const args = this.buildArgs(await this.capabilities(), { ...task, failure: previousFailure });
-    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure, hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)), designFiles: this.designFiles(task) });
+    const prompt = buildTaskPrompt({ task, mission: ctx.mission, dependencyNotes: this.dependencyNotes(task), previousFailure, hasStatusReport: existsSync(path.join(cwd, STATUS_REPORT_PATH)), hasHistoryNotes: existsSync(path.join(cwd, HISTORY_NOTES_PATH)), designFiles: this.designFiles(task), uiProbe: process.platform === "win32" ? UI_PROBE : undefined });
 
     const before = snapshotDir(cwd);
     const snaps = this.opts.snapshots;
