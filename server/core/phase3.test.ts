@@ -414,7 +414,13 @@ describe("commands refused for lack of an approval", () => {
     expect(approvableCommands("rm -rf x", allowed)).toEqual([]); // needs a higher level
     // a program that runs anything is allowed for that exact line only, and never with inline code
     const run = "powershell -NoProfile -ExecutionPolicy Bypass -File tests/a.ps1";
-    expect(approvableCommands(run, allowed)).toEqual([{ pattern: `Bash(${run})`, part: run }]);
+    expect(approvableCommands(run, allowed)).toEqual([{ pattern: `Bash(${run}:*)`, part: run }]);
+    // running a script file is approved once for the file: its other arguments (Shot -Name x / Keys "{TAB}") need no new approval
+    const shot = `${run} -Action Shot -Name home`;
+    expect(approvableCommands(shot, allowed)).toEqual([{ pattern: `Bash(${run}:*)`, part: shot }]);
+    expect(approvableCommands(`${run} -Action Keys "{TAB}"`, allowed).map((a) => a.pattern)).toEqual([`Bash(${run}:*)`]);
+    expect(approvableCommands(`${run} -Action Shot $env:X`, allowed)).toEqual([]); // a variable could smuggle in anything
+    expect(approvableCommands("powershell -File x.ps1 > out.txt", allowed)).toEqual([]);
     expect(approvableCommands("powershell -Command Get-Date", allowed)).toEqual([]);
     expect(approvableCommands('python -c "import os"', allowed)).toEqual([]);
     expect(approvableCommands("cd x && tool.exe --go", allowed).map((a) => a.pattern)).toEqual(["Bash(tool.exe:*)"]);
@@ -441,6 +447,19 @@ describe("commands refused for lack of an approval", () => {
     expect(policy.restrictionsFor({ role: "coding", id: "other" }).allowedTools.join(" ")).not.toContain("ffmpeg.exe");
   });
 
+  it("also asks when a CHECK ended fine but a command was refused (an honest \"not verified\" report must not hide the missing approval)", async () => {
+    const task = makeTask({ role: "test", expectedOutputs: [] });
+    const asked: string[] = [];
+    const policy = new PermissionPolicy(undefined, async (req) => { asked.push(req.command ?? ""); return true; });
+    let n = 0;
+    const { calls, runner } = fakeClaude(() => (++n === 1 ? { stdout: JSON.stringify({ type: "result", result: "not verified: start was refused", permission_denials: [{ tool_name: "Bash", tool_input: { command: FFMPEG } }] }) } : { stdout: JSON.stringify({ result: "verified" }) }));
+    const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
+    expect(res.ok).toBe(true);
+    expect(res.summary).toContain("verified");
+    expect(asked).toEqual([FFMPEG]);
+    expect(calls.filter((c) => c.args[0] !== "--help")).toHaveLength(2);
+  });
+
   it("stops for good, without a second run, when the user refuses", async () => {
     const task = makeTask({ expectedOutputs: ["out/sample.mp4"] });
     const policy = new PermissionPolicy(undefined, async () => false);
@@ -452,6 +471,24 @@ describe("commands refused for lack of an approval", () => {
     expect(calls.filter((c) => c.args[0] !== "--help")).toHaveLength(1);
   });
 
+  it("keeps going past any small count of approvals while each round asks for something new, and finishes", async () => {
+    const task = makeTask({ expectedOutputs: ["out/done.txt"] });
+    const asked: string[] = [];
+    const policy = new PermissionPolicy(undefined, async (req) => { asked.push(req.command ?? ""); return true; });
+    let n = 0;
+    const deny = (cmd: string) => JSON.stringify({ type: "result", result: "", permission_denials: [{ tool_name: "Bash", tool_input: { command: cmd } }] });
+    const { runner } = fakeClaude((call) => {
+      n++;
+      if (n <= 20) return { stdout: deny(`tool${n}.exe --go`) }; // twenty different programs, one new each round
+      mkdirSync(path.join(call.cwd!, "out"), { recursive: true });
+      writeFileSync(path.join(call.cwd!, "out", "done.txt"), "x");
+      return { stdout: JSON.stringify({ result: "done" }) };
+    });
+    const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
+    expect(res.ok).toBe(true);
+    expect(asked).toHaveLength(20);
+  });
+
   it("does not ask when the expected files were made anyway", async () => {
     const task = makeTask({ expectedOutputs: ["a.txt"] });
     let asked = 0;
@@ -460,5 +497,15 @@ describe("commands refused for lack of an approval", () => {
     const res = await new ClaudeCodeExecutor(store, { runner, policy }).execute(task, ctx(task));
     expect(res.ok).toBe(true);
     expect(asked).toBe(0);
+  });
+});
+
+describe("a plan that edits the AI's own permissions", () => {
+  it("is refused when the plan is checked", async () => {
+    const { validatePlan } = await import("./taskGraph.ts");
+    const task = (objective: string, expectedOutputs: string[] = []) => ({ key: "a", role: "coding", objective, inputs: [], expectedOutputs, constraints: [], dependsOn: [] });
+    expect(validatePlan({ summary: "", tasks: [task("拒否される操作を直す", [".claude/settings.local.json"])] }).join()).toContain("許可設定");
+    expect(validatePlan({ summary: "", tasks: [task("許可リストへの追加を行う")] }).length).toBe(1);
+    expect(validatePlan({ summary: "", tasks: [task("画面の文言を直す", ["docs/a.md"])] })).toEqual([]);
   });
 });

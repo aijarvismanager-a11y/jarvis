@@ -30,6 +30,25 @@ export function diffNotices(prev: NotifyState | null, approvals: Approval[], han
   return out;
 }
 
+/** An approval waits this long before the first reminder, then again every REMIND_EVERY_MS (same numbers as the server watchdog). */
+export const APPROVAL_STALE_MS = 10 * 60_000;
+export const REMIND_EVERY_MS = 30 * 60_000;
+
+/** Reminders for approvals nobody has answered for a while. `reminded` (approval id -> time of the last reminder) is updated in place. */
+export function staleApprovalNotices(approvals: Approval[], nowMs: number, reminded: Map<string, number>): Notice[] {
+  const out: Notice[] = [];
+  for (const a of approvals) {
+    const waited = nowMs - Date.parse(a.createdAt);
+    if (!(waited >= APPROVAL_STALE_MS)) continue;
+    const last = reminded.get(a.id);
+    if (last !== undefined && nowMs - last < REMIND_EVERY_MS) continue;
+    reminded.set(a.id, nowMs);
+    out.push({ tag: `appr-wait-${a.id}-${Math.floor(nowMs / REMIND_EVERY_MS)}`, title: `許可の返事を${Math.round(waited / 60_000)}分待っています`, body: `返事があるまで作業は進みません: ${a.reason.slice(0, 80)}` });
+  }
+  for (const id of [...reminded.keys()]) if (!approvals.some((a) => a.id === id)) reminded.delete(id);
+  return out;
+}
+
 /** The "every AI is resting" wait began or ended. `prev` undefined is the first load: nothing is announced for what already was. */
 export function restingNotice(prev: boolean | undefined, now: boolean): Notice | null {
   if (prev === undefined || prev === now) return null;

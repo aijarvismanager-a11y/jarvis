@@ -36,3 +36,12 @@ describe("a web AI that could not be driven", () => {
     expect(gone.hint).toContain("試してみる");
   });
 });
+
+describe("a plan refused because it edits the AI's own permissions", () => {
+  it("is explained without internal names and tells the person what to do", () => {
+    const r = explainFailure("replan error: Plannerの計画が不正です: AI自身の許可設定を書き換える作業は計画に入れられません(人が決めることです): fix_approvals");
+    expect(r.what).not.toMatch(/Planner|fix_approvals/);
+    expect(r.what).toContain("許可設定");
+    expect(r.hint).toContain("計画をやり直す");
+  });
+});

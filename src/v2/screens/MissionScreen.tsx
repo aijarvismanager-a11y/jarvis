@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -20,12 +20,13 @@ import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChang
 /** A task's instruction is written for the AI and can run to several hundred characters: show the start, the rest on request. */
 function TaskObjective({ text }: { text: string }) {
   const [full, setFull] = useState(false);
-  const LIMIT = 90;
-  if (text.length <= LIMIT) return <>{text}</>;
+  const title = taskTitle(text);
+  // the heading says what the task is in a few words; the instruction itself (long, technical) is one click away
   return (
     <>
-      {full ? text : `${text.slice(0, LIMIT)}…`}{" "}
-      <button type="button" className="text-[12px] text-muted underline" onClick={() => setFull((v) => !v)}>{full ? "閉じる" : "全文を見る"}</button>
+      <span className="font-semibold">{title}</span>{" "}
+      <button type="button" className="text-[12px] text-muted underline" onClick={() => setFull((v) => !v)}>{full ? "閉じる" : "くわしく"}</button>
+      {full && <span className="mt-0.5 block whitespace-pre-wrap text-[12.5px] text-muted">{text}</span>}
     </>
   );
 }
@@ -183,7 +184,9 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
     2000,
     [projectId, taskId],
   );
-  const shown = all ? entries : entries.slice(-5);
+  // what the AI said is shown; each tool call ("ファイルを書く: _ai-records\…") is a detail for those who want it
+  const talk = entries.filter((e) => e.kind !== "tool");
+  const shown = all ? entries : talk.slice(-3);
   return (
     <div className="ml-6 mt-1 rounded-lg bg-sidebar px-3 py-2">
       {entries.length === 0 ? (
@@ -193,11 +196,11 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
           <ul className="space-y-0.5">
             {shown.map((e) => (
               <li key={e.seq} className={`break-words font-mono text-[11.5px] ${e.kind === "error" ? "text-[#9B2C2C]" : "text-[#4a473f]"}`}>
-                <span className="mr-1.5">{LOG_MARK[e.kind]}</span>{e.text}
+                <span className="mr-1.5">{LOG_MARK[e.kind]}</span>{plainLogText(e.text)}
               </li>
             ))}
           </ul>
-          {entries.length > 5 && <button className="mt-1 text-[11.5px] text-accent hover:underline" onClick={() => setAll(!all)}>{all ? "最新だけ表示" : `すべて表示(${entries.length}件)`}</button>}
+          {entries.length > shown.length || all ? <button className="mt-1 text-[11.5px] text-accent hover:underline" onClick={() => setAll(!all)}>{all ? "最新のやりとりだけ表示" : `操作の記録も見る(${entries.length}件)`}</button> : null}
         </>
       )}
     </div>

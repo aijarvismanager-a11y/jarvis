@@ -10,7 +10,7 @@ import { recordOutcome, tuningOf } from "./scoreTuning.ts";
 import { aiFamily, reviewTask, type AiReviewer } from "./aiReview.ts";
 import { clearAllResting, readAllResting, restingList, saveAllResting } from "./allResting.ts";
 import { Scheduler } from "./scheduler.ts";
-import { applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
+import { CHECK_ROLES, applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
 
 // Mission Engine: plan (Planner) -> user approval gate -> run the Task Graph
@@ -59,6 +59,10 @@ export class MissionEngine {
   private readonly inFlight = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   private readonly loops = new Map<string, Promise<MissionStatus>>();
   private readonly noRetry = new Set<string>();
+  /** requests whose plan is being made again after a restart */
+  private readonly planning = new Set<string>();
+  /** tasks the watchdog stopped because they made no progress: their abort is a failure (retried), not a pause */
+  private readonly stallAborts = new Set<string>();
 
   constructor(
     private readonly store: Store,
@@ -79,6 +83,30 @@ export class MissionEngine {
       transitionMission(this.store, input.projectId, mission.id, "failed", `planner error: ${errMsg(err)}`);
       throw err;
     }
+  }
+
+  /**
+   * After a restart: a request that was still being planned (status "planning", no proposal saved) lost its planner run with the old
+   * process and would show "the AI is making a plan" for ever. Ask the planner again. Returns false when there was nothing to resume.
+   */
+  resumePlanning(projectId: string, missionId: string): boolean {
+    const mission = this.store.getMission(projectId, missionId);
+    if (!mission || this.getProposal(missionId) || this.planning.has(missionId)) return false;
+    if (mission.status === "failed") {
+      // The old server's planner process was killed together with it, and the old server wrote "failed" a moment before it died.
+      // A request that failed while planning, very recently, with no work made yet, is that: plan it again instead of leaving it dead.
+      const recent = Date.now() - Date.parse(mission.updatedAt) < 5 * 60_000;
+      const noWork = this.store.listTasks(projectId).every((t) => t.missionId !== missionId);
+      const last = this.store.db.prepare("SELECT payload FROM events WHERE project_id = ? AND type = 'MISSION_STATUS_CHANGED' AND payload LIKE ? ORDER BY rowid DESC LIMIT 1").get(projectId, `%${missionId}%`) as { payload: string } | undefined;
+      if (!recent || !noWork || !last || !/"from":"planning","to":"failed","reason":"planner error/.test(last.payload)) return false;
+      this.store.db.prepare("UPDATE missions SET status = 'planning' WHERE id = ? AND project_id = ?").run(missionId, projectId);
+    } else if (mission.status !== "planning") return false;
+    this.planning.add(missionId);
+    void this.propose(projectId, missionId, "initial")
+      .catch((err) => transitionMission(this.store, projectId, missionId, "failed", `planner error: ${errMsg(err)}`))
+      .finally(() => this.planning.delete(missionId));
+    this.store.appendEvent({ projectId, type: "PLANNING_RESUMED", payload: { missionId, reason: "再起動で計画づくりが途切れたため、もう一度計画を作ります" } });
+    return true;
   }
 
   /** Starts a mission from a ready-made plan (no Planner, no approval step), e.g. the analysis of an imported project. */
@@ -207,6 +235,26 @@ export class MissionEngine {
     return this.run(projectId, missionId);
   }
 
+  // ---- watchdog hooks (see watchdog.ts) -------------------------------------
+  /** Is a loop driving this mission right now? */
+  isDriving(missionId: string): boolean {
+    return this.loops.has(missionId);
+  }
+
+  /** Task ids of this mission that are executing right now in this process. */
+  inFlightTaskIds(missionId: string): string[] {
+    return [...this.inFlight.keys()].filter((k) => k.startsWith(`${missionId}:`)).map((k) => k.slice(missionId.length + 1));
+  }
+
+  /** Stops a task that made no progress; it ends as a failed attempt, so the ordinary automatic retry runs it again. */
+  abortStalled(missionId: string, taskId: string): boolean {
+    const f = this.inFlight.get(`${missionId}:${taskId}`);
+    if (!f) return false;
+    this.stallAborts.add(taskId);
+    f.controller.abort();
+    return true;
+  }
+
   // ---- pause / resume / cancel ---------------------------------------------
   async pause(projectId: string, missionId: string): Promise<void> {
     this.requireMission(projectId, missionId);
@@ -281,8 +329,12 @@ export class MissionEngine {
         await Promise.race([...this.inFlight.values()].map((f) => f.promise));
         continue;
       }
-      if (tasks.length > 0 && tasks.every((t) => TERMINAL_TASK_STATUSES.includes(t.status)) && tasks.some((t) => t.status === "completed")) {
-        transitionMission(this.store, projectId, missionId, "completed", "all tasks completed");
+      // a check that failed for good (and is not going to be retried) is left as "not verified": it does not fail the whole request
+      const settled = (t: Task) => TERMINAL_TASK_STATUSES.includes(t.status) || (t.status === "failed" && CHECK_ROLES.has(t.role) && (t.retryCount >= MAX_RETRIES || this.noRetry.has(t.id)));
+      if (tasks.length > 0 && tasks.every(settled) && tasks.some((t) => t.status === "completed")) {
+        const unverified = tasks.filter((t) => t.status === "failed");
+        if (unverified.length) this.store.appendEvent({ projectId, type: "CHECKS_NOT_DONE", payload: { missionId, tasks: unverified.map((t) => ({ id: t.id, objective: t.objective.slice(0, 120) })) } });
+        transitionMission(this.store, projectId, missionId, "completed", unverified.length ? `completed; ${unverified.length} check(s) could not be done` : "all tasks completed");
         void Promise.resolve(this.deps.onMissionCompleted?.(projectId, missionId)).catch(() => undefined);
       } else if (tasks.some((t) => t.status === "ready")) {
         // a write task is waiting on a lock held outside this engine; do not spin
@@ -452,9 +504,16 @@ export class MissionEngine {
     if (allResting) await this.waitWhileAllResting(mission, task, controller.signal);
     const startedMs = Date.now();
     try {
-      result = await this.deps.executor.execute(this.store.getTask(projectId, task.id)!, { mission, signal: controller.signal });
+      // A pause / cancel must always take effect: an executor that ignores the signal (a browser that stopped answering) cannot hold the mission.
+      result = await raceAbort(this.deps.executor.execute(this.store.getTask(projectId, task.id)!, { mission, signal: controller.signal }), controller.signal);
     } catch (err) {
       result = { ok: false, summary: errMsg(err) };
+    }
+    if (controller.signal.aborted && this.stallAborts.delete(task.id) && this.store.getMission(projectId, mission.id)?.status === "running") {
+      const why = "進みがないまま止まっていたため、見張り役が中断しました(自動でやり直します)";
+      this.store.recordAiRun({ projectId, taskId: task.id, aiId: result.aiId, executor: result.executor ?? this.deps.executor.name, automationLevel: result.automationLevel, status: "failed", summary: why, ...this.metrics(result, startedMs) });
+      transitionTask(this.store, projectId, task.id, "failed", why);
+      return;
     }
     if (controller.signal.aborted) {
       const cancelled = this.store.getMission(projectId, mission.id)?.status === "cancelled";
@@ -544,4 +603,23 @@ export class MissionEngine {
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** Settles as soon as the signal aborts, even if `work` never does (the work is left to finish or hang on its own). */
+function raceAbort<T extends ExecutionResult>(work: Promise<T>, signal: AbortSignal): Promise<T | ExecutionResult> {
+  if (signal.aborted) return Promise.resolve({ ok: false, summary: "中断されました" });
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve({ ok: false, summary: "中断されました" });
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      },
+    );
+  });
 }

@@ -33,3 +33,15 @@ describe("nextStep while an approval waits", () => {
     expect(nextStep(withApprovals([{ projectId: "p", level: "DEPLOY" }]), [], () => {}).detail).toContain("削除や公開");
   });
 });
+
+describe("nextStep when an approval has waited a long time", () => {
+  const at = (minAgo: number, now: number) => new Date(now - minAgo * 60_000).toISOString();
+  const withApproval = (createdAt: string) => ({ ...ctx("running"), project: { id: "p" }, approvals: [{ id: "a", projectId: "p", createdAt }] }) as unknown as Ctx;
+  it("keeps the ordinary wording at first, then says how many minutes the work has been waiting", () => {
+    const now = Date.now();
+    expect(nextStep(withApproval(at(3, now)), [], () => {}, true, false, now).title).toBe("あなたの許可が必要です");
+    const late = nextStep(withApproval(at(25, now)), [], () => {}, true, false, now);
+    expect(late.tone).toBe("bad");
+    expect(late.title).toContain("25 分待っています");
+  });
+});

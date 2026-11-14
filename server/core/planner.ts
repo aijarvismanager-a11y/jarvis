@@ -222,7 +222,19 @@ ${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code}): ${
       const where = issue?.path.length ? `「${issue.path.join(".")}」` : "";
       throw new Error(`Plannerの出力を計画として解釈できません: ${where}${issue?.message ?? "invalid"}(出力の冒頭: ${stdout.replace(/\s+/g, " ").slice(0, 160)})`);
     }
-    const problems = validatePlan(parsed.data);
+    let problems = validatePlan(parsed.data);
+    if (problems.length) {
+      // tell the planner what was wrong and ask once more (otherwise a re-plan only repeats the same rejected plan)
+      stdout = await ask(`${prompt}
+
+前回の計画は次の理由で使えませんでした: ${problems.join(" / ")}
+AI自身の許可設定(.claude/settings*.json や許可リスト)を書き換える作業は計画に入れないでください。その作業を除き、残りの内容と確認作業だけで、指定した形式のJSONだけを出力してください。`);
+      const again = planDraftSchema.safeParse(extractPlanJson(stdout));
+      if (again.success) {
+        parsed = again;
+        problems = validatePlan(parsed.data);
+      }
+    }
     if (problems.length) throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
     return withHistoryUpdateTask(parsed.data, !!request.existingProject);
   }

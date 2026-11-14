@@ -92,6 +92,8 @@ export function changedFiles(before: Snapshot, after: Snapshot): string[] {
   return changed.sort();
 }
 
+/** the most times a task may stop for an approval, get it, and run again (a ceiling against a runaway loop; normal work never gets near it) */
+export const MAX_APPROVAL_PASSES = 60; // only a safety ceiling: the real stop is "nothing new was asked"
 const UI_PROBE = fileURLToPath(new URL("../../tools/ui-probe.mjs", import.meta.url));
 /** Tasks that must look at the running app (a screen, a window size, the Tab order, a click...). */
 export const SCREEN_CHECK = /実機|画面|スクリーンショット|ウィンドウ|ウェルカム|フォーカス枠|Tab ?順|レイアウト|崩れ|\d{3,4}\s*[x×]\s*\d{3,4}/;
@@ -358,12 +360,17 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
 
     // A run refused a command that nobody was there to approve: ask on the screen, then run again with that program allowed
     // (for this task only). A refusal by the user stops the task for good instead of failing the same way again.
-    for (let pass = 0; pass < 4; pass++) {
+    // Each round allows what was refused and runs again. A long screen-check task needs many different commands, so there is no small
+    // count: the task goes on while every round asks for something it has NOT asked for before, and stops when a round asks for nothing new.
+    const everAsked = new Set<string>();
+    for (let pass = 0; pass < MAX_APPROVAL_PASSES; pass++) {
       const { refused, ...result } = await this.attempt(task, ctx);
       if (!refused?.length) return result;
       const allowed = this.policy.restrictionsFor(task).allowedTools;
       const askable = refused.flatMap((line) => approvableCommands(line, allowed));
       const programs = askable.filter((a, i) => askable.findIndex((b) => b.pattern === a.pattern) === i);
+      if (programs.length && programs.every((a) => everAsked.has(a.pattern))) return { ...result, ok: false, retryable: false, summary: `${result.summary}\n\n(許可したコマンドがまた断られたため止めました: ${programs[0]!.part.slice(0, 160)})` };
+      programs.forEach((a) => everAsked.add(a.pattern));
       if (!programs.length) return { ...result, summary: `${result.summary}\n\n(実行できなかったコマンド: ${refused[0].slice(0, 200)} — 承認で許可できない種類のコマンドです)` };
       for (const { pattern, part } of programs) {
         const ok = await this.policy.ensureCommand({ projectId, taskId: task.id, level: "WORKSPACE_WRITE", reason: task.objective, command: part, signal: ctx.signal }, pattern);
@@ -374,10 +381,11 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
         }
       }
     }
-    return { ok: false, retryable: false, summary: "許可したあとも、承認の要るコマンドが続いたため止めました" };
+    // every round asked for something new (the work was moving) but the rounds ran out: another try may finish it
+    return { ok: false, retryable: true, summary: `承認を${MAX_APPROVAL_PASSES}回くり返しても作業が終わらなかったため止めました(もう一度やり直せます)` };
   }
 
-  /** One run of Claude Code. `refused` lists the shell commands it was refused while the run failed or left expected files missing. */
+  /** One run of Claude Code. `refused` lists the shell commands it was refused while the run failed, left expected files missing, or was a check. */
   private async attempt(task: Task, ctx: { mission: Mission; signal: AbortSignal }): Promise<ExecutionResult & { refused?: string[] }> {
     const { projectId } = task;
     const cwd = projectDir(this.store.projectsRoot, projectId);
@@ -418,7 +426,10 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     }
     const failed = res.code !== 0 || out.isError;
     const missing = task.expectedOutputs.some((p) => { try { return statSync(path.join(cwd, p)).size === 0; } catch { return true; } });
-    const denied = failed || missing ? parseDeniedCommands(res.stdout) : [];
+    // A CHECK (role "test") that ended "fine" after being refused its start command writes an honest "not verified" report and counts as
+    // done, so nobody was ever asked (three requests in a row finished with the screen never shown): its refusals are asked about too.
+    // Other work that produced its files anyway is left alone.
+    const denied = failed || missing || task.role === "test" ? parseDeniedCommands(res.stdout) : [];
     const refused = denied.length ? denied : undefined;
     if (failed) {
       if (CLAUDE_LIMIT_TEXT.test(combined.toLowerCase())) noteClaudeLimitHit(this.store);

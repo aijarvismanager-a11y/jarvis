@@ -25,10 +25,13 @@ import { TaskLogStore } from "./core/taskLog.ts";
 import { FollowUpAsker } from "./core/followUps.ts";
 import { loadAcceptance, runAcceptance } from "./core/acceptance.ts";
 import { loadNextIdeas, runNextIdeas } from "./core/nextIdeas.ts";
+import { autoFollowUp } from "./core/autoFollowUp.ts";
 import { PreviewManager } from "./core/previewManager.ts";
 import { SnapshotManager } from "./core/snapshotManager.ts";
 import { DesktopCompare } from "./core/desktopCompare.ts";
 import { ApprovalHub } from "./core/approvalHub.ts";
+import { startExplorerWatch } from "./core/explorerWatch.ts";
+import { startWatchdog } from "./core/watchdog.ts";
 import { describePrevious, readMarker, startAliveMarker } from "./core/aliveMarker.ts";
 import { PermissionPolicy } from "./core/permissionPolicy.ts";
 import { autoReflectMission } from "./core/autoReflect.ts";
@@ -150,7 +153,9 @@ const engine = new MissionEngine(coreStore, {
     const read = (rel: string) => { try { return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000); } catch { return null; } };
     // then "what to ask for next" (it reads the check's findings, so it waits for the check)
     const check = loadAcceptance(coreStore, missionId) ? Promise.resolve() : runAcceptance(coreStore, followUpAsker, projectId, missionId, read).then(() => undefined).catch(() => undefined);
-    if (!loadNextIdeas(coreStore, missionId)) void check.then(() => runNextIdeas(coreStore, followUpAsker, projectId, missionId, read)).catch(() => undefined);
+    const ideas = check.then(() => (loadNextIdeas(coreStore, missionId) ? undefined : runNextIdeas(coreStore, followUpAsker, projectId, missionId, read))).catch(() => undefined);
+    // then, when the check says it is not really done, the next request is made by the orchestrator itself (it still stops at "approve the plan")
+    void ideas.then(() => autoFollowUp(coreStore, (input) => engine.createMission(input), projectId, missionId));
     void autoReflectMission(coreStore, path.join(ROOT, "backups", "sync"), projectId, missionId, (rel) => {
       try {
         return readFileSync(resolveInProject(coreStore.projectsRoot, projectId, rel), "utf-8").slice(0, 200_000);
@@ -164,6 +169,7 @@ const engine = new MissionEngine(coreStore, {
 for (const project of coreStore.listProjects()) {
   for (const mission of coreStore.listMissions(project.id)) {
     if (mission.status === "running") void engine.run(project.id, mission.id).catch(() => undefined);
+    else if (mission.status === "planning" || mission.status === "failed") engine.resumePlanning(project.id, mission.id); // the planner run died with the old server
   }
 }
 // Restart = run scripts/restart-server.ps1 (it kills this process tree and starts a new server). It is created through
@@ -223,6 +229,9 @@ const server = http.createServer(app);
 // Mission runs can outlast Node's default request/header timeouts.
 server.requestTimeout = 0;
 server.headersTimeout = 0;
+
+startExplorerWatch(coreStore, path.join(ROOT, "data"));
+startWatchdog(coreStore, engine, approvals);
 
 server.listen(PORT, BIND_HOST, () => {
   console.log(`[ai-orchestrator] server listening on http://${BIND_HOST}:${PORT}`);

@@ -150,14 +150,22 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     proposal: engine.getProposal(missionId),
   });
 
+  let lastRestartAt = 0;
+  const RESTART_COOLDOWN_MS = 60_000;
   // ---- Restart from the UI: picks up new code without a terminal. Missions that are running resume by themselves after the start. ----
   router.post(
     "/system/restart",
     guarded((req, res) => {
       if (!deps.restart) return void res.status(501).json({ error: "この環境では画面からの再起動に対応していません。ターミナルで npm run server:restart を実行してください" });
       const { force } = z.object({ force: z.boolean().default(false) }).parse(req.body ?? {});
-      const running = store.listProjects().flatMap((p) => store.listMissions(p.id)).filter((m) => m.status === "running").length;
+      // a request whose plan is still being made counts as busy too: the planner run dies with the server (and the screen's automatic restart
+      // used to cut it off, then a second restart cut off the first one's retry)
+      const running = store.listProjects().flatMap((p) => store.listMissions(p.id)).filter((m) => m.status === "running" || (m.status === "planning" && !engine.getProposal(m.id))).length;
       if (running > 0 && !force) return void res.status(409).json({ error: `実行中の依頼が${running}件あります。再起動すると作業が一度止まります(再起動後に自動で再開します)`, running });
+      // two restarts a few seconds apart (a person's and the screen's automatic one) kill each other's new server and cut off the work
+      // that was just resumed: a second request right after one was accepted waits (a forced one is the person's own decision)
+      if (!force && Date.now() - lastRestartAt < RESTART_COOLDOWN_MS) return void res.status(409).json({ error: "再起動を受け付けたばかりです。1分ほど待ってから、もう一度お試しください", running, cooldown: true });
+      lastRestartAt = Date.now();
       const restart = deps.restart;
       setTimeout(restart, 300); // let this answer go out first
       res.json({ ok: true, running });

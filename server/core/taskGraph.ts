@@ -30,8 +30,17 @@ export type PlannedTask = z.infer<typeof plannedTaskSchema>;
 export type PlanDraft = z.infer<typeof planDraftSchema>;
 
 /** Returns human-readable problems; an empty array means the plan is valid. */
+/**
+ * Work that edits the AI's OWN permissions (.claude/settings*.json, "許可リストへの追加"): the AI refuses it on purpose (it widens its own
+ * rights, and no one is there to approve it), so a plan that contains it can only fail. It has to be a person's decision, not a task.
+ */
+export const SELF_PERMISSION_TASK = /\.claude[\\/]+settings(\.local)?\.json|settings\.local\.json|許可リスト(への|に)(追加|書|登録)|allowedTools|permissions\.allow/i;
+
 export function validatePlan(draft: PlanDraft): string[] {
   const problems: string[] = [];
+  for (const t of draft.tasks) {
+    if (SELF_PERMISSION_TASK.test(`${t.objective} ${t.expectedOutputs.join(" ")}`)) problems.push(`AI自身の許可設定を書き換える作業は計画に入れられません(人が決めることです): ${t.key}`);
+  }
   const keys = new Set<string>();
   for (const t of draft.tasks) {
     if (keys.has(t.key)) problems.push(`キー重複: ${t.key}`);
@@ -108,6 +117,18 @@ export function applyPlan(store: Store, projectId: string, missionId: string, dr
   });
 }
 
+/** Roles that only CHECK or RECORD (they make no product change): the work after them can go on when one of them could not be done. */
+export const CHECK_ROLES: ReadonlySet<string> = new Set(["test", "review", "document"]);
+
+/**
+ * A check that failed for good (retries used up) does not block another check or record behind it: it stays "failed" and is reported as
+ * not verified. (A check that cannot be made in this environment - e.g. a screenshot at another display scale - used to fail the whole
+ * request and block every check after it.) Anything that BUILDS something behind a failed task is still blocked.
+ */
+export function failedCheckDoesNotBlock(dep: Pick<Task, "status" | "role">, dependent: Pick<Task, "role">): boolean {
+  return dep.status === "failed" && CHECK_ROLES.has(dep.role) && CHECK_ROLES.has(dependent.role);
+}
+
 /**
  * Re-evaluates the graph: pending -> ready when every dependency is completed;
  * pending/ready -> blocked when a dependency can never complete (cancelled, or
@@ -124,13 +145,14 @@ export function refreshReadiness(store: Store, projectId: string, missionId: str
     let moved = false;
     for (const t of tasks) {
       const deps = t.dependsOn.map((d) => byId.get(d)).filter((d): d is Task => !!d);
+      const blocking = deps.filter((d) => dead(d) && !failedCheckDoesNotBlock(d, t));
       if (t.status === "pending" || t.status === "ready") {
-        if (deps.some(dead)) {
+        if (blocking.length) {
           transitionTask(store, projectId, t.id, "blocked", "dependency cannot complete");
-        } else if (t.status === "pending" && deps.every((d) => d.status === "completed")) {
+        } else if (t.status === "pending" && deps.every((d) => d.status === "completed" || (dead(d) && failedCheckDoesNotBlock(d, t)))) {
           transitionTask(store, projectId, t.id, "ready", "dependencies completed");
         } else continue;
-      } else if (t.status === "blocked" && !deps.some(dead)) {
+      } else if (t.status === "blocked" && !blocking.length) {
         transitionTask(store, projectId, t.id, "pending", "dependencies recovered");
       } else continue;
       byId.set(t.id, store.getTask(projectId, t.id)!);

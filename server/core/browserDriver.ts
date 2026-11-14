@@ -231,20 +231,45 @@ export class CdpClient {
     ws.on("error", failAll);
   }
 
-  static connect(url: string): Promise<CdpClient> {
+  /** A browser that accepts the connection but never answers must not hold a task forever (seen 2026-11-11: a task sat "running" for 20+ minutes with no event). */
+  static connect(url: string, timeoutMs = 15_000): Promise<CdpClient> {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url, { perMessageDeflate: false });
-      ws.once("open", () => resolve(new CdpClient(ws)));
-      ws.once("error", reject);
+      const timer = setTimeout(() => {
+        ws.terminate();
+        reject(new WebAiBrowserError("ブラウザの操作画面に接続できませんでした(応答がありません)"));
+      }, timeoutMs);
+      ws.once("open", () => {
+        clearTimeout(timer);
+        resolve(new CdpClient(ws));
+      });
+      ws.once("error", (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
     });
   }
 
-  send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  send<T = unknown>(method: string, params: Record<string, unknown> = {}, timeoutMs = 120_000): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const id = ++this.id;
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new WebAiBrowserError(`ブラウザが ${method} に答えませんでした(${Math.round(timeoutMs / 1000)}秒)`));
+      }, timeoutMs);
+      this.pending.set(id, {
+        resolve: (v) => {
+          clearTimeout(timer);
+          resolve(v as T);
+        },
+        reject: (e) => {
+          clearTimeout(timer);
+          reject(e);
+        },
+      });
       this.ws.send(JSON.stringify({ id, method, params }), (err) => {
         if (err) {
+          clearTimeout(timer);
           this.pending.delete(id);
           reject(err);
         }
@@ -799,7 +824,7 @@ export class ChromiumDriver implements WebChatDriver {
       async () => {
         if (proc.exitCode !== null) throw new WebAiBrowserError("ブラウザが起動直後に終了しました(同じプロファイルが別のブラウザで使用中の可能性があります)");
         try {
-          const r = await fetch(`http://127.0.0.1:${port}/json/version`);
+          const r = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(5_000) });
           return r.ok;
         } catch {
           return false;
@@ -818,7 +843,7 @@ export class ChromiumDriver implements WebChatDriver {
   async open(req: { url: string; site: SiteProfile; signal?: AbortSignal }): Promise<WebChatPage> {
     if (!/^https?:\/\//i.test(req.url)) throw new Error("http(s)のURLのみ開けます");
     const port = await this.ensureBrowser();
-    const target = (await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json()) as { id: string; webSocketDebuggerUrl: string };
+    const target = (await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT", signal: AbortSignal.timeout(15_000) })).json()) as { id: string; webSocketDebuggerUrl: string };
     const closeTab = async () => {
       try {
         await fetch(`http://127.0.0.1:${port}/json/close/${target.id}`);

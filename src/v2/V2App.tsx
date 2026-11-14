@@ -10,7 +10,7 @@ import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { getAutoRestart, useAutoRestartChoice } from "./autoRestart";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
-import { diffNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
+import { diffNotices, staleApprovalNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
 import { HelpDialog } from "./HelpDialog";
 import { TextSizeControl } from "./TextSizeControl";
@@ -62,6 +62,7 @@ export default function V2App() {
   const [notifyOn, setNotifyOn] = useState(notifyEnabled);
   // what the last poll saw, per project: the next poll announces only the difference
   const seen = useRef<{ projectId: string | null; state: NotifyState | null }>({ projectId: null, state: null });
+  const remindedApprovals = useRef(new Map<string, number>());
 
   const choose = useCallback((id: string | null) => {
     setProjectId(id);
@@ -176,6 +177,7 @@ export default function V2App() {
       const missionsNow = ov.missions;
       const prev = seen.current.projectId === (active?.id ?? null) ? seen.current.state : null;
       showNotices(diffNotices(prev, appr.filter(mine), hand.filter(mine), missionsNow));
+      showNotices(staleApprovalNotices(appr.filter(mine), Date.now(), remindedApprovals.current));
       seen.current = { projectId: active?.id ?? null, state: snapshotOf(appr.filter(mine), hand.filter(mine), missionsNow) };
       if (svc) setServices(svc);
       setHandoffs(hand);
@@ -222,15 +224,13 @@ export default function V2App() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}{windowVersion && appVersion && windowVersion !== appVersion && <span className="rounded border border-[#EBD9A8] bg-[#FBF1DC] px-1.5 py-0.5 text-[11px] font-normal text-[#8A6212]" title="この窓(インストーラ)の版と、画面を出しているサーバーの版が違います。窓を開き直すと、自動で揃います">窓は v{windowVersion}</span>}</h1>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
-            <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ" aria-label="ほかで作っているものを引き継ぐ">📁<Label>ほかで作っているものを引き継ぐ</Label></Button>
-            {notifySupported() && (
-              <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>
-                {notifyOn ? "🔔" : "🔕"}<Label>{notifyOn ? "通知オン" : "通知オフ"}</Label>
-              </Button>
-            )}
             <details className="relative">
-              <summary className="cursor-pointer list-none rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar" title="画面の更新と更新履歴" aria-label="その他">⋯<Label>その他</Label></summary>
-              <div className="absolute right-0 z-20 mt-1 flex w-44 flex-col gap-1 rounded-lg border border-border bg-panel p-1.5 shadow-md" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+              <summary className="cursor-pointer list-none rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar" title="引き継ぎ・通知・画面の更新・更新履歴" aria-label="その他">⋯<Label>その他</Label></summary>
+              <div className="absolute right-0 z-20 mt-1 flex w-64 flex-col gap-1 rounded-lg border border-border bg-panel p-1.5 shadow-md" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+                <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ">📁 ほかで作っているものを引き継ぐ</Button>
+                {notifySupported() && (
+                  <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>{notifyOn ? "🔔 通知をオフにする" : "🔕 通知をオンにする"}</Button>
+                )}
                 <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)">🔄 画面を更新</Button>
                 <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴">🆕 更新履歴</Button>
               </div>
@@ -257,7 +257,7 @@ export default function V2App() {
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
               {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
-                <span className="ml-1.5 rounded-full border border-accent px-1.5 py-0.5 text-[10px] text-accent" title={`元のフォルダとの違い: 元のフォルダ側の変更 ${sync.pull}件・このアプリ側の変更 ${sync.push}件。ホームの「元のフォルダに反映する」で確認できます`}>元のフォルダと違いあり {sync.push + sync.pull}</span>
+                <span className="ml-1.5 rounded-full bg-sidebar px-1.5 py-0.5 text-[10px] font-normal text-muted" title={`元のフォルダとの違い: 元のフォルダ側の変更 ${sync.pull}件・このアプリ側の変更 ${sync.push}件。ホームの「元のフォルダに反映する」で確認できます。急がなくて大丈夫です`}>反映待ち {sync.push + sync.pull}件</span>
               )}
             </button>
           ))}
@@ -268,13 +268,14 @@ export default function V2App() {
       {help && <HelpDialog version={appVersion} onClose={() => setHelp(false)} />}
       <main className="mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
         {outdated && !offline && (
-          <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
-            <span className="min-w-0 flex-1">サーバーが古いコードのまま動いています。再起動すると最新になります(実行中の依頼は再起動後に自動で再開します)。</span>
-            <label className="flex items-center gap-1.5 text-[12.5px]">
+          // a developer's notice, not a warning: one quiet line instead of a yellow block on every tab
+          <div role="status" className="mb-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-muted">
+            <span>サーバーが古いコードで動いています</span>
+            <label className="flex items-center gap-1">
               <input type="checkbox" checked={autoRestart} onChange={(e) => setAutoRestart(e.target.checked)} />
-              <span>実行中の依頼がないときは、自動で再起動する</span>
+              <span>作業が無いとき自動で再起動</span>
             </label>
-            <Button variant="ghost" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "サーバーを再起動"}</Button>
+            <button type="button" className="underline hover:text-ink disabled:opacity-50" disabled={restarting} onClick={() => void restartServer()}>{restarting ? "再起動中…" : "いま再起動"}</button>
           </div>
         )}
         {browserWindow?.loginWindowOpen && (

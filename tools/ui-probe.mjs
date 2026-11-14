@@ -3,6 +3,7 @@
 //   node <orchestrator>/tools/ui-probe.mjs launch bin/Debug/net8.0-windows/App.dll   (the program must be inside the project folder)
 //   node .../ui-probe.mjs resize 1000 600 | shot out.png | click X Y | keys "{TAB}" | tab-order [N] | controls | stop
 import { execFile } from "node:child_process";
+import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,7 +46,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (process.platform !== "win32") { console.error("ui-probe works on Windows only"); process.exit(2); }
   let args;
   try { args = buildProbeArgs(process.argv.slice(2), process.cwd()); } catch (e) { console.error(e.message); process.exit(2); }
+  // One line per command (start and end, to the millisecond) in data/ui-probe-log.jsonl, so an Explorer crash can be matched to what was running.
+  const logFile = path.join(path.dirname(SCRIPT), "..", "data", "ui-probe-log.jsonl");
+  const start = new Date().toISOString();
+  const note = (end) => { try { mkdirSync(path.dirname(logFile), { recursive: true }); appendFileSync(logFile, JSON.stringify(end ? { cmd: process.argv[2], start, end } : { cmd: process.argv[2], start }) + "\n"); } catch { /* the log must never stop a check */ } };
+  note();
   execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", SCRIPT, ...args], { timeout: 120_000, windowsHide: true }, (err, stdout, stderr) => {
+    note(new Date().toISOString());
     if (stdout) process.stdout.write(stdout);
     if (err) { console.error((stderr || err.message).trim()); process.exit(1); }
   });

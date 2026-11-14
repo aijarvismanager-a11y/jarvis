@@ -69,8 +69,14 @@ export function approvableCommands(commandLine: string, alreadyAllowed: string[]
     if (INTERPRETERS.has(program.toLowerCase())) {
       // Allowing the program would allow anything it can run, so only this exact line is allowed, and only when it runs a file
       // (no inline code). The person sees the whole line on the approval card.
-      if (/[,()"`$<>&]/.test(part) || /\s-(c|command|e|ec|encodedcommand)\b/i.test(part) || /\s\/[ck]\b/i.test(part)) continue;
-      pattern = `Bash(${part})`;
+      if (/\s-(c|command|e|ec|encodedcommand)\b/i.test(part) || /\s\/[ck]\b/i.test(part)) continue;
+      if (/[`$<>&]/.test(part)) continue;
+      // "powershell ... -File x.ps1 <args>": the person approves running THAT script file, so one approval covers its other arguments too
+      // (a screen-check script runs as Start / Shot / Keys / Stop...: one approval per exact line stopped such a task after four rounds).
+      const script = /^(\S+(?:\s+-\w+(?:\s+(?!-)[^\s"'`$<>&,()]+)?)*?\s+-File\s+[^\s"'`$<>&,()]+\.ps1)(?:\s|$)/i.exec(part);
+      if (script && /^(powershell|powershell\.exe|pwsh|pwsh\.exe)$/i.test(program)) pattern = `Bash(${script[1]}:*)`;
+      else if (/[,()"]/.test(part)) continue;
+      else pattern = `Bash(${part})`;
     } else {
       pattern = `Bash(${program}:*)`;
     }

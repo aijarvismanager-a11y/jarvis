@@ -127,6 +127,34 @@ describe("ClaudeCodePlanner", () => {
     expect(buildPlannerPrompt({ goal: "g", constraints: [], technologyPreferences: [], existingProject: true })).toContain("既存のプロジェクト");
   });
 
+  it("tells the planner why a plan was refused (it edits the AI's own permissions) and uses the corrected plan", async () => {
+    const bad = { summary: "s", tasks: [{ key: "fix", role: "coding", objective: ".claude/settings.local.json の許可リストへの追加を行う" }] };
+    const inputs: string[] = [];
+    const runner: CommandRunner = async (_c, args, opts) => {
+      if (args[0] === "--help") return { stdout: HELP, stderr: "", code: 0 };
+      inputs.push(opts.input ?? "");
+      const plan = inputs.length === 1 ? bad : PLAN;
+      return { stdout: JSON.stringify({ type: "result", result: "```json\n" + JSON.stringify(plan) + "\n```" }), stderr: "", code: 0 };
+    };
+    const draft = await new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] });
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1]).toContain("前回の計画は次の理由で使えませんでした");
+    expect(inputs[1]).toContain("fix");
+    expect(draft.tasks.some((t) => t.key === "a")).toBe(true);
+  });
+
+  it("still refuses when the second plan edits the permissions too (one retry only)", async () => {
+    const bad = { summary: "s", tasks: [{ key: "fix", role: "coding", objective: "allowedTools に追加する" }] };
+    let asked = 0;
+    const runner: CommandRunner = async (_c, args) => {
+      if (args[0] === "--help") return { stdout: HELP, stderr: "", code: 0 };
+      asked += 1;
+      return { stdout: JSON.stringify({ type: "result", result: "```json\n" + JSON.stringify(bad) + "\n```" }), stderr: "", code: 0 };
+    };
+    await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/許可設定/);
+    expect(asked).toBe(2);
+  });
+
   it("gives up after the second prose answer and shows how it began", async () => {
     const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: JSON.stringify({ result: "質問があります" }), stderr: "", code: 0 });
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/質問があります/);

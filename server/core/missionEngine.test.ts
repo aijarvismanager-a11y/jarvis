@@ -181,6 +181,30 @@ describe("retry", () => {
     expect(exec.order).not.toContain("b");
   });
 
+  it("a check that cannot be done does not block the checks and records after it, and the request still finishes", async () => {
+    const exec = new FakeExecutor((task, attempt) => (task.objective === "shot" ? { ok: false, summary: "cannot" + "x".repeat(attempt) } : { ok: true }));
+    const engine = new MissionEngine(store, {
+      planner: new ScriptedPlanner([plan(t("build", [], "coding"), t("shot", ["build"], "test"), t("more checks", ["shot"], "test"), t("write-up", ["more checks"], "document"))]),
+      executor: exec,
+    });
+    const mid = await started(engine);
+    expect(await engine.run(pid, mid)).toBe("completed");
+    expect(byObjective(mid, "shot").status).toBe("failed");
+    expect(byObjective(mid, "more checks").status).toBe("completed");
+    expect(byObjective(mid, "write-up").status).toBe("completed");
+    const ev = store.listEvents({ projectId: pid, type: "CHECKS_NOT_DONE" });
+    expect(ev).toHaveLength(1);
+  });
+
+  it("but a failed check still blocks work that BUILDS something behind it", async () => {
+    const exec = new FakeExecutor((task, attempt) => (task.objective === "shot" ? { ok: false, summary: "cannot" + "x".repeat(attempt) } : { ok: true }));
+    const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("shot", [], "test"), t("fix", ["shot"], "coding"))]), executor: exec });
+    const mid = await started(engine);
+    expect(await engine.run(pid, mid)).toBe("failed");
+    expect(byObjective(mid, "fix").status).toBe("blocked");
+    expect(exec.order).not.toContain("fix");
+  });
+
   it("the user can retry a failed task with an extra instruction: it gets a fresh budget, dependents recover, the mission finishes", async () => {
     const seen: string[][] = [];
     const exec = new FakeExecutor((task, attempt) => {
@@ -265,6 +289,25 @@ describe("pause / resume / cancel", () => {
     expect(await engine.resume(pid, mid)).toBe("completed");
     expect(exec.order.filter((o) => o === "a")).toHaveLength(1);
     expect(exec.order.filter((o) => o === "b")).toHaveLength(2);
+  });
+
+  it("a pause takes effect even when the executor ignores the abort signal and never returns (a stuck browser)", async () => {
+    let hang = true;
+    const exec = new FakeExecutor();
+    exec.execute = async (task) => {
+      if (task.objective === "a" && hang) return new Promise<ExecutionResult>(() => {}); // never settles, ignores ctx.signal
+      return { ok: true };
+    };
+    const engine = new MissionEngine(store, { planner: new ScriptedPlanner([plan(t("a"), t("b", ["a"]))]), executor: exec });
+    const mid = await started(engine);
+    const run = engine.run(pid, mid);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(byObjective(mid, "a").status).toBe("running");
+    await engine.pause(pid, mid); // used to hang here forever
+    expect(await run).toBe("paused");
+    expect(byObjective(mid, "a").status).toBe("paused");
+    hang = false;
+    expect(await engine.resume(pid, mid)).toBe("completed");
   });
 
   it("recovers tasks left running by a crash when the mission is run again", async () => {

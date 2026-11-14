@@ -90,6 +90,10 @@ export const EVENT_LABEL: Record<string, string> = {
   TASK_SNAPSHOT: "変更前の状態を保存",
   ARTIFACT_CREATED: "ファイルが完成",
   APPROVAL_REQUESTED: "許可を求めた",
+  WATCHDOG_APPROVAL_WAITING: "あなたの許可を待っています(見張り役の知らせ)",
+  WATCHDOG_NO_PROGRESS: "動いている作業が無いまま止まっています(見張り役の知らせ)",
+  WATCHDOG_STOPPED_TASK: "進みのない作業を中断(見張り役。自動でやり直します)",
+  WATCHDOG_RESTARTED: "止まっていた依頼をもう一度動かした(見張り役)",
   APPROVAL_DENIED: "許可しなかった",
   AI_SELECTED: "担当のAIを決定",
   AI_REASSIGNED: "担当のAIを変更",
@@ -144,7 +148,36 @@ export const goalText = (goal: string) => {
   return rest === goal.trim() ? goal : `旧アプリから引き継いだプロジェクト「${rest}」`;
 };
 
-const SHORT_GOAL_AT = 90;
+/**
+ * A short, readable title for a task whose objective is a long technical instruction ("capture.ps1 -Action Start で 1000x600 に起動し、…"):
+ * known kinds get a plain name; otherwise the first phrase with command lines and file names taken off the front, at most 28 characters.
+ * The full text stays available behind "全文を見る".
+ */
+export const taskTitle = (objective: string): string => {
+  const t = objective.replace(/\s+/g, " ").trim();
+  const known: [RegExp, string][] = [
+    [/SHA256|Get-FileHash|ハッシュ/i, "設定ファイルの控えを取る"],
+    [/-Action\s+Stop|Stop と .*Status|復元.*確認/i, "終了と設定の復元を確かめる"],
+    [/-Action\s+Start|アプリを起動|に起動し|起動して/i, "アプリを起動して画面を撮る"],
+    [/dotnet\s+build|npm\s+(run\s+)?build|ビルド/i, "ビルドとテストを動かす"],
+    [/既存の記録|CLAUDE\.md|作業履歴|へ追記|に追記/i, "記録に結果を書き足す"],
+    [/動画モード|sample\.mp4/i, "動画モードを確かめる"],
+  ];
+  for (const [re, title] of known) if (re.test(t)) return title;
+  // command / file names at the front ("capture.ps1 の使い方", "tools/ui-probe(…)") are noise in a heading
+  const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)\s*(?:の|で|を)?\s*/i, "");
+  const cut = cleaned.search(/[。、:：(（]/);
+  const head = cut > 1 ? cleaned.slice(0, cut) : cleaned;
+  return head.length > 28 ? `${head.slice(0, 28)}…` : head;
+};
+
+/** Tool error text written for developers, in plain Japanese (the log shows what the AI's tool said as it is). */
+export const plainLogText = (text: string): string =>
+  /Permission for this tool use was denied|requires approval|no approval surface/i.test(text)
+    ? "承認が必要な操作のため、いったん止まりました(この後、許可を求める画面が出ます)"
+    : text;
+
+const SHORT_GOAL_AT = 56;
 /** A long request as a one-line heading: its first sentence (or the first part), the rest is for "全文を見る". */
 export const shortGoal = (goal: string): { head: string; long: boolean } => {
   const t = goalText(goal).replace(/\s+/g, " ").trim();
@@ -159,7 +192,7 @@ export const shortGoal = (goal: string): { head: string; long: boolean } => {
   if (cut > 8 && cut < SHORT_GOAL_AT) return { head: t.slice(0, cut + 1), long: true };
   // no sentence end in sight: stop at the last comma before the limit, so the heading does not end mid-phrase
   const comma = t.slice(0, SHORT_GOAL_AT).lastIndexOf("、");
-  return { head: comma >= 30 ? `${t.slice(0, comma)}…` : `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
+  return { head: comma >= 24 ? `${t.slice(0, comma)}…` : `${t.slice(0, SHORT_GOAL_AT)}…`, long: true };
 };
 
 /**
@@ -276,6 +309,13 @@ export function explainFailure(reason: string | null): { what: string; hint: str
   if (planner) {
     const detail = planner[1].trim();
     const crashed = /異常終了|code=\d+/.test(detail);
+    // the plan wanted the AI to widen its own permissions: a person's decision, so say so in plain words (no internal names)
+    if (/AI自身の許可設定/.test(detail)) {
+      return {
+        what: "計画を立て直しましたが、AIが「自分の許可設定を書き換える作業」を入れたため使えませんでした",
+        hint: "この作業は、AIに任せず人が決めることです。もう一度「計画をやり直す」を押してください(作業を除いて作り直します)。続くときは、依頼から「許可を直す」内容を外して出し直してください。",
+      };
+    }
     return {
       what: `計画を立てる段階で失敗しました${detail ? `(${detail.replace(/[::\s]+$/, "")})` : ""}`,
       hint: cause ?? (crashed

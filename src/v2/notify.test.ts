@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffNotices, restingNotice, snapshotOf } from "./notify";
+import { diffNotices, restingNotice, snapshotOf, staleApprovalNotices } from "./notify";
 import type { Approval, Handoff, Mission } from "./types";
 
 const mission = (id: string, status: string) => ({ id, status, goal: "商品管理アプリ" }) as unknown as Mission;
@@ -30,5 +30,23 @@ describe("restingNotice", () => {
     expect(restingNotice(true, true)).toBeNull();
     expect(restingNotice(false, true)?.title).toContain("使えるAIがありません");
     expect(restingNotice(true, false)?.title).toContain("使えるようになりました");
+  });
+});
+
+describe("staleApprovalNotices", () => {
+  const now = Date.parse("2026-11-14T12:00:00Z");
+  const appr = (id: string, minAgo: number) => ({ id, reason: "撮影を始める", createdAt: new Date(now - minAgo * 60_000).toISOString() }) as unknown as Approval;
+  it("stays quiet before 10 minutes, reminds once, and again only after 30 more minutes", () => {
+    const reminded = new Map<string, number>();
+    expect(staleApprovalNotices([appr("a", 5)], now, reminded)).toEqual([]);
+    expect(staleApprovalNotices([appr("a", 12)], now, reminded)).toHaveLength(1);
+    expect(staleApprovalNotices([appr("a", 20)], now + 8 * 60_000, reminded)).toEqual([]);
+    expect(staleApprovalNotices([appr("a", 45)], now + 33 * 60_000, reminded)).toHaveLength(1);
+  });
+  it("forgets an approval that was answered", () => {
+    const reminded = new Map<string, number>();
+    staleApprovalNotices([appr("a", 12)], now, reminded);
+    staleApprovalNotices([], now + 1000, reminded);
+    expect(reminded.size).toBe(0);
   });
 });

@@ -25,7 +25,7 @@ export function runsBuildOrTests(task: Pick<Task, "role"> & Partial<Pick<Task, "
  * Only the code executor can do that; a web AI would answer from the old records and write a "result" it never saw.
  */
 export function looksAtRunningApp(task: Pick<Task, "role"> & Partial<Pick<Task, "objective">>): boolean {
-  return /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) && /ui-probe|実機で|実機確認|スクリーンショット|撮影し|再撮影|\d{3,4}\s*[x×]\s*\d{3,4}で|Tab ?順.*確認|アプリを(起動|動か)/i.test(task.objective ?? "");
+  return /^(test|tests|testing|tester|qa|テスト|検証)$/i.test(task.role.trim()) && /ui-probe|capture\.ps1|-Action\s+(Start|Shot|Stop|Status|Click|Keys)\b|実機で|実機確認|スクリーンショット|撮影し|再撮影|\d{3,4}\s*[x×]\s*\d{3,4}\s*(で|に)|Tab ?順.*確認|アプリを(起動|動か)|(動画|サイト)モード.*(撮|開い|読み込)/i.test(task.objective ?? "");
 }
 
 export const writeLockResource = (projectId: string) => `code:${projectId}`;

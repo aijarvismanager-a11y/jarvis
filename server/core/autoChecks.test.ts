@@ -107,6 +107,10 @@ describe("needsCodeExecutor", () => {
     // a screen check starts the app and looks at it: a web AI would invent the result from old records
     expect(needsCodeExecutor({ role: "test", objective: "tools/ui-probe(launch → resize 1000 600 → shot)で各画面を撮影し、ずれを判定する", expectedOutputs: ["docs/screenshots/a.png"] })).toBe(true);
     expect(needsCodeExecutor({ role: "test", objective: "修正後のアプリを再起動し、1000x600の再撮影とずれなしを確認する", expectedOutputs: ["_ai-records/x.md"] })).toBe(true);
+    // wordings that were really sent to a web AI (DeepSeek) on 2026-11-14 although they start the app and look at it
+    expect(needsCodeExecutor({ role: "test", objective: "capture.ps1 -Action Start で 1000x600 に起動し、プレイヤーのサイトモードで YouTube などのページを読み込ませ、Shot -Name stage-fix-site で撮影する", expectedOutputs: ["_ai-records/x.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "test", objective: "パソコンの動画モードに戻して sample.mp4 を開いて再生する。動画が映ること", expectedOutputs: ["_ai-records/y.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "test", objective: "capture.ps1 -Action Stop と -Action Status を実行して settings.json の復元を確かめる", expectedOutputs: ["_ai-records/z.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "research", objective: "tools/ui-probeの使い方を読んで整理する", expectedOutputs: ["_ai-records/c.md"] })).toBe(false);
     // adding to a record that already exists must not be a chat answer (it replaces the whole file)
     expect(needsCodeExecutor({ role: "document", objective: "結果を既存の記録へ反映する: docs/report.mdの§1結果表を更新し、追記する", expectedOutputs: ["docs/report.md"] })).toBe(true);

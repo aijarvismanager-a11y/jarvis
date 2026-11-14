@@ -269,4 +269,23 @@ describe("POST /system/restart", () => {
     await new Promise((r) => setTimeout(r, 450));
     expect(called).toBe(2);
   });
+
+  it("refuses a second (not forced) restart right after one was accepted, so two restarts do not cut each other off", async () => {
+    await withRestart();
+    expect((await call("/system/restart", "POST", {})).status).toBe(200);
+    const again = await call("/system/restart", "POST", {});
+    expect(again.status).toBe(409);
+    expect(((await again.json()) as { cooldown?: boolean }).cooldown).toBe(true);
+    expect((await call("/system/restart", "POST", { force: true })).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 450));
+    expect(called).toBe(2);
+  });
+
+  it("also asks first while a plan is still being made (no proposal yet), but not when the plan waits for the person", async () => {
+    await withRestart();
+    const m = store.createMission({ projectId: "p1", goal: "g", status: "planning" }); // planner run in flight: no proposal saved
+    expect((await call("/system/restart", "POST", {})).status).toBe(409);
+    store.setSetting(`plan:${m.id}`, { kind: "initial", draft: { summary: "", tasks: [] }, createdAt: new Date().toISOString() });
+    expect((await call("/system/restart", "POST", {})).status).toBe(200);
+  });
 });
