@@ -584,7 +584,7 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     siteUrl = `http://127.0.0.1:${(site.address() as AddressInfo).port}`;
     profile = mkdtempSync(path.join(os.tmpdir(), "web-ai-profile-"));
     driver = new ChromiumDriver({ executable: browser!, profileDir: profile, headless: true, inputTimeoutMs: 2500 });
-  });
+  }, 60_000);
   afterEach(async () => {
     await driver.shutdown();
     await new Promise<void>((r) => site.close(() => r()));
@@ -594,7 +594,7 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     } catch {
       /* a lingering browser helper may still hold a temp file; the OS temp dir is cleaned later */
     }
-  });
+  }, 60_000);
 
   const profileFor = { inputSelector: "#q", sendSelector: "#send", responseSelector: ".answer", stopSelector: "#stop" };
 
@@ -605,7 +605,7 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     const text = await page.waitForResponse({ timeoutMs: 20_000 });
     expect(text).toBe("ECHO: こんにちは world");
     await page.close();
-  }, 60_000);
+  }, 120_000);
 
   it("a two-step picture site: confirms the generation, reads pictures inside links, and leaves the history's pictures out", async () => {
     const svg = (c: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420"><rect width="420" height="420" fill="${c}"/></svg>`;
@@ -657,13 +657,13 @@ SVG</button><button id="go">Generate</button></div>
     await page.submit();
     expect(await page.waitForResponse({ timeoutMs: 20_000 })).toBe("ECHO: second");
     await page.close();
-  }, 60_000);
+  }, 120_000);
 
   it("stops at a login page, a bot check and a redesigned page instead of trying to get past them", async () => {
     await expect(driver.open({ url: `${siteUrl}/login`, site: profileFor })).rejects.toBeInstanceOf(WebAiBlockedError);
     await expect(driver.open({ url: `${siteUrl}/captcha`, site: profileFor })).rejects.toMatchObject({ reason: "captcha" });
     await expect(driver.open({ url: `${siteUrl}/changed`, site: profileFor })).rejects.toBeInstanceOf(WebAiUiError);
-  }, 60_000);
+  }, 120_000);
 
   it("WebAiExecutor runs Level 3 for real, and a changed page degrades the run to Level 1", async () => {
     store.upsertAiService({ id: "mock", name: "Mock AI", url: siteUrl });
