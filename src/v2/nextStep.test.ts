@@ -45,3 +45,28 @@ describe("nextStep when an approval has waited a long time", () => {
     expect(late.title).toContain("25 分待っています");
   });
 });
+
+describe("nextStep for a failed request gives ONE answer", () => {
+  const acts = () => { const log: string[] = []; return { log, a: { replan: () => log.push("replan"), retry: (id: string) => log.push(`retry:${id}`) } }; };
+  const failed = (id: string, retryCount: number) => ({ id, role: "coding", status: "failed", retryCount }) as never;
+  it("no task at all (planning failed): replan", () => {
+    const { log, a } = acts();
+    const s = nextStep(ctx("failed"), [], () => {}, true, false, Date.now(), a);
+    expect(s.action?.label).toBe("計画をやり直す");
+    s.action!.run();
+    expect(log).toEqual(["replan"]);
+  });
+  it("a task failed a few times: redo that task first", () => {
+    const { log, a } = acts();
+    const s = nextStep(ctx("failed"), [failed("t1", 1)], () => {}, true, false, Date.now(), a);
+    expect(s.action?.label).toBe("この作業をやり直す");
+    s.action!.run();
+    expect(log).toEqual(["retry:t1"]);
+  });
+  it("the same task failed 3 times (the app stopped retrying): replan, not redo", () => {
+    const { a } = acts();
+    const s = nextStep(ctx("failed"), [failed("t1", 3), failed("t2", 0)], () => {}, true, false, Date.now(), a);
+    expect(s.action?.label).toBe("計画をやり直す");
+    expect(s.title).toContain("計画から立て直します");
+  });
+});

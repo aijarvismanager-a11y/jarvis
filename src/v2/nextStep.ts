@@ -2,10 +2,40 @@ import type { Ctx } from "./context";
 import { roleLabel } from "./labels";
 import type { Task } from "./types";
 
+/** What the failed-mission banner can do for the person (the screen supplies these). */
+export type FailedActions = { replan: () => void; retry: (taskId: string) => void };
+/** After this many failed tries the app stops retrying by itself: doing the same task again repeats the same result. */
+export const RETRIES_BEFORE_REPLAN = 3;
+
+/** One clear answer for a failed request: which single button to press, and why (not a list of options). */
+export function failedAdvice(tasks: Task[], actions?: FailedActions): Step {
+  const bad = tasks.filter((t) => t.status === "failed");
+  const worst = bad.slice().sort((a, b) => b.retryCount - a.retryCount)[0];
+  if (!worst) {
+    return {
+      tone: "bad", title: "計画を作る段階で止まりました",
+      detail: "作業はまだ始まっていません。「計画をやり直す」を押してください。理由は下の赤い枠にあります。何度も続くときだけ、依頼の書き方を具体的にしてください。",
+      action: actions ? { label: "計画をやり直す", run: actions.replan } : undefined,
+    };
+  }
+  if (worst.retryCount >= RETRIES_BEFORE_REPLAN) {
+    return {
+      tone: "bad", title: "同じ作業が何度も失敗したので、計画から立て直します",
+      detail: "この作業は、同じ理由で繰り返し失敗したため、自動のやり直しを止めました。同じ作業をもう一度やっても同じ結果になりやすいので、「計画をやり直す」を押してください(別のやり方で作り直します)。理由は下の赤い枠にあります。",
+      action: actions ? { label: "計画をやり直す", run: actions.replan } : undefined,
+    };
+  }
+  return {
+    tone: "bad", title: `作業が${bad.length > 1 ? `${bad.length}つ` : "1つ"}止まりました。まず、やり直してください`,
+    detail: "ほとんどは、もう一度で通ります。「この作業をやり直す」を押してください。それでも止まるときは、画面にもう一度ボタンが出るので、そこで「計画をやり直す」に切り替えます。理由は下の赤い枠にあります。",
+    action: actions ? { label: "この作業をやり直す", run: () => actions.retry(worst.id) } : undefined,
+  };
+}
+
 export type Step = { tone: "go" | "wait" | "bad" | "done"; title: string; detail: string; action?: { label: string; run: () => void } };
 
 /** What the person should do right now, in one sentence. The rest of the screen is detail. */
-export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, planReady = true, resting = false, nowMs = Date.now()): Step {
+export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, planReady = true, resting = false, nowMs = Date.now(), failed?: FailedActions): Step {
   const { project, mission, approvals, handoffs } = ctx;
   const mine = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project?.id);
   if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "下の入力欄に、作りたいものを普通の言葉で書いて「開発を開始」を押します。まず AI が計画を立てます(数十秒かかります)。" };
@@ -31,7 +61,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
     case "paused":
       return { tone: "go", title: "一時停止中です", detail: "「再開」を押すと、続きから作業を再開します。やめるときは「中止」を押します。" };
     case "failed":
-      return { tone: "bad", title: "うまくいかなかった作業があります", detail: "失敗した作業の下の「この作業をやり直す」を押すか、「計画をやり直す」で立て直せます。失敗の理由は下の赤い枠に出ています。" };
+      return failedAdvice(tasks, failed);
     case "completed":
       return {
         tone: "done",

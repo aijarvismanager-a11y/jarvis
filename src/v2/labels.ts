@@ -345,9 +345,9 @@ export function explainFailure(reason: string | null): { what: string; hint: str
         (/手動の設定/.test(why) ? "このAIを自動で使いたいときだけ、「使うAI」で自動操作を入れてください。" : /入力欄|ログイン|人間確認|ロボット|bot/i.test(why) ? "このAIを使いたいときは、「使うAI」の「試してみる」で、状態を確かめてください。" : ""),
     };
   }
-  if (reason && REASON_LABEL[reason]) return { what: REASON_LABEL[reason], hint: "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
-  if (reason) return { what: reason, hint: cause ?? "「計画をやり直す」か、失敗した作業の「この作業をやり直す」を押してください。" };
-  return { what: "理由の記録が見つかりませんでした", hint: "「計画をやり直す」を押すか、「新しい依頼」を出してください。" };
+  if (reason && REASON_LABEL[reason]) return { what: REASON_LABEL[reason], hint: "いちばん上の「次にやること」に出ているボタンを押してください(どちらを押すかは、そこに書いてあります)。" };
+  if (reason) return { what: reason, hint: cause ?? "いちばん上の「次にやること」に出ているボタンを押してください(どちらを押すかは、そこに書いてあります)。" };
+  return { what: "理由の記録が見つかりませんでした", hint: "いちばん上の「次にやること」のボタンを押してください。それでも進まないときは、「新しい依頼」を出してください。" };
 }
 
 /** The recorded reason of the newest transition of a mission into "failed". */

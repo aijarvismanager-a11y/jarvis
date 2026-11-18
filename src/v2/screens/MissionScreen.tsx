@@ -833,7 +833,10 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const pendingPlan = mission?.status === "planning" && view?.mission.id === mission.id;
   const [resting, setResting] = useState(false);
   usePoll(async () => setResting(((await api.allResting().catch(() => ({ state: null }))).state?.tasks ?? 0) > 0), 15000, []);
-  const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal), resting);
+  const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal), resting, Date.now(), {
+    replan: () => act("replan"),
+    retry: (taskId) => void run(async () => { if (mission) { await api.retryTask(mission.projectId, mission.id, taskId, ""); ctx.refresh(); } }),
+  });
 
   return (
     <div className="space-y-4">

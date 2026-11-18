@@ -155,6 +155,18 @@ describe("ClaudeCodePlanner", () => {
     expect(asked).toBe(2);
   });
 
+  it("drops the permission-editing task (and the links to it) when the planner insists, keeping the rest", async () => {
+    const mixed = { summary: "s", tasks: [
+      { key: "a", role: "design", objective: "o" },
+      { key: "fix", role: "coding", objective: ".claude/settings.local.json の許可リストへの追加", dependsOn: ["a"] },
+      { key: "b", role: "coding", objective: "o2", dependsOn: ["fix"] },
+    ] };
+    const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: JSON.stringify({ type: "result", result: "```json\n" + JSON.stringify(mixed) + "\n```" }), stderr: "", code: 0 });
+    const draft = await new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] });
+    expect(draft.tasks.some((t) => t.key === "fix")).toBe(false);
+    expect(draft.tasks.find((t) => t.key === "b")?.dependsOn).toEqual([]);
+  });
+
   it("gives up after the second prose answer and shows how it began", async () => {
     const runner: CommandRunner = async (_c, args) => (args[0] === "--help" ? { stdout: HELP, stderr: "", code: 0 } : { stdout: JSON.stringify({ result: "質問があります" }), stderr: "", code: 0 });
     await expect(new ClaudeCodePlanner({ runner }).plan({ goal: "g", constraints: [], technologyPreferences: [] })).rejects.toThrow(/質問があります/);

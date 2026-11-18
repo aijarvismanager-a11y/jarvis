@@ -1,7 +1,7 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import { parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
-import { MAX_PLAN_TASKS, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
+import { MAX_PLAN_TASKS, SELF_PERMISSION_TASK, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
 
 // Planner (spec §3: Claude Code is Lead Developer and plans too). The engine
 // only depends on the Planner interface, so the implementation can be swapped
@@ -235,7 +235,17 @@ AI自身の許可設定(.claude/settings*.json や許可リスト)を書き換�
         problems = validatePlan(parsed.data);
       }
     }
-    if (problems.length) throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
+    if (problems.length) {
+      // still asking for it: take those tasks out (and the dependencies on them) rather than failing the whole request;
+      // what is left is still worth doing, and the permission change stays a person's decision
+      const keep = parsed.data.tasks.filter((t) => !SELF_PERMISSION_TASK.test(`${t.objective} ${t.expectedOutputs.join(" ")}`));
+      if (keep.length > 0 && keep.length < parsed.data.tasks.length) {
+        const keys = new Set(keep.map((t) => t.key));
+        const trimmed = { ...parsed.data, tasks: keep.map((t) => ({ ...t, dependsOn: t.dependsOn.filter((d) => keys.has(d)) })) };
+        if (validatePlan(trimmed).length === 0) return withHistoryUpdateTask(trimmed, !!request.existingProject);
+      }
+      throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
+    }
     return withHistoryUpdateTask(parsed.data, !!request.existingProject);
   }
 }

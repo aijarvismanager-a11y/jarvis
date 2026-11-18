@@ -1,3 +1,4 @@
+import { bundleName, canReloadNow, isScreenOutdated } from "./screenUpdate";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./context";
@@ -120,6 +121,17 @@ export default function V2App() {
       setRestarting(false);
     }
   };
+  // The screen itself can be newer than this tab: reload by itself when nothing is being written, otherwise offer the button.
+  const [newScreen, setNewScreen] = useState(false);
+  const runningBundle = useRef<string | null>(
+    typeof document !== "undefined" ? bundleName(Array.from(document.scripts).map((x) => x.src).join(" ")) : null,
+  );
+  usePoll(async () => {
+    const html = await fetch("/", { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+    if (!isScreenOutdated(runningBundle.current, bundleName(html))) return;
+    if (canReloadNow(document)) window.location.reload();
+    else setNewScreen(true);
+  }, 60_000, []);
   usePoll(async () => {
     const v = await api.serverVersion();
     setOutdated(v === null || v.stale);
@@ -267,6 +279,12 @@ export default function V2App() {
       {changelog && <ChangelogDialog version={appVersion} onClose={() => setChangelog(false)} />}
       {help && <HelpDialog version={appVersion} onClose={() => setHelp(false)} />}
       <main className="mx-auto max-w-[1600px] px-4 py-5 lg:px-6">
+        {newScreen && (
+          <div role="status" className="mb-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-muted">
+            <span>新しい画面があります(書きかけの内容があるため、自動では更新していません)</span>
+            <button type="button" className="underline hover:text-ink" onClick={() => window.location.reload()}>いま更新</button>
+          </div>
+        )}
         {outdated && !offline && (
           // a developer's notice, not a warning: one quiet line instead of a yellow block on every tab
           <div role="status" className="mb-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12px] text-muted">
