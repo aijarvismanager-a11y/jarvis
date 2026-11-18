@@ -99,6 +99,14 @@ export const DEFAULT_AI_PROFILES: Record<string, AiProfile> = {
     freeStatus: "free_tier",
     limitations: "無料枠に上限あり",
   },
+  muse: {
+    capabilities: { research: 3.5, coding: 3, documentation: 3, image_generation: 3 },
+    qualityScore: 3.5,
+    reliabilityScore: 2.5,
+    automationLevel: 1,
+    freeStatus: "free_tier",
+    limitations: "Metaアカウントでのログインが必要。送信回数の上限は未確認",
+  },
   poe: {
     capabilities: { research: 3, coding: 3, translation: 3, image_generation: 3 },
     qualityScore: 3,
@@ -441,6 +449,21 @@ export function applyGoogleLoginRegistry(store: Store): { removed: string[]; add
     });
   }
   return result;
+}
+
+/**
+ * Muse (Meta AI, meta.ai) added at the user's request on 2026-11-18, although it needs a Meta account (not Google): checked live,
+ * a signed-in free account answered twice with no bot check. Level 1 (manual) until the user raises it. Once, under its own key,
+ * so removing it later sticks. (The old "meta-ai" id was retired for the Google-login rule and stays retired.)
+ */
+export function addMuse(store: Store): boolean {
+  const KEY = "registry.muse.v1";
+  if (store.getSetting<boolean>(KEY, false)) return false;
+  store.setSetting(KEY, true);
+  if (store.getAiService("muse")) return false;
+  store.upsertAiService({ id: "muse", name: "Muse (Meta AI・Web)", url: "https://www.meta.ai", provider: "Meta", freeStatus: "free_tier", accessMode: "web", automationLevel: 1, requiresLogin: true, adapterType: "manual" });
+  store.addDecision({ title: "AI Registry: Muse (meta.ai) を追加", reason: "利用者の希望。Metaアカウントでのログインが必要(Googleログインの方針とは別扱い)。実サイトで、ログイン後に2回送って答えを読み取れ、ボット確認は出なかった(2026-11-18)。送信回数の上限は未確認", isAssumption: true });
+  return true;
 }
 
 /** Later retirements, each applied once under its own key (Adobe Firefly: Adobe ID only; HuggingChat and Kimi: removed at the user's request). */

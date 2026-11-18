@@ -35,6 +35,11 @@
     "url": "https://chat.deepseek.com"
   },
   {
+    "id": "muse",
+    "name": "Muse (Meta AI・Web)",
+    "url": "https://www.meta.ai"
+  },
+  {
     "id": "mistral",
     "name": "Mistral Le Chat (Web)",
     "url": "https://chat.mistral.ai"

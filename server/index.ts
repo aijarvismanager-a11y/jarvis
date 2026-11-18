@@ -16,7 +16,7 @@ import { AiHealthChecker } from "./core/aiHealth.ts";
 import { AiDiscovery } from "./core/aiDiscovery.ts";
 import { AiScout } from "./core/aiScout.ts";
 import { AiRoster } from "./core/aiRoster.ts";
-import { ensureClaudeCode, seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyClaudeCodeReview, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
+import { ensureClaudeCode, addMuse, seedBuiltInWebAis, applyGoogleLoginRegistry, applyIdeationCapability, applyClaudeCodeReview, applyLaterRetirements, seedRegistryProfiles } from "./core/aiRegistry.ts";
 import { ChromiumDriver, findBrowserExecutable } from "./core/browserDriver.ts";
 import { RoutingExecutor, WebAiExecutor, needsCodeExecutor } from "./core/webAiExecutor.ts";
 import { WEB_ADAPTER_TYPES, WebHandoffHub } from "./core/webHandoff.ts";
@@ -110,6 +110,7 @@ coreStore.db.prepare("UPDATE missions SET status = 'completed' WHERE status = 'd
 ensureClaudeCode(coreStore);
 seedBuiltInWebAis(coreStore);
 applyGoogleLoginRegistry(coreStore);
+addMuse(coreStore);
 applyLaterRetirements(coreStore);
 seedRegistryProfiles(coreStore);
 applyIdeationCapability(coreStore);

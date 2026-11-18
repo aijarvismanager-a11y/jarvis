@@ -130,6 +130,14 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     sendSelector: 'button[aria-label="送信"], button[data-testid="submit-button"], button[aria-label*="Submit"]',
     responseSelector: '[data-testid="markdown-reply"], [data-testid="copilot-message-div"]',
   },
+  // muse (meta.ai): checked live on 2026-11-18 (free account, logged in with a Meta account by the person). The page keeps a zero-size
+  // textarea[data-testid="composer-input"] before the real contenteditable div (document.querySelector would pick the dead textarea),
+  // so only the div is selected; answers are .ur-markdown.
+  muse: {
+    inputSelector: 'div[data-testid="composer-input"][contenteditable="true"], div[contenteditable="true"][role="textbox"]',
+    sendSelector: 'button[data-testid="composer-send-button"], button[aria-label="送信"]',
+    responseSelector: ".ur-markdown",
+  },
   deepseek: {
     inputSelector: "textarea#chat-input, textarea",
     responseSelector: ".ds-markdown",

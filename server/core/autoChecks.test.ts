@@ -112,6 +112,8 @@ describe("needsCodeExecutor", () => {
     expect(needsCodeExecutor({ role: "test", objective: "パソコンの動画モードに戻して sample.mp4 を開いて再生する。動画が映ること", expectedOutputs: ["_ai-records/y.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "test", objective: "capture.ps1 -Action Stop と -Action Status を実行して settings.json の復元を確かめる", expectedOutputs: ["_ai-records/z.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "research", objective: "tools/ui-probeの使い方を読んで整理する", expectedOutputs: ["_ai-records/c.md"] })).toBe(false);
+    // fixing a few places in an existing file: Muse returned it cut short (50 lines -> 36, first table gone) on 2026-11-18
+    expect(needsCodeExecutor({ role: "document", objective: "run-output.md の表(§3)の値は一字も変えず、表より上下にある古い次の5か所だけを実状態に合わせて直す", expectedOutputs: ["_ai-records/run-output.md"] })).toBe(true);
     // adding to a record that already exists must not be a chat answer (it replaces the whole file)
     expect(needsCodeExecutor({ role: "document", objective: "結果を既存の記録へ反映する: docs/report.mdの§1結果表を更新し、追記する", expectedOutputs: ["docs/report.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", objective: "新しい利用者向けの説明書を書く", expectedOutputs: ["docs/guide.md"] })).toBe(false);

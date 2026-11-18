@@ -43,6 +43,19 @@ describe("bundled web AI site profiles", () => {
   });
 });
 
+describe("Muse", () => {
+  it("is added once, with its own id, and a later removal sticks", async () => {
+    const { addMuse } = await import("./aiRegistry.ts");
+    const store = new Store(openDatabase(":memory:"), "unused");
+    expect(addMuse(store)).toBe(true);
+    expect(store.getAiService("muse")?.url).toBe("https://www.meta.ai");
+    expect(store.getAiService("meta-ai")).toBeNull();
+    store.deleteAiService("muse");
+    expect(addMuse(store)).toBe(false);
+    expect(store.getAiService("muse")).toBeNull();
+  });
+});
+
 describe("Google-login registry update", () => {
   it("removes the services without Google sign-in, adds those with it, once", () => {
     const store = new Store(openDatabase(":memory:"), "unused");

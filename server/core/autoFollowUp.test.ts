@@ -117,3 +117,33 @@ describe("an idea that makes the AI edit its own permissions", () => {
     expect((d as { reason: string }).reason).toContain("許可設定");
   });
 });
+
+describe("stopping follow-ups that go round the same file or need a person", () => {
+  const prev = ["HyperPlayer の _ai-records/stage-approve-fix/cmd-spec.md だけを直してください。"];
+  it("does not follow up on a file the request (or its chain) already worked on", () => {
+    const same = { title: "cmd-spec.md の最終点検", request: "HyperPlayer で _ai-records/stage-approve-fix/cmd-spec.md を全文読み直して確認してください。" };
+    const d = decideFollowUp({ ...base, recommended: same, previousGoals: prev });
+    expect(d).toMatchObject({ create: false });
+    expect((d as { reason: string }).reason).toContain("cmd-spec.md");
+    // a new file, or no file at all, still goes on
+    expect(decideFollowUp({ ...base, recommended: { title: "別", request: "docs/other.md を作ってください" }, previousGoals: prev })).toMatchObject({ create: true });
+    expect(decideFollowUp({ ...base, previousGoals: prev })).toMatchObject({ create: true });
+    // one new file next to an old one is new work
+    expect(decideFollowUp({ ...base, recommended: { title: "x", request: "cmd-spec.md と new-file.md を直す" }, previousGoals: prev })).toMatchObject({ create: true });
+  });
+
+  it("does not follow up on work only a person can do", () => {
+    for (const request of ["人が cmd-spec-verify.md を手で削除するか削除を承認した後に ls で確認してください。", "人が通常のPowerShellで run.ps1 を1回実行してください。", "SHA256を人が1回取得してください。"]) {
+      const d = decideFollowUp({ ...base, recommended: { title: "t", request } });
+      expect(d, request).toMatchObject({ create: false });
+      expect((d as { reason: string }).reason).toContain("人が手で行う");
+    }
+  });
+
+  it("stops after 3 automatic follow-ups in 2 hours, even when a person started the later requests", () => {
+    expect(decideFollowUp({ ...base, recentFollowUps: 2 })).toMatchObject({ create: true });
+    const d = decideFollowUp({ ...base, recentFollowUps: 3 });
+    expect(d).toMatchObject({ create: false });
+    expect((d as { reason: string }).reason).toContain("2時間");
+  });
+});

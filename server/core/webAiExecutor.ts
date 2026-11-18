@@ -108,7 +108,7 @@ export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> &
  * A chat answer replaces the whole file, so the earlier sections are lost (measured: a report rewritten by a web AI dropped three sections of it).
  */
 export const updatesExistingRecords = (task: Pick<Task, "role"> & Partial<Pick<Task, "objective">>): boolean =>
-  /^(document|documentation|docs|doc|ドキュメント作成|文書作成)$/i.test(task.role.trim()) && /既存の(記録|ドキュメント|文書|ファイル|履歴)|へ反映|に反映|に追記|へ追記|追記する|CLAUDE\.md|作業履歴/.test(task.objective ?? "");
+  /^(document|documentation|docs|doc|ドキュメント作成|文書作成)$/i.test(task.role.trim()) && /既存の(記録|ドキュメント|文書|ファイル|履歴)|へ反映|に反映|に追記|へ追記|追記する|CLAUDE\.md|作業履歴|一字も変えず|だけ(を)?(直|書き換|置き換|修正)|(か所|箇所)(だけ)?(を)?(直|書き換|置き換|修正)|丸ごと上書きしない|Edit で/.test(task.objective ?? "");
 
 /** A source / test file: a chat page turns "/" and "[a](b)" in code into links and escapes (measured: 5 tries in a row of a broken test file), so code is written by the code executor. */
 const isSourceFile = (rel: string): boolean => /\.(m?js|cjs|jsx|tsx?|py|cs|java|go|rs|sh|ps1|css|html)$/i.test(rel.trim());
@@ -584,7 +584,9 @@ export class WebAiExecutor implements TaskExecutor {
       const abs = resolveInProject(this.store.projectsRoot, projectId, rel);
       const before = existsSync(abs) ? readTextIfExists(abs) : null;
       const lines = (t: string) => t.split("\n").length;
-      if (before !== null && lines(before) >= 30 && lines(cleanFileText(rel, raw)) < lines(before) / 2) {
+      // measured: a 50-line record came back as 36 lines with its first table cut off, and the old "30+ lines, under half" rule let it through
+      const shrunk = before !== null && /\.(md|markdown|txt)$/i.test(rel) && lines(before) >= 10 && lines(cleanFileText(rel, raw)) < lines(before) * 0.85;
+      if (before !== null && ((lines(before) >= 30 && lines(cleanFileText(rel, raw)) < lines(before) / 2) || shrunk)) {
         return { ok: false, fallback: true, aiId: svc.id, automationLevel: level, summary: `${rel} は既存の長いファイルなので、Webのチャットの回答では上書きせず、Claude Codeで追記します` };
       }
     }
