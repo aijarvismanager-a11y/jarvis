@@ -140,7 +140,24 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   const shortObjective = (t: ReportTask) => (t.objective.length > 60 ? `${t.objective.slice(0, 60)}…` : t.objective);
   const todos: ReportTodo[] = [];
   const unfinishedMission = !["completed", "cancelled"].includes(mission.status);
+  // the newest failure reason of a task: "not allowed" means the person pressed "拒否する" (nothing broke)
+  const lastFailReason = (taskId: string): string => {
+    const f = events.filter((e) => e.taskId === taskId && e.type === "TASK_TRANSITION" && (e.payload as { to?: string } | null)?.to === "failed")
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))).pop();
+    return String((f?.payload as { reason?: string } | null)?.reason ?? "");
+  };
   for (const t of reportTasks.filter((x) => (x.status === "failed" || x.status === "blocked") && unfinishedMission && x.status === "failed")) {
+    if (/承認されなかった|許可されなかった/.test(lastFailReason(t.id))) {
+      todos.push({
+        id: `refused-${t.id}`,
+        required: false,
+        title: `作業${numberOf(t)}は、あなたが許可しなかったため行っていません`,
+        why: "失敗ではなく、許可を断った結果です。後ろの作業は、この作業が終わるまで進みません。",
+        steps: ["やめるときは、何もしなくて大丈夫です(「新しい依頼」で別の依頼を出せます)。", "やっぱり行うときだけ、下の「この作業をやり直す」を押します。もう一度、許可を聞きます。"],
+        actions: [{ kind: "retry", label: "この作業をやり直す(もう一度許可を聞く)", taskId: t.id }],
+      });
+      continue;
+    }
     todos.push({
       id: `retry-${t.id}`,
       required: true,

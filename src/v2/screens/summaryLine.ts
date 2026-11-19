@@ -1,11 +1,13 @@
 import { aiNameOf, type Ctx } from "../context";
-import { roleLabel } from "../labels";
+import { isRefusedNote, roleLabel } from "../labels";
 import type { Task, TaskStatus } from "../types";
 
 /** One sentence on where the request stands, so the screen can be read without opening any row. */
 export function summaryLine(tasks: Task[], ctx: Ctx, resting = false): string {
   const by = (st: TaskStatus) => tasks.filter((t) => t.status === st);
   const failed = [...by("failed"), ...by("blocked")];
+  const refused = by("failed").filter((t) => isRefusedNote(ctx.overview?.taskNotes?.[t.id]));
+  if (refused.length > 0 && refused.length === by("failed").length) return `あなたが許可しなかった作業があるため、ここで止まっています。許可しなかった作業は行っていません(後ろの作業${by("blocked").length + by("pending").length}件も進みません)。`;
   if (failed.length > 0) return `うまくいかなかった作業が${failed.length}件あります。下の赤い印の作業を開くと理由が見られます(ホームの「次にやること」にも出ます)。`;
   const waiting = by("waiting");
   if (waiting.length > 0) return `「${roleLabel(waiting[0].role)}」があなたの操作を待っています。ホームの「次にやること」を見てください。`;

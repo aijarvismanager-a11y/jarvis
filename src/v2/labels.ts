@@ -299,6 +299,9 @@ const REASON_LABEL: Record<string, string> = {
   "no runnable tasks (retries exhausted or blocked)": "再試行しても進められない作業があり、止まりました",
 };
 
+/** A task's failure note that says the person did not allow it (they pressed "拒否する"): nothing went wrong, so it is not advice-for-a-failure. */
+export const isRefusedNote = (note: string | undefined | null) => /承認されなかった|許可されなかった/.test(note ?? "");
+
 /** The cause, when the reason's own words give it away: what to do differs a lot (wait, sign in, shorten the request). */
 function causeHint(reason: string): string | null {
   if (/利用上限|上限に達|rate limit|usage limit|quota|overloaded|429/i.test(reason)) return "Claude の利用上限が原因のようです。画面の上の赤い枠で「リセットまで待つ」か「ほかのAIに回す」を選んでから、「やり直す」を押してください。";

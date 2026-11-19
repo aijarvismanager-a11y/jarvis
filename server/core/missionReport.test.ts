@@ -105,6 +105,27 @@ describe("buildMissionReport", () => {
   });
 });
 
+describe("a task the person did not allow", () => {
+  it("is reported as an optional 'you declined' note, not as a failure that must be redone", async () => {
+    const db = openDatabase(":memory:");
+    const store = new Store(db, "unused");
+    store.createProject({ id: "p", name: "p" });
+    const engine = new MissionEngine(store, {
+      planner: { name: "x", plan: async () => ({ summary: "", tasks: [] }) },
+      executor: { name: "e", execute: async () => ({ ok: false, retryable: false, summary: "この操作には承認が必要です(DESTRUCTIVE)。承認されなかったため実行しませんでした" }) },
+      validator: { validate: async () => ({ passed: true, level: 1 }) },
+    });
+    const m = engine.startFixedMission({ projectId: "p", goal: "消す", draft: { summary: "", tasks: [task("del", "coding")] } });
+    await engine.run("p", m.id);
+    const r = buildMissionReport(store, "p", m.id);
+    const refused = r.todos.find((t) => t.id.startsWith("refused-"));
+    expect(refused?.required).toBe(false);
+    expect(refused?.title).toContain("許可しなかった");
+    expect(r.todos.some((t) => t.id.startsWith("retry-"))).toBe(false);
+    db.close();
+  });
+});
+
 describe("deliver to-do for projects made in the app", () => {
   it("asks the person to put the result into the delivery folder", async () => {
     const { store, db, m } = await runMission(4);

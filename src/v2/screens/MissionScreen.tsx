@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import { type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, isRefusedNote, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -607,7 +607,7 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
       </div>
       <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
       {approval.command && <p className="mt-2 break-all rounded bg-black/20 px-2 py-1 font-mono text-[12px]">{approval.command}</p>}
-      <p className="mt-1 text-[12px] text-muted">許可は、この作業の間だけ有効です。拒否するとこの作業は失敗として止まります。押すまで待ちます(自動では拒否しません)。</p>
+      <p className="mt-1 text-[12px] text-muted">許可は、この作業の間だけ有効です。拒否するとこの作業は行わずに止まります。押すまで待ちます(自動では拒否しません)。</p>
       <div className="mt-3 flex gap-2">
         <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>
         <Button variant="danger" disabled={busy} onClick={() => answer(false)}>拒否する</Button>
@@ -876,7 +876,11 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
         <Card>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
-            <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
+            {mission.status === "failed" && tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id])) ? (
+              <Badge tone="neutral">許可待ちで止まっています</Badge>
+            ) : (
+              <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
+            )}
           </div>
           <GoalText goal={mission.goal} className="font-serif text-[18px] font-semibold" />
           {total > 0 && (
@@ -888,7 +892,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </div>
           )}
           {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
-          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
+          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} className="mt-3" />
           {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}

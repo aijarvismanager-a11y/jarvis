@@ -1,5 +1,5 @@
 import type { Ctx } from "./context";
-import { roleLabel } from "./labels";
+import { isRefusedNote, roleLabel } from "./labels";
 import type { Task } from "./types";
 
 /** What the failed-mission banner can do for the person (the screen supplies these). */
@@ -12,7 +12,7 @@ export function failedAdvice(tasks: Task[], actions?: FailedActions, notes?: Rec
   const bad = tasks.filter((t) => t.status === "failed");
   const worst = bad.slice().sort((a, b) => b.retryCount - a.retryCount)[0];
   // the person pressed "拒否する" themselves: nothing went wrong, so do not push "やり直す"
-  const refused = bad.find((t) => /承認されなかった|許可されなかった/.test(notes?.[t.id] ?? ""));
+  const refused = bad.find((t) => isRefusedNote(notes?.[t.id]));
   if (refused) {
     return {
       tone: "wait", title: "許可しなかったため、この作業は行っていません",
