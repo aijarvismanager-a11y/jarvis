@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
@@ -92,23 +92,12 @@ function TaskAnswer({ taskId, ctx }: { taskId: string; ctx: Ctx }) {
         <button type="button" className="min-w-0 flex-1 text-left text-[12.5px]" onClick={() => setOpen(!open)}>
           <span className="font-semibold">AIの回答</span><span className="ml-2 text-muted">{open ? "" : `${firstLine}${cut ? "…" : ""}`}</span>
         </button>
-        <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setBig(true)}>大きく表示</button>
+        {open && <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setBig(!big)}>{big ? "縮める" : "広げる"}</button>}
         <button type="button" className="text-[12px] text-accent hover:underline" onClick={copy}>{copied ? "コピーしました" : "コピー"}</button>
         <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "開く"}</button>
       </div>
-      {open && <div className="mt-2"><Markdown text={text} /></div>}
-      {big && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/40 p-4" onClick={() => setBig(false)}>
-          <div className="my-4 w-full max-w-3xl rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center gap-3 border-b border-borderSoft pb-2">
-              <span className="font-semibold">AIの回答</span>
-              <button type="button" className="ml-auto text-[12.5px] text-accent hover:underline" onClick={copy}>{copied ? "コピーしました" : "コピー"}</button>
-              <Button variant="ghost" onClick={() => setBig(false)}>閉じる</Button>
-            </div>
-            <Markdown text={text} />
-          </div>
-        </div>
-      )}
+      {/* read in place (never a full-screen overlay): the page stays usable while reading; "広げる" only makes this box taller */}
+      {open && <div className={`mt-2 overflow-auto rounded-md border border-borderSoft bg-bg px-3 py-2 ${big ? "max-h-[75vh]" : "max-h-72"}`}><Markdown text={text} /></div>}
     </div>
   );
 }
@@ -263,6 +252,7 @@ function AcceptancePanel({ ctx, projectId, missionId, status, onNewRequest }: { 
   const [acc, setAcc] = useState<Acceptance | null>(null);
   const [waited, setWaited] = useState(0);
   const { busy, run } = useAction(ctx.setError);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     setAcc(null);
@@ -290,11 +280,15 @@ function AcceptancePanel({ ctx, projectId, missionId, status, onNewRequest }: { 
   return (
     <div className="mt-3 rounded-lg border border-borderSoft bg-bg px-3.5 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold">依頼どおりにできたかのチェック</span>
-        {acc.score !== null && <Badge tone={acc.score >= 85 ? "ok" : acc.score >= 50 ? "warn" : "bad"}>希望の達成度 {acc.score}%</Badge>}
-        <Button variant="ghost" disabled={busy} onClick={() => void check()}>{busy ? "チェック中…" : "もう一度チェック"}</Button>
+        <span className="text-[13px] font-semibold">依頼どおりにできたか</span>
+        {acc.score !== null && <Badge tone={acc.score >= 85 ? "ok" : acc.score >= 50 ? "warn" : "bad"}>達成度 {acc.score}%</Badge>}
+        <button className="ml-auto text-[12px] text-accent hover:underline" onClick={() => setOpen(!open)}>{open ? "閉じる" : "項目ごとに見る"}</button>
       </div>
-      {acc.summary && <p className="mt-1 text-[13px]">{acc.summary}</p>}
+      {acc.summary && <p className="mt-1 line-clamp-2 text-[13px]">{acc.summary}</p>}
+      {bad.length > 0 && (
+        <div className="mt-2"><Button variant="ghost" onClick={() => onNewRequest(`前回の依頼のうち、次の点が足りていません。直してください:\n${bad.map((i) => `- ${i.requirement}${i.fix ? `(${i.fix})` : ""}`).join("\n")}`)}>足りない点だけ、直してもらう</Button></div>
+      )}
+      {open && <>
       <ul className="mt-2 divide-y divide-borderSoft rounded-md border border-borderSoft bg-white">
         {acc.items.map((i, n) => (
           <li key={n} className="px-3 py-2 text-[12.5px] leading-relaxed">
@@ -303,10 +297,11 @@ function AcceptancePanel({ ctx, projectId, missionId, status, onNewRequest }: { 
           </li>
         ))}
       </ul>
-      {bad.length > 0 && (
-        <Button variant="ghost" onClick={() => onNewRequest(`前回の依頼のうち、次の点が足りていません。直してください:\n${bad.map((i) => `- ${i.requirement}${i.fix ? `(${i.fix})` : ""}`).join("\n")}`)}>足りない点だけ、直してもらう</Button>
-      )}
-      <p className="mt-1.5 text-[11px] text-muted">これはAIの目で見た判定です。画面や動きは、ご自身でも一度ご確認ください。</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button variant="ghost" disabled={busy} onClick={() => void check()}>{busy ? "チェック中…" : "もう一度チェック"}</Button>
+        <span className="text-[11px] text-muted">AIの目で見た判定です。画面や動きはご自身でも一度ご確認ください。</span>
+      </div>
+      </>}
     </div>
   );
 }
@@ -366,15 +361,23 @@ function NextIdeasPanel({ ctx, projectId, missionId, status, onPick }: { ctx: Ct
   }
   return (
     <section className="rounded-xl border border-borderSoft bg-panel p-4" aria-label="おすすめの次の案件">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold">おすすめの次の案件</span>
-        <Button variant="ghost" disabled={busy} onClick={() => void make()}>{busy ? "考え直しています…" : "考え直してもらう"}</Button>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold">次に頼むなら(AIのおすすめ)</span>
+        <span className="text-[11.5px] text-muted">選ぶと依頼の文が入力欄に入ります。読んで直せます</span>
       </div>
-      <p className="mb-2 text-[12px] text-muted">いま終わったことの次に、頼むとよさそうなことです。選ぶと、依頼の文が入力欄に入ります(そのまま開始せず、読んで直せます)。</p>
       <ul className="space-y-2">
-        {ideas.ideas.map((idea) => <IdeaCard key={`${ideas.at}|${idea.title}`} idea={idea} onPick={onPick} />)}
+        {ideas.ideas.slice(0, 1).map((idea) => <IdeaCard key={`${ideas.at}|${idea.title}`} idea={idea} onPick={onPick} />)}
       </ul>
-      <p className="mt-1.5 text-[11px] text-muted">AIが作った提案です。依頼の文は、各案の「依頼の文を見る・直す」で、書き足したり直したりできます。やりたいことと違うときは、下の入力欄に自由に書いて頼めます。</p>
+      {ideas.ideas.length > 1 && (
+        <div className="mt-2">
+          <Details summary={`ほかの案を見る(${ideas.ideas.length - 1}件)`}>
+            <ul className="space-y-2">
+              {ideas.ideas.slice(1).map((idea) => <IdeaCard key={`${ideas.at}|${idea.title}`} idea={idea} onPick={onPick} />)}
+            </ul>
+            <div className="mt-2"><Button variant="ghost" disabled={busy} onClick={() => void make()}>{busy ? "考え直しています…" : "案を考え直してもらう"}</Button></div>
+          </Details>
+        </div>
+      )}
     </section>
   );
 }
@@ -390,7 +393,7 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
   }, [projectId, missionId, status]);
   if (!report) return null;
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
-  const isOpen = open ?? report.verdict !== "verified";
+  const isOpen = open ?? (report.todos ? (report.todos ?? []).some((t) => t.required) : report.verdict !== "verified");
   const done = report.tasks.filter((t) => t.status === "completed").length;
   const todos = report.todos ?? [];
   const must = todos.filter((t) => t.required);
@@ -408,7 +411,7 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
       {report.todos && (
         <div className={`mt-2 rounded-md px-3 py-2 text-[13px] ${must.length ? "bg-[#FBF3E0] text-[#7A5410]" : "bg-[#E8F3EA] text-[#2F6B3C]"}`}>
           <b>{must.length ? `あなたがやることが ${must.length}件 あります` : "いまは、あなたがやることはありません"}</b>
-          {!must.length && maybe.length > 0 && <span className="ml-2 text-[12px]">(やっておくと安心なことが{maybe.length}件あります。下の「任意」)</span>}
+          {!must.length && maybe.length > 0 && <span className="ml-2 text-[12px]">(やっておくと安心なことが{maybe.length}件あります。「詳しく見る」で読めます)</span>}
         </div>
       )}
       {isOpen && (
@@ -797,6 +800,11 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
+/** Wraps its children in a fold when `on`, otherwise shows them as they are. */
+function FoldIf({ on, summary, children }: { on: boolean; summary: string; children: ReactNode }) {
+  return on ? <Details summary={summary}>{children}</Details> : <>{children}</>;
+}
+
 export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const { mission, overview, services, handoffs, approvals, project } = ctx;
   const [view, setView] = useState<MissionView | null>(null);
@@ -817,7 +825,9 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const tasks = mission ? overview.tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) : [];
   // A draft without a plan (e.g. migrated from the old app) can never run: let the user start a fresh mission right away.
   const emptyDraft = mission?.status === "draft" && tasks.length === 0;
-  const showIntake = starting || !mission || FINISHED.includes(mission.status) || emptyDraft;
+  const finishedMission = !!mission && ["completed", "failed"].includes(mission.status);
+  // a finished request does not push the long request form onto the screen: "新しい依頼" (banner or card) opens it
+  const showIntake = starting || !mission || mission.status === "cancelled" || emptyDraft;
   const { done, total, percent } = progressOf(tasks);
   const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
@@ -876,17 +886,13 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
           {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
-          {usage.runs > 0 && (
-            <p className="mt-2 text-[12px] text-muted">
-              AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
-              {usage.hasCost && <> · 使用量(API換算) {formatCost(usage.costUsd)}</>}
-              {usage.inputTokens + usage.outputTokens > 0 && <> · トークン 入力{formatTokens(usage.inputTokens)} / 出力{formatTokens(usage.outputTokens)}</>}
-            </p>
-          )}
           {doing && (
             <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{resting && doing.status === "running" ? `${roleLabel(doing.role)}は、使えるAIが戻るのを待っています` : <>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</>}</p>
           )}
+          {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}
           {tasks.length > 0 && (
+            <div className={finishedMission ? "mt-3" : ""}>
+            <FoldIf on={finishedMission} summary={`各作業の中身と回答を見る(${tasks.length}件)`}>
             <ul className="mt-3 space-y-1">
               {tasks.map((t) => (
                 <li key={t.id} className={`text-[13px] ${t.status === "pending" || t.status === "cancelled" ? "text-muted" : ""}`}>
@@ -906,8 +912,27 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                 </li>
               ))}
             </ul>
+            </FoldIf>
+            </div>
           )}
-          {["completed", "failed"].includes(mission.status) && <MissionFollowUp ctx={ctx} tasks={tasks} onNewRequest={writeRequest} />}
+          {finishedMission && (
+            <>
+              <div className="mt-2"><FoldIf on summary="AIに質問する・続きを頼む"><MissionFollowUp ctx={ctx} tasks={tasks} onNewRequest={writeRequest} /></FoldIf></div>
+              {usage.runs > 0 && (
+                <p className="mt-3 text-[11.5px] text-muted">
+                  AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
+                  {usage.hasCost && <> · 使用量(API換算) {formatCost(usage.costUsd)}</>}
+                  {usage.inputTokens + usage.outputTokens > 0 && <> · トークン 入力{formatTokens(usage.inputTokens)} / 出力{formatTokens(usage.outputTokens)}</>}
+                </p>
+              )}
+            </>
+          )}
+          {!finishedMission && usage.runs > 0 && (
+            <p className="mt-2 text-[12px] text-muted">
+              AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
+              {usage.hasCost && <> · 使用量(API換算) {formatCost(usage.costUsd)}</>}
+            </p>
+          )}
           {tasks.length === 0 && mission.status === "draft" && (
             <p className="mt-3 text-[12.5px] text-muted">この依頼にはまだ計画がありません。下のフォームから新しい依頼を始められます(この依頼は不要なら「中止」してください)。</p>
           )}
