@@ -23,9 +23,8 @@ function DeleteProjectCard({ project, setError, onDeleted }: { project: Project;
     });
   };
   return (
-    <Card title="このプロジェクトの削除">
-      <p className="text-[13px]">「{project.name}」を、このアプリから消します。試しに取り込んだプロジェクトの片付けに使えます。</p>
-      <p className="mt-1 text-[12px] text-muted">消えるのは、このアプリ内のコピーと記録だけです。取り込み元の元のフォルダには何もしません。実行中の依頼があるときは、先に止めてください。</p>
+    <Card fold title="このプロジェクトを削除する(元に戻せません)">
+      <p className="text-[13px]">「{project.name}」を、このアプリから消します。消えるのは、アプリ内のコピーと記録だけで、取り込み元の元のフォルダには何もしません。実行中の依頼があるときは、先に止めてください。</p>
       <Button variant="danger" className="mt-3" disabled={busy} onClick={remove}>このプロジェクトを削除</Button>
     </Card>
   );
@@ -276,25 +275,25 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
       </>)}
       {section === "app" && (<>
       <Card title="動き方の設定">
-        <div className="space-y-3 text-[13px]">
+        <div className="divide-y divide-borderSoft text-[13px] [&>*]:py-3 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {web?.available && (
             <label className="flex items-start gap-3">
               <input type="checkbox" className="mt-1" checked={web.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setWebAi(e.target.checked); done(); })} />
-              <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">ChatGPT や Gemini など、ブラウザで開くAIにも作業を分けます。AIには、依頼の文と、プロジェクトのファイルの一部(一覧と、関係するファイルの抜粋)を送ります。<b>プロジェクトの中身を外に出したくないときは、オフにしてください。</b>オフにすると、すべて Claude Code がやります。</span></span>
+              <span><span className="font-semibold">ブラウザ上のAIも使う</span><span className="block text-[12px] text-muted">ChatGPT や Gemini など、ブラウザのAIにも作業を分けます。依頼の文とファイルの一部が、そのサイトに送られます。<b>外に出したくないときはオフ</b>(すべて Claude Code がやります)。</span></span>
             </label>
           )}
           <AutoRestartSetting />
           {review && (
             <label className="flex items-start gap-3">
               <input type="checkbox" className="mt-1" checked={review.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setAiReview(e.target.checked); done(); })} />
-              <span><span className="font-semibold">重要な作業を、別のAIにもチェックしてもらう</span><span className="block text-[12px] text-muted">設計やコードなどの大事な作業を、作ったAIとは別のメーカーのAIが確認します。確認できるAI(自動で動かせて、ログイン済みのもの)が、順番に担当します。{review.reviewer ? `次の担当: ${review.reviewer}` : "いまは確認できるAIがないので、確認は行いません。"}</span></span>
+              <span><span className="font-semibold">重要な作業を、別のAIにもチェックしてもらう</span><span className="block text-[12px] text-muted">設計やコードなどの大事な作業を、作ったAIとは別のメーカーのAIが確認します。{review.reviewer ? `次の担当: ${review.reviewer}` : "いまは確認できるAIがないので、確認は行いません。"}</span></span>
             </label>
           )}
           {tuning && (
             <div>
               <label className="flex items-start gap-3">
                 <input type="checkbox" className="mt-1" checked={tuning.enabled} disabled={busy} onChange={(e) => run(async () => { await api.setScoreTuning(e.target.checked); done(); })} />
-                <span><span className="font-semibold">AIの得意・不得意を、結果から学ぶ</span><span className="block text-[12px] text-muted">作業が終わるたびに、うまくいったか、失敗したかを記録して、次からのAIの選び方に使います。同じAIの結果が3件たまるまでは、何も変わりません。変わる幅も小さく、いつでも元に戻せます。</span></span>
+                <span><span className="font-semibold">AIの得意・不得意を、結果から学ぶ</span><span className="block text-[12px] text-muted">成功・失敗を記録して、次からのAI選びに使います(3件たまるまで変化なし。いつでも元に戻せます)。</span></span>
               </label>
               {tuning.entries.length > 0 && (
                 <Details summary="学んだ内容を見る">
@@ -316,7 +315,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         </div>
       </Card>
 
-      <Card title="フォルダと環境"><EnvironmentCard project={project} /></Card>
+      <EnvironmentCard project={project} />
       {project && <DeleteProjectCard project={project} setError={setError} onDeleted={onProjectDeleted} />}
       </>)}
     </div>
@@ -328,7 +327,7 @@ function AutoRestartSetting() {
   return (
     <label className="flex items-start gap-3">
       <input type="checkbox" className="mt-1" checked={on} onChange={(e) => setOn(e.target.checked)} />
-      <span><span className="font-semibold">アプリの更新を、自動で取り込む</span><span className="block text-[12px] text-muted">サーバーが古いコードのまま動いているとき、実行中の依頼がなければ、自動で再起動します(数秒、画面がつながらなくなります)。依頼の実行中は、終わるまで待ちます。この設定は、このブラウザ(デスクトップ版もここ)だけに残ります。</span></span>
+      <span><span className="font-semibold">アプリの更新を、自動で取り込む</span><span className="block text-[12px] text-muted">古いコードで動いているとき、実行中の依頼がなければ自動で再起動します(数秒つながりません)。この設定は、このブラウザだけです。</span></span>
     </label>
   );
 }
