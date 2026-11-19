@@ -892,7 +892,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </div>
           )}
           {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
-          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} className="mt-3" />
+          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} className="mt-3" />
           {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}
@@ -923,7 +923,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           )}
           {finishedMission && (
             <>
-              <div className="mt-2"><FoldIf on summary="AIに質問する・続きを頼む"><MissionFollowUp ctx={ctx} tasks={tasks} onNewRequest={writeRequest} /></FoldIf></div>
+              {(tasks.length > 0 || mission.status === "completed") && <div className="mt-2"><FoldIf on summary="AIに質問する・続きを頼む"><MissionFollowUp ctx={ctx} tasks={tasks} onNewRequest={writeRequest} /></FoldIf></div>}
               {usage.runs > 0 && (
                 <p className="mt-3 text-[11.5px] text-muted">
                   AIの作業時間 {formatDuration(usage.durationMs)} · 実行{usage.runs}回{usage.failedRuns > 0 && `(うち失敗${usage.failedRuns}回)`}
@@ -945,7 +945,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           <div className="mt-4 flex flex-wrap gap-2">
             {mission.status === "running" && <Button variant="ghost" disabled={busy} onClick={() => act("pause")}>一時停止</Button>}
             {mission.status === "paused" && <Button disabled={busy} onClick={() => act("resume")}>再開</Button>}
-            {mission.status === "failed" && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
+            {mission.status === "failed" && tasks.length > 0 && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
             {["running", "paused", "failed"].includes(mission.status) && <RedirectControls mission={mission} ctx={ctx} />}
             {["draft", "planning", "running", "paused"].includes(mission.status) && <Button variant="danger" disabled={busy} onClick={() => act("cancel")}>中止</Button>}
             {FINISHED.includes(mission.status) && !showIntake && <Button variant="ghost" onClick={() => setStarting(true)}>新しい依頼</Button>}
