@@ -679,11 +679,11 @@ function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
   );
 }
 
-function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
+function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCancel: () => void }) {
   const [feedback, setFeedback] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const { mission, proposal } = view;
-  if (!proposal) return <Card title="計画">AI が計画を作成中です…(新しいアイデアは 1〜2 分、大きな既存プロジェクトは 10 分以上かかることがあります。できあがると、この画面が自動で切り替わります)</Card>;
+  if (!proposal) return <Card title="計画">AI が計画を作成中です…できあがると、この画面が自動で切り替わります。</Card>;
   const act = (action: "approve" | "reject") =>
     run(async () => {
       if (action === "approve") await api.approveAndRun(mission.projectId, mission.id);
@@ -721,7 +721,10 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
         })}
       </ol>
       <p className="mb-2 text-[13px] font-semibold">この計画で合っていますか?</p>
-      <div className="mb-3"><Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button></div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
+        <Button variant="danger" disabled={busy} onClick={onCancel}>この依頼をやめる</Button>
+      </div>
       {/* the choice that is usually taken comes first; the change request stays one press away */}
       <Details summary="直してほしい点があるとき">
         <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="直してほしい点を入力(例: テストを厚く)" className="w-full rounded-lg border border-border bg-panel p-2.5 text-[13px] outline-none focus:border-accent" />
@@ -863,12 +866,13 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
       <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
-      {pendingPlan && <PlanReview view={view} ctx={ctx} />}
+      {pendingPlan && <PlanReview view={view} ctx={ctx} onCancel={() => act("cancel")} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}
       {project && <DepsCard ctx={ctx} />}
 
-      {mission && !starting && (
+      {/* while a plan waits for approval the plan card above already says what was asked and has the "stop" button */}
+      {mission && !starting && !(pendingPlan && view?.proposal) && (
         <Card>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
@@ -943,7 +947,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             {mission.status === "failed" && <Button disabled={busy} onClick={() => act("replan")}>計画をやり直す</Button>}
             {["running", "paused", "failed"].includes(mission.status) && <RedirectControls mission={mission} ctx={ctx} />}
             {["draft", "planning", "running", "paused"].includes(mission.status) && <Button variant="danger" disabled={busy} onClick={() => act("cancel")}>中止</Button>}
-            {FINISHED.includes(mission.status) && <Button variant="ghost" onClick={() => setStarting(true)}>新しい依頼</Button>}
+            {FINISHED.includes(mission.status) && !showIntake && <Button variant="ghost" onClick={() => setStarting(true)}>新しい依頼</Button>}
           </div>
         </Card>
       )}

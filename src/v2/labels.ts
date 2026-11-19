@@ -56,6 +56,12 @@ export const ROLE_LABEL: Record<string, string> = {
   qa: "テスト",
   "final review": "最終レビュー",
   "ui design": "画面の設計",
+  visual_design: "見た目のデザイン",
+  "visual design": "見た目のデザイン",
+  illustration: "絵・イラスト",
+  video: "動画づくり",
+  music: "音楽づくり",
+  voice: "音声づくり",
 };
 export const roleLabel = (role: string) => ROLE_LABEL[role] ?? role;
 
