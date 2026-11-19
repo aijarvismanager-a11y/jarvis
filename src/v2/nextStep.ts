@@ -36,7 +36,7 @@ export function failedAdvice(tasks: Task[], actions?: FailedActions, notes?: Rec
   }
   return {
     tone: "bad", title: `作業が${bad.length > 1 ? `${bad.length}つ` : "1つ"}止まりました。まず、やり直してください`,
-    detail: "ほとんどは、もう一度で通ります。「この作業をやり直す」を押してください。それでも止まるときは、画面にもう一度ボタンが出るので、そこで「計画をやり直す」に切り替えます。理由は下の赤い枠にあります。",
+    detail: "ほとんどは、もう一度で通ります。「この作業をやり直す」を押してください。それでも止まるときは、下の「計画をやり直す」を使います。理由は下の赤い枠にあります。",
     action: actions ? { label: "この作業をやり直す", run: () => actions.retry(worst.id) } : undefined,
   };
 }

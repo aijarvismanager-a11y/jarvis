@@ -393,7 +393,7 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
   }, [projectId, missionId, status]);
   if (!report) return null;
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
-  const isOpen = open ?? (report.todos ? (report.todos ?? []).some((t) => t.required) : report.verdict !== "verified");
+  const isOpen = open ?? (status.startsWith("failed") ? false : report.todos ? (report.todos ?? []).some((t) => t.required) : report.verdict !== "verified");
   const done = report.tasks.filter((t) => t.status === "completed").length;
   const todos = report.todos ?? [];
   const must = todos.filter((t) => t.required);

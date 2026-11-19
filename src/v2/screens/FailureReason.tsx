@@ -26,7 +26,7 @@ export function FailureReason({ projectId, missionId, failed, refused = false, q
     <div className={`rounded-lg border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 ${className}`} role="alert">
       <p className="text-[12px] font-semibold text-[#9B2C2C]">失敗の理由</p>
       <p className="mt-0.5 break-words text-[13px] text-[#9B2C2C]">{what}</p>
-      {!quiet && <p className="mt-1 text-[12px] text-[#4a473f]">{hint}</p>}
+      {!quiet && !hint.startsWith("いちばん上の") && <p className="mt-1 text-[12px] text-[#4a473f]">{hint}</p>}
     </div>
   );
 }
