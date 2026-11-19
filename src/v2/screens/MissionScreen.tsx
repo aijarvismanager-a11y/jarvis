@@ -607,7 +607,7 @@ function ApprovalCard({ approval, ctx }: { approval: Approval; ctx: Ctx }) {
       </div>
       <p className="text-[13px]">{task ? `${roleLabel(task.role)}: ${task.objective}` : approval.reason}</p>
       {approval.command && <p className="mt-2 break-all rounded bg-black/20 px-2 py-1 font-mono text-[12px]">{approval.command}</p>}
-      <p className="mt-1 text-[12px] text-muted">許可しても、この作業の間だけ有効です。他の作業には広がりません。拒否するとこの作業は失敗として止まります。押すまで、この作業は止まったまま待ちます(自動では拒否しません)。</p>
+      <p className="mt-1 text-[12px] text-muted">許可は、この作業の間だけ有効です。拒否するとこの作業は失敗として止まります。押すまで待ちます(自動では拒否しません)。</p>
       <div className="mt-3 flex gap-2">
         <Button disabled={busy} onClick={() => answer(true)}>許可して続ける</Button>
         <Button variant="danger" disabled={busy} onClick={() => answer(false)}>拒否する</Button>
@@ -655,10 +655,6 @@ function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
           <Button variant="ghost" disabled={busy || !switchTo} onClick={() => run(async () => { await api.reassignHandoff(handoff.id, switchTo); ctx.refresh(); })}>このAIに切り替える</Button>
         </div>
       )}
-      <label className="mb-2 block text-[12.5px] text-muted">
-        指示文への追記(任意。コピーする指示文の末尾に付きます)
-        <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={2} placeholder="例: 日本語で、表を使って答えてください" className="mt-1 w-full rounded-lg border border-border bg-bg p-2 text-[13px] text-ink outline-none focus:border-accent" />
-      </label>
       <div className="mb-2 flex flex-wrap gap-2">
         <Button variant="ghost" onClick={copy}>{copied ? "コピーしました" : "指示文をコピー"}</Button>
         {handoff.url && (
@@ -667,7 +663,11 @@ function HandoffCard({ handoff, ctx }: { handoff: Handoff; ctx: Ctx }) {
           </a>
         )}
       </div>
-      <Details summary="指示文を見る">
+      <Details summary="指示文を見る・追記する">
+        <label className="mb-2 block text-[12.5px] text-muted">
+          追記(任意。コピーする指示文の末尾に付きます)
+          <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={2} placeholder="例: 日本語で、表を使って答えてください" className="mt-1 w-full rounded-lg border border-border bg-panel p-2 text-[13px] text-ink outline-none focus:border-accent" />
+        </label>
         <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{fullPrompt}</pre>
       </Details>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="AIの回答をここに貼り付け" className="mt-3 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
@@ -720,13 +720,14 @@ function PlanReview({ view, ctx }: { view: MissionView; ctx: Ctx }) {
           );
         })}
       </ol>
-      <p className="mb-1 text-[13px] font-semibold">この計画で合っていますか?</p>
-      <SayItHelper kind="plan" value={feedback} onChange={setFeedback} />
-      <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="直してほしい点があれば入力(例: テストを厚く)。合っていれば、何も書かずに「この計画で開始」を押してください" className="mb-2 w-full rounded-lg border border-border bg-bg p-2.5 text-[13px] outline-none focus:border-accent" />
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
+      <p className="mb-2 text-[13px] font-semibold">この計画で合っていますか?</p>
+      <div className="mb-3"><Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button></div>
+      {/* the choice that is usually taken comes first; the change request stays one press away */}
+      <Details summary="直してほしい点があるとき">
+        <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="直してほしい点を入力(例: テストを厚く)" className="w-full rounded-lg border border-border bg-panel p-2.5 text-[13px] outline-none focus:border-accent" />
+        <SayItHelper kind="plan" value={feedback} onChange={setFeedback} />
         <Button variant="ghost" disabled={busy || !feedback.trim()} onClick={() => act("reject")}>{busy ? "作り直し中…(1〜2分)" : "修正して再提案"}</Button>
-      </div>
+      </Details>
     </Card>
   );
 }

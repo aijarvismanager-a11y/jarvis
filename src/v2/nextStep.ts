@@ -51,7 +51,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
   switch (mission.status) {
     case "planning":
       if (!planReady) return { tone: "wait", title: "AI が計画を作っています", detail: "新しいアイデアは 1〜2 分、大きな既存プロジェクトは 10 分以上かかることがあります。できあがると、この画面が自動で切り替わるので、そのままお待ちください。" };
-      return { tone: "go", title: "計画を確認して、よければ開始してください", detail: "AI が立てた作業の予定です。直したい点があれば書いて「修正して再提案」、これでよければ「この計画で開始」を押します。" };
+      return { tone: "go", title: "計画を確認して、よければ開始してください", detail: "AI が立てた作業の予定です。これでよければ「この計画で開始」を押します。直したい点があれば「直してほしい点があるとき」に書いて「修正して再提案」を押します。" };
     case "running": {
       // every AI is resting: the work is waiting, not being done (the yellow box above says when it goes on)
       if (resting) return { tone: "wait", title: "いまは使えるAIがありません。自動で再開します", detail: "使えるAIが戻りしだい、続きから自動で進みます。何もしなくて大丈夫です。再開の目安は、画面上部の黄色い枠にあります。" };

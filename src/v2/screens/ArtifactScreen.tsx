@@ -102,12 +102,17 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
           <p className="text-[13px] text-muted">左のリストからファイルを選んでください。AI が作った文書やコードを、ここで読めます(ここでは編集できません)。</p>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="break-all text-[13px] font-semibold">{shown.path}</span>
-              <Badge tone={v.tone}>{v.label}</Badge>
-              <span className="text-[11px] text-muted">第{shown.version}版 · {formatTime(shown.createdAt)}{shown.sourceAi ? ` · ${shown.sourceAi}` : ""}</span>
-              {shown.sourceUrl && <a href={shown.sourceUrl} target="_blank" rel="noreferrer noopener" className="text-[11px] text-accent hover:underline">情報の出どころ</a>}
-              {versions.length > 1 && <span className="text-[11px] text-muted">(全{versions.length}版あり・最新を表示)</span>}
+            <div className="mb-3 border-b border-borderSoft pb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="break-all font-serif text-[15px] font-semibold">{shown.path.split("/").pop()}</span>
+                <Badge tone={v.tone}>{v.label}</Badge>
+              </div>
+              <p className="mt-0.5 break-all text-[11.5px] text-muted">
+                {shown.path.includes("/") && <>{shown.path.slice(0, shown.path.lastIndexOf("/") + 1)} · </>}
+                第{shown.version}版 · {formatTime(shown.createdAt)}{shown.sourceAi ? ` · ${shown.sourceAi}` : ""}
+                {versions.length > 1 && <> · 全{versions.length}版あり(最新を表示)</>}
+                {shown.sourceUrl && <> · <a href={shown.sourceUrl} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">情報の出どころ</a></>}
+              </p>
             </div>
             {failure ? (
               <p className="text-[13px] text-[#9B2C2C]">{failure}</p>
