@@ -179,7 +179,9 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{short(s.name)}</span>
-                  {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? <Badge tone="ok">自動で使えます</Badge> : s.automationLevel === 2 ? <Badge tone="info">半自動で使えます</Badge> : <Badge>まだ使えません</Badge>}
+                  {/* an AI that simply works needs no badge: the heading of its group already says so */}
+                  {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? null : s.automationLevel === 2 ? null : <Badge>まだ使えません</Badge>}
+                  {!limitUntil && !check && usage[s.id] && usage[s.id].last24h > 0 && <span className="ml-auto text-[11.5px] text-muted">直近24時間 {usage[s.id].last24h}回</span>}
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
                   )}
@@ -190,7 +192,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                     <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openLogin(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>ログインして使えるようにする</Button>
                   ))}
                 </div>
-                {usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{usageLine(s.id)}</p>}
+                {(limitUntil || check) && usage[s.id] && usage[s.id].last24h > 0 && <p className="mt-0.5 text-[12px] text-muted">{usageLine(s.id)}</p>}
                 {limitUntil && <p className="mt-1 text-[12px] text-muted">このAIは「利用上限に達した」と答えたため、{formatTime(limitUntil)}ごろまで休ませています。その間は、ほかのAIが引き受けます。</p>}
                 {check && waitingLogin?.id !== s.id && trying !== s.id && (
                   <p className="mt-1 text-[12px] text-muted">
@@ -216,7 +218,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         <ul className="mt-3 space-y-2">
           {claudeCode && (
             <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
-              <span className="font-semibold">Claude Code</span> <Badge tone="ok">自動で使えます</Badge> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
+              <span className="font-semibold">Claude Code</span> <span className="text-[12px] text-muted">コードを書くのは、いつもこのAIです</span>
               <p className="mt-0.5 text-[12px] text-muted">{usageLine("claude-code")}</p>
               <ClaudeQuotaView setError={setError} />
             </li>
@@ -231,7 +233,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         {web?.available && web.browserAvailable && semi.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">半自動で使えるAI({semi.length}件)</h3>
-            <p className="text-[12px] text-muted">アプリが依頼の文を入力欄に入れ、<b>送信ボタンはあなたが押す</b>AIです(ロボット確認が出たときも、ご自身で通します)。返事はアプリが読み取ります。<b>文章の作業は、人の操作を待たずに進めるため、このAIには回りません</b>。画像・動画づくりなど、人が操作する作業で使います。</p>
+            <p className="text-[12px] text-muted">依頼の文は入力欄に入りますが、<b>送信ボタンはあなたが押す</b>AIです。文章の作業は人の操作を待たずに進めるため、このAIには回りません。</p>
             <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{semi.map(renderRow)}</ul>
           </>
         )}
@@ -249,7 +251,9 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
             <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{notReady.map(renderRow)}</ul>
           </>
         )}
-        <p className="mt-2 text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>
+        <div className="mt-3"><Details summary="「使った回数」について">
+          <p className="text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>
+        </Details></div>
         {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
         {others.length > 0 && (
           <Details summary={`自動化待ちのAI(${others.length}件・いまは使われません)`}>
