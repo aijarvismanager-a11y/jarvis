@@ -28,54 +28,55 @@ export function HelpDialog({ onClose, version }: { onClose: () => void; version:
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // a side panel, not a full-screen window: the page behind it stays visible and usable while the help is read
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="使い方" onClick={onClose}>
-      <div className="my-6 w-full max-w-2xl rounded-xl border border-border bg-panel p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-serif text-[20px] font-semibold">使い方 <a href="/MANUAL.html" target="_blank" rel="noreferrer noopener" className="ml-2 text-[12px] font-normal text-accent hover:underline">説明書を別のタブで開く</a></h2>
-          <Button variant="ghost" onClick={onClose}>閉じる</Button>
-        </div>
-
-        {version && <p className="mt-1 text-[12px] text-muted">AIオーケストラ バージョン {version}</p>}
-
-        <h3 className="mt-4 text-[14px] font-semibold">基本の流れ</h3>
-        <ol className="mt-1 list-decimal space-y-1 pl-5 text-[13px]">
-          <li><b>ホーム</b>で、作りたいものを書いて「開発を開始」を押す。</li>
-          <li>AI が出した<b>計画</b>を読み、よければ「この計画で開始」を押す(直したいときは書いて「修正して再提案」)。</li>
-          <li>AI が作業します。画面の一番上の「次にやること」を見れば、いま自分がやることが分かります。</li>
-          <li>終わったら「動かして確認」で試す。続きは「新しい依頼」で頼む。</li>
-        </ol>
-
-        <h3 className="mt-4 text-[14px] font-semibold">画面の見かた</h3>
-        <ul className="mt-1 space-y-1 text-[13px]">
-          <li><b>ホーム</b> … 次にやること、いまの依頼、新しい依頼の入力。</li>
-          <li><b>進み具合</b> … いまの依頼が全体のどこまで進んだか、作業ごとの状況。</li>
-          <li><b>これまでの記録</b> … 過去の依頼の一覧と、何が起きたかの履歴。</li>
-          <li><b>できたもの</b> … AI が作ったファイルを選んで読めます。</li>
-          <li><b>使うAI</b> … ChatGPT・Gemini などを「自動で使える」ようにします(ログインして、ブラウザを閉じるだけ)。Claude の使用量や、上限で休んでいるAIも、ここで分かります。</li>
-          <li><b>設定</b> … ブラウザ上のAIを使うか、別のAIにチェックしてもらうか、などの動き方と、フォルダの場所、プロジェクトの削除があります。</li>
-        </ul>
-
-        <h3 className="mt-4 text-[14px] font-semibold">用語</h3>
-        <dl className="mt-1 space-y-1.5 text-[13px]">
-          {GLOSSARY.map(([w, d]) => (
-            <div key={w} className="grid gap-x-3 sm:grid-cols-[9rem_1fr]">
-              <dt className="font-semibold">{w}</dt>
-              <dd className="text-[#4a473f]">{d}</dd>
-            </div>
-          ))}
-        </dl>
-
-        <h3 className="mt-4 text-[14px] font-semibold">よくある質問</h3>
-        <div className="mt-1 space-y-2 text-[13px]">
-          {FAQ.map(([q, a]) => (
-            <div key={q}>
-              <p className="font-semibold">{q}</p>
-              <p className="text-[#4a473f]">{a}</p>
-            </div>
-          ))}
-        </div>
+    <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-[420px] overflow-y-auto border-l border-border bg-panel p-5 shadow-xl" aria-label="使い方">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-serif text-[20px] font-semibold">使い方</h2>
+        <Button variant="ghost" onClick={onClose}>閉じる</Button>
       </div>
-    </div>
+      <p className="mt-1 text-[12px] text-muted">
+        {version && <>バージョン {version} · </>}
+        <a href="/MANUAL.html" target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">説明書を別のタブで開く</a>
+      </p>
+
+      <h3 className="mt-4 text-[14px] font-semibold">基本の流れ</h3>
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-[13px]">
+        <li><b>ホーム</b>で、作りたいものを書いて「開発を開始」を押す。</li>
+        <li>AI が出した<b>計画</b>を読み、よければ「この計画で開始」を押す(直したいときは書いて「修正して再提案」)。</li>
+        <li>AI が作業します。画面の一番上の「次にやること」を見れば、いま自分がやることが分かります。</li>
+        <li>終わったら「動かして確認」で試す。続きは「新しい依頼」で頼む。</li>
+      </ol>
+
+      <h3 className="mt-4 text-[14px] font-semibold">画面の見かた</h3>
+      <ul className="mt-1 space-y-1 text-[13px]">
+        <li><b>ホーム</b> … 次にやること、いまの依頼、新しい依頼の入力。</li>
+        <li><b>進み具合</b> … いまの依頼がどこまで進んだか。</li>
+        <li><b>これまでの記録</b> … 過去の依頼の一覧と、何が起きたかの履歴。</li>
+        <li><b>できたもの</b> … AI が作ったファイルを読めます。</li>
+        <li><b>使うAI</b> … 使えるAIと、Claude の使用量。ログインして自動で使えるようにします。</li>
+        <li><b>設定</b> … 動き方、フォルダの場所、プロジェクトの削除。</li>
+      </ul>
+
+      <h3 className="mt-4 text-[14px] font-semibold">用語(押すと説明が開きます)</h3>
+      <div className="mt-1 divide-y divide-borderSoft rounded-lg border border-borderSoft text-[13px]">
+        {GLOSSARY.map(([w, d]) => (
+          <details key={w} className="group px-3 py-2">
+            <summary className="cursor-pointer font-semibold marker:content-none"><span aria-hidden className="mr-1.5 text-muted">▸</span>{w}</summary>
+            <p className="mt-1 text-[#4a473f]">{d}</p>
+          </details>
+        ))}
+      </div>
+
+      <h3 className="mt-4 text-[14px] font-semibold">よくある質問</h3>
+      <div className="mt-1 divide-y divide-borderSoft rounded-lg border border-borderSoft text-[13px]">
+        {FAQ.map(([q, a]) => (
+          <details key={q} className="group px-3 py-2">
+            <summary className="cursor-pointer font-semibold marker:content-none"><span aria-hidden className="mr-1.5 text-muted">▸</span>{q}</summary>
+            <p className="mt-1 text-[#4a473f]">{a}</p>
+          </details>
+        ))}
+      </div>
+    </aside>
   );
 }

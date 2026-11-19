@@ -44,8 +44,8 @@ const TIP: Record<SayItKind, string> = {
 export function SayItHelper({ kind, value, onChange }: { kind: SayItKind; value: string; onChange: (next: string) => void }) {
   const add = (text: string) => onChange(value.trim() ? `${value.replace(/\s+$/, "")}\n${text}` : text);
   return (
-    <div className="mb-2 rounded-lg bg-sidebar px-3 py-2">
-      <p className="mb-1.5 text-[13px] leading-relaxed text-[#4a473f]">{TIP[kind]}</p>
+    <div className="my-2 rounded-lg bg-sidebar px-3 py-2">
+      <p className="mb-1.5 text-[12.5px] leading-relaxed text-[#4a473f]">{TIP[kind]}<span className="text-muted">「◯◯」「△△」は自分の言葉に書き換えてください。</span></p>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="伝え方の例">
         {EXAMPLES[kind].map((e) => (
           <button key={e.label} type="button" onClick={() => add(e.text)} title={e.text} className="rounded-full border border-border bg-panel px-3 py-1 text-[13px] hover:bg-bg">
@@ -53,7 +53,6 @@ export function SayItHelper({ kind, value, onChange }: { kind: SayItKind; value:
           </button>
         ))}
       </div>
-      <p className="mt-1.5 text-[12px] text-muted">「◯◯」「△△」のところは、自分の言葉に書き換えてください。</p>
     </div>
   );
 }

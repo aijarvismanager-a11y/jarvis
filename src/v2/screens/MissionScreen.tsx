@@ -762,8 +762,8 @@ function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () 
   return (
     <Card>
       <label htmlFor="goal" className="mb-2 block font-serif text-[18px] font-semibold">何を作りますか?</label>
+      <textarea id="goal" value={goal} onChange={(e) => { setGoal(e.target.value); setQuestions(null); }} rows={4} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
       <SayItHelper kind="first" value={goal} onChange={setGoal} />
-      <textarea id="goal" value={goal} onChange={(e) => { setGoal(e.target.value); setQuestions(null); }} rows={3} maxLength={4000} placeholder="例: 商品管理ができるシンプルなWebアプリを作って" className="w-full rounded-lg border border-border bg-bg p-3 text-[14px] outline-none focus:border-accent" />
       <div className="mt-3">
         <Details summary="詳細設定(任意)">
           <label className="mb-1 block text-[12px] text-muted">守ってほしい条件(1行に1つ)</label>
@@ -859,7 +859,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
-      <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[900px]:items-start">
+      <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
       <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
       {pendingPlan && <PlanReview view={view} ctx={ctx} />}
