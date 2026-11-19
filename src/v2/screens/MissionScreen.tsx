@@ -582,7 +582,7 @@ function PreviewCard({ ctx }: { ctx: Ctx }) {
         )
       )}
       {preview?.log && state === "error" && <Details summary="ログを見る"><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px]">{preview.log}</pre></Details>}
-      <p className="mt-2 text-[11.5px] text-muted">作りかけの状態のまま、あなたのPC上でだけ動かします(生成されたコードをそのまま実行します)。依頼が作業中のファイルを読むため、動きが不安定なことがあります。デスクトップアプリは、作業中のフォルダをコピーしてビルドし、別のウィンドウで開きます(止めるときは「停止」か、アプリのウィンドウを閉じます)。</p>
+      <p className="mt-2 text-[11.5px] text-muted">作りかけのまま、あなたのPC上でだけ動かします。作業中は動きが不安定なことがあります。止めるときは「停止」を押します。</p>
     </Card>
   );
 }

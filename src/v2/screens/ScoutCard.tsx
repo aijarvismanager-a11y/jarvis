@@ -13,7 +13,7 @@ export function ScoutCard({ setError }: { setError: (m: string) => void }) {
   const fresh = state.proposals.filter((p) => p.status === "new");
   return (
     <Card title="新しいAIの候補">
-      <p className="text-[13px]">週に1回、自動で使えるAIに「Googleでログインできる新しいAI」を聞き、サイトを開いて確かめて、候補だけを出します。<b>あなたが「追加する」を押すまで、何も登録しません</b>。</p>
+      <p className="text-[13px]">週に1回、Googleでログインできる新しいAIを探して候補を出します。<b>あなたが「追加する」を押すまで、何も登録しません</b>。</p>
       <p className="mt-1 text-[12px] text-muted">
         {state.running ? "いま探しています…(数分かかります)" : state.lastRunAt ? `最後に探した日時: ${formatTime(state.lastRunAt)}。${state.lastNote ?? ""}` : "まだ探していません。"}
       </p>
