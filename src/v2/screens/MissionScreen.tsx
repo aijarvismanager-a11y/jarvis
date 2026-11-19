@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
-import { aiNameOf, type Ctx } from "../context";
+import { type Ctx } from "../context";
 import { MISSION_LABEL, TASK_LABEL, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
@@ -184,7 +184,7 @@ function LiveLog({ projectId, taskId }: { projectId: string; taskId: string }) {
         <>
           <ul className="space-y-0.5">
             {shown.map((e) => (
-              <li key={e.seq} className={`break-words font-mono text-[11.5px] ${e.kind === "error" ? "text-[#9B2C2C]" : "text-[#4a473f]"}`}>
+              <li key={e.seq} className={`break-words font-mono text-[11.5px] ${all ? "" : "line-clamp-2"} ${e.kind === "error" ? "text-[#9B2C2C]" : "text-[#4a473f]"}`}>
                 <span className="mr-1.5">{LOG_MARK[e.kind]}</span>{plainLogText(e.text)}
               </li>
             ))}
@@ -810,7 +810,7 @@ function FoldIf({ on, summary, children }: { on: boolean; summary: string; child
 }
 
 export function MissionScreen({ ctx }: { ctx: Ctx }) {
-  const { mission, overview, services, handoffs, approvals, project } = ctx;
+  const { mission, overview, handoffs, approvals, project } = ctx;
   const [view, setView] = useState<MissionView | null>(null);
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
@@ -834,7 +834,6 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const showIntake = starting || !mission || mission.status === "cancelled" || emptyDraft;
   const { done, total, percent } = progressOf(tasks);
   const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
-  const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
   const myHandoffs = handoffs.filter((h) => h.projectId === project?.id);
   const recent = [...overview.artifacts].filter((a) => !/(^|\/)(bin|obj|node_modules|publish|dist)\//i.test(a.path)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
   const act = (action: "pause" | "cancel" | "resume" | "run" | "replan") =>
@@ -891,9 +890,6 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} className="mt-3" />
           {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
           {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
-          {doing && (
-            <p className="mt-3 text-[13px]"><span className="text-muted">現在: </span>{resting && doing.status === "running" ? `${roleLabel(doing.role)}は、使えるAIが戻るのを待っています` : <>{aiNameOf(services, doing.selectedAi)} が{roleLabel(doing.role)}{doing.status === "waiting" ? "の回答待ち" : "中"}</>}</p>
-          )}
           {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}
           {tasks.length > 0 && (
             <div className={finishedMission ? "mt-3" : ""}>
