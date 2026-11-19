@@ -63,6 +63,15 @@ describe("nextStep for a failed request gives ONE answer", () => {
     s.action!.run();
     expect(log).toEqual(["retry:t1"]);
   });
+  it("a task the person refused to allow: says nothing went wrong, and redo only asks again", () => {
+    const { log, a } = acts();
+    const c = { ...ctx("failed"), overview: { taskNotes: { t1: "この操作には承認が必要です(DESTRUCTIVE)。承認されなかったため実行しませんでした" } } } as unknown as Ctx;
+    const s = nextStep(c, [failed("t1", 1)], () => {}, true, false, Date.now(), a);
+    expect(s.title).toContain("許可しなかった");
+    expect(s.tone).toBe("wait");
+    s.action!.run();
+    expect(log).toEqual(["retry:t1"]);
+  });
   it("the same task failed 3 times (the app stopped retrying): replan, not redo", () => {
     const { a } = acts();
     const s = nextStep(ctx("failed"), [failed("t1", 3), failed("t2", 0)], () => {}, true, false, Date.now(), a);

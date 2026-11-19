@@ -8,9 +8,18 @@ export type FailedActions = { replan: () => void; retry: (taskId: string) => voi
 export const RETRIES_BEFORE_REPLAN = 3;
 
 /** One clear answer for a failed request: which single button to press, and why (not a list of options). */
-export function failedAdvice(tasks: Task[], actions?: FailedActions): Step {
+export function failedAdvice(tasks: Task[], actions?: FailedActions, notes?: Record<string, string>): Step {
   const bad = tasks.filter((t) => t.status === "failed");
   const worst = bad.slice().sort((a, b) => b.retryCount - a.retryCount)[0];
+  // the person pressed "拒否する" themselves: nothing went wrong, so do not push "やり直す"
+  const refused = bad.find((t) => /承認されなかった|許可されなかった/.test(notes?.[t.id] ?? ""));
+  if (refused) {
+    return {
+      tone: "wait", title: "許可しなかったため、この作業は行っていません",
+      detail: "あなたが「拒否する」を押した作業です。やめるときは、このままで大丈夫です(「新しい依頼」で別の依頼を出せます)。やっぱり行うときだけ、「この作業をやり直す」を押すと、もう一度許可を聞きます。",
+      action: actions ? { label: "この作業をやり直す(もう一度許可を聞く)", run: () => actions.retry(refused.id) } : undefined,
+    };
+  }
   if (!worst) {
     return {
       tone: "bad", title: "計画を作る段階で止まりました",
@@ -61,7 +70,7 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
     case "paused":
       return { tone: "go", title: "一時停止中です", detail: "「再開」を押すと、続きから作業を再開します。やめるときは「中止」を押します。" };
     case "failed":
-      return failedAdvice(tasks, failed);
+      return failedAdvice(tasks, failed, ctx.overview?.taskNotes);
     case "completed":
       return {
         tone: "done",

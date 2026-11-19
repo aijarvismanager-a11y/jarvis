@@ -871,7 +871,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {project && <DepsCard ctx={ctx} />}
 
       {/* while a plan waits for approval the plan card above already says what was asked and has the "stop" button */}
-      {mission && !starting && !(pendingPlan && view?.proposal) && (
+      {/* (no project: a request left over from the project that was just deleted or closed must not be drawn: its rows read project.id) */}
+      {mission && project && !starting && !(pendingPlan && view?.proposal) && (
         <Card>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
