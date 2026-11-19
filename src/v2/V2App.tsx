@@ -221,7 +221,7 @@ export default function V2App() {
     refresh,
     setError,
     ensureProject,
-    openHelp: () => setHelp(true),
+    openHelp: () => { setChangelog(false); setHelp(true); },
     projectCount: projects.length,
     openArtifact: (a) => {
       setSelectedArtifact(a);
@@ -244,10 +244,10 @@ export default function V2App() {
                   <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>{notifyOn ? "🔔 通知をオフにする" : "🔕 通知をオンにする"}</Button>
                 )}
                 <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)">🔄 画面を更新</Button>
-                <Button variant="ghost" onClick={() => setChangelog(true)} title="更新履歴">🆕 更新履歴</Button>
+                <Button variant="ghost" onClick={() => { setHelp(false); setChangelog(true); }} title="更新履歴">🆕 更新履歴</Button>
               </div>
             </details>
-            <Button variant="ghost" onClick={() => setHelp(true)} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
+            <Button variant="ghost" onClick={() => { setChangelog(false); setHelp(true); }} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
             <TextSizeControl />
             <QuotaChip onOpen={() => setScreen("ais")} />
