@@ -101,7 +101,15 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Tasks a web chat cannot do: editing code, or updating the project's running records (TESTLOG, PLAN...), which a chat answer would overwrite whole. They go straight to the code executor instead of failing on the site first. */
-export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || runsBuildOrTests(task) || isHistoryTask(task) || updatesExistingRecords(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
+export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> & Partial<Pick<Task, "objective">>): boolean => isWriteTask(task) || runsBuildOrTests(task) || usesGit(task) || isHistoryTask(task) || updatesExistingRecords(task) || task.expectedOutputs.some(isHistoryFile) || task.expectedOutputs.some(isSourceFile);
+
+/**
+ * A task (any role) whose wording says to run a git command on the project ("git diff で比べる", "git show で前の版を取る", numstat).
+ * A web chat cannot open the folder or run anything: measured on 2026-11-20, three such research tasks went round gemini, perplexity,
+ * muse, chatgpt, deepseek and qwen until the retries ran out (login, timeout, "input box not found") and blocked the tasks that followed.
+ */
+export const usesGit = (task: Partial<Pick<Task, "objective">>): boolean =>
+  /\bgit\s+(diff|show|log|status|blame|ls-files|rev-parse)\b|numstat|git\s*が追跡/i.test(task.objective ?? "");
 
 /**
  * A document task that adds to or corrects records the project already has ("既存の記録へ反映", "…に追記する", CLAUDE.md の作業履歴を更新).
