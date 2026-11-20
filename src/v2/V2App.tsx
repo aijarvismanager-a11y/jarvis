@@ -54,6 +54,8 @@ export default function V2App() {
   const [loaded, setLoaded] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [overview, setOverview] = useState<Overview>(EMPTY);
+  // which project the overview on screen belongs to: a big project takes a while to load, and the empty start screen must not show meanwhile
+  const [overviewFor, setOverviewFor] = useState<string | null>(null);
   const [services, setServices] = useState<AiService[]>([]);
   const [handoffs, setHandoffs] = useState<Handoff[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -65,10 +67,13 @@ export default function V2App() {
   const seen = useRef<{ projectId: string | null; state: NotifyState | null }>({ projectId: null, state: null });
   const remindedApprovals = useRef(new Map<string, number>());
 
+  const projectIdRef = useRef<string | null>(projectId);
   const choose = useCallback((id: string | null) => {
+    projectIdRef.current = id;
     setProjectId(id);
     setSelectedArtifact(null);
     setOverview(EMPTY);
+    setOverviewFor(null);
     try {
       if (id) localStorage.setItem(STORAGE_KEY, id);
       else localStorage.removeItem(STORAGE_KEY);
@@ -184,7 +189,10 @@ export default function V2App() {
       // The AI list is ~20KB and rarely changes (Settings refreshes it on demand): fetch it on the first poll and then every 8th.
       const cycle = pollCount.current++;
       const [ov, svc, hand, appr] = await Promise.all([active ? api.overview(active.id) : Promise.resolve(EMPTY), cycle % 8 === 0 ? api.aiServices() : Promise.resolve(null), api.handoffs().catch(() => [] as Handoff[]), api.approvals().catch(() => [] as Approval[])]);
+      // the person switched projects while this answer was on its way: it belongs to the old one, so drop it
+      if (active && active.id !== projectIdRef.current) return;
       setOverview(ov);
+      setOverviewFor(active?.id ?? null);
       const mine = (x: { projectId: string }) => x.projectId === active?.id;
       const missionsNow = ov.missions;
       const prev = seen.current.projectId === (active?.id ?? null) ? seen.current.state : null;
@@ -320,7 +328,7 @@ export default function V2App() {
         <LimitBanner setError={setError} />
         <RestingBanner setError={setError} />
         <ErrorBar message={error} onClose={() => setError(null)} />
-        {!loaded ? (
+        {!loaded || (!!project && overviewFor !== project.id && ["mission", "development", "history", "artifacts"].includes(screen)) ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
         ) : (
           // inert while offline: old content stays readable but its buttons cannot be pressed (they could not reach the server anyway)
