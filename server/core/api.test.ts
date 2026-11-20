@@ -176,6 +176,10 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect((await call("/projects/p1", "DELETE", undefined, null)).status).toBe(403);
     expect((await call("/projects/p1", "DELETE")).status).toBe(200);
     expect(store.getProject("p1")).toBeNull();
+    // the project's own events go with it, but a record that it was deleted stays (no project, so the cascade does not reach it)
+    const gone = store.listEvents({ type: "PROJECT_DELETED" });
+    expect(gone).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(gone[0].payload))).toMatchObject({ projectId: "p1", missions: 1 });
     expect(existsSync(path.join(projectsRoot, "p1"))).toBe(false);
     expect(existsSync(path.join(projectsRoot, "p1.git"))).toBe(false);
     expect((await call("/projects/p1", "DELETE")).status).toBe(404);

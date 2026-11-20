@@ -125,10 +125,21 @@ export class Store {
     return this.db.prepare("UPDATE projects SET status = ? WHERE id = ?").run(status, id).changes > 0;
   }
 
-  /** Deletes the project's rows (cascade) and its projects/<id>/ directory. */
+  /**
+   * Deletes the project's rows (cascade) and its projects/<id>/ directory.
+   * The cascade also removes the project's events, so a PROJECT_DELETED event with no project is left behind (events with a
+   * null project_id survive): it says which project went, when, and how much history went with it.
+   */
   deleteProject(id: string): boolean {
     const dir = projectDir(this.projectsRoot, id);
-    const removed = transaction(this.db, () => this.db.prepare("DELETE FROM projects WHERE id = ?").run(id).changes > 0);
+    const removed = transaction(this.db, () => {
+      const count = (table: string) => (this.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE project_id = ?`).get(id) as { n: number }).n;
+      const info = this.getProject(id);
+      const gone = { name: info?.name ?? null, missions: count("missions"), tasks: count("tasks"), events: count("events") };
+      const changes = this.db.prepare("DELETE FROM projects WHERE id = ?").run(id).changes > 0;
+      if (changes) this.appendEvent({ projectId: null, type: "PROJECT_DELETED", payload: { projectId: id, ...gone } });
+      return changes;
+    });
     if (removed) rmSync(dir, { recursive: true, force: true });
     return removed;
   }
