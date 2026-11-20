@@ -109,7 +109,15 @@ export const needsCodeExecutor = (task: Pick<Task, "role" | "expectedOutputs"> &
  * muse, chatgpt, deepseek and qwen until the retries ran out (login, timeout, "input box not found") and blocked the tasks that followed.
  */
 export const usesGit = (task: Partial<Pick<Task, "objective">>): boolean =>
-  /\bgit\s+(diff|show|log|status|blame|ls-files|rev-parse)\b|numstat|git\s*が追跡/i.test(task.objective ?? "");
+  /\bgit\s+(diff|show|log|status|blame|ls-files|rev-parse)\b|numstat|git\s*が追跡/i.test(task.objective ?? "") || usesLocalSearchTool(task);
+
+/**
+ * A task whose wording tells the AI to search the project folder with a tool ("Grep ツールで docs/ を全文検索する", "Glob ツール").
+ * A web chat has no such tool and only sees excerpts, so it answers "could not read" or invents counts: measured on 2026-11-20
+ * (mis_57192747), one of three such search tasks needed 4 retries across grok, chatgpt, poe and deepseek.
+ */
+export const usesLocalSearchTool = (task: Partial<Pick<Task, "objective">>): boolean =>
+  /\b(Grep|Glob)\s*(ツール|tool)|(Grep|Glob)\(/i.test(task.objective ?? "");
 
 /**
  * A document task that adds to or corrects records the project already has ("既存の記録へ反映", "…に追記する", CLAUDE.md の作業履歴を更新).

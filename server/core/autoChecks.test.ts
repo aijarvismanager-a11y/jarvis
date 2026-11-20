@@ -118,6 +118,10 @@ describe("needsCodeExecutor", () => {
     expect(needsCodeExecutor({ role: "research", objective: "2ファイルの直す前の行数と今の行数を並べ、git show と現ファイルの行数で示す(git diff --stat / numstat も使う)", expectedOutputs: ["_ai-records/x/linecount.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "research", objective: "dougasoft が git が追跡しているかを確認する", expectedOutputs: ["_ai-records/x/git-facts.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "research", objective: "git の使い方を一般論として整理する", expectedOutputs: ["_ai-records/x/git.md"] })).toBe(false);
+    // searching the project folder with a tool: web chats only see excerpts (mis_57192747, 2026-11-20)
+    expect(needsCodeExecutor({ role: "research", objective: "Grep ツールで _ai-records/ 配下を「未取得」で全文検索する", expectedOutputs: ["_ai-records/x/grep-ai.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "research", objective: "Glob ツールで docs/ の一覧を取る", expectedOutputs: ["_ai-records/x/glob.md"] })).toBe(true);
+    expect(needsCodeExecutor({ role: "research", objective: "grep コマンドの一般的な使い方を整理する", expectedOutputs: ["_ai-records/x/grep.md"] })).toBe(false);
     // adding to a record that already exists must not be a chat answer (it replaces the whole file)
     expect(needsCodeExecutor({ role: "document", objective: "結果を既存の記録へ反映する: docs/report.mdの§1結果表を更新し、追記する", expectedOutputs: ["docs/report.md"] })).toBe(true);
     expect(needsCodeExecutor({ role: "document", objective: "新しい利用者向けの説明書を書く", expectedOutputs: ["docs/guide.md"] })).toBe(false);
