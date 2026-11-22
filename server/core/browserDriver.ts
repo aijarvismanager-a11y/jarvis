@@ -855,6 +855,9 @@ export class ChromiumDriver implements WebChatDriver {
     try {
       await cdp.send("Page.enable");
       await cdp.send("Page.navigate", { url: req.url });
+      // A tab opened in the background is "hidden": some sites (meta.ai) then never finish drawing the page, so the prompt box never appears
+      // (seen 2026-11-22: the box showed up the moment the tab was brought to the front). Front it before waiting for the page.
+      await cdp.send("Page.bringToFront").catch(() => {});
       await waitUntil(async () => (await cdp.evaluate<string>("document.readyState")) === "complete", { timeoutMs: 30_000, signal: req.signal });
       const found = await waitUntil(async () => cdp.evaluate<boolean>(`!!${firstMatch(req.site.inputSelector)}`), { timeoutMs: this.opts.inputTimeoutMs ?? 20_000, signal: req.signal });
       if (!found) {
