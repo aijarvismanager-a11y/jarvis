@@ -137,3 +137,5 @@ export type AcceptanceItem = { requirement: string; status: "met" | "partial" | 
 export type Acceptance = { missionId: string; at: string; items: AcceptanceItem[]; summary: string; score: number | null };
 export type NextIdea = { title: string; why: string; request: string; effort: "small" | "medium" | "large"; recommended: boolean };
 export type NextIdeas = { missionId: string; at: string; ideas: NextIdea[] };
+
+export type HumanTodoView = { id: string; title: string; why: string; steps: { text: string; command: string | null }[]; source: "file" | "legacy"; sourceFile: string };

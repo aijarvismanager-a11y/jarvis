@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, NextIdeas, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, NextIdeas, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo, HumanTodoView } from "./types";
 
 const BASE = "/api/v2";
 
@@ -74,6 +74,8 @@ export const api = {
   restoreSync: (projectId: string, backupId: string, direction: "push" | "pull") => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId, direction }),
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
   aiSelections: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/ai-selections`).then((r) => r.events),
+  humanTodos: (projectId: string) => request<{ todos: HumanTodoView[] }>(`/projects/${encodeURIComponent(projectId)}/human-todos`).then((r) => r.todos),
+  humanTodoDone: (projectId: string, todoId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/human-todos/${encodeURIComponent(todoId)}/done`, "POST", {}),
   followUpOrigins: (projectId: string) => request<{ origins: Record<string, { from: string; depth: number }> }>(`/projects/${encodeURIComponent(projectId)}/follow-up-origins`).then((r) => r.origins),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),
   artifactContent: (projectId: string, path: string) => request<{ content: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`).then((r) => r.content),

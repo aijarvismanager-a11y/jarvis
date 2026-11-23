@@ -9,6 +9,7 @@ import { chooseModel, parseSaverCapabilities, saverArgs, type SaverCapabilities 
 import { StreamJsonLogger, type TaskLogStore } from "./taskLog.ts";
 import { PermissionPolicy, approvableCommands, requestedElevatedLevels } from "./permissionPolicy.ts";
 import { projectDir } from "./paths.ts";
+import { HUMAN_TODO_INSTRUCTION } from "./humanTodos.ts";
 import { fileURLToPath } from "node:url";
 import { HISTORY_NOTES_PATH, STATUS_REPORT_PATH } from "./projectImport.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
@@ -127,6 +128,7 @@ export function buildTaskPrompt(input: {
   ];
   if (input.hasStatusReport && task.role !== "analysis") lines.push(`このプロジェクトは既存のコードを取り込んだものです。作業の前に ${STATUS_REPORT_PATH} を読み、既存の構成・書き方・使っている技術に合わせてください。`);
   if (input.hasHistoryNotes && task.role !== "analysis") lines.push(`${HISTORY_NOTES_PATH} は、このプロジェクトの前の Claude Code での作業(決定事項・未完了のこと・注意点)の要約です。作業の前に読み、その方針を尊重してください。`);
+  if (task.role !== "analysis") lines.push(HUMAN_TODO_INSTRUCTION);
   if (task.inputs.length) lines.push(`入力: ${task.inputs.join(" / ")}`);
   if (task.expectedOutputs.length) lines.push(`期待する成果物: ${task.expectedOutputs.join(" / ")}`);
   if (task.constraints.length) lines.push(`制約: ${task.constraints.join(" / ")}`);

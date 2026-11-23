@@ -12,6 +12,7 @@ import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
 import { summaryLine } from "./summaryLine";
 import { MissionBrief } from "./MissionBriefCard";
+import { HumanTodoCard } from "./HumanTodoCard";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
@@ -867,6 +868,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
       <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
+      {project && <HumanTodoCard ctx={ctx} />}
       {pendingPlan && <PlanReview view={view} ctx={ctx} onCancel={() => act("cancel")} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}

@@ -9,6 +9,7 @@ import type { Store } from "./store.ts";
 import { readFileSync, rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
+import { listHumanTodos, markHumanTodoDone } from "./humanTodos.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
@@ -530,6 +531,18 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const events = types.flatMap((type) => store.listEvents({ projectId, type, limit: 1000 })).sort((a, b) => a.id - b.id);
     res.json({ events });
   });
+  // Things only the person can do (from HUMAN_TODO.md, or the newest old-style note in CLAUDE.md), with their steps.
+  router.get("/projects/:projectId/human-todos", (req, res) => {
+    res.json({ todos: listHumanTodos(store, String(req.params.projectId)) });
+  });
+  router.post(
+    "/projects/:projectId/human-todos/:todoId/done",
+    guarded((req, res) => {
+      markHumanTodoDone(store, String(req.params.projectId), String(req.params.todoId));
+      store.appendEvent({ projectId: String(req.params.projectId), type: "HUMAN_TODO_DONE", payload: { todoId: String(req.params.todoId) } });
+      res.json({ ok: true });
+    }),
+  );
   // Which requests the app made by itself as the next step of an earlier one (the plain events list only keeps the latest 200).
   router.get("/projects/:projectId/follow-up-origins", (req, res) => {
     const origins: Record<string, { from: string; depth: number }> = {};
