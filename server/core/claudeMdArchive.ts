@@ -80,18 +80,72 @@ export function compactClaudeMd(opts: { projectsRoot: string; backupsRoot: strin
     if (now - statSync(file).mtimeMs < 120_000) continue; // just written: leave it a while
     const original = readFileSync(file, "utf-8");
     const dir = path.join(opts.backupsRoot, "claude-md", project);
-    const result = compactHistory(original, dir, opts.keep, opts.above);
-    if (!result) continue;
+    const hist = compactHistory(original, dir, opts.keep, opts.above);
+    const todo = compactTodoSection(hist?.text ?? original, dir, undefined, opts.above);
+    if (!hist && !todo) continue;
     mkdirSync(dir, { recursive: true });
-    const archive = path.join(dir, `history-${stamp(now)}.md`);
-    const header = `# ${project} の CLAUDE.md から移した古い作業履歴(${result.count}件・${new Date(now).toISOString()})\n\n`;
-    writeFileSync(archive, header + result.archived, "utf-8");
-    if (!readFileSync(archive, "utf-8").endsWith(result.archived)) continue; // could not be written back whole: leave CLAUDE.md as it is
+    const written: string[] = [];
+    let ok = true;
+    for (const [kind, label, r] of [["history", "古い作業履歴", hist], ["todo", "TODO欄の解消済みの項目と古い作業記録", todo]] as const) {
+      if (!r) continue;
+      const archive = path.join(dir, `${kind}-${stamp(now)}.md`);
+      writeFileSync(archive, `# ${project} の CLAUDE.md から移した${label}(${r.count}件・${new Date(now).toISOString()})\n\n${r.archived}`, "utf-8");
+      if (!readFileSync(archive, "utf-8").endsWith(r.archived)) ok = false; // could not be written back whole: leave CLAUDE.md as it is
+      written.push(archive);
+    }
+    if (!ok) continue;
+    const finalText = (todo ?? hist)!.text;
     copyFileSync(file, path.join(dir, `CLAUDE-before-${stamp(now)}.md`));
     const tmp = `${file}.tmp-compact`;
-    writeFileSync(tmp, result.text, "utf-8");
+    writeFileSync(tmp, finalText, "utf-8");
     renameSync(tmp, file);
-    out.push({ project, count: result.count, bytesBefore: Buffer.byteLength(original), bytesAfter: Buffer.byteLength(result.text), file: archive });
+    out.push({ project, count: (hist?.count ?? 0) + (todo?.count ?? 0), bytesBefore: Buffer.byteLength(original), bytesAfter: Buffer.byteLength(finalText), file: written.join(" , ") });
   }
   return out;
+}
+
+// ---- the "## 既知のTODO" section ----------------------------------------------------------------------------------------------
+// AIs append to the end of the file, so history-style entries ("**題名(coding・2026-11-12)**: ...") pile up under the TODO heading too,
+// next to the real open items ("（追記・日付 ...）"). Moved out, word for word: entries that say they are resolved, and history-style
+// entries beyond the newest KEEP_TODO_HISTORY. Open items are never moved.
+
+export const TODO_HEADING = "## 既知のTODO";
+export const TODO_POINTER_MARK = "（TODO欄から移した記録";
+export const KEEP_TODO_HISTORY = 20;
+
+/** An entry whose first line says it is resolved ("→ **解消（…）**", "（解消・…）"). Not "解消しない". */
+export const isResolvedEntry = (entry: string[]): boolean => /\*\*解消|[（(]解消|解消[（(]|解消済/.test(entry[0].slice(0, 160)) && !/解消(しない|できない|していない)/.test(entry[0].slice(0, 160));
+/** A history-style entry: a bold title with a role or a date in it (not an "（追記" open item). */
+export const isHistoryStyleEntry = (entry: string[]): boolean => !entry[0].startsWith("- （追記") && /^- \*\*[^\n]{0,200}?(20\d\d-\d\d-\d\d|（(?:coding|test|document|research|design|review|fix|analysis|architecture)[^）]*）)/.test(entry[0]);
+
+export function compactTodoSection(text: string, where: string, keepHistory = KEEP_TODO_HISTORY, above = COMPACT_ABOVE_BYTES): Compacted | null {
+  if (Buffer.byteLength(text) <= above) return null;
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.trimEnd() === TODO_HEADING);
+  if (start < 0) return null;
+  let end = lines.findIndex((l, i) => i > start && /^## /.test(l));
+  if (end < 0) end = lines.length;
+  const preface: string[] = [];
+  const entries: string[][] = [];
+  let pointer: string | null = null;
+  for (const l of lines.slice(start + 1, end)) {
+    if (l.startsWith("- ")) {
+      if (l.startsWith(`- ${TODO_POINTER_MARK}`)) {
+        pointer = l;
+        continue;
+      }
+      entries.push([l]);
+    } else if (entries.length === 0) preface.push(l);
+    else entries[entries.length - 1].push(l);
+  }
+  const historyIdx = entries.map((e, i) => (isHistoryStyleEntry(e) ? i : -1)).filter((i) => i >= 0);
+  const oldHistory = new Set(historyIdx.slice(0, Math.max(0, historyIdx.length - keepHistory)));
+  const move = (e: string[], i: number) => isResolvedEntry(e) || oldHistory.has(i);
+  const moved = entries.filter(move);
+  if (moved.length === 0) return null;
+  const kept = entries.filter((e, i) => !move(e, i));
+  const total = Number(pointer?.match(/移した記録(\d+)件/)?.[1] ?? 0) + moved.length;
+  const ptr = `- ${TODO_POINTER_MARK}${total}件は、解消済みの項目と古い作業記録です。アプリが別の場所に移しました(消してはいません)。全文: ${where}）`;
+  const next = [...lines.slice(0, start + 1), ...preface, ptr, ...kept.flat(), ...lines.slice(end)].join("\n");
+  return { text: next, archived: moved.map((e) => e.join("\n")).join("\n") + "\n", count: moved.length, total };
 }

@@ -64,3 +64,31 @@ describe("compactClaudeMd", () => {
     expect(compactClaudeMd({ projectsRoot: b.projects, backupsRoot: b.backups, keep: 3, above: 0 })).toEqual([]);
   });
 });
+
+import { compactTodoSection, isHistoryStyleEntry, isResolvedEntry } from "./claudeMdArchive.ts";
+
+describe("compactTodoSection", () => {
+  const hist = (n: number) => `- **作業${n}（coding・2026-11-${String(10 + n).padStart(2, "0")}）**: 内容${n}\n  続き${n}`;
+  const todoDoc = `# P\n\n## 作業履歴\n- **古い**: a\n\n## 既知のTODO\n- （追記・2026-11-09）まだ開いている件\n- （追記・2026-11-10）→ **解消（2026-11-21）**: 済んだ件\n- （追記・2026-11-11）解消しない件です\n${[1, 2, 3, 4, 5].map(hist).join("\n")}\n`;
+  it("moves resolved items and old history-style entries; open items stay; nothing is lost", () => {
+    const r = compactTodoSection(todoDoc, "W", 2, 0)!;
+    expect(r.count).toBe(1 + 3);
+    expect(r.text).toContain("まだ開いている件");
+    expect(r.text).toContain("解消しない件です");
+    expect(r.text).not.toContain("済んだ件");
+    expect(r.text).toContain(hist(5));
+    expect(r.text).not.toContain(hist(1));
+    for (const part of ["済んだ件", hist(1), hist(2), hist(3)]) expect(r.archived).toContain(part);
+    expect(r.text).toContain("## 作業履歴\n- **古い**: a");
+  });
+  it("classifies entries and keeps one pointer line across runs", () => {
+    expect(isResolvedEntry(["- （追記）解消しない"])).toBe(false);
+    expect(isResolvedEntry(["- （追記）→ **解消（日付）**: x"])).toBe(true);
+    expect(isHistoryStyleEntry(["- （追記・2026-11-09）メモ 2026-11-09"])).toBe(false);
+    const first = compactTodoSection(todoDoc, "W", 2, 0)!;
+    const again = compactTodoSection(first.text.replace(hist(5), `${hist(5)}\n${hist(6)}`), "W", 2, 0)!;
+    expect(again.text.match(/TODO欄から移した記録/g)).toHaveLength(1);
+    expect(again.total).toBe(first.total + 1);
+    expect(compactTodoSection(todoDoc, "W", 20, 1_000_000)).toBeNull();
+  });
+});
