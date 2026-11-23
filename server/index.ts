@@ -42,6 +42,7 @@ import { DepsInstaller } from "./core/depsInstaller.ts";
 import { SystemCheck } from "./core/systemCheck.ts";
 import { VersionWatch } from "./core/version.ts";
 import { archiveOldRecords } from "./core/recordsArchive.ts";
+import { compactClaudeMd } from "./core/claudeMdArchive.ts";
 import { newProjectRoot } from "./core/deliveryFolder.ts";
 
 // ROOT = where the user data lives (data/, projects/, backups/): the working directory.
@@ -244,6 +245,24 @@ const packOldRecords = () =>
   archiveOldRecords({ projectsRoot: path.join(ROOT, "projects"), backupsRoot: path.join(ROOT, "backups") })
     .then((r) => { if (r.archived.length) console.log(`[ai-orchestrator] packed old AI records: ${r.archived.join(", ")}`); })
     .catch((err) => console.warn("[ai-orchestrator] packing old AI records failed:", err instanceof Error ? err.message : err));
+// CLAUDE.md grows by an entry per task: old history entries are moved (word for word) out of it, never while a request of the project runs.
+const compactProjectNotes = () => {
+  try {
+    const done = compactClaudeMd({
+      projectsRoot: path.join(ROOT, "projects"),
+      backupsRoot: path.join(ROOT, "backups"),
+      isBusy: (projectId) => coreStore.listMissions(projectId).some((m) => m.status === "running"),
+    });
+    for (const r of done) {
+      coreStore.appendEvent({ projectId: r.project, type: "CLAUDE_MD_ARCHIVED", payload: { count: r.count, bytesBefore: r.bytesBefore, bytesAfter: r.bytesAfter, file: r.file } });
+      console.log(`[ai-orchestrator] CLAUDE.md of ${r.project}: moved ${r.count} old history entries (${r.bytesBefore} -> ${r.bytesAfter} bytes) to ${r.file}`);
+    }
+  } catch (err) {
+    console.warn("[ai-orchestrator] compacting CLAUDE.md failed:", err instanceof Error ? err.message : err);
+  }
+};
+setTimeout(compactProjectNotes, 90_000).unref();
+setInterval(compactProjectNotes, 86_400_000).unref();
 setTimeout(() => void packOldRecords(), 60_000).unref();
 setInterval(() => void packOldRecords(), 86_400_000).unref();
 // Once a week the scout asks a running web AI for new Google-sign-in AIs; only while no mission is running (it uses the browser).

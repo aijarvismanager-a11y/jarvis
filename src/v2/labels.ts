@@ -72,6 +72,8 @@ export const RUN_STATUS_LABEL: Record<string, string> = { succeeded: "成功", c
 
 /** Plain-word names for the history log's event codes; unknown codes fall back to a neutral phrase instead of showing the code. */
 export const EVENT_LABEL: Record<string, string> = {
+  CLAUDE_MD_ARCHIVED: "CLAUDE.md が長くなったため、古い作業履歴を別の場所に移しました(消していません)",
+  HUMAN_TODO_DONE: "「あなたがやること」を済ませました",
   PROJECT_CREATED: "プロジェクトを作成",
   PROJECT_IMPORTED: "フォルダを取り込み",
   HISTORY_CARRIED: "Claude Code の会話履歴を要約して引き継いだ",
