@@ -21,7 +21,7 @@ describe("missionBrief", () => {
     expect(b.notes.join("\n")).toContain("3件目");
     expect(b.notes.join("\n")).toContain("自動で作りました");
     expect(b.notes.join("\n")).toContain("人の操作");
-    expect(missionBrief(all[0], all, {}).origin).toBe("あなたが出した依頼");
+    expect(missionBrief(all[0], all, {}).origin).toBe("自動の続きではない依頼(画面から出された依頼)");
     expect(missionBrief(all[0], all, {}).notes).toEqual([]);
   });
 });

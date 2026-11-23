@@ -60,7 +60,7 @@ export function missionBrief(mission: Mission, all: Mission[], origins: Record<s
   return {
     purpose: purposeOf(mission.goal),
     finish: finishOf(mission.goal),
-    origin: origin ? "アプリが自動で作った続き" : "あなたが出した依頼",
+    origin: origin ? "アプリが自動で作った続き" : "自動の続きではない依頼(画面から出された依頼)",
     notes,
   };
 }
