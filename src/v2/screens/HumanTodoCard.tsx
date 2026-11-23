@@ -27,7 +27,7 @@ export function HumanTodoCard({ ctx }: { ctx: Ctx }) {
             {t.steps.map((s, i) => (
               <li key={i} className="text-[13.5px] leading-relaxed">
                 <span className="mr-2 font-semibold text-muted">{i + 1}.</span>
-                <span>{s.text}</span>
+                <span>{s.text.replace(/`/g, "")}</span>
                 {s.command && (
                   <div className="mt-1">
                     <Button variant="ghost" className="!px-2.5 !py-1 !text-[12px]" onClick={() => void navigator.clipboard?.writeText(s.command!).then(() => setCopied(`${t.id}:${i}`)).catch(() => undefined)}>

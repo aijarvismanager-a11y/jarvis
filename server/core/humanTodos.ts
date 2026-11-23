@@ -22,7 +22,8 @@ export type HumanTodoStep = { text: string; command: string | null };
 export type HumanTodo = { id: string; title: string; why: string; steps: HumanTodoStep[]; source: "file" | "legacy"; sourceFile: string };
 
 const idOf = (title: string): string => createHash("sha1").update(title.trim()).digest("hex").slice(0, 10);
-const commandOf = (text: string): string | null => text.match(/`([^`]{3,300})`/)?.[1] ?? null;
+// only a step that says to run it has a command to copy (an expected output or a file name in backticks is not one)
+const commandOf = (text: string): string | null => (/実行|入力して|打って|貼って走/.test(text) ? text.match(/`([^`]{3,300})`/)?.[1] ?? null : null);
 const step = (text: string): HumanTodoStep => ({ text: text.trim(), command: commandOf(text) });
 
 export function parseHumanTodoFile(text: string): HumanTodo[] {

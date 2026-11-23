@@ -15,6 +15,7 @@ describe("human todos", () => {
     expect(t.source).toBe("legacy");
     expect(t.steps.length).toBe(3);
     expect(t.steps[0].command).toBe("powershell -File installer\b.ps1");
+    expect(parseLegacyHumanTodo("**人が1回行うこと**: `a.ps1` を実行する。`OK: x.exe` と出れば成功。結果を `docs/m.md` に書く")!.steps.map((x) => x.command)).toEqual(["a.ps1", null, null]);
     expect(parseLegacyHumanTodo("人が何かする")).toBeNull();
   });
 });
