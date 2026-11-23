@@ -530,6 +530,15 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const events = types.flatMap((type) => store.listEvents({ projectId, type, limit: 1000 })).sort((a, b) => a.id - b.id);
     res.json({ events });
   });
+  // Which requests the app made by itself as the next step of an earlier one (the plain events list only keeps the latest 200).
+  router.get("/projects/:projectId/follow-up-origins", (req, res) => {
+    const origins: Record<string, { from: string; depth: number }> = {};
+    for (const e of store.listEvents({ projectId: String(req.params.projectId), type: "AUTO_FOLLOW_UP_CREATED", limit: 1000 })) {
+      const p = e.payload as { missionId?: string; newMissionId?: string; depth?: number };
+      if (p.newMissionId && p.missionId) origins[p.newMissionId] = { from: p.missionId, depth: p.depth ?? 1 };
+    }
+    res.json({ origins });
+  });
   router.get("/projects/:projectId/events", (req, res) => {
     res.json({ events: store.listEvents({ projectId: String(req.params.projectId), limit: 200 }) });
   });

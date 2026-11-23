@@ -11,6 +11,7 @@ import { DepsCard } from "./DepsCard";
 import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
 import { summaryLine } from "./summaryLine";
+import { MissionBrief } from "./MissionBriefCard";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
@@ -693,6 +694,7 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
     });
   return (
     <Card title={proposal.kind === "replan" ? "再計画の提案" : "計画の提案"}>
+      <MissionBrief ctx={ctx} mission={mission} />
       {proposal.draft.summary && <p className="mb-3 text-[15px] leading-relaxed">{proposal.draft.summary}</p>}
       <p className="mb-2 text-[13px] text-muted">作業は全部で{proposal.draft.tasks.length}つです。上から順に進みます。細かい内容は、各作業の「詳しく見る」で読めます。</p>
       <ol className="mb-3 space-y-2">
@@ -883,6 +885,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             )}
           </div>
           <GoalText goal={mission.goal} className="font-serif text-[18px] font-semibold" />
+          {!FINISHED.includes(mission.status) && <MissionBrief ctx={ctx} mission={mission} />}
           {total > 0 && (
             <div className="mt-3">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>

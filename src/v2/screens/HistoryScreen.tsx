@@ -4,6 +4,7 @@ import type { Ctx } from "../context";
 import { MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf } from "../labels";
 import { Badge, Card, Details, GoalText } from "../ui";
 import { usePoll } from "../hooks";
+import { MissionBrief } from "./MissionBriefCard";
 import type { StoredEvent } from "../types";
 
 export function HistoryScreen({ ctx }: { ctx: Ctx }) {
@@ -29,6 +30,7 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
                   {total > 0 && (m.status !== "completed" || done < total) && <span className="text-[11px] text-muted">{done}/{total}作業</span>}
                 </div>
                 <GoalText goal={m.goal} className="mt-1 text-[13px]" />
+                {m.status !== "completed" && <MissionBrief ctx={ctx} mission={m} compact />}
                 {m.status === "failed" && <p className="mt-1 text-[12px] text-[#9B2C2C]">理由: {explainFailure(missionFailureReason(events, m.id)).what}</p>}
               </li>
             );
