@@ -318,6 +318,20 @@ export async function waitUntil<T>(probe: () => Promise<T | null | false>, opts:
 
 const q = (s: string) => JSON.stringify(s);
 
+/**
+ * True when `text` is the prompt that was sent, not an answer to it. Some chat pages draw the person's own message with the same
+ * element as the AI's answer, so right after sending, "the newest answer" is the prompt itself (seen on Poe, 2026-11-24: the whole
+ * prompt was saved as the answer file). Compared with white space squeezed; only a long enough text can be called an echo.
+ */
+export function isPromptEcho(text: string, prompt: string): boolean {
+  const squeeze = (s: string) => s.replace(/\s+/g, " ").trim();
+  const t = squeeze(text);
+  const p = squeeze(prompt);
+  if (p.length < 20 || t.length < 20) return false;
+  if (t.startsWith(p.slice(0, Math.min(60, p.length)))) return true; // the whole prompt, or the start of it while the page is still drawing it
+  return t.length >= 40 && p.includes(t); // a piece of the prompt
+}
+
 /** Notices a chat page shows in place of an answer (seen once in six runs on ChatGPT, 2026-10-25). */
 /** What a page shows while it is still working on the answer (seen on Genspark: "Thinking..." followed by a cursor block). */
 const SITE_PENDING_TEXT = /^(Thinking|Generating|Searching|考え中|思考中|生成中|検索中)[\s.…。·▌█●]*$/i;
@@ -336,6 +350,8 @@ function pageSnapshotExpr(site: SiteProfile): string {
 
 class CdpChatPage implements WebChatPage {
   private baseline: { count: number; text: string } = { count: 0, text: "" };
+  /** What was typed into the box: an "answer" that is this text is the page showing our own message. */
+  private sentPrompt = "";
   /** Pictures already on the page before the prompt (a home feed, samples): they are not the answer. */
   private baselineImgs: string[] = [];
   /** Pictures a site keeps in its history page (see SiteProfile.historyUrl): never the answer, however they are shown. */
@@ -359,6 +375,7 @@ class CdpChatPage implements WebChatPage {
 
   async fillPrompt(text: string): Promise<void> {
     await this.captureBaseline();
+    this.sentPrompt = text;
     const focused = await this.cdp.evaluate<boolean>(`(() => {
       const el = ${firstMatch(this.site.inputSelector)};
       if (!el) return false;
@@ -460,6 +477,8 @@ class CdpChatPage implements WebChatPage {
         const fresh = s.count > this.baseline.count || (s.count > 0 && s.text !== this.baseline.text);
         // a site's own "could not load this answer" notice is not an answer: keep waiting (the real answer may still appear)
         if (!fresh || !s.text.trim() || SITE_ERROR_TEXT.test(s.text.trim()) || SITE_PENDING_TEXT.test(s.text.trim())) return null;
+        // the page showing the prompt we just sent is not an answer either: keep waiting for the real one
+        if (isPromptEcho(s.text, this.sentPrompt)) return null;
         if (s.text !== lastText) {
           lastText = s.text;
           since = Date.now();
