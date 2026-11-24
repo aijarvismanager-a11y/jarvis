@@ -87,7 +87,9 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
   // poe / mistral / genspark: checked live on 2026-10-25 (free accounts, logged in); the answer is read after the Enter key.
   poe: {
     inputSelector: "textarea",
-    responseSelector: '[class*="Markdown_markdownContainer"]',
+    // Poe draws the person's own message with the same Markdown element as the bot's answer: only the left-side bubble is the bot's
+    // (checked live 2026-11-24: the user's message sits in Message_rightSideMessageBubble, the answer in Message_leftSideMessageBubble)
+    responseSelector: '[class*="Message_leftSideMessageBubble"] [class*="Markdown_markdownContainer"]',
   },
   mistral: {
     inputSelector: 'div[contenteditable="true"], textarea',
