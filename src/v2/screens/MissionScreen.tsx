@@ -12,7 +12,8 @@ import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
 import { summaryLine } from "./summaryLine";
 import { MissionBrief } from "./MissionBriefCard";
-import { HumanTodoCard } from "./HumanTodoCard";
+import { HumanTodoCard, useHumanTodos } from "./HumanTodoCard";
+import { humanTurnLine } from "../humanTodoView";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
@@ -854,21 +855,27 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
     retry: (taskId) => void run(async () => { if (mission) { await api.retryTask(mission.projectId, mission.id, taskId, ""); ctx.refresh(); } }),
   });
 
+  // the AI's part is done and the person's part is left: say so first, instead of "write a new request"
+  const { todos: humanTodos, reload: reloadHumanTodos } = useHumanTodos(project?.id);
+  const turn = mission?.status === "completed" && step.tone === "done" ? humanTurnLine(humanTodos) : null;
+  const shownStep = turn ? { tone: "go" as const, title: turn.title, detail: turn.detail, action: { label: "先に新しい依頼を出す", run: () => setStarting(true) } } : step;
+
   return (
     <div className="space-y-4">
       <ClaudeCheck />
       {ctx.projectCount === 0 && !mission ? (
         <Welcome onHelp={ctx.openHelp} onImport={() => window.dispatchEvent(new Event("open-import"))} />
       ) : (
-        <NextStepBanner step={step} />
+        <NextStepBanner step={shownStep} />
       )}
+      {/* what only the person can do comes right under the "your turn" line, before the AI's ideas for what to ask next */}
+      {project && <HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} />}
       {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
       <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
       <div className="min-w-0 space-y-4">
       {/* things that wait for the person come first */}
-      {project && <HumanTodoCard ctx={ctx} />}
       {pendingPlan && <PlanReview view={view} ctx={ctx} onCancel={() => act("cancel")} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
       {myHandoffs.map((h) => <HandoffCard key={h.id} handoff={h} ctx={ctx} />)}

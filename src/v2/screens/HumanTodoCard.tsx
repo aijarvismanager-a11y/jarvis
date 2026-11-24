@@ -1,49 +1,101 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { useAction, usePoll } from "../hooks";
+import { nextOpenStep, stepHeadline } from "../humanTodoView";
 import type { HumanTodoView } from "../types";
-import { Badge, Button, Card } from "../ui";
+import { Badge, Button } from "../ui";
 
-/** Things only the person can do, with their steps: shown until the person says they are done. */
-export function HumanTodoCard({ ctx }: { ctx: Ctx }) {
-  const projectId = ctx.project?.id;
+/** The things only the person can do, polled for the project. `reload` re-reads them (after "やりました"). */
+export function useHumanTodos(projectId: string | undefined): { todos: HumanTodoView[]; reload: () => Promise<void> } {
   const [todos, setTodos] = useState<HumanTodoView[]>([]);
+  const reload = async () => setTodos(projectId ? await api.humanTodos(projectId).catch(() => []) : []);
+  usePoll(reload, 20_000, [projectId]);
+  return { todos, reload };
+}
+
+const key = (id: string) => `humanTodoTicks:${id}`;
+function loadTicks(id: string): boolean[] {
+  try { const v = JSON.parse(localStorage.getItem(key(id)) ?? "[]"); return Array.isArray(v) ? v.map(Boolean) : []; } catch { return []; }
+}
+
+function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoView; projectId: string; ctx: Ctx; reload: () => Promise<void>; primary: boolean }) {
+  const [ticks, setTicks] = useState<boolean[]>(() => loadTicks(todo.id));
+  const [open, setOpen] = useState<number | null>(null);
   const [copied, setCopied] = useState("");
   const { busy, run } = useAction(ctx.setError);
-  const load = async () => setTodos(projectId ? await api.humanTodos(projectId).catch(() => []) : []);
-  usePoll(load, 20_000, [projectId]);
-  if (!projectId || todos.length === 0) return null;
+  useEffect(() => { try { localStorage.setItem(key(todo.id), JSON.stringify(ticks)); } catch { /* the ticks are a convenience only */ } }, [ticks, todo.id]);
+  const next = nextOpenStep(ticks, todo.steps.length);
+  const doneCount = todo.steps.filter((_, i) => ticks[i]).length;
   return (
-    <>
-      {todos.map((t) => (
-        <Card key={t.id} title="あなたがやること(AIにはできない作業)">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-[15px] font-semibold">{t.title}</span>
-            {t.source === "legacy" && <Badge tone="warn">古い記録から拾いました</Badge>}
-          </div>
-          {t.why && <p className="mb-2 text-[13px] text-muted">{t.why}</p>}
-          <ol className="mb-3 space-y-2">
-            {t.steps.map((s, i) => (
-              <li key={i} className="text-[13.5px] leading-relaxed">
-                <span className="mr-2 font-semibold text-muted">{i + 1}.</span>
-                <span>{s.text.replace(/`/g, "")}</span>
-                {s.command && (
-                  <div className="mt-1">
-                    <Button variant="ghost" className="!px-2.5 !py-1 !text-[12px]" onClick={() => void navigator.clipboard?.writeText(s.command!).then(() => setCopied(`${t.id}:${i}`)).catch(() => undefined)}>
-                      {copied === `${t.id}:${i}` ? "コピーしました" : "コマンドをコピー"}
-                    </Button>
+    <div className={primary ? "" : "border-t border-borderSoft pt-3"}>
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span className={primary ? "font-serif text-[18px] font-semibold" : "text-[14px] font-semibold"}>{todo.title}</span>
+        {todo.source === "legacy" && <Badge tone="warn">古い記録から拾いました</Badge>}
+        <span className="ml-auto text-[12px] text-muted">{doneCount}/{todo.steps.length} できた</span>
+      </div>
+      {todo.why && <p className="mb-2 text-[12.5px] text-muted">{todo.why}</p>}
+      <ol className="mb-3 space-y-1.5">
+        {todo.steps.map((s, i) => {
+          const isNext = i === next;
+          const isOpen = open === i;
+          return (
+            <li key={i} className={`rounded-lg border px-3 py-2 ${isNext ? "border-accent bg-white" : "border-borderSoft bg-bg"} ${ticks[i] ? "opacity-60" : ""}`}>
+              <div className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-[#B5563A]"
+                  checked={!!ticks[i]}
+                  aria-label={`${i + 1}番めをやった`}
+                  onChange={(e) => setTicks((prev) => { const n = todo.steps.map((_, j) => !!prev[j]); n[i] = e.target.checked; return n; })}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[14px] leading-snug ${ticks[i] ? "line-through" : isNext ? "font-semibold" : ""}`}>
+                    <span className="mr-1.5 text-muted">{i + 1}.</span>{stepHeadline(s)}
+                    {isNext && <span className="ml-2 rounded bg-accent px-1.5 py-px text-[11px] font-semibold text-white">いまここ</span>}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {s.command && (
+                      <Button variant="ghost" className="!px-2.5 !py-1 !text-[12px]" onClick={() => void navigator.clipboard?.writeText(s.command!).then(() => setCopied(`${todo.id}:${i}`)).catch(() => undefined)}>
+                        {copied === `${todo.id}:${i}` ? "コピーしました" : "コマンドをコピー"}
+                      </Button>
+                    )}
+                    {s.text.replace(/`/g, "").length > stepHeadline(s).length + 2 && (
+                      <button type="button" className="text-[12px] text-accent hover:underline" onClick={() => setOpen(isOpen ? null : i)}>{isOpen ? "閉じる" : "くわしく"}</button>
+                    )}
                   </div>
-                )}
-              </li>
-            ))}
-          </ol>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button disabled={busy} onClick={() => run(async () => { await api.humanTodoDone(projectId, t.id); await load(); })}>やりました(この案内を消す)</Button>
-            <span className="text-[12px] text-muted">不要な案内も、「やりました」で消せます。書かれている場所: {t.sourceFile}</span>
-          </div>
-        </Card>
-      ))}
-    </>
+                  {isOpen && <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">{s.text.replace(/`/g, "")}</p>}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button disabled={busy} onClick={() => run(async () => { await api.humanTodoDone(projectId, todo.id); try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ } await reload(); })}>
+          {next === null ? "全部やりました(この案内を消す)" : "やりました(この案内を消す)"}
+        </Button>
+        <span className="text-[12px] text-muted">不要な案内も、「やりました」で消せます。書かれている場所: {todo.sourceFile}</span>
+      </div>
+    </div>
+  );
+}
+
+/** "いまやること": the first thing is open with a checklist; the others are folded under it. */
+export function HumanTodoCard({ ctx, todos, reload }: { ctx: Ctx; todos: HumanTodoView[]; reload: () => Promise<void> }) {
+  const projectId = ctx.project?.id;
+  if (!projectId || todos.length === 0) return null;
+  const [first, ...rest] = todos;
+  return (
+    <section className="rounded-xl border border-border bg-panel px-4 py-3.5" aria-label="いまやること">
+      <p className="mb-2 text-[11px] font-semibold tracking-wide text-accent">いまやること(AIにはできない作業)</p>
+      <TodoBlock todo={first} projectId={projectId} ctx={ctx} reload={reload} primary />
+      {rest.length > 0 && (
+        <details className="mt-3 border-t border-borderSoft pt-2">
+          <summary className="cursor-pointer text-[13px] text-muted">ほかのやること({rest.length}件)</summary>
+          <div className="mt-2 space-y-3">{rest.map((t) => <TodoBlock key={t.id} todo={t} projectId={projectId} ctx={ctx} reload={reload} primary={false} />)}</div>
+        </details>
+      )}
+    </section>
   );
 }
