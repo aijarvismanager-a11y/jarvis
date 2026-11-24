@@ -899,7 +899,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
         <NextStepBanner step={shownStep} />
       )}
       {/* what only the person can do comes right under the "your turn" line, before the AI's ideas for what to ask next */}
-      {project && <HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} />}
+      {/* a plan that waits for approval comes first: the older to-do list moves below it, folded */}
+      {project && !planWaiting && <HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} />}
       {/* the AI's ideas wait folded: "what to do now" is in one place only (the line above and the to-do list) */}
       {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && !starting && (
         <Details summary="次に頼むなら(AIのおすすめを見る)"><NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} /></Details>
@@ -1049,6 +1050,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
       </div>
       </div>
+      {project && planWaiting && humanTodos.length > 0 && <Details summary={`ほかに、あなたがやること(${humanTodos.length}件。前の依頼から残っています)`}><HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} /></Details>}
       <PromptDock status={mission?.status ?? null} planWaiting={planWaiting} busy={dockBusy} onSend={dockSend} />
     </div>
   );
