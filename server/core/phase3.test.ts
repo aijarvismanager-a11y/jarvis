@@ -81,6 +81,11 @@ describe("PermissionPolicy", () => {
     // a test-role task that must RUN dotnet build/test gets the build commands; one that only reads does not
     expect(p.restrictionsFor({ role: "test", objective: "dotnet build Gage.sln と dotnet test を実行する" }).allowedTools).toContain("Bash(dotnet test:*)");
     expect(p.restrictionsFor({ role: "test", objective: "テスト観点を一覧にする" }).allowedTools).toEqual([]);
+    // node's own test runner: writing or running tests with it needs "node" (three benchmark runs stopped on an approval for "node --test")
+    for (const objective of ["node --test で動くテストを書く。", "node:test で core.mjs のテストを書く", "vitest を実行して確認する"]) {
+      expect(p.restrictionsFor({ role: "test", objective }).allowedTools).toEqual(expect.arrayContaining(["Bash(node:*)", "Bash(dir:*)"]));
+    }
+    expect(p.restrictionsFor({ role: "research", objective: "node --test の使い方を調べる" }).allowedTools).toEqual([]);
   });
 
   it("grants a level only when the gate approves, then lifts that deny list", async () => {
