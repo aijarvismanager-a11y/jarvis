@@ -35,7 +35,7 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
         {todo.source === "legacy" && <Badge tone="warn">古い記録から拾いました</Badge>}
         <span className="ml-auto text-[12px] text-muted">{doneCount}/{todo.steps.length} できた</span>
       </div>
-      <p className="mb-2 text-[12.5px] text-muted">{kind.onlyHuman ? kind.label : todo.why ? `${todo.why}(${kind.label})` : kind.label}</p>
+      <p className="mb-2 text-[12.5px] text-muted">{kind.onlyHuman ? kind.label : todo.why ? `${todo.why} ／ ${kind.label}` : kind.label}</p>
       <ol className="mb-3 space-y-1.5">
         {todo.steps.map((s, i) => {
           const isNext = i === next;
