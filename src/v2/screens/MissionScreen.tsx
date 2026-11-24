@@ -14,6 +14,8 @@ import { summaryLine } from "./summaryLine";
 import { MissionBrief } from "./MissionBriefCard";
 import { HumanTodoCard, useHumanTodos } from "./HumanTodoCard";
 import { humanTurnLine } from "../humanTodoView";
+import { replySummary } from "../dock";
+import { PromptDock } from "./PromptDock";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
@@ -739,15 +741,15 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
   );
 }
 
-function Intake({ ctx, onStarted, initialGoal = "" }: { ctx: Ctx; onStarted: () => void; initialGoal?: string }) {
+function Intake({ ctx, onStarted, initialGoal = "", initialQuestions = null }: { ctx: Ctx; onStarted: () => void; initialGoal?: string; initialQuestions?: string[] | null }) {
   const [goal, setGoal] = useState(initialGoal);
   const [constraints, setConstraints] = useState("");
   const [tech, setTech] = useState("");
   const { busy, run } = useAction(ctx.setError);
   const lines = (s: string) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   // Before planning, a vague request gets a few questions (once); the answers are written into the request so the plan starts from them.
-  const [questions, setQuestions] = useState<string[] | null>(null);
-  const [replies, setReplies] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<string[] | null>(initialQuestions);
+  const [replies, setReplies] = useState<string[]>((initialQuestions ?? []).map(() => ""));
   const create = (text: string) =>
     run(async () => {
       const project = await ctx.ensureProject(deriveProjectName(text));
@@ -819,6 +821,8 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const { busy, run } = useAction(ctx.setError);
   const [starting, setStarting] = useState(false);
   const [draftGoal, setDraftGoal] = useState(""); // a to-do in the report can open the request form with the words already written
+  const [draftQuestions, setDraftQuestions] = useState<string[] | null>(null); // questions the pinned box already got for its text
+  const [dockBusy, setDockBusy] = useState(false);
   const writeRequest = (text: string) => { setDraftGoal(text); setStarting(true); setTimeout(() => document.getElementById("goal")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80); };
 
   // The proposal is not part of /overview, and it arrives after the mission already says "planning" (without any change to the
@@ -860,6 +864,32 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const turn = mission?.status === "completed" && step.tone === "done" ? humanTurnLine(humanTodos) : null;
   const shownStep = turn ? { tone: "go" as const, title: turn.title, detail: turn.detail, action: { label: "先に新しい依頼を出す", run: () => setStarting(true) } } : step;
 
+  const planWaiting = pendingPlan && !!view?.proposal;
+  // the pinned prompt box: one place to say what to do next. What Enter does depends on where the request stands.
+  const dockSend = async (kind: "new" | "redirect" | "plan-feedback", text: string): Promise<boolean> => {
+    setDockBusy(true);
+    try {
+      if (kind !== "new" && mission) {
+        await api.missionAction(mission.projectId, mission.id, kind === "redirect" ? "redirect" : "reject", text);
+      } else {
+        // a vague request gets a few questions first (same as the long form): they are shown in the form with the text already in it
+        const q = await api.clarifyRequest(text).catch(() => [] as string[]);
+        if (q.length) { setDraftGoal(text); setDraftQuestions(q); setStarting(true); setTimeout(() => document.getElementById("goal")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80); return true; }
+        const proj = await ctx.ensureProject(deriveProjectName(text));
+        await api.createMission(proj.id, text, [], []);
+        setStarting(false);
+      }
+      ctx.refresh();
+      return true;
+    } catch (e) {
+      ctx.setError(e instanceof Error ? e.message : String(e));
+      return false;
+    } finally {
+      setDockBusy(false);
+    }
+  };
+  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length) : null;
+
   return (
     <div className="space-y-4">
       <ClaudeCheck />
@@ -870,7 +900,10 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
       {/* what only the person can do comes right under the "your turn" line, before the AI's ideas for what to ask next */}
       {project && <HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} />}
-      {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && <NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} />}
+      {/* the AI's ideas wait folded: "what to do now" is in one place only (the line above and the to-do list) */}
+      {mission?.status === "completed" && !approvals.some((a) => a.projectId === project?.id) && !starting && (
+        <Details summary="次に頼むなら(AIのおすすめを見る)"><NextIdeasPanel ctx={ctx} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} onPick={writeRequest} /></Details>
+      )}
 
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
       <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
@@ -893,9 +926,23 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
             )}
           </div>
-          <GoalText goal={mission.goal} className="font-serif text-[18px] font-semibold" />
+          {/* one thread: your request, then the AI's reply that starts with a three-line summary */}
+          <div className="ml-auto max-w-[94%] rounded-2xl rounded-tr-sm bg-[#F3EEE6] px-3.5 py-2.5">
+            <p className="mb-0.5 text-[11px] font-semibold text-muted">あなたの依頼</p>
+            <GoalText goal={mission.goal} className="font-serif text-[16px] font-semibold" />
+          </div>
           {!FINISHED.includes(mission.status) && <MissionBrief ctx={ctx} mission={mission} />}
-          {total > 0 && (
+          {reply && (
+            <div className="mt-3 max-w-[94%] rounded-2xl rounded-tl-sm border border-borderSoft bg-white px-3.5 py-3" aria-label="AIの返答のまとめ">
+              <p className="mb-1.5 text-[11px] font-semibold text-muted">AIオーケストラの返答</p>
+              <dl className="space-y-1 text-[13.5px] leading-relaxed">
+                <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">やったこと</dt><dd>{reply.did}</dd></div>
+                <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">結果</dt><dd>{reply.result}</dd></div>
+                <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">次にやること</dt><dd>{reply.next}</dd></div>
+              </dl>
+            </div>
+          )}
+          {total > 0 && !finishedMission && (
             <div className="mt-3">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
@@ -903,10 +950,17 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
             </div>
           )}
-          {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
+          {total > 0 && !finishedMission && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} className="mt-3" />
-          {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
-          {["completed", "failed"].includes(mission.status) && <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
+          {/* the checks are details: folded under the summary */}
+          {finishedMission && (
+            <div className="mt-3">
+              <Details summary="くわしい確認(依頼どおりか・検証レポート)">
+                {mission.status === "completed" && <AcceptancePanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />}
+                <ReportPanel ctx={ctx} onNewRequest={writeRequest} projectId={mission.projectId} missionId={mission.id} status={`${mission.status}:${mission.updatedAt}`} />
+              </Details>
+            </div>
+          )}
           {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}
           {tasks.length > 0 && (
             <div className={finishedMission ? "mt-3" : ""}>
@@ -967,8 +1021,11 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
 
       {showIntake && (
         <>
-          {starting && <div><Button variant="ghost" onClick={() => setStarting(false)}>← 現在の依頼に戻る</Button></div>}
-          <Intake key={draftGoal} ctx={ctx} initialGoal={draftGoal} onStarted={() => { setDraftGoal(""); setStarting(false); ctx.refresh(); }} />
+          {starting && <div><Button variant="ghost" onClick={() => { setStarting(false); setDraftQuestions(null); }}>← 現在の依頼に戻る</Button></div>}
+          {/* the long request form stays folded: the box at the bottom is the quick way; the form is for conditions and technology */}
+          <FoldIf on={!starting} summary="条件や使う技術も指定して、くわしく依頼する">
+          <Intake key={`${draftGoal}|${draftQuestions?.join("/") ?? ""}`} ctx={ctx} initialGoal={draftGoal} initialQuestions={draftQuestions} onStarted={() => { setDraftGoal(""); setDraftQuestions(null); setStarting(false); ctx.refresh(); }} />
+          </FoldIf>
         </>
       )}
 
@@ -992,6 +1049,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       )}
       </div>
       </div>
+      <PromptDock status={mission?.status ?? null} planWaiting={planWaiting} busy={dockBusy} onSend={dockSend} />
     </div>
   );
 }
