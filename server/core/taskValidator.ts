@@ -74,6 +74,34 @@ export function scriptInsteadOfDocument(markdown: string): string | null {
   return null;
 }
 
+/**
+ * A size the task's own wording fixes for its one text deliverable: "1行だけ", "3行以内", "200文字以内".
+ * Only a limit written with だけ / のみ / 以内 / まで counts (a plain "3行で要約" is a hint, not a rule), and wording that is about each part
+ * ("各項目を1行で", "それぞれ", "ごと") is skipped: it limits the parts, not the whole file. Null when nothing is fixed.
+ */
+export function statedSizeLimit(wording: string): { lines?: number; chars?: number } | null {
+  const text = wording.replace(/\s+/g, " ");
+  const perPart = /各|それぞれ|ごと|毎/;
+  const lines: number[] = [];
+  const chars: number[] = [];
+  for (const part of text.split(/[。;]/)) {
+    if (perPart.test(part)) continue;
+    for (const m of part.matchAll(/(\d{1,4})\s*行\s*(だけ|のみ|以内|まで)/g)) lines.push(Number(m[1]));
+    for (const m of part.matchAll(/(\d{1,5})\s*(文字|字)\s*(だけ|のみ|以内|まで)/g)) chars.push(Number(m[1]));
+  }
+  if (!lines.length && !chars.length) return null;
+  return { ...(lines.length ? { lines: Math.min(...lines) } : {}), ...(chars.length ? { chars: Math.min(...chars) } : {}) };
+}
+
+/** Why `content` breaks the stated size limit, or null. Empty lines are not counted; a code fence line is not a line of content. */
+export function sizeLimitReason(content: string, limit: { lines?: number; chars?: number }): string | null {
+  const body = content.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/^(```|~~~)/.test(l));
+  if (limit.lines !== undefined && body.length > limit.lines) return `${limit.lines}行以内という指定なのに、${body.length}行あります`;
+  const chars = body.join("").length;
+  if (limit.chars !== undefined && chars > limit.chars) return `${limit.chars}文字以内という指定なのに、${chars}文字あります`;
+  return null;
+}
+
 export class ProjectValidator implements TaskValidator {
   constructor(
     private readonly projectsRoot: string,
@@ -115,6 +143,18 @@ export class ProjectValidator implements TaskValidator {
       }
     }
     if (cutOff.length) return { passed: false, level: 1, detail: `成果物が途中で終わっているようです。最後まで書き直してください。\n${cutOff.join("\n")}` };
+
+    // L1.6: a size the request itself fixed ("1行だけ") is checked on the deliverable. Only when there is exactly one text file, so it is clear what the limit is about.
+    const textFiles = wanted.filter((p) => /\.(md|txt)$/i.test(p));
+    const limit = statedSizeLimit([task.objective, ...(task.constraints ?? [])].join("。"));
+    if (limit && wanted.length === 1 && textFiles.length === 1) {
+      try {
+        const reason = sizeLimitReason(readTextIfExists(resolveInProject(this.projectsRoot, task.projectId, textFiles[0]!)) ?? "", limit);
+        if (reason) return { passed: false, level: 1, detail: `成果物「${textFiles[0]}」が、指定の大きさを守っていません: ${reason}。指定どおりに、書き直してください(指示文や前置きは書かず、ファイルの内容だけにします)。` };
+      } catch {
+        /* unreadable: the existence check above already decided */
+      }
+    }
 
     // L2: syntax of what was produced
     const toCheck = [...new Set([...wanted, ...changed])].slice(0, MAX_SYNTAX_FILES);
