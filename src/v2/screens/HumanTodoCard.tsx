@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { useAction, usePoll } from "../hooks";
-import { nextOpenStep, stepHeadline } from "../humanTodoView";
+import { delegateGoal, humanOnlyKind, nextOpenStep, stepHeadline } from "../humanTodoView";
 import type { HumanTodoView } from "../types";
 import { Badge, Button } from "../ui";
 
@@ -26,7 +26,8 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
   const { busy, run } = useAction(ctx.setError);
   useEffect(() => { try { localStorage.setItem(key(todo.id), JSON.stringify(ticks)); } catch { /* the ticks are a convenience only */ } }, [ticks, todo.id]);
   const next = nextOpenStep(ticks, todo.steps.length);
-  const doneCount = todo.steps.filter((_, i) => ticks[i]).length;
+  const kind = humanOnlyKind(todo);
+  const doneCount =todo.steps.filter((_, i) => ticks[i]).length;
   return (
     <div className={primary ? "" : "border-t border-borderSoft pt-3"}>
       <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -34,7 +35,7 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
         {todo.source === "legacy" && <Badge tone="warn">古い記録から拾いました</Badge>}
         <span className="ml-auto text-[12px] text-muted">{doneCount}/{todo.steps.length} できた</span>
       </div>
-      {todo.why && <p className="mb-2 text-[12.5px] text-muted">{todo.why}</p>}
+      <p className="mb-2 text-[12.5px] text-muted">{kind.onlyHuman ? kind.label : todo.why ? `${todo.why}(${kind.label})` : kind.label}</p>
       <ol className="mb-3 space-y-1.5">
         {todo.steps.map((s, i) => {
           const isNext = i === next;
@@ -72,7 +73,16 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
         })}
       </ol>
       <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={busy} onClick={() => run(async () => { await api.humanTodoDone(projectId, todo.id); try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ } await reload(); })}>
+        {!kind.onlyHuman && (
+          <Button disabled={busy} onClick={() => run(async () => {
+            await api.createMission(projectId, delegateGoal(todo), [], []);
+            await api.humanTodoDone(projectId, todo.id);
+            try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ }
+            await reload();
+            ctx.refresh();
+          })}>AIに任せる</Button>
+        )}
+        <Button variant={kind.onlyHuman ? undefined : "ghost"} disabled={busy} onClick={() => run(async () => { await api.humanTodoDone(projectId, todo.id); try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ } await reload(); })}>
           {next === null ? "全部やりました(この案内を消す)" : "やりました(この案内を消す)"}
         </Button>
         <span className="text-[12px] text-muted">不要な案内も、「やりました」で消せます。書かれている場所: {todo.sourceFile}</span>
@@ -88,7 +98,7 @@ export function HumanTodoCard({ ctx, todos, reload }: { ctx: Ctx; todos: HumanTo
   const [first, ...rest] = todos;
   return (
     <section className="rounded-xl border border-border bg-panel px-4 py-3.5" aria-label="いまやること">
-      <p className="mb-2 text-[11px] font-semibold tracking-wide text-accent">いまやること(AIにはできない作業)</p>
+      <p className="mb-2 text-[11px] font-semibold tracking-wide text-accent">いまやること(あなたの操作が必要)</p>
       <TodoBlock todo={first} projectId={projectId} ctx={ctx} reload={reload} primary />
       {rest.length > 0 && (
         <details className="mt-3 border-t border-borderSoft pt-2">

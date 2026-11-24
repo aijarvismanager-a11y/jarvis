@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
+import { delegateGoal, humanOnlyKind, humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
 import type { HumanTodoView } from "./types";
 
 const step = (text: string, command: string | null = null) => ({ text, command });
@@ -18,6 +18,13 @@ describe("humanTodoView", () => {
     expect(nextOpenStep([true, true, false, true], 4)).toBe(2);
     expect(nextOpenStep([true, true], 2)).toBeNull();
     expect(nextOpenStep([], 3)).toBe(0);
+  });
+  it("tells work only a person can do from work the AI could take over", () => {
+    const t = (title: string, why: string, text: string): HumanTodoView => ({ ...todo(title), why, steps: [step(text)] });
+    expect(humanOnlyKind(t("ログイン", "", "サイトにログインする")).onlyHuman).toBe(true);
+    expect(humanOnlyKind(t("確認", "画面の確認は人の目でしかできない", "実機で目視確認する")).label).toContain("人にしかできない理由");
+    expect(humanOnlyKind(t("ビルド", "", "`npm run build` を実行する")).onlyHuman).toBe(false);
+    expect(delegateGoal(t("ビルド", "", "`npm run build` を実行する"))).toContain("1. `npm run build` を実行する");
   });
   it("says whose turn it is", () => {
     expect(humanTurnLine([])).toBeNull();
