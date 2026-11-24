@@ -8,7 +8,7 @@ import { spawnRunner } from "./commandRunner.ts";
 import { openDatabase, type Db } from "./db.ts";
 import { limitStoppedTasks, saveClaudeLimitPolicy, saveClaudeQuota } from "./claudeQuota.ts";
 import { MissionEngine } from "./missionEngine.ts";
-import { PermissionPolicy, approvableCommands, classifyCommand, requestedElevatedLevels } from "./permissionPolicy.ts";
+import { PermissionPolicy, approvableCommands, classifyCommand, requestedElevatedLevels, splitShellLine } from "./permissionPolicy.ts";
 import { Store, type Task } from "./store.ts";
 import { ProjectValidator, declaredPaths } from "./taskValidator.ts";
 
@@ -429,6 +429,19 @@ describe("commands refused for lack of an approval", () => {
     expect(approvableCommands("powershell -Command Get-Date", allowed)).toEqual([]);
     expect(approvableCommands('python -c "import os"', allowed)).toEqual([]);
     expect(approvableCommands("cd x && tool.exe --go", allowed).map((a) => a.pattern)).toEqual(["Bash(tool.exe:*)"]);
+  });
+
+  it("does not cut inline scripts and here-documents into code fragments", () => {
+    const allowed = new PermissionPolicy().restrictionsFor({ role: "test" }).allowedTools;
+    // quotes: the ; inside the code is not a command separator
+    expect(splitShellLine(`node -e "const h = 1; let s = 2"`)).toEqual([`node -e "const h = 1; let s = 2"`]);
+    expect(splitShellLine("cd x && ls | wc")).toEqual(["cd x ", " ls ", " wc"]);
+    // a multi-line inline script yields no per-line approvals at all (inline code is never approvable)
+    expect(approvableCommands(`node -e "const a = 1;\n// reopen\nreturn b"`, allowed)).toEqual([]);
+    // a here-document: the body is not commands; only the script it writes is asked about, as one exact line
+    const heredoc = `cat > ui.mjs <<'EOF'\nconst h = 1; return x\nEOF\nnode ui.mjs`;
+    expect(splitShellLine(heredoc)).toHaveLength(2);
+    expect(approvableCommands(heredoc, ["Bash(cat:*)"]).map((a) => a.part)).toEqual(["node ui.mjs"]);
   });
 
   it("asks, then runs again with the program allowed for that task only", async () => {

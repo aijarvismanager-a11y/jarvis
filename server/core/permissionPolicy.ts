@@ -20,7 +20,7 @@ export const denyAll: ApprovalGate = async () => false;
 // (a headless run has nobody to approve a command, so anything not listed is refused). They run the project's own code, like npm test.
 const BUILD_TEST_TOOLS = ["Bash(dotnet build:*)", "Bash(dotnet test:*)", "Bash(dotnet restore:*)", "Bash(dotnet sln:*)", "Bash(dotnet --version:*)", "Bash(dotnet --list-sdks:*)", "Bash(cargo build:*)", "Bash(cargo test:*)", "Bash(cargo check:*)", "Bash(go build:*)", "Bash(go test:*)", "Bash(go vet:*)", "Bash(pytest:*)", "Bash(python -m pytest:*)"];
 // Read-only helpers the model chains onto a build ("cd x && dotnet build > out.txt; tail out.txt"): a chained command is checked part by part, so one unlisted part refused the whole line.
-const SHELL_HELPER_TOOLS = ["Bash(cd:*)", "Bash(echo:*)", "Bash(tail:*)", "Bash(head:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(wc:*)", "Bash(dir:*)", "Bash(type:*)", "Bash(findstr:*)", "Bash(where:*)"]; // dir/type/findstr/where: the Windows read-only helpers (a screen check asked for "dir /b" three times in one run)
+const SHELL_HELPER_TOOLS = ["Bash(cd:*)", "Bash(echo:*)", "Bash(tail:*)", "Bash(head:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(wc:*)", "Bash(dir:*)", "Bash(type:*)", "Bash(findstr:*)", "Bash(where:*)", "Bash(mkdir:*)"]; // dir/type/findstr/where: the Windows read-only helpers (a screen check asked for "dir /b" three times in one run); mkdir: makes a folder inside the project (the records step asked for "mkdir -p _ai-records/…")
 const PACKAGE_MANAGER_TOOLS = ["Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", ...BUILD_TEST_TOOLS, ...SHELL_HELPER_TOOLS, "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)"];
 const NETWORK_DENY = ["WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(Invoke-WebRequest:*)", "Bash(iwr:*)"];
 const DEPLOY_DENY = ["Bash(git push:*)", "Bash(npm publish:*)", "Bash(npx vercel:*)", "Bash(npx netlify:*)", "Bash(docker push:*)", "Bash(gh release:*)"];
@@ -55,9 +55,56 @@ function patternBody(pattern: string): string | null {
  * The programs in a refused shell line that an approval could allow, with the line part each came from.
  * A program is skipped when it is already allowed, would need a higher level (delete / deploy / network), or can run arbitrary code.
  */
+/**
+ * Splits a shell line into its commands at && || ; | and line breaks, but NOT inside quotes or a here-document body.
+ * (A plain split cut `node -e "a; b"` and `cat > f <<'EOF' … EOF` into code fragments, and each fragment asked for its own approval.)
+ */
+export function splitShellLine(line: string): string[] {
+  const parts: string[] = [];
+  let cur = "";
+  let quote: string | null = null;
+  const heredocs: string[] = [];
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (quote) {
+      cur += ch;
+      if (ch === quote && !(quote === '"' && line[i - 1] === "\\")) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; cur += ch; continue; }
+    if (ch === "<" && line[i + 1] === "<" && line[i + 2] !== "<") {
+      const m = /^<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1/.exec(line.slice(i));
+      if (m) { heredocs.push(m[2]!); cur += m[0]; i += m[0].length - 1; continue; }
+    }
+    if (ch === "\n") {
+      if (heredocs.length) {
+        // the body runs to a line that is just the delimiter; it belongs to this command
+        const delim = heredocs.shift()!;
+        const rest = line.slice(i + 1);
+        const end = new RegExp(`^[ \\t]*${delim}[ \\t]*(?=\\r?\\n|$)`, "m").exec(rest);
+        const stop = end ? i + 1 + end.index + end[0].length : line.length;
+        cur += line.slice(i, stop);
+        i = stop - 1;
+        continue;
+      }
+      parts.push(cur); cur = "";
+      continue;
+    }
+    if (ch === ";" || (ch === "&" && line[i + 1] === "&") || (ch === "|" && line[i + 1] === "|")) {
+      parts.push(cur); cur = "";
+      if (ch !== ";") i++;
+      continue;
+    }
+    if (ch === "|") { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  parts.push(cur);
+  return parts;
+}
+
 export function approvableCommands(commandLine: string, alreadyAllowed: string[]): { pattern: string; part: string }[] {
   const out: { pattern: string; part: string }[] = [];
-  for (const raw of commandLine.split(/&&|\|\||;|\|/)) {
+  for (const raw of splitShellLine(commandLine)) {
     const part = raw.trim();
     if (!part) continue;
     const program = unquote(part.split(/\s+/)[0]);
