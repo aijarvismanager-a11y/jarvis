@@ -352,6 +352,22 @@ describe("ProjectValidator", () => {
     expect(await new ProjectValidator(root, { runner: failing }).validate(makeTask({ role: "design", objective: "設計する", expectedOutputs: ["test-run.md"] }), { ok: true, artifacts: ["test-run.md"] })).toMatchObject({ passed: true, level: 2 });
   });
 
+  it("L3 runs node --test when test/*.test.mjs exist but there is no test script, and sends a failing test back", async () => {
+    write("test/a.test.mjs", "// a test");
+    write("src.js", "1");
+    const task = makeTask();
+    const calls: string[][] = [];
+    const failing: CommandRunner = async (cmd, args) => {
+      calls.push([cmd, ...args]);
+      return args[0] === "--check" ? { stdout: "", stderr: "", code: 0 } : { stdout: "100 !== 101", stderr: "", code: 1 };
+    };
+    const res = await new ProjectValidator(root, { runner: failing }).validate(task, { ok: true, artifacts: ["src.js"] });
+    expect(res).toMatchObject({ passed: false, level: 3 });
+    expect(res.detail).toContain("100 !== 101");
+    expect(calls).toContainEqual(["node", "--test", "test"]);
+    expect(await new ProjectValidator(root, { runner: noRun }).validate(task, { ok: true, artifacts: ["src.js"] })).toMatchObject({ passed: true, level: 3 });
+  });
+
   it("skips L3 when there is no real test script", async () => {
     write("package.json", JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }));
     write("a.js", "1");

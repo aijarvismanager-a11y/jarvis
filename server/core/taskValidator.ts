@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import type { ExecutionResult, TaskValidator } from "./missionEngine.ts";
@@ -237,6 +237,14 @@ export class ProjectValidator implements TaskValidator {
       if (res.code !== 0) return { passed: false, level: 3, detail: `テスト失敗(npm test, code=${res.code}):\n${`${res.stdout}\n${res.stderr}`.trim().slice(-TAIL_CHARS)}` };
       level = 3;
       detail = [detail, "npm test 合格"].filter(Boolean).join("\n");
+    } else if (this.opts.runTests !== false && (isWriteTask(task) || isTestRunTask(task)) && this.hasNodeTests(task.projectId)) {
+      // No "test" script, but test/*.test.mjs files exist (node's own runner): they are run here too, so a test the AI wrote with a wrong
+      // expectation (and left failing) is sent back instead of the task counting as done.
+      const res = await this.runner("node", ["--test", "test"], { cwd: projectDir(this.projectsRoot, task.projectId), timeoutMs: TEST_TIMEOUT_MS, env: { CI: "true" } });
+      if (res.timedOut) return { passed: false, level: 3, detail: "テストがタイムアウトしました" };
+      if (res.code !== 0) return { passed: false, level: 3, detail: `テスト失敗(node --test test, code=${res.code}):\n${`${res.stdout}\n${res.stderr}`.trim().slice(-TAIL_CHARS)}\n(失敗したテストの期待値が正しいか、実装が正しいかを確かめて直してください)` };
+      level = 3;
+      detail = [detail, "node --test 合格"].filter(Boolean).join("\n");
     }
 
     // L4: integration gate. Only for the task that wires the pieces together: run the app and open it.
@@ -253,6 +261,14 @@ export class ProjectValidator implements TaskValidator {
   private hasPage(projectId: string): boolean {
     const root = projectDir(this.projectsRoot, projectId);
     return ["index.html", "public/index.html"].some((f) => existsSync(path.join(root, f)));
+  }
+
+  private hasNodeTests(projectId: string): boolean {
+    try {
+      return readdirSync(path.join(projectDir(this.projectsRoot, projectId), "test")).some((n) => /\.test\.[cm]?js$/i.test(n));
+    } catch {
+      return false;
+    }
   }
 
   private hasTestScript(projectId: string): boolean {
