@@ -85,6 +85,7 @@ export function buildPlannerPrompt(req: PlanRequest): string {
     "各 task の expectedOutputs には、成果物の「ファイルパスだけ」を書く(例: _ai-records/auth/design.md、src/app.js)。説明文・括弧書き・「〜を含む」のような補足は書かない。文章や調査結果を残す作業にもパスを付け、ファイルを残さない作業だけ空の配列にする。",
     "作業の数や分け方は、ゴールに必要なだけ自由に計画してよい(記録のために作業を減らしたり、まとめたりしない)。ただし、調査・設計・レビュー・メモなど、AIが残す記録の置き場所だけは決まっている: すべて `_ai-records/<依頼を表す短い英数字の名前>/` の下に置き(design/ や research/ や review/ などの新しいフォルダは作らない)、1つの作業につきファイル1つにする。ユーザーが成果物として頼んだ文書とコードは、これまでどおり通常の場所に置く。",
     "記録の書き方: 長い文章にせず、次の見出しだけで短くまとめる — 「結論」「やったこと(変えたファイルとその理由)」「確認できたこと」「確認できていないこと」。入力として読んだ資料の内容を写さない(どのファイルを読んだかだけ書く)。同じ内容の記録が既にあるときは、新しく書き直さず、そのファイルを読んで使う。プロジェクトに既存の更新履歴・不具合メモ・テスト記録・計画書があるときは、新しいメモを作る代わりに、そこへ追記する。",
+    "テストは、コードを書く作業が終わるたびに、完了の確認としてシステムが自動で実行する(失敗は差し戻される)。そのため「テストを実行して結果を記録する」だけの作業は作らない。test の作業は、新しいテストを書く・テストの観点を調べるなど、書く作業があるときだけ作る。",
     "有料APIは使わない。ファイルを実際に変更したり、コマンドを実行したりせず、計画だけを返すこと。",
     "質問や確認はせず、足りない情報は妥当な仮定を置いて計画に含めること。説明文や前置きは付けず、JSONだけを出力すること。",
     `ゴール: ${req.goal}`,
@@ -129,7 +130,9 @@ export function withHistoryUpdateTask(draft: PlanDraft, existingProject = true):
     inputs: [] as string[],
     expectedOutputs: [] as string[],
     constraints: ["コードは変更しない(文書だけを変更する)", "確認できていないことは「確認できていない」と書き、確認済みとは書かない", "既存の記録の、依頼と関係のない部分は変えない"],
-    dependsOn: draft.tasks.map((t) => t.key),
+    // It does not wait for reviews: a review only reads, and the records are about what was changed and checked. Waiting for it put the
+    // slowest step (about a minute, by another AI) in front of the last one (measured: shop-change, 34 s of a 350 s run).
+    dependsOn: (draft.tasks.some((t) => t.role !== "review") ? draft.tasks.filter((t) => t.role !== "review") : draft.tasks).map((t) => t.key),
   };
   return { ...draft, tasks: [...draft.tasks, task] };
 }

@@ -213,6 +213,9 @@ describe("withHistoryUpdateTask", () => {
     const last = out.tasks[out.tasks.length - 1]!;
     expect(last.key).toBe(HISTORY_TASK_KEY);
     expect(last.dependsOn).toEqual(["t0", "t1"]);
+    // it does not wait for a review (a slow, read-only step)
+    const withReview = withHistoryUpdateTask(draft(["coding", "review", "test"]));
+    expect(withReview.tasks[withReview.tasks.length - 1]!.dependsOn).toEqual(["t0", "t2"]);
     expect(last.objective).toContain("TESTLOG");
     expect(last.expectedOutputs).toEqual([]);
     expect(withHistoryUpdateTask(out).tasks).toHaveLength(3); // not added twice
