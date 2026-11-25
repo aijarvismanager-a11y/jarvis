@@ -24,6 +24,13 @@ describe("humanTodoView", () => {
     expect(humanOnlyKind(t("ログイン", "", "サイトにログインする")).onlyHuman).toBe(true);
     expect(humanOnlyKind(t("確認", "画面の確認は人の目でしかできない", "実機で目視確認する")).label).toContain("人にしかできない理由");
     expect(humanOnlyKind(t("ビルド", "", "`npm run build` を実行する")).onlyHuman).toBe(false);
+    // found in real projects: eyes-on checks worded without "目視"
+    expect(humanOnlyKind(t("画面を確かめる", "自動テストでは画面の操作を確かめられないため、人が一度実際に操作する必要があります。", "index.html をダブルクリックして開く")).onlyHuman).toBe(true);
+    expect(humanOnlyKind(t("確認", "ブラウザでの表示は自動では確認できていないため。", "ページを開く")).onlyHuman).toBe(true);
+    expect(humanOnlyKind(t("再生確認", "AI はインストール先のアプリを起動できず、音を確かめられない。", "再生して音が出るかを聞く")).onlyHuman).toBe(true);
+    // "項目で" must not read as "目で"; plain code work stays with the AI
+    expect(humanOnlyKind(t("整理", "", "設定の項目で並べ替えるコードを直す")).onlyHuman).toBe(false);
+    expect(humanOnlyKind(t("画面のコード", "", "画面のスタイルを src/app.css に追加する")).onlyHuman).toBe(false);
     expect(delegateGoal(t("ビルド", "", "`npm run build` を実行する"))).toContain("1. `npm run build` を実行する");
   });
   it("says whose turn it is", () => {

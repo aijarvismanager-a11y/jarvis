@@ -21,7 +21,7 @@ export function stepHeadline(step: Step, max = 48): string {
 }
 
 // things the AI really must not or cannot do itself: sign-in, money, agreeing to terms, bot checks, looking with human eyes, approvals
-const HUMAN_ONLY = /ログイン|サインイン|パスワード|認証|CAPTCHA|キャプチャ|支払|決済|課金|購入|振込|規約|同意|アカウント(?:の)?(?:作成|登録)|承認|許可|目視|目で|実機|自分の(?:PC|パソコン|スマホ)|スマホ/i;
+const HUMAN_ONLY = /ログイン|サインイン|パスワード|認証|CAPTCHA|キャプチャ|支払|決済|課金|購入|振込|規約|同意|アカウント(?:の)?(?:作成|登録)|承認|許可|目視|(?<![項細種科])目で|実機|自分の(?:PC|パソコン|スマホ)|スマホ|実際に(?:操作|確か|確認|開)|実際の画面|画面(?:を|で)(?:見|確認|目)|画面の(?:確認|操作)|ブラウザで開|ダブルクリック|人が(?:一度|実際|見)|人の(?:目|手|操作)|自動では(?:確認|確か)|音が出る|人が貼る|AI\s*(?:は|が)[^。]{0,40}(?:できない|できず|行えず)/i;
 
 /** Whether the todo is work only a person can do (with the matching words) or one the AI could probably take over. */
 export function humanOnlyKind(todo: Pick<HumanTodoView, "title" | "why" | "steps">): { onlyHuman: boolean; label: string } {
