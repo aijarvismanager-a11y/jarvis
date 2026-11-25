@@ -82,7 +82,8 @@ describe("PermissionPolicy", () => {
     expect(p.restrictionsFor({ role: "test", objective: "dotnet build Gage.sln と dotnet test を実行する" }).allowedTools).toContain("Bash(dotnet test:*)");
     expect(p.restrictionsFor({ role: "test", objective: "テスト観点を一覧にする" }).allowedTools).toEqual([]);
     // node's own test runner: writing or running tests with it needs "node" (three benchmark runs stopped on an approval for "node --test")
-    for (const objective of ["node --test で動くテストを書く。", "node:test で core.mjs のテストを書く", "vitest を実行して確認する"]) {
+    // a task worded "…のテストを test/parse.test.mjs に書く" (no "テストを書く" run together) is the same kind of work (CSV benchmark: 5 approvals in one run)
+    for (const objective of ["node --test で動くテストを書く。", "node:test で core.mjs のテストを書く", "vitest を実行して確認する", "parseCsvのテストを test/parse.test.mjs に書く(引用符、改行)", "summarizeのテストを作成する", "test/cli.test.mjs の確認をする"]) {
       expect(p.restrictionsFor({ role: "test", objective }).allowedTools).toEqual(expect.arrayContaining(["Bash(node:*)", "Bash(dir:*)"]));
     }
     expect(p.restrictionsFor({ role: "research", objective: "node --test の使い方を調べる" }).allowedTools).toEqual([]);
