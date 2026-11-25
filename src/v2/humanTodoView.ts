@@ -31,10 +31,33 @@ export function humanOnlyKind(todo: Pick<HumanTodoView, "title" | "why" | "steps
   return { onlyHuman: false, label: "AIに任せられる可能性があります(ログイン・支払い・目視確認などは見当たりません)" };
 }
 
-/** The request sent to the AI when a todo is handed over to it. */
-export function delegateGoal(todo: Pick<HumanTodoView, "title" | "steps">): string {
-  const steps = todo.steps.map((s, i) => `${i + 1}. ${s.text}`).join("\n");
-  return `次の作業は、人に頼まず自分で実行・確認してください。\n\n作業: ${todo.title}\n${steps}\n\nログイン・支払い・規約への同意・目視確認など本当に人にしかできない部分だけ、理由つきで HUMAN_TODO.md に残してください。`;
+// a step that records or reports what the person saw can only be done after the person did their part
+const PERSON_RESULT = /結果|書き留め|控え|報告|伝え/;
+
+// inside a person-only todo, a step that looks, listens, photographs, opens a page or writes something down is the person's part
+const LOOKING = /確認|確かめ|見る|見て|見え|聞|撮|開き|開く|記録|書/;
+
+// commands that only start or stop something for the person to look at (a local server, a screen-capture helper): pointless without the person
+const SETS_UP_A_LOOK = /\bserve\b|-Action\s+(?:Start|Stop|Status|Shot)\b/i;
+
+/**
+ * Whether one step can be handed to the AI. Inside a todo the person has to do, only a step that runs a command is offered
+ * (real to-dos are mostly "open it and look" steps: those stay with the person), and never one that looks, records or reports.
+ */
+export function stepDelegable(step: { text: string; command: string | null }): boolean {
+  return step.command !== null && !SETS_UP_A_LOOK.test(step.command) &&!HUMAN_ONLY.test(step.text) && !PERSON_RESULT.test(step.text) && !LOOKING.test(step.text);
+}
+
+/** Indexes of the steps (not ticked yet) that the AI could take over. */
+export function delegableSteps(todo: Pick<HumanTodoView, "steps">, ticks: boolean[]): number[] {  return todo.steps.flatMap((s, i) => (!ticks[i] && stepDelegable(s) ? [i] : []));
+}
+
+/** The request sent to the AI when a todo (or only some of its steps, `only`) is handed over to it. */
+export function delegateGoal(todo: Pick<HumanTodoView, "title" | "steps">, only?: number[]): string {
+  const picked = only && only.length < todo.steps.length ? only : null;
+  const steps = todo.steps.flatMap((s, i) => (!picked || picked.includes(i) ? [`${i + 1}. ${s.text}`] : [])).join("\n");
+  const rest = picked ? "\n\nここに書いていない手順は、人が行います。手を出さず、HUMAN_TODO.md の元の案内も書き換えないでください。" : "";
+  return `次の作業は、人に頼まず自分で実行・確認してください。\n\n作業: ${todo.title}\n${steps}${rest}\n\nログイン・支払い・規約への同意・目視確認など本当に人にしかできない部分だけ、理由つきで HUMAN_TODO.md に残してください。`;
 }
 
 /** The step to do next: the first one not ticked yet (null when all are ticked). */

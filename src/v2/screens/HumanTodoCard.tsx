@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { useAction, usePoll } from "../hooks";
-import { delegateGoal, humanOnlyKind, nextOpenStep, stepHeadline } from "../humanTodoView";
+import { delegableSteps, delegateGoal, humanOnlyKind, nextOpenStep, stepHeadline } from "../humanTodoView";
 import type { HumanTodoView } from "../types";
 import { Badge, Button } from "../ui";
 
@@ -27,7 +27,9 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
   useEffect(() => { try { localStorage.setItem(key(todo.id), JSON.stringify(ticks)); } catch { /* the ticks are a convenience only */ } }, [ticks, todo.id]);
   const next = nextOpenStep(ticks, todo.steps.length);
   const kind = humanOnlyKind(todo);
-  const doneCount =todo.steps.filter((_, i) => ticks[i]).length;
+  // a todo that is person-only as a whole can still have steps the AI could do first (a build, a command): offer those alone
+  const aiSteps = kind.onlyHuman ? delegableSteps(todo, ticks) : [];
+  const doneCount = todo.steps.filter((_, i) => ticks[i]).length;
   return (
     <div className={primary ? "" : "border-t border-borderSoft pt-3"}>
       <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -54,6 +56,7 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
                   <p className={`text-[14px] leading-snug ${ticks[i] ? "line-through" : isNext ? "font-semibold" : ""}`}>
                     <span className="mr-1.5 text-muted">{i + 1}.</span>{stepHeadline(s)}
                     {isNext && <span className="ml-2 rounded bg-accent px-1.5 py-px text-[11px] font-semibold text-white">いまここ</span>}
+                    {aiSteps.includes(i) && <span className="ml-2 rounded border border-border px-1.5 py-px text-[11px] text-muted">AIにできそう</span>}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {s.command && (
@@ -81,6 +84,13 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
             await reload();
             ctx.refresh();
           })}>AIに任せる</Button>
+        )}
+        {aiSteps.length > 0 && (
+          <Button variant="ghost" disabled={busy} onClick={() => run(async () => {
+            await api.createMission(projectId, delegateGoal(todo, aiSteps), [], []);
+            setTicks((prev) => todo.steps.map((_, j) => !!prev[j] || aiSteps.includes(j)));
+            ctx.refresh();
+          })}>{`AIにできそうな手順だけ任せる(${aiSteps.length}件)`}</Button>
         )}
         <Button variant={kind.onlyHuman ? undefined : "ghost"} disabled={busy} onClick={() => run(async () => { await api.humanTodoDone(projectId, todo.id); try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ } await reload(); })}>
           {next === null ? "全部やりました(この案内を消す)" : "やりました(この案内を消す)"}

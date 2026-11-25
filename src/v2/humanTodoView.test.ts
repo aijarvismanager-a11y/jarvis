@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { delegateGoal, humanOnlyKind, humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
+import { delegableSteps, delegateGoal, humanOnlyKind, humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
 import type { HumanTodoView } from "./types";
 
 const step = (text: string, command: string | null = null) => ({ text, command });
@@ -32,6 +32,17 @@ describe("humanTodoView", () => {
     expect(humanOnlyKind(t("整理", "", "設定の項目で並べ替えるコードを直す")).onlyHuman).toBe(false);
     expect(humanOnlyKind(t("画面のコード", "", "画面のスタイルを src/app.css に追加する")).onlyHuman).toBe(false);
     expect(delegateGoal(t("ビルド", "", "`npm run build` を実行する"))).toContain("1. `npm run build` を実行する");
+  });
+  it("finds the steps of a person-only todo that the AI could do, and hands over only those", () => {
+    const todo2: HumanTodoView = { ...todo("実機確認"), steps: [step("`npx serve .` を実行する", "npx serve ."), step("index.html をブラウザで開いて目で確認する"), step("結果を docs/result.md に書く"), step("`node check.mjs` を実行して出力を確認する", "node check.mjs")] };
+    expect(delegableSteps(todo2, [])).toEqual([]);
+    expect(delegableSteps({ steps: [step("`node build.mjs` を実行する", "node build.mjs"), step("`powershell -File capture.ps1 -Action Start` を実行する", "powershell -File capture.ps1 -Action Start")] }, [])).toEqual([0]);
+    expect(delegableSteps(todo2, [true])).toEqual([]);
+    const g = delegateGoal(todo2, [0]);
+    expect(g).toContain("1. `npx serve .` を実行する");
+    expect(g).not.toContain("目で確認");
+    expect(g).toContain("人が行います");
+    expect(delegateGoal(todo2, [0, 1, 2])).toContain("目で確認");
   });
   it("says whose turn it is", () => {
     expect(humanTurnLine([])).toBeNull();
