@@ -83,7 +83,7 @@ describe("PermissionPolicy", () => {
     expect(p.restrictionsFor({ role: "test", objective: "テスト観点を一覧にする" }).allowedTools).toEqual([]);
     // node's own test runner: writing or running tests with it needs "node" (three benchmark runs stopped on an approval for "node --test")
     // a task worded "…のテストを test/parse.test.mjs に書く" (no "テストを書く" run together) is the same kind of work (CSV benchmark: 5 approvals in one run)
-    for (const objective of ["node --test で動くテストを書く。", "node:test で core.mjs のテストを書く", "vitest を実行して確認する", "parseCsvのテストを test/parse.test.mjs に書く(引用符、改行)", "summarizeのテストを作成する", "test/cli.test.mjs の確認をする"]) {
+    for (const objective of ["node --test で動くテストを書く。", "node:test で core.mjs のテストを書く", "vitest を実行して確認する", "parseCsvのテストを test/parse.test.mjs に書く(引用符、改行)", "summarizeのテストを作成する", "test/cli.test.mjs の確認をする", "新しい動きを確かめるテストを test/ に追加する。割引を網羅する"]) {
       expect(p.restrictionsFor({ role: "test", objective }).allowedTools).toEqual(expect.arrayContaining(["Bash(node:*)", "Bash(dir:*)"]));
     }
     expect(p.restrictionsFor({ role: "research", objective: "node --test の使い方を調べる" }).allowedTools).toEqual([]);
@@ -417,6 +417,8 @@ describe("commands refused for lack of an approval", () => {
     const allowed = new PermissionPolicy().restrictionsFor({ role: "coding" }).allowedTools;
     expect(approvableCommands(FFMPEG, allowed)).toEqual([{ pattern: "Bash(installer/_work/tools/ffmpeg.exe:*)", part: FFMPEG }]);
     expect(approvableCommands("cd x && dotnet build a.sln", allowed)).toEqual([]); // already allowed
+    // a loop cut into pieces is never offered for approval ("for f in a b" alone ran nothing and cost an approval in the shop benchmark)
+    expect(approvableCommands("for f in test/a.mjs test/b.mjs; do test -f $f; done", [])).toEqual([]);
     expect(approvableCommands("rm -rf x", allowed)).toEqual([]); // needs a higher level
     // a program that runs anything is allowed for that exact line only, and never with inline code
     const run = "powershell -NoProfile -ExecutionPolicy Bypass -File tests/a.ps1";

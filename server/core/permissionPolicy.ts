@@ -109,6 +109,8 @@ export function approvableCommands(commandLine: string, alreadyAllowed: string[]
     if (!part) continue;
     const program = unquote(part.split(/\s+/)[0]);
     if (!program || /[()",`$<>&]/.test(program)) continue;
+    // a piece of a shell loop/branch ("for f in a b", "do ...", "done"): it means nothing alone, so it is never approved
+    if (/^(for|while|until|if|then|else|elif|fi|do|done|case|esac|select|function|\{|\})$/i.test(program)) continue;
     if (alreadyAllowed.some((p) => { const b = patternBody(p); return b !== null && part.toLowerCase().startsWith(b.toLowerCase()); })) continue;
     const level = classifyCommand(part);
     if (level !== "WORKSPACE_WRITE" && level !== "READ") continue;
