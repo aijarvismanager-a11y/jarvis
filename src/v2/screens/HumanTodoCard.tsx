@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
 import { useAction, usePoll } from "../hooks";
-import { delegableSteps, delegateGoal, humanOnlyKind, nextOpenStep, stepHeadline } from "../humanTodoView";
+import { aiStepState, delegableSteps, delegateGoal, humanOnlyKind, nextOpenStep, shownTicks, stepHeadline } from "../humanTodoView";
 import type { HumanTodoView } from "../types";
 import { Badge, Button } from "../ui";
 
@@ -25,11 +25,13 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
   const [copied, setCopied] = useState("");
   const { busy, run } = useAction(ctx.setError);
   useEffect(() => { try { localStorage.setItem(key(todo.id), JSON.stringify(ticks)); } catch { /* the ticks are a convenience only */ } }, [ticks, todo.id]);
-  const next = nextOpenStep(ticks, todo.steps.length);
+  const shown = shownTicks(todo, ticks); // the person's ticks plus the steps the AI is doing or has done
+  const next = nextOpenStep(shown, todo.steps.length);
   const kind = humanOnlyKind(todo);
   // a todo that is person-only as a whole can still have steps the AI could do first (a build, a command): offer those alone
-  const aiSteps = kind.onlyHuman ? delegableSteps(todo, ticks) : [];
-  const doneCount = todo.steps.filter((_, i) => ticks[i]).length;
+  const aiSteps = kind.onlyHuman ? delegableSteps(todo, shown) : [];
+  const doneCount = todo.steps.filter((_, i) => shown[i]).length;
+  const failed = todo.delegation?.state === "failed";
   return (
     <div className={primary ? "" : "border-t border-borderSoft pt-3"}>
       <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -37,26 +39,34 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
         {todo.source === "legacy" && <Badge tone="warn">古い記録から拾いました</Badge>}
         <span className="ml-auto text-[12px] text-muted">{doneCount}/{todo.steps.length} できた</span>
       </div>
+      {failed && (
+        <p className="mb-2 rounded-lg border border-border bg-bg px-3 py-2 text-[12.5px] font-semibold text-accent" role="alert">
+          AIに任せましたが、完了しませんでした(依頼が失敗したか、中止されました)。手順は人が行うか、もう一度「AIに任せる」を押してください。
+        </p>
+      )}
       <p className="mb-2 text-[12.5px] text-muted">{kind.onlyHuman ? kind.label : todo.why ? `${todo.why} ／ ${kind.label}` : kind.label}</p>
       <ol className="mb-3 space-y-1.5">
         {todo.steps.map((s, i) => {
           const isNext = i === next;
           const isOpen = open === i;
           return (
-            <li key={i} className={`rounded-lg border px-3 py-2 ${isNext ? "border-accent bg-white" : "border-borderSoft bg-bg"} ${ticks[i] ? "opacity-60" : ""}`}>
+            <li key={i} className={`rounded-lg border px-3 py-2 ${isNext ? "border-accent bg-white" : "border-borderSoft bg-bg"} ${shown[i] ? "opacity-60" : ""}`}>
               <div className="flex items-start gap-2.5">
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4 shrink-0 accent-[#B5563A]"
-                  checked={!!ticks[i]}
+                  checked={shown[i]}
+                  disabled={aiStepState(todo, i) === "active" || aiStepState(todo, i) === "completed"}
                   aria-label={`${i + 1}番めをやった`}
                   onChange={(e) => setTicks((prev) => { const n = todo.steps.map((_, j) => !!prev[j]); n[i] = e.target.checked; return n; })}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[14px] leading-snug ${ticks[i] ? "line-through" : isNext ? "font-semibold" : ""}`}>
+                  <p className={`text-[14px] leading-snug ${shown[i] ? "line-through" : isNext ? "font-semibold" : ""}`}>
                     <span className="mr-1.5 text-muted">{i + 1}.</span>{stepHeadline(s)}
                     {isNext && <span className="ml-2 rounded bg-accent px-1.5 py-px text-[11px] font-semibold text-white">いまここ</span>}
-                    {aiSteps.includes(i) && <span className="ml-2 rounded border border-border px-1.5 py-px text-[11px] text-muted">AIにできそう</span>}
+                    {aiStepState(todo, i) === "active" && <span className="ml-2 rounded border border-border px-1.5 py-px text-[11px] text-muted">AIが作業中</span>}
+                    {aiStepState(todo, i) === "completed" && <span className="ml-2 rounded border border-border px-1.5 py-px text-[11px] text-muted">AIが済ませました</span>}
+                    {aiSteps.includes(i) &&<span className="ml-2 rounded border border-border px-1.5 py-px text-[11px] text-muted">AIにできそう</span>}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {s.command && (
@@ -78,17 +88,17 @@ function TodoBlock({ todo, projectId, ctx, reload, primary }: { todo: HumanTodoV
       <div className="flex flex-wrap items-center gap-2">
         {!kind.onlyHuman && (
           <Button disabled={busy} onClick={() => run(async () => {
-            await api.createMission(projectId, delegateGoal(todo), [], []);
-            await api.humanTodoDone(projectId, todo.id);
-            try { localStorage.removeItem(key(todo.id)); } catch { /* ignore */ }
+            const m = await api.createMission(projectId, delegateGoal(todo), [], []);
+            await api.humanTodoDelegate(projectId, todo.id, m.mission.id, null); // the card goes while the AI works; it comes back if the request fails
             await reload();
             ctx.refresh();
           })}>AIに任せる</Button>
         )}
         {aiSteps.length > 0 && (
           <Button variant="ghost" disabled={busy} onClick={() => run(async () => {
-            await api.createMission(projectId, delegateGoal(todo, aiSteps), [], []);
-            setTicks((prev) => todo.steps.map((_, j) => !!prev[j] || aiSteps.includes(j)));
+            const m = await api.createMission(projectId, delegateGoal(todo, aiSteps), [], []);
+            await api.humanTodoDelegate(projectId, todo.id, m.mission.id, aiSteps);
+            await reload();
             ctx.refresh();
           })}>{`AIにできそうな手順だけ任せる(${aiSteps.length}件)`}</Button>
         )}

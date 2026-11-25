@@ -75,6 +75,7 @@ export const api = {
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
   aiSelections: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/ai-selections`).then((r) => r.events),
   humanTodos: (projectId: string) => request<{ todos: HumanTodoView[] }>(`/projects/${encodeURIComponent(projectId)}/human-todos`).then((r) => r.todos),
+  humanTodoDelegate: (projectId: string, todoId: string, missionId: string, steps: number[] | null) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/human-todos/${encodeURIComponent(todoId)}/delegate`, "POST", { missionId, steps }),
   humanTodoDone: (projectId: string, todoId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/human-todos/${encodeURIComponent(todoId)}/done`, "POST", {}),
   followUpOrigins: (projectId: string) => request<{ origins: Record<string, { from: string; depth: number }> }>(`/projects/${encodeURIComponent(projectId)}/follow-up-origins`).then((r) => r.origins),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),

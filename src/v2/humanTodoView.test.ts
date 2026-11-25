@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { delegableSteps, delegateGoal, humanOnlyKind, humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
+import { aiStepState, shownTicks, delegableSteps, delegateGoal, humanOnlyKind, humanTurnLine, nextOpenStep, stepHeadline } from "./humanTodoView";
 import type { HumanTodoView } from "./types";
 
 const step = (text: string, command: string | null = null) => ({ text, command });
-const todo = (title: string): HumanTodoView => ({ id: title, title, why: "", steps: [], source: "file", sourceFile: "HUMAN_TODO.md" });
+const todo = (title: string): HumanTodoView => ({ id: title, title, why: "", steps: [], source: "file", sourceFile: "HUMAN_TODO.md", delegation: null });
 
 describe("humanTodoView", () => {
   it("shortens a step to one readable line and replaces commands", () => {
@@ -43,6 +43,17 @@ describe("humanTodoView", () => {
     expect(g).not.toContain("目で確認");
     expect(g).toContain("人が行います");
     expect(delegateGoal(todo2, [0, 1, 2])).toContain("目で確認");
+  });
+  it("shows the steps the AI is doing or finished as done, and a failed request's steps as open again", () => {
+    const base = { ...todo("T"), steps: [step("a"), step("b"), step("c")] };
+    const withD = (steps: number[] | null, state: "active" | "completed" | "failed"): HumanTodoView => ({ ...base, delegation: { missionId: "m", steps, state } });
+    expect(shownTicks(withD([0], "active"), [false, true, false])).toEqual([true, true, false]);
+    expect(shownTicks(withD([0], "completed"), [])).toEqual([true, false, false]);
+    expect(shownTicks(withD([0], "failed"), [])).toEqual([false, false, false]);
+    expect(shownTicks(withD(null, "active"), [])).toEqual([true, true, true]);
+    expect(aiStepState(withD([1], "active"), 0)).toBeNull();
+    expect(aiStepState(withD([1], "failed"), 1)).toBe("failed");
+    expect(aiStepState(base, 0)).toBeNull();
   });
   it("says whose turn it is", () => {
     expect(humanTurnLine([])).toBeNull();

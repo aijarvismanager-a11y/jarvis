@@ -9,7 +9,7 @@ import type { Store } from "./store.ts";
 import { readFileSync, rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
-import { listHumanTodos, markHumanTodoDone } from "./humanTodos.ts";
+import { listHumanTodos, markHumanTodoDone, recordHumanTodoDelegation } from "./humanTodos.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
@@ -540,6 +540,18 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     guarded((req, res) => {
       markHumanTodoDone(store, String(req.params.projectId), String(req.params.todoId));
       store.appendEvent({ projectId: String(req.params.projectId), type: "HUMAN_TODO_DONE", payload: { todoId: String(req.params.todoId) } });
+      res.json({ ok: true });
+    }),
+  );
+  // A to-do (or some of its steps) was handed to the AI as a request: remembered so that a request which fails brings it back.
+  router.post(
+    "/projects/:projectId/human-todos/:todoId/delegate",
+    guarded((req, res) => {
+      const projectId = String(req.params.projectId);
+      const body = z.object({ missionId: z.string().min(1).max(200), steps: z.array(z.number().int().min(0).max(500)).max(500).nullable().optional() }).parse(req.body ?? {});
+      if (!store.getMission(projectId, body.missionId)) return void res.status(404).json({ error: "その依頼が見つかりません" });
+      recordHumanTodoDelegation(store, projectId, String(req.params.todoId), body.missionId, body.steps ?? null);
+      store.appendEvent({ projectId, type: "HUMAN_TODO_DELEGATED", payload: { todoId: String(req.params.todoId), missionId: body.missionId, steps: body.steps ?? null } });
       res.json({ ok: true });
     }),
   );

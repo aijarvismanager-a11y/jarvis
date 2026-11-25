@@ -66,6 +66,17 @@ export function nextOpenStep(ticks: boolean[], count: number): number | null {
   return null;
 }
 
+/** How the request handed to the AI stands for step `i` (null when none covers it). A request that ended without finishing is "failed". */
+export function aiStepState(todo: Pick<HumanTodoView, "delegation">, i: number): "active" | "completed" | "failed" | null {
+  const d = todo.delegation;
+  return d && (d.steps === null || d.steps.includes(i)) ? d.state : null;
+}
+
+/** The ticks as shown: the person's own, plus the steps the AI is doing or has finished (never the ones whose request failed). */
+export function shownTicks(todo: Pick<HumanTodoView, "delegation" | "steps">, ticks: boolean[]): boolean[] {
+  return todo.steps.map((_, i) => !!ticks[i] || ["active", "completed"].includes(aiStepState(todo, i) ?? ""));
+}
+
 /** The one-line "your turn" for the top of the screen when the AI's part is finished and a person's part is left. */
 export function humanTurnLine(todos: HumanTodoView[]): { title: string; detail: string } | null {
   if (todos.length === 0) return null;

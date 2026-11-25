@@ -19,7 +19,10 @@ import { projectDir } from "./paths.ts";
 export const HUMAN_TODO_FILE = "HUMAN_TODO.md";
 
 export type HumanTodoStep = { text: string; command: string | null };
-export type HumanTodo = { id: string; title: string; why: string; steps: HumanTodoStep[]; source: "file" | "legacy"; sourceFile: string };
+/** A to-do (or some of its steps) handed to the AI as a request, and how that request stands now. */
+export type HumanTodoDelegation = { missionId: string; steps: number[] | null; state: "active" | "completed" | "failed" };
+export type HumanTodo = { id: string; title: string; why: string; steps: HumanTodoStep[]; source: "file" | "legacy"; sourceFile: string; delegation: HumanTodoDelegation | null };
+export type DelegationRecord = { todoId: string; missionId: string; steps: number[] | null; at: string };
 
 const idOf = (title: string): string => createHash("sha1").update(title.trim()).digest("hex").slice(0, 10);
 // only a step that says to run it has a command to copy (an expected output or a file name in backticks is not one)
@@ -37,7 +40,7 @@ export function parseHumanTodoFile(text: string): HumanTodo[] {
     const why = rest.map((l) => l.match(/^理由\s*[:：]\s*(.+)$/)?.[1]).find(Boolean)?.trim() ?? "";
     const steps = rest.map((l) => l.match(/^\s*(?:\d+[.)．]|[-*])\s+(.+)$/)?.[1]).filter((s): s is string => !!s).map(step);
     if (steps.length === 0) continue;
-    out.push({ id: idOf(title), title, why, steps, source: "file", sourceFile: HUMAN_TODO_FILE });
+    out.push({ id: idOf(title), title, why, steps, source: "file", sourceFile: HUMAN_TODO_FILE, delegation: null });
   }
   return out;
 }
@@ -50,7 +53,7 @@ export function parseLegacyHumanTodo(text: string, file = "CLAUDE.md"): HumanTod
   const title = last[1].replace(/（[^）]*ここで止める[^）]*）|\([^)]*ここで止める[^)]*\)/, "").trim();
   const steps = last[2].split(/。(?=[^`]*(?:`[^`]*`[^`]*)*$)/).map((s) => s.trim()).filter((s) => s.length > 3).map(step);
   if (steps.length === 0) return null;
-  return { id: idOf(`legacy:${last[1]}`), title, why: "プロジェクトの記録(CLAUDE.md)に、AIが「人が行うこと」として残していた手順です。古い記録の可能性があります。", steps, source: "legacy", sourceFile: file };
+  return { id: idOf(`legacy:${last[1]}`), title, why: "プロジェクトの記録(CLAUDE.md)に、AIが「人が行うこと」として残していた手順です。古い記録の可能性があります。", steps, source: "legacy", sourceFile: file, delegation: null };
 }
 
 const readText = (file: string): string | null => {
@@ -63,12 +66,46 @@ const readText = (file: string): string | null => {
 
 export const humanTodoDoneKey = (projectId: string) => `humanTodoDone:${projectId}`;
 
+export const humanTodoDelegationsKey = (projectId: string) => `humanTodoDelegations:${projectId}`;
+
+/** How a request handed to the AI stands: still going, finished, or ended without finishing (failed, cancelled, or gone). */
+export function delegationState(missionStatus: string | null): HumanTodoDelegation["state"] {
+  if (missionStatus === "completed") return "completed";
+  if (missionStatus === "draft" || missionStatus === "planning" || missionStatus === "running" || missionStatus === "paused") return "active";
+  return "failed";
+}
+
+/**
+ * Puts the newest hand-over of each to-do onto it. A to-do handed over whole is hidden while the AI works and once it is
+ * finished, but comes back (marked as failed) when the request ended without finishing: the person must not be left
+ * believing it was done. A to-do handed over in part always stays, with those steps marked.
+ */
+export function applyDelegations(todos: HumanTodo[], records: DelegationRecord[], statusOf: (missionId: string) => string | null): HumanTodo[] {
+  const newest = new Map<string, DelegationRecord>();
+  for (const r of records) if (!newest.get(r.todoId) || newest.get(r.todoId)!.at <= r.at) newest.set(r.todoId, r);
+  return todos.flatMap((t) => {
+    const r = newest.get(t.id);
+    if (!r) return [t];
+    const delegation: HumanTodoDelegation = { missionId: r.missionId, steps: r.steps, state: delegationState(statusOf(r.missionId)) };
+    if (r.steps === null && delegation.state !== "failed") return [];
+    return [{ ...t, delegation }];
+  });
+}
+
 export function listHumanTodos(store: Store, projectId: string): HumanTodo[] {
   const dir = projectDir(store.projectsRoot, projectId);
   const done = new Set(store.getSetting<string[]>(humanTodoDoneKey(projectId), []));
   const fromFile = parseHumanTodoFile(readText(path.join(dir, HUMAN_TODO_FILE)) ?? "");
   const legacy = fromFile.length === 0 ? parseLegacyHumanTodo(readText(path.join(dir, "CLAUDE.md")) ?? "") : null;
-  return [...fromFile, ...(legacy ? [legacy] : [])].filter((t) => !done.has(t.id));
+  const todos = [...fromFile, ...(legacy ? [legacy] : [])].filter((t) => !done.has(t.id));
+  return applyDelegations(todos, store.getSetting<DelegationRecord[]>(humanTodoDelegationsKey(projectId), []), (id) => store.getMission(projectId, id)?.status ?? null);
+}
+
+/** Remembers that a request was made for this to-do (all of it when `steps` is null), so a failed request can bring it back. */
+export function recordHumanTodoDelegation(store: Store, projectId: string, todoId: string, missionId: string, steps: number[] | null): void {
+  const key = humanTodoDelegationsKey(projectId);
+  const records = store.getSetting<DelegationRecord[]>(key, []);
+  store.setSetting(key, [...records, { todoId, missionId, steps, at: new Date().toISOString() }].slice(-200));
 }
 
 export function markHumanTodoDone(store: Store, projectId: string, id: string): void {
