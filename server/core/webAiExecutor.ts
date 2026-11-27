@@ -707,7 +707,9 @@ export class WebAiExecutor implements TaskExecutor {
    * After DOWNGRADE_AFTER_FAILURES in a row the registry level drops by one.
    */
   private recordFailure(svc: AiService, level: 2 | 3, err: unknown, task: Task): void {
-    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
+    // a question that belongs to no project (the new-AI scout) is recorded without one: an empty id breaks the foreign key
+    const projectId = task.projectId || null;
+    this.store.appendEvent({ projectId, taskId: task.id, type: "WEB_AI_AUTOMATION_FAILED", payload: { aiId: svc.id, level, message: errMsg(err), blocked: err instanceof WebAiBlockedError ? err.reason : null } });
     if (err instanceof WebAiBlockedError && err.reason === "captcha") recordBotCheck(this.store, svc.id); // rested for a while; dropped after repeated checks
     if (err instanceof WebAiBlockedError && err.reason === "limit") recordUsageLimit(this.store, svc.id, err.detail ?? ""); // the site says its allowance is used up
     if (err instanceof WebAiBlockedError || err instanceof WebAiBrowserError) return; // the person's to clear / the PC's problem: the site did not break
@@ -721,9 +723,9 @@ export class WebAiExecutor implements TaskExecutor {
     const next = Math.max(1, Math.min(current, level) - 1);
     this.store.patchAiService(svc.id, { automationLevel: next });
     this.store.setSetting(this.failureKey(svc), 0);
-    this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AUTOMATION_DOWNGRADED", payload: { aiId: svc.id, from: current, to: next } });
+    this.store.appendEvent({ projectId, taskId: task.id, type: "AUTOMATION_DOWNGRADED", payload: { aiId: svc.id, from: current, to: next } });
     this.store.addDecision({
-      projectId: task.projectId,
+      projectId,
       title: `自動降格: ${svc.name} Level ${current} → ${next}`,
       reason: `Level ${level}の自動操作が${DOWNGRADE_AFTER_FAILURES}回連続で失敗(${errMsg(err)})。サイトのUI変更の可能性があるため降格。Level 1は常に動作するため、依頼全体は止めない`,
       isAssumption: true,

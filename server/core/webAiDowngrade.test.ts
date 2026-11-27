@@ -7,6 +7,7 @@ import { Store } from "./store.ts";
 import { WebAiBrowserError, type WebChatDriver } from "./browserDriver.ts";
 import { WebAiExecutor } from "./webAiExecutor.ts";
 import { WebHandoffHub } from "./webHandoff.ts";
+import { AiScout } from "./aiScout.ts";
 
 let db: Db;
 let store: Store;
@@ -43,6 +44,17 @@ describe("lowering an AI's automation level", () => {
 
   it("still lowers it when the site itself keeps breaking", async () => {
     await askThreeTimes(failing(() => new Error("プロンプト入力欄が見つかりません")));
+    expect(store.getAiService("chatgpt")?.automationLevel).toBeLessThan(3);
+  });
+});
+
+describe("a failed question that belongs to no project (the new-AI scout)", () => {
+  it("shows why it failed instead of a database error, and still counts the break", async () => {
+    const driver = failing(() => new Error("プロンプト入力欄が見つかりません"));
+    const scout = new AiScout(store, { asker: new WebAiExecutor(store, new WebHandoffHub(store), { driver }), pick: () => store.getAiService("chatgpt") });
+    for (let i = 0; i < 3; i++) {
+      expect((await scout.run()).lastNote).toBe("ChatGPT (Web)に聞けませんでした: プロンプト入力欄が見つかりません");
+    }
     expect(store.getAiService("chatgpt")?.automationLevel).toBeLessThan(3);
   });
 });
