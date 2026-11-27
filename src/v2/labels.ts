@@ -156,13 +156,23 @@ export const goalText = (goal: string) => {
   return rest === goal.trim() ? goal : `旧アプリから引き継いだプロジェクト「${rest}」`;
 };
 
+/** Opening steps that every planned task of an existing project may carry ("…があれば先に読み、", "…を確認したうえで、"): they say nothing about the task. */
+const PREPARATION = /^(?:[^。、]{0,120}?があれば(?:まず|先に)?(?:読み|読んでから|読んだ(?:うえで|上で))、\s*)?(?:[^。]{0,80}?を(?:確認|把握)(?:した)?(?:うえで|上で)、\s*)?/;
+
+/** "…/Watcher.cs を実際に読み、監視の仕組みを…": reading the one file is the way in, the heading is what follows. */
+const READ_FIRST = /^((?:[\w.%-]+[/\\])*[\w.%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln))\s*を(?:実際に)?読み、\s*(?=\S)/i;
+const afterReading = (t: string): string =>
+  // "末尾に…" says nothing without the file it is the end of, so the name stays there
+  t.replace(READ_FIRST, (_, file: string, at: number, whole: string) => (/^(?:末尾|先頭|最後|最初)/.test(whole.slice(at + _.length)) ? `${file.split(/[/\\]/).pop()} の` : ""));
+
 /**
  * A short, readable title for a task whose objective is a long technical instruction ("capture.ps1 -Action Start で 1000x600 に起動し、…"):
  * known kinds get a plain name; otherwise the first phrase with command lines and file names taken off the front, at most 28 characters.
  * The full text stays available behind "全文を見る".
  */
 export const taskTitle = (objective: string): string => {
-  const t = objective.replace(/\s+/g, " ").trim();
+  const whole = objective.replace(/\s+/g, " ").trim();
+  const t = afterReading(whole.replace(PREPARATION, "") || whole);
   const known: [RegExp, string][] = [
     [/SHA256|Get-FileHash|ハッシュ/i, "設定ファイルの控えを取る"],
     [/-Action\s+Stop|Stop と .*Status|復元.*確認/i, "終了と設定の復元を確かめる"],
@@ -175,10 +185,11 @@ export const taskTitle = (objective: string): string => {
   for (const [re, title] of known) if (re.test(t)) return title;
   // command / file names at the front ("capture.ps1 の使い方", "tools/ui-probe(…)") are noise in a heading
   // ("src/sum.mjs に…" keeps its file name: without it the sentence starts with a bare "に")
-  const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)(?!\s*(?:に|へ|と|から))\s*(?:の|で|を)?\s*/i, "");
+  const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)(?!\s*(?:に|へ|と|から|の(?:末尾|先頭|最後|最初)|を(?:新しく|新規に)?(?:作成し|作り|更新し|編集し|修正し)、))\s*(?:の|で|を)?\s*/i, "");
   // "node:test" is one word, and a comma right after "…に" does not end the phrase
   const cut = cleaned.search(/[。：(（]|:(?=\s)|(?<![にへと]|から)、/);
-  const head = cut > 1 ? cleaned.slice(0, cut) : cleaned;
+  // "package.jsonを作成し" is the first half of a sentence: the heading ends at the action
+  const head = cut > 1 ? cleaned.slice(0, cut).replace(/(作成|更新|編集|修正)し$/, "$1") : cleaned;
   return head.length > 28 ? `${head.slice(0, 28)}…` : head;
 };
 

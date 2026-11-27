@@ -44,6 +44,21 @@ describe("taskTitle", () => {
     expect(taskTitle("プロジェクトの一番上のフォルダに CHANGELOG.md が無ければ新しく作り、あれば先頭(新しい順)に追記する")).toBe("記録に結果を書き足す");
     expect(taskTitle("今回の結果を更新履歴へ追記する")).toBe("記録に結果を書き足す");
   });
+  it("skips the opening preparation steps and names what the task does", () => {
+    expect(taskTitle("docs/status-report.md と docs/previous-conversation.md があれば先に読み、README.md の既存の内容と改行・書き方を確認したうえで、README.md の末尾に「分割確認1行目」「分割確認2行目」の2行だけを追記する")).toMatch(/^README\.md の末尾に「分割確認1行目」/);
+    expect(taskTitle("docs/status-report.md があれば先に読み、src/sum.mjs に関数 sum を作る")).toMatch(/^src\/sum\.mjs に関数 sum/);
+    expect(taskTitle("CLAUDE.md があれば先に読み、ログイン画面の入力チェックを直す")).toBe("ログイン画面の入力チェックを直す");
+    // nothing left after the opening: the text stays as it is
+    expect(taskTitle("README.md の内容を確認したうえで、")).not.toBe("");
+  });
+  it("does not title a task just 読み when it begins by reading one file", () => {
+    expect(taskTitle("README.md を読み、末尾に「分割確認1行目」「分割確認2行目」の2行が順番どおり追記されていることを確認し、結果を答える")).toMatch(/^README\.md の末尾に「分割確認1行目」/);
+    expect(taskTitle("src/Fence.App/Services/FileWatcherService.cs を実際に読み、ファイル監視の仕組み(監視対象など)を10行程度の設計メモにまとめる")).toBe("ファイル監視の仕組み");
+  });
+  it("keeps the file name when making that file is the first thing the task does", () => {
+    expect(taskTitle("package.jsonを作成し、`npm test`でNode.js組み込みのテストランナーを実行するtestスクリプトを定義する")).toBe("package.jsonを作成");
+    expect(taskTitle("package.json を新しく作り、scripts を設定する")).toBe("package.json を新しく作り");
+  });
   it("otherwise uses the first phrase without command names, cut at 28 characters", () => {
     expect(taskTitle("capture.ps1 の使い方(Start/Shot/Click/Keys/Stop/Status/Windows)、確認用素材")).toBe("使い方");
     expect(taskTitle("src/sum.mjs に、数値の配列を合計する関数 sum を作る")).toMatch(/^src\/sum\.mjs に、数値の配列/);
