@@ -3,6 +3,20 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.98",
+    date: "2026-11-28",
+    items: [
+      "作業の見出しが「読み」や「作成し」だけになる不具合を直しました(読むファイルの後の内容や、作るファイル名が分かる見出しにします)。",
+    ],
+  },
+  {
+    version: "1.5.97",
+    date: "2026-11-28",
+    items: [
+      "作業の見出しが「docs/status-report.md と docs…」のようにファイル名だけになる不具合を直しました(書き出しの準備の一文を飛ばして、作業の中身を見出しにします)。",
+    ],
+  },
+  {
     version: "1.5.96",
     date: "2026-11-28",
     items: [
