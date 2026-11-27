@@ -11,6 +11,7 @@ import { aiFamily, reviewTask, type AiReviewer } from "./aiReview.ts";
 import { clearAllResting, readAllResting, restingList, saveAllResting } from "./allResting.ts";
 import { Scheduler } from "./scheduler.ts";
 import { CHECK_ROLES, applyPlan, refreshReadiness, validatePlan, type PlanDraft } from "./taskGraph.ts";
+import { isSmallRequest, singleTaskDraft } from "./smallRequest.ts";
 import { MAX_RETRIES, TERMINAL_TASK_STATUSES, retryTask, transitionMission, transitionTask } from "./taskStateMachine.ts";
 
 // Mission Engine: plan (Planner) -> user approval gate -> run the Task Graph
@@ -50,7 +51,7 @@ export interface TaskValidator {
 /** This many failures in a row with the same reason stop the automatic retries (the limit of MAX_RETRIES stays for different reasons). */
 export const SAME_FAILURE_LIMIT = 3;
 
-export type PlanProposal ={ kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
+export type PlanProposal ={ kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string; /** judged small: one task, made without the planner */ single?: boolean };
 
 const proposalKey = (missionId: string) => `plan:${missionId}`;
 
@@ -66,7 +67,7 @@ export class MissionEngine {
 
   constructor(
     private readonly store: Store,
-    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; /** AI B Review (spec §57): a second AI checks important tasks */ aiReview?: { reviewer: AiReviewer }; maxParallel?: number; lockTtlMs?: number; /** called once when a request has finished (e.g. to reflect it into the original folder) */ onMissionCompleted?: (projectId: string, missionId: string) => void | Promise<void> },
+    private readonly deps: { planner: Planner; executor: TaskExecutor; validator?: TaskValidator; broker?: AIBroker; /** AI B Review (spec §57): a second AI checks important tasks */ aiReview?: { reviewer: AiReviewer }; /** a small request is proposed as ONE task without asking the planner (see smallRequest.ts) */ smallRequests?: boolean; maxParallel?: number; lockTtlMs?: number; /** called once when a request has finished (e.g. to reflect it into the original folder) */ onMissionCompleted?: (projectId: string, missionId: string) => void | Promise<void> },
   ) {
     this.scheduler = new Scheduler(store, { maxParallel: deps.maxParallel, lockTtlMs: deps.lockTtlMs });
   }
@@ -126,7 +127,7 @@ export class MissionEngine {
     return this.store.getSetting<PlanProposal | null>(proposalKey(missionId), null);
   }
 
-  private async propose(projectId: string, missionId: string, kind: PlanProposal["kind"], feedback?: string): Promise<PlanProposal> {
+  private async propose(projectId: string, missionId: string, kind: PlanProposal["kind"], feedback?: string, split = false): Promise<PlanProposal> {
     const mission = this.store.getMission(projectId, missionId)!;
     const tasks = this.store.listTasks(projectId).filter((t) => t.missionId === missionId);
     mkdirSync(projectDir(this.store.projectsRoot, projectId), { recursive: true }); // the planner runs from here
@@ -142,10 +143,12 @@ export class MissionEngine {
       request.completed = tasks.filter((t) => t.status === "completed").map((t) => ({ role: t.role, objective: t.objective }));
       request.failed = tasks.filter((t) => t.status === "failed" || t.status === "blocked").map((t) => ({ role: t.role, objective: t.objective }));
     }
-    const draft = await this.deps.planner.plan(request);
+    // a first plan only: a change request, a split request or a replan always goes to the planner
+    const single = !!this.deps.smallRequests && kind === "initial" && !feedback && !split && isSmallRequest(mission.goal, mission.constraints);
+    const draft = single ? singleTaskDraft(mission.goal) : await this.deps.planner.plan(request);
     const problems = validatePlan(draft);
     if (problems.length) throw new Error(`計画が不正です: ${problems.join(" / ")}`);
-    const proposal: PlanProposal = { kind, draft, feedback, createdAt: new Date().toISOString() };
+    const proposal: PlanProposal = { kind, draft, feedback, createdAt: new Date().toISOString(), ...(single ? { single } : {}) };
     this.store.setSetting(proposalKey(missionId), proposal);
     this.store.appendEvent({ projectId, type: "PLAN_PROPOSED", payload: { missionId, kind, tasks: draft.tasks.length } });
     return proposal;
@@ -178,6 +181,14 @@ export class MissionEngine {
     if (mission.status !== "planning" || !prev) throw new Error("承認待ちの計画がありません");
     this.store.appendEvent({ projectId, type: "PLAN_REJECTED", payload: { missionId, feedback } });
     return this.propose(projectId, missionId, prev.kind, feedback);
+  }
+
+  /** The person does not want the one-task plan: ask the planner to split the request. The one-task plan stays until the new one arrives. */
+  async splitPlan(projectId: string, missionId: string): Promise<PlanProposal> {
+    const mission = this.requireMission(projectId, missionId);
+    const prev = this.getProposal(missionId);
+    if (mission.status !== "planning" || !prev?.single) throw new Error("分けて計画し直せる計画がありません");
+    return this.propose(projectId, missionId, prev.kind, undefined, true);
   }
 
   /**
@@ -401,7 +412,10 @@ export class MissionEngine {
         const alone = select(failedAis);
         if (alone.selected) {
           decision = alone;
-          this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_REVIEW_BY_AUTHOR", payload: { aiId: alone.selected.aiId, reason: "ほかのAIがすべて使えなかったため" } });
+          // A task that only the code executor can do (running tests, looking at the app) was never open to other AIs: saying "the others
+          // could not be used" for it was untrue, and the report counted it as a missing second opinion.
+          const codeOnly = !!executor.adapterTypesFor && !!executor.adapterTypes && executor.adapterTypesFor(task).length < executor.adapterTypes.length;
+          if (!codeOnly) this.store.appendEvent({ projectId: task.projectId, taskId: task.id, type: "AI_REVIEW_BY_AUTHOR", payload: { aiId: alone.selected.aiId, reason: "ほかのAIがすべて使えなかったため" } });
         }
       }
       const byId = new Map(decision.ranked.map((c) => [c.aiId, c]));

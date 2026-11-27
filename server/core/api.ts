@@ -1118,6 +1118,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!b.feedback) throw new Error("修正してほしい点(feedback)を入力してください");
     return engine.rejectPlan(p, m, b.feedback);
   });
+  action("split", (p, m) => engine.splitPlan(p, m));
   action("replan", (p, m, b) => engine.replan(p, m, b.feedback || undefined));
   action("redirect", (p, m, b) => {
     if (!b.feedback) throw new Error("新しい方針を入力してください");

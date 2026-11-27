@@ -86,7 +86,7 @@ export const api = {
   missionView: (projectId: string, missionId: string) => request<MissionView>(mission(projectId, missionId)),
   createMission: (projectId: string, goal: string, constraints: string[], technologyPreferences: string[]) =>
     request<MissionView>(`/projects/${encodeURIComponent(projectId)}/missions`, "POST", { goal, constraints, technologyPreferences }),
-  missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "replan" | "redirect" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
+  missionAction: (projectId: string, missionId: string, action: "approve" | "reject" | "split" | "replan" | "redirect" | "pause" | "cancel" | "run" | "resume", feedback = "") =>
     request<MissionView>(`${mission(projectId, missionId)}/${action}`, "POST", { feedback }),
   approveAndRun: (projectId: string, missionId: string) => request<MissionView>(`${mission(projectId, missionId)}/approve`, "POST", { run: true }),
 

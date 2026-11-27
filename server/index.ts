@@ -149,6 +149,7 @@ const engine = new MissionEngine(coreStore, {
   planner: new ClaudeCodePlanner({ cwd: ROOT }),
   executor,
   aiReview: { reviewer: webExecutor },
+  smallRequests: true,
   validator: new ProjectValidator(path.join(ROOT, "projects"), { smoke: new AppSmokeTester(), snapshots, runsOnWebChat: (task) => { const svc = task.selectedAi ? coreStore.getAiService(task.selectedAi) : null; return !!svc && (WEB_ADAPTER_TYPES as readonly string[]).includes(svc.adapterType) && !needsCodeExecutor(task); } }),
   broker: new AIBroker(coreStore),
   onMissionCompleted: (projectId, missionId) => {

@@ -48,4 +48,21 @@ describe("a review when no other AI is left", () => {
     expect(evs.some((e) => e.type === "AI_REVIEW_BY_AUTHOR")).toBe(true);
     expect(buildMissionReport(store, "p1", mission.id).notes.join("\n")).toContain("書いたAI自身がレビューした");
   });
+
+  it("is not reported for a task only the code executor can do (running tests): no other AI was ever possible", async () => {
+    const store = new Store(db, root);
+    store.createProject({ id: "p2", name: "p" });
+    store.upsertAiService({ id: "claude-code", name: "Claude Code (CLI)", accessMode: "cli", adapterType: "claude-code", automationLevel: 3, freeStatus: "free_tier" });
+    store.setCapabilities("claude-code", { coding: 5, testing: 4 });
+    const engine = new MissionEngine(store, {
+      planner: { name: "x", plan: async () => ({ summary: "", tasks: [] }) },
+      executor: { name: "fake", adapterTypes: ["claude-code", "web"] as never, adapterTypesFor: () => ["claude-code"] as never, execute: async (_t: Task) => ({ ok: true, artifacts: [] }) },
+      broker: new AIBroker(store),
+    });
+    const task = (key: string, role: string, dependsOn: string[]) => ({ key, role, objective: "x", inputs: [], expectedOutputs: [], constraints: [], dependsOn });
+    const mission = engine.startFixedMission({ projectId: "p2", goal: "g", draft: { summary: "", tasks: [task("a", "coding", []), task("b", "test", ["a"])] } });
+    await engine.run("p2", mission.id);
+    expect(store.getMission("p2", mission.id)?.status).toBe("completed");
+    expect(store.listEvents({ projectId: "p2", limit: 1000 }).some((e) => e.type === "AI_REVIEW_BY_AUTHOR")).toBe(false);
+  });
 });

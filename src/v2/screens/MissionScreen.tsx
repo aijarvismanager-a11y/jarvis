@@ -689,10 +689,10 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
   const { busy, run } = useAction(ctx.setError);
   const { mission, proposal } = view;
   if (!proposal) return <Card title="計画">AI が計画を作成中です…できあがると、この画面が自動で切り替わります。</Card>;
-  const act = (action: "approve" | "reject") =>
+  const act = (action: "approve" | "reject" | "split") =>
     run(async () => {
       if (action === "approve") await api.approveAndRun(mission.projectId, mission.id);
-      else await api.missionAction(mission.projectId, mission.id, "reject", feedback);
+      else await api.missionAction(mission.projectId, mission.id, action, action === "reject" ? feedback : "");
       setFeedback("");
       ctx.refresh();
     });
@@ -700,7 +700,7 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
     <Card title={proposal.kind === "replan" ? "再計画の提案" : "計画の提案"}>
       <MissionBrief ctx={ctx} mission={mission} />
       {proposal.draft.summary && <p className="mb-3 text-[15px] leading-relaxed">{proposal.draft.summary}</p>}
-      <p className="mb-2 text-[13px] text-muted">作業は全部で{proposal.draft.tasks.length}つです。上から順に進みます。細かい内容は、各作業の「詳しく見る」で読めます。</p>
+      <p className="mb-2 text-[13px] text-muted">{proposal.single ? "依頼の全体を、1つの作業で進めます。内容は「詳しく見る」で読めます。" : `作業は全部で${proposal.draft.tasks.length}つです。上から順に進みます。細かい内容は、各作業の「詳しく見る」で読めます。`}</p>
       <ol className="mb-3 space-y-2">
         {proposal.draft.tasks.map((t, i) => {
           const { head, long } = shortGoal(t.objective);
@@ -729,6 +729,7 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
       <p className="mb-2 text-[13px] font-semibold">この計画で合っていますか?</p>
       <div className="mb-3 flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => act("approve")}>この計画で開始</Button>
+        {proposal.single && <Button variant="ghost" disabled={busy} onClick={() => act("split")}>{busy ? "処理中…" : "作業を分けて計画し直す(1〜2分)"}</Button>}
         <Button variant="danger" disabled={busy} onClick={onCancel}>この依頼をやめる</Button>
       </div>
       {/* the choice that is usually taken comes first; the change request stays one press away */}

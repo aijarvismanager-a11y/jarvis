@@ -96,6 +96,23 @@ describe("planning and the approval gate", () => {
     expect(tasksOf(mission.id)).toHaveLength(0);
   });
 
+  it("proposes one task for a small request without the planner, and splits it only when asked", async () => {
+    const planner = new ScriptedPlanner([plan(t("a"), t("b"))]);
+    const engine = new MissionEngine(store, { planner, executor: new FakeExecutor(), smallRequests: true });
+    const { mission, proposal } = await engine.createMission({ projectId: pid, goal: "src/a.js の丸めを直して" });
+    expect(proposal.single).toBe(true);
+    expect(proposal.draft.tasks).toHaveLength(1);
+    expect(planner.requests).toHaveLength(0);
+    const split = await engine.splitPlan(pid, mission.id);
+    expect(split.single).toBeUndefined();
+    expect(split.draft.tasks).toHaveLength(2);
+    await expect(engine.splitPlan(pid, mission.id)).rejects.toThrow(/分けて/);
+    // a change request goes to the planner too
+    const other = await engine.createMission({ projectId: pid, goal: "src/b.js を直して" });
+    await engine.rejectPlan(pid, other.mission.id, "テストを厚く");
+    expect(planner.requests).toHaveLength(2);
+  });
+
   it("marks the mission failed when the planner throws", async () => {
     const planner: Planner = { name: "bad", plan: async () => { throw new Error("boom"); } };
     const engine = new MissionEngine(store, { planner, executor: new FakeExecutor() });

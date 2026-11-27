@@ -59,7 +59,7 @@ export type PlanDraft = {
   summary: string;
   tasks: { key: string; role: string; objective: string; expectedOutputs: string[]; dependsOn: string[] }[];
 };
-export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string };
+export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string; single?: boolean };
 export type MissionView = { mission: Mission; tasks: Task[]; proposal: Proposal | null };
 export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[]; taskNotes?: Record<string, string> };
 export type Preview = {
