@@ -279,8 +279,8 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         )}
       </Card>
 
-      <ScoutCard setError={setError} />
-      <RosterCard setError={setError} />
+      <ScoutCard setError={setError} onChanged={done} />
+      <RosterCard setError={setError} onChanged={done} />
 
       {web?.available && web.browserAvailable && (
         <Details summary="ログインがうまくいかないとき">

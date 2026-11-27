@@ -7,7 +7,7 @@ import { formatTime } from "../labels";
 const KIND_LABEL: Record<string, string> = { promoted: "自動にしました", removed: "名簿から外しました", restored: "名簿に戻しました", back: "サイトが戻りました", promote_failed: "自動にできませんでした" };
 
 /** What the weekly roster check changed (AIs raised to automatic, AIs taken out) and the way back for each removal. */
-export function RosterCard({ setError }: { setError: (m: string) => void }) {
+export function RosterCard({ setError, onChanged }: { setError: (m: string) => void; /** the list of AIs changed: the rest of the screen reads it again */ onChanged: () => void }) {
   const [state, setState] = useState<RosterState | null>(null);
   const { busy, run } = useAction(setError);
   const refresh = usePoll(async () => setState(await api.roster()), state?.running ? 4000 : 30000, [state?.running]);
@@ -24,7 +24,7 @@ export function RosterCard({ setError }: { setError: (m: string) => void }) {
             <li key={r.service.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
               <span className="font-semibold">{r.service.name}</span> {r.backAlive && <Badge tone="ok">サイトが戻っています</Badge>}
               <p className="mt-0.5 text-[12px] text-muted">{formatTime(r.removedAt)}に外しました: {r.reason}</p>
-              <Button className="mt-1" variant="ghost" disabled={busy} onClick={() => run(async () => setState((await api.rosterRestore(r.service.id)).state))}>戻す</Button>
+              <Button className="mt-1" variant="ghost" disabled={busy} onClick={() => run(async () => { setState((await api.rosterRestore(r.service.id)).state); onChanged(); })}>戻す</Button>
             </li>
           ))}
         </ul>
