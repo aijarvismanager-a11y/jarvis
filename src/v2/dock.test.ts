@@ -14,6 +14,11 @@ describe("dockMode", () => {
     expect(dockMode("completed", false).kind).toBe("new");
     expect(dockMode(null, false).confirm).toBeUndefined();
   });
+  it("points at a way to give conditions that is on the screen", () => {
+    expect(dockMode(null, false).hint).toContain("くわしく依頼する");
+    expect(dockMode("cancelled", false).hint).toContain("くわしく依頼する");
+    expect(dockMode("completed", false).hint).toContain("「新しい依頼」");
+  });
 });
 
 describe("isSendKey", () => {

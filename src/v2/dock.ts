@@ -23,7 +23,10 @@ export function dockMode(status: string | null, planWaiting: boolean): DockMode 
       confirm: "いま実行中の作業を止めて、新しい計画を作ります。よろしいですか?(終わった作業は残ります)",
     };
   }
-  return { kind: "new", placeholder: "次に頼みたいことを書いて Enter", hint: "Enter で送信 / Shift+Enter で改行。条件を細かく指定したいときは、画面上の「新しい依頼」から", button: "送る" };
+  // the place where conditions can be given differs: a finished request has a "新しい依頼" button, otherwise the folded form is on screen
+  const finished = status === "completed" || status === "failed";
+  const where = finished ? "「新しい依頼」" : "「条件や使う技術も指定して、くわしく依頼する」";
+  return { kind: "new", placeholder: status ? "次に頼みたいことを書いて Enter" : "作りたいものを書いて Enter", hint: `Enter で送信 / Shift+Enter で改行。条件の指定は、上の${where}から`, button: "送る" };
 }
 
 /** Enter sends; Shift+Enter makes a new line; Enter while a Japanese conversion is still open (IME) only confirms the conversion. */

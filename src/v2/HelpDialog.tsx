@@ -42,7 +42,7 @@ export function HelpDialog({ onClose, version }: { onClose: () => void; version:
 
       <h3 className="mt-4 text-[14px] font-semibold">基本の流れ</h3>
       <ol className="mt-1 list-decimal space-y-1 pl-5 text-[13px]">
-        <li><b>ホーム</b>で、作りたいものを書いて「開発を開始」を押す。</li>
+        <li><b>ホーム</b>で、いちばん下の入力欄に作りたいものを書いて「送る」を押す。</li>
         <li>AI が出した<b>計画</b>を読み、よければ「この計画で開始」を押す(直したいときは書いて「修正して再提案」)。</li>
         <li>AI が作業します。画面の一番上の「次にやること」を見れば、いま自分がやることが分かります。</li>
         <li>終わったら「動かして確認」で試す。続きは「新しい依頼」で頼む。</li>

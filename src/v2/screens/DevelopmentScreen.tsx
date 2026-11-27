@@ -104,7 +104,7 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
   usePoll(async () => setSelections(missionProject ? await api.aiSelections(missionProject) : []), 6000, [missionProject, ctx.mission?.id]);
   const tasks = ctx.mission ? ctx.overview.tasks.filter((t) => t.missionId === ctx.mission!.id).sort((a, b) => a.position - b.position) : [];
   const names = new Map(tasks.map((t) => [t.id, roleLabel(t.role)]));
-  if (!ctx.mission) return <Card title="進み具合">まだ依頼がありません。「ホーム」で作りたいものを書いて「開発を開始」を押すと、ここに進み具合が出ます。</Card>;
+  if (!ctx.mission) return <Card title="進み具合">まだ依頼がありません。「ホーム」の下の入力欄に作りたいものを書いて「送る」を押すと、ここに進み具合が出ます。</Card>;
   const { done, total, percent } = progressOf(tasks);
   return (
     <div className="space-y-4">

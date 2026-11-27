@@ -47,7 +47,7 @@ export type Step = { tone: "go" | "wait" | "bad" | "done"; title: string; detail
 export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, planReady = true, resting = false, nowMs = Date.now(), failed?: FailedActions): Step {
   const { project, mission, approvals, handoffs } = ctx;
   const mine = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project?.id);
-  if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "下の入力欄に、作りたいものを普通の言葉で書いて「開発を開始」を押します。まず AI が計画を立てます(数十秒かかります)。" };
+  if (!project || !mission) return { tone: "go", title: "作りたいものを書いてください", detail: "いちばん下の入力欄に、作りたいものを普通の言葉で書いて「送る」を押します。AI が確認の質問をすることがあり、そのあと計画を立てます。" };
   if (mine(approvals).length > 0) {
     // an approval for one command (the AI was refused it) reads differently from one for a deletion / publishing
     const command = mine(approvals).some((a) => a.command);

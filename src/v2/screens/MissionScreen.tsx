@@ -866,7 +866,11 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   // the AI's part is done and the person's part is left: say so first, instead of "write a new request"
   const { todos: humanTodos, reload: reloadHumanTodos } = useHumanTodos(project?.id);
   const turn = mission?.status === "completed" && step.tone === "done" ? humanTurnLine(humanTodos) : null;
-  const shownStep = turn ? { tone: "go" as const, title: turn.title, detail: turn.detail, action: { label: "先に新しい依頼を出す", run: () => setStarting(true) } } : step;
+  // questions about the text from the pinned box are on screen: answering them is what to do now
+  const asking = starting && !!draftQuestions?.length;
+  const shownStep = asking
+    ? { tone: "go" as const, title: "確認の質問に答えてください", detail: "答えたいものだけ書いて「この答えで開発を開始」を押します。答えずに進めるときは「確認せず、このまま開始」を押します。" }
+    : turn ? { tone: "go" as const, title: turn.title, detail: turn.detail, action: { label: "先に新しい依頼を出す", run: () => setStarting(true) } } : step;
 
   const planWaiting = pendingPlan && !!view?.proposal;
   // the pinned prompt box: one place to say what to do next. What Enter does depends on where the request stands.
@@ -1044,7 +1048,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
 
       {showIntake && (
         <>
-          {starting && <div><Button variant="ghost" onClick={() => { setStarting(false); setDraftQuestions(null); }}>← 現在の依頼に戻る</Button></div>}
+          {starting && <div><Button variant="ghost" onClick={() => { setStarting(false); setDraftQuestions(null); }}>{mission ? "← 現在の依頼に戻る" : "← 最初の画面に戻る"}</Button></div>}
           {/* the long request form stays folded: the box at the bottom is the quick way; the form is for conditions and technology */}
           <FoldIf on={!starting} summary="条件や使う技術も指定して、くわしく依頼する">
           <Intake key={`${draftGoal}|${draftQuestions?.join("/") ?? ""}`} ctx={ctx} initialGoal={draftGoal} initialQuestions={draftQuestions} onStarted={() => { setDraftGoal(""); setDraftQuestions(null); setStarting(false); ctx.refresh(); }} />

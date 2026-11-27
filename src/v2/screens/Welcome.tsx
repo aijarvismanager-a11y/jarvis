@@ -46,7 +46,7 @@ export function Welcome({ onHelp, onImport }: { onHelp: () => void; onImport: ()
     <Card>
       <h2 className="font-serif text-[20px] font-semibold">AIオーケストラへようこそ</h2>
       <p className="mt-1 text-[13px] text-[#4a473f]">作りたいものを伝えると、AI が計画を立てて、あなたのパソコン上で作ってくれるアプリです。はじめ方は2つあります。</p>
-      <h3 className="mt-3 text-[13px] font-semibold">A. 新しく作る(下の「何を作りますか?」に書く)</h3>
+      <h3 className="mt-3 text-[13px] font-semibold">A. 新しく作る(いちばん下の入力欄に書いて「送る」)</h3>
       <ol className="mt-1.5 grid gap-x-4 gap-y-1 text-[12.5px] sm:grid-cols-3">
         {STEPS.map((s) => (
           <li key={s.n}>
