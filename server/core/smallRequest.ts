@@ -1,3 +1,4 @@
+import { keepsOtherFiles, withoutRecords } from "./fileScope.ts";
 import type { PlanDraft } from "./taskGraph.ts";
 
 // A small change to a few named files is done by ONE task, without asking the planner. Measured on benchmark/shop-change: splitting such a
@@ -21,14 +22,16 @@ export function isSmallRequest(goal: string, constraints: string[] = []): boolea
   return files.size >= 1 && files.size <= SMALL_MAX_FILES;
 }
 
-export function singleTaskDraft(goal: string): PlanDraft {
-  return {
+export function singleTaskDraft(goal: string, constraints: string[] = []): PlanDraft {
+  const only = keepsOtherFiles([goal, ...constraints]);
+  const history = only ? "" : "プロジェクトに更新履歴(CHANGELOG など)が既にあれば追記する。";
+  const draft: PlanDraft = {
     summary: "小さい依頼と判断したため、分割せず1つの作業で仕上げます(早く終わります)。",
     tasks: [
       {
         key: "all",
         role: "coding",
-        objective: `${goal.slice(0, 3600)}\n\n【進め方】この依頼のすべて(実装、頼まれたテストと文書)を、この1回の作業で仕上げる。テストがあれば実行して、全部通ることを確かめる。プロジェクトに更新履歴(CHANGELOG など)が既にあれば追記する。`,
+        objective: `${goal.slice(0, 3600)}\n\n【進め方】この依頼のすべて(実装、頼まれたテストと文書)を、この1回の作業で仕上げる。テストがあれば実行して、全部通ることを確かめる。${history}`,
         inputs: [],
         expectedOutputs: [],
         constraints: [],
@@ -36,4 +39,5 @@ export function singleTaskDraft(goal: string): PlanDraft {
       },
     ],
   };
+  return only ? withoutRecords(draft, [goal, ...constraints].join("\n")) : draft;
 }

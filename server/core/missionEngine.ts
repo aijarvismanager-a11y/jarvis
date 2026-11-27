@@ -145,7 +145,7 @@ export class MissionEngine {
     }
     // a first plan only: a change request, a split request or a replan always goes to the planner
     const single = !!this.deps.smallRequests && kind === "initial" && !feedback && !split && isSmallRequest(mission.goal, mission.constraints);
-    const draft = single ? singleTaskDraft(mission.goal) : await this.deps.planner.plan(request);
+    const draft = single ? singleTaskDraft(mission.goal, mission.constraints) : await this.deps.planner.plan(request);
     const problems = validatePlan(draft);
     if (problems.length) throw new Error(`計画が不正です: ${problems.join(" / ")}`);
     const proposal: PlanProposal = { kind, draft, feedback, createdAt: new Date().toISOString(), ...(single ? { single } : {}) };

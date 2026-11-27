@@ -1,6 +1,7 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import { parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
+import { HISTORY_TASK_KEY, NO_RECORDS_RULE, keepsOtherFiles, withoutRecords } from "./fileScope.ts";
 import { MAX_PLAN_TASKS, SELF_PERMISSION_TASK, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
 
 // Planner (spec §3: Claude Code is Lead Developer and plans too). The engine
@@ -77,6 +78,13 @@ const PLAN_JSON_SCHEMA = {
   },
 };
 
+const requestTexts = (req: PlanRequest) => [req.goal, ...req.constraints, req.feedback];
+
+/** The last step on every plan: the project's records are brought up to date, unless the request keeps other files as they are. */
+export function finishPlan(draft: PlanDraft, req: PlanRequest): PlanDraft {
+  return keepsOtherFiles(requestTexts(req)) ? withoutRecords(draft, requestTexts(req).join("\n")) : withHistoryUpdateTask(draft, !!req.existingProject);
+}
+
 export function buildPlannerPrompt(req: PlanRequest): string {
   const lines = [
     "あなたは開発依頼のLead Developerです。次のゴールを達成するためのTask Graph(依存関係つきDAG)をJSONだけで出力してください。",
@@ -96,10 +104,12 @@ export function buildPlannerPrompt(req: PlanRequest): string {
   if (req.completed?.length) lines.push(`完了済み(再計画。重複させない): ${req.completed.map((t) => `[${t.role}] ${t.objective}`).join(" ; ")}`);
   if (req.failed?.length) lines.push(`失敗: ${req.failed.map((t) => `[${t.role}] ${t.objective}${t.reason ? ` (${t.reason})` : ""}`).join(" ; ")}`);
   if (req.feedback) lines.push(`ユーザーからの指摘: ${req.feedback}`);
+  // after the general record rules above, so that it overrides them
+  if (keepsOtherFiles(requestTexts(req))) lines.push(`${NO_RECORDS_RULE}。上の記録の置き場所の指示より、こちらを優先する(記録のための作業や成果物を計画に入れない)。`);
   return lines.join("\n");
 }
 
-export const HISTORY_TASK_KEY = "update_project_history";
+export { HISTORY_TASK_KEY };
 /** Both wordings of the history task begin like this; a stored Task keeps no plan key, so this is how it is recognised later. */
 export const HISTORY_OBJECTIVE_LEAD = "この依頼で行った内容(";
 /** The history task edits the project's own files: a web chat can only answer in text, so it must run on the code executor. */
@@ -245,10 +255,10 @@ AI自身の許可設定(.claude/settings*.json や許可リスト)を書き換�
       if (keep.length > 0 && keep.length < parsed.data.tasks.length) {
         const keys = new Set(keep.map((t) => t.key));
         const trimmed = { ...parsed.data, tasks: keep.map((t) => ({ ...t, dependsOn: t.dependsOn.filter((d) => keys.has(d)) })) };
-        if (validatePlan(trimmed).length === 0) return withHistoryUpdateTask(trimmed, !!request.existingProject);
+        if (validatePlan(trimmed).length === 0) return finishPlan(trimmed, request);
       }
       throw new Error(`Plannerの計画が不正です: ${problems.join(" / ")}`);
     }
-    return withHistoryUpdateTask(parsed.data, !!request.existingProject);
+    return finishPlan(parsed.data, request);
   }
 }
