@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.93",
+    date: "2026-11-27",
+    items: [
+      "README などに追記する作業の見出しが「記録に結果を書き足す」になる不具合を直しました。",
+      "依頼カードの「誰が頼んだか」は、読み込みが終わるまで「確認しています…」と出します(アプリが作った続きの依頼に、一瞬「画面から出された依頼」と出ていました)。",
+    ],
+  },
+  {
     version: "1.5.92",
     date: "2026-11-27",
     items: [
