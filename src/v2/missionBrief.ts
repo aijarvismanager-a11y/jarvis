@@ -43,8 +43,8 @@ export function finishOf(goal: string): string | null {
  * A plain-language card for one request: what it is for, who started it, and the signs that it may not be needed.
  * Built only from the request's own text and the project's history (no AI call), so it can be shown for every request.
  */
-export function missionBrief(mission: Mission, all: Mission[], origins: Record<string, { from: string; depth: number }>, tasks: Task[] = []): MissionBrief {
-  const origin = origins[mission.id] ?? null;
+export function missionBrief(mission: Mission, all: Mission[], origins: Record<string, { from: string; depth: number }> | null, tasks: Task[] = []): MissionBrief {
+  const origin = origins?.[mission.id] ?? null;
   const notes: string[] = [];
   const files = filesOf(mission.goal);
   const sameFile = files.length > 0 ? all.filter((o) => o.id !== mission.id && o.createdAt <= mission.createdAt && filesOf(o.goal).some((f) => files.includes(f))) : [];
@@ -60,7 +60,8 @@ export function missionBrief(mission: Mission, all: Mission[], origins: Record<s
   return {
     purpose: purposeOf(mission.goal),
     finish: finishOf(mission.goal),
-    origin: origin ? "アプリが自動で作った続き" : "自動の続きではない依頼(画面から出された依頼)",
+    // not read yet: saying "typed by the person" then would be a guess (it showed for a moment on requests the app had made)
+    origin: !origins ? "確認しています…" : origin ? "アプリが自動で作った続き" : "自動の続きではない依頼(画面から出された依頼)",
     notes,
   };
 }

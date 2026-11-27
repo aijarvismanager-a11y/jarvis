@@ -24,4 +24,8 @@ describe("missionBrief", () => {
     expect(missionBrief(all[0], all, {}).origin).toBe("自動の続きではない依頼(画面から出された依頼)");
     expect(missionBrief(all[0], all, {}).notes).toEqual([]);
   });
+  it("does not say who started a request before that is read", () => {
+    const one = [m("a", "ただ作る", "2026-11-27T00:00:00Z")];
+    expect(missionBrief(one[0], one, null).origin).toBe("確認しています…");
+  });
 });
