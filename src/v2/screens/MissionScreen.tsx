@@ -14,7 +14,9 @@ import { summaryLine } from "./summaryLine";
 import { MissionBrief } from "./MissionBriefCard";
 import { HumanTodoCard, useHumanTodos } from "./HumanTodoCard";
 import { humanTurnLine } from "../humanTodoView";
-import { replySummary } from "../dock";
+import { pastExchanges, replySummary } from "../dock";
+import { ThreadHistory } from "./ThreadHistory";
+import { useShowReply } from "./useShowReply";
 import { PromptDock } from "./PromptDock";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
@@ -890,6 +892,13 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
     }
   };
   const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length) : null;
+  // (the overview of a project that was just closed must not be drawn: see the same guard on the current request below)
+  const past = project ? pastExchanges(overview.missions, overview.tasks, mission) : [];
+  // while something waits for the person, the earlier talk folds into one line so the waiting card is not pushed down
+  const waiting = pendingPlan || starting || myHandoffs.length > 0 || approvals.some((a) => a.projectId === project?.id);
+  const history = past.length > 0 && <ThreadHistory key={project?.id} items={past} renderAnswer={(taskId) => <TaskAnswer taskId={taskId} ctx={ctx} />} />;
+  // open on the latest reply; not while something waits or the person has a to-do (that is read first, at the top)
+  const replyRef = useShowReply(reply && mission && !waiting && humanTodos.length === 0 ? mission.id : null);
 
   return (
     <div className="space-y-4">
@@ -910,6 +919,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       {/* wide screens: the work flow on the left, preview / sync / recent files beside it */}
       <div className={`grid gap-4 ${project ? "min-[900px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : ""} min-[900px]:items-start`}>
       <div className="min-w-0 space-y-4">
+      {history && (waiting ? <Details summary={`これまでのやり取り(${past.length}件)`}>{history}</Details> : history)}
       {/* things that wait for the person come first */}
       {pendingPlan && <PlanReview view={view} ctx={ctx} onCancel={() => act("cancel")} />}
       {approvals.filter((a) => a.projectId === project?.id).map((a) => <ApprovalCard key={a.id} approval={a} ctx={ctx} />)}
@@ -935,7 +945,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           </div>
           {!FINISHED.includes(mission.status) && <MissionBrief ctx={ctx} mission={mission} />}
           {reply && (
-            <div className="mt-3 max-w-[94%] rounded-2xl rounded-tl-sm border border-borderSoft bg-white px-3.5 py-3" aria-label="AIの返答のまとめ">
+            <div ref={replyRef} className="mt-3 max-w-[94%] rounded-2xl rounded-tl-sm border border-borderSoft bg-white px-3.5 py-3" aria-label="AIの返答のまとめ">
               <p className="mb-1.5 text-[11px] font-semibold text-muted">AIオーケストラの返答</p>
               <dl className="space-y-1 text-[13.5px] leading-relaxed">
                 <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">やったこと</dt><dd>{reply.did}</dd></div>

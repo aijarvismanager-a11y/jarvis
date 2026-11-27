@@ -1,4 +1,4 @@
-import type { Task } from "./types";
+import type { Mission, Task } from "./types";
 
 /** What the pinned prompt box at the bottom does when Enter is pressed, depending on where the request stands. */
 export type DockMode = {
@@ -53,4 +53,22 @@ export function replySummary(tasks: Task[], status: string, humanTodoCount: numb
   else if (status === "cancelled") next = "下の欄に、新しい依頼を書いてください";
   else next = "終わるまでお待ちください(終わると、ここに結果が出ます)";
   return { did, result, next };
+}
+
+/** One earlier exchange in the conversation: what was asked, and in two short phrases how it ended. */
+export type PastExchange = { mission: Mission; tasks: Task[]; result: string; did: string };
+
+/** The requests made before the one on screen, oldest first (the newest sits right above the current one, like a chat). */
+export function pastExchanges(missions: Mission[], tasks: Task[], current: Mission | null): PastExchange[] {
+  if (!current) return [];
+  return missions
+    .filter((m) => m.id !== current.id && m.createdAt <= current.createdAt)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((mission) => ({ mission, tasks: tasks.filter((t) => t.missionId === mission.id).sort((a, b) => a.position - b.position) }))
+    .filter((x) => !(x.mission.status === "draft" && x.tasks.length === 0)) // never planned: nothing was said back
+    .map((x) => {
+      const ended = ["completed", "failed", "cancelled"].includes(x.mission.status);
+      const s = replySummary(x.tasks, x.mission.status, 0);
+      return { ...x, did: s.did, result: ended ? s.result : "終わっていません" };
+    });
 }
