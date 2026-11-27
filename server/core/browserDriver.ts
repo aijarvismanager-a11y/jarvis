@@ -340,6 +340,24 @@ const SITE_ERROR_TEXT =/^(この回答を読み込めませんでした|回答�
 /** In-page helpers: first element matching any of the selectors, and the text of the last answer. */
 const firstMatch = (selector: string) => `document.querySelector(${q(selector)})`;
 
+/**
+ * Pastes `text` into the prompt box; true when the page handled the paste. The HTML copy (one paragraph per line, marked as coming from
+ * the same kind of editor) keeps the editor from turning Markdown marks into formatting: with plain text alone, backticks disappeared.
+ */
+export function pasteExpr(selector: string, text: string): string {
+  return `(() => {
+    const el = ${firstMatch(selector)};
+    if (!el) return false;
+    const text = ${q(text)};
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const html = '<div data-pm-slice="0 0 []">' + text.split(/\\r?\\n/).map((l) => '<p style="white-space: pre-wrap">' + (l ? esc(l) : "<br>") + "</p>").join("") + "</div>";
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    data.setData("text/html", html);
+    return !el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  })()`;
+}
+
 function pageSnapshotExpr(site: SiteProfile): string {
   return `(() => {
     const all = document.querySelectorAll(${q(site.responseSelector)});
@@ -374,6 +392,8 @@ class CdpChatPage implements WebChatPage {
   }
 
   async fillPrompt(text: string): Promise<void> {
+    const max = this.site.maxPromptChars;
+    if (max && text.length > max) throw new WebAiPromptTooLongError(text.length - max, text.length);
     await this.captureBaseline();
     this.sentPrompt = text;
     const focused = await this.cdp.evaluate<boolean>(`(() => {
@@ -385,16 +405,19 @@ class CdpChatPage implements WebChatPage {
       return true;
     })()`);
     if (!focused) throw new WebAiUiError("プロンプト入力欄が見つかりません(サイトのUIが変わった可能性があります)");
-    await this.cdp.send("Input.insertText", { text });
+    // a paste the page did not take over changes nothing, so typing the text afterwards is safe
+    const pasted = this.site.pasteText ? await this.cdp.evaluate<boolean>(pasteExpr(this.site.inputSelector, text)) : false;
+    if (!pasted) await this.cdp.send("Input.insertText", { text });
     // a site with a character limit says so next to the box once the text is in (and then refuses to send): do not go on to a send that cannot work
     await new Promise((r) => setTimeout(r, 700));
     const over = parseOverLimit(await this.cdp.evaluate<string>(`(document.body && document.body.innerText || "").slice(-6000)`).catch(() => ""));
     if (over) throw new WebAiPromptTooLongError(over, text.length);
-    const probe = text.slice(0, 20);
+    // compared without white space: an editor shows a line break as one or more blank lines, depending on how it holds paragraphs
+    const probe = text.replace(/\s+/g, "").slice(0, 20);
     const ok = await this.cdp.evaluate<boolean>(`(() => {
       const el = ${firstMatch(this.site.inputSelector)};
       const v = el ? (el.value ?? el.innerText ?? "") : "";
-      return v.includes(${q(probe)});
+      return v.replace(/\\s+/g, "").includes(${q(probe)});
     })()`);
     if (!ok) throw new WebAiUiError("プロンプトを入力欄に入れられませんでした(サイトのUIが変わった可能性があります)");
   }

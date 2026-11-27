@@ -35,6 +35,10 @@ export type SiteProfile = {
   imagesInLinks?: boolean;
   /** A page that lists the person's earlier results (a library): what it shows before the prompt is sent is not the new answer. */
   historyUrl?: string;
+  /** Put the prompt in as a paste: this editor takes tens of seconds (and past two minutes) to have a long multi-line text typed into it. */
+  pasteText?: boolean;
+  /** The most the prompt box takes; the page says nothing and cuts (or turns into an attachment) a longer text, so the prompt is shortened first. */
+  maxPromptChars?: number;
 };
 
 /** AIs checked on the live site that cannot be driven automatically (why): they wait in the "自動化待ち" list and are never chosen. */
@@ -52,6 +56,8 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     stopSelector: 'button[data-testid="stop-button"]',
   },
   gemini: {
+    // measured on 2026-11-27: a 43,899-character text was cut at about 32,000 without any notice
+    maxPromptChars: 31_000,
     inputSelector: 'rich-textarea .ql-editor, div[contenteditable="true"]',
     sendSelector: 'button[aria-label*="送信"], button[aria-label*="Send"]',
     responseSelector: "message-content, .model-response-text",
@@ -150,6 +156,9 @@ export const BUNDLED_SITE_PROFILES: Record<string, SiteProfile> = {
     inputSelector: 'div[aria-label*="Grok"][contenteditable="true"], div.tiptap[contenteditable="true"], div[contenteditable="true"], textarea[aria-label*="Grok"]',
     sendSelector: 'button[aria-label="Submit"], button[type="submit"]',
     responseSelector: ".message-bubble, .response-content-markdown",
+    // measured on 2026-11-27: typing 9,000 characters took 32 s, pasting them 0.1 s; 95,000 characters became an attachment (44,000 stayed text)
+    pasteText: true,
+    maxPromptChars: 40_000,
   },
 };
 

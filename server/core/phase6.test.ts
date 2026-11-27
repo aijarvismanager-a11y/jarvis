@@ -659,6 +659,39 @@ SVG</button><button id="go">Generate</button></div>
     await page.close();
   }, 120_000);
 
+  it("pastes into an editor that takes the paste, types into one that does not, and refuses a text over the site's limit", async () => {
+    const editors = http.createServer((req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      // /paste takes the paste over like a rich editor does (and writes what it got); /plain ignores it
+      const takeOver = req.url === "/paste" ? "box.addEventListener('paste', (e) => { e.preventDefault(); box.textContent = 'PASTED:' + e.clipboardData.getData('text/plain'); window.html = e.clipboardData.getData('text/html'); });" : "";
+      res.end(`<!doctype html><meta charset=utf-8><div id="q" contenteditable="true" style="white-space: pre-wrap"></div><button id="send">send</button><div id="log"></div>
+        <script>const box = document.getElementById('q'); ${takeOver}
+        document.getElementById('send').onclick = () => { const a = document.createElement('div'); a.className = 'answer'; a.textContent = box.textContent + (window.html ? ' | ' + window.html : ''); document.getElementById('log').appendChild(a); box.textContent = ''; };</script>`);
+    });
+    await new Promise<void>((r) => editors.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${(editors.address() as AddressInfo).port}`;
+    const rich = { inputSelector: "#q", sendSelector: "#send", responseSelector: ".answer", pasteText: true, maxPromptChars: 50 };
+    try {
+      const pasting = await driver.open({ url: `${url}/paste`, site: rich });
+      await expect(pasting.fillPrompt("x".repeat(60))).rejects.toMatchObject({ overBy: 10, length: 60 });
+      await pasting.fillPrompt("<a> & `b`\n  c");
+      await pasting.submit();
+      const got = await pasting.waitForResponse({ timeoutMs: 20_000 });
+      expect(got).toContain("PASTED:<a> & `b`");
+      expect(got).toContain('data-pm-slice="0 0 []"');
+      // (the answer is read as shown text, which squeezes the two spaces before "c" into one)
+      expect(got).toMatch(/<p style="white-space: pre-wrap">&lt;a&gt; &amp; `b`<\/p><p style="white-space: pre-wrap"> +c<\/p>/);
+      await pasting.close();
+      const typing = await driver.open({ url: `${url}/plain`, site: rich });
+      await typing.fillPrompt("typed\n\nonce"); // a line break near the start must not read as "the text did not go in"
+      await typing.submit();
+      expect(await typing.waitForResponse({ timeoutMs: 20_000 })).toMatch(/^typed\s*once$/);
+      await typing.close();
+    } finally {
+      await new Promise<void>((r) => editors.close(() => r()));
+    }
+  }, 90_000);
+
   it("stops at a login page, a bot check and a redesigned page instead of trying to get past them", async () => {
     await expect(driver.open({ url: `${siteUrl}/login`, site: profileFor })).rejects.toBeInstanceOf(WebAiBlockedError);
     await expect(driver.open({ url: `${siteUrl}/captcha`, site: profileFor })).rejects.toMatchObject({ reason: "captcha" });
