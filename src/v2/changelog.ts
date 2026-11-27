@@ -3,6 +3,18 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.92",
+    date: "2026-11-27",
+    items: [
+      "Gemini が答えているのに「回答を取得できませんでした」になる不具合を直しました(履歴の会話の題名を、送信や停止のボタンと取り違えていました)。",
+      "進めている途中の画面は、作業の様子が増えても、いまの状況が見える位置を追いかけ続けます。計画の承認ボタンを押した位置に関係なく追いかけます(自分で画面を動かすと止まります)。",
+      "「作業を3つに分けて」のように頼んだ小さな依頼は、1つの作業にまとめず、分けた計画を作ります。",
+      "作業の見出しから、ファイル名が落ちないようにしました。",
+      "「2行追記して」のような追記の行数の指定を、ファイル全体の大きさと取り違えて作業が失敗する不具合を直しました。",
+      "うまくいかなかった作業がある依頼では、返答の「次にやること」に、理由の確かめ方を出します。",
+    ],
+  },
+  {
     version: "1.5.91",
     date: "2026-11-27",
     items: [
