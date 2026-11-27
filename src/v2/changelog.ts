@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.96",
+    date: "2026-11-28",
+    items: [
+      "「使うAI」で、新しいAIの候補を「追加する」か、外したAIを「戻す」と、AIの一覧と件数がすぐ変わるようにしました(これまでは反映まで少し時間がかかりました)。",
+    ],
+  },
+  {
     version: "1.5.95",
     date: "2026-11-28",
     items: [
