@@ -3,6 +3,15 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.88",
+    date: "2026-11-27",
+    items: [
+      "進めている途中の依頼も、会話のように表示します。終わった作業が順に並び、その下に、いま進めている作業と様子、このあとの作業、進み具合が出ます。やり直しもその場で押せます。",
+      "新しい作業が終わると、画面がいまの状況まで自動で追いかけ、依頼が終わると返答へ移動します。自分で画面を動かしたり押したりした後は、勝手に移動しません。",
+      "はじめて使うときの案内を、画面にあるボタンに合わせて直しました(下の入力欄に書いて「送る」)。確認の質問が出ている間は、質問に答えることを案内します。",
+    ],
+  },
+  {
     version: "1.5.87",
     date: "2026-11-27",
     items: [
