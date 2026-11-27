@@ -607,6 +607,25 @@ describe.skipIf(!browser)("ChromiumDriver against a mock chat site (real browser
     await page.close();
   }, 120_000);
 
+  it("takes no send or stop button from the history sidebar, where a chat's title is part of the label", async () => {
+    const withHistory = http.createServer((_req, res) => {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(CHAT_PAGE.replace("<body>", '<body><nav><button aria-label="「送信と停止の記録」のその他のオプション" onclick="window.opened = true">…</button></nav>')
+        .replace('id="send"', 'id="send" aria-label="送信"').replace('id="stop"', 'id="stop" aria-label="停止"'));
+    });
+    await new Promise<void>((r) => withHistory.listen(0, "127.0.0.1", r));
+    try {
+      const url = `http://127.0.0.1:${(withHistory.address() as AddressInfo).port}`;
+      const page = await driver.open({ url, site: { ...profileFor, sendSelector: 'button[aria-label*="送信"]', stopSelector: 'button[aria-label*="停止"]' } });
+      await page.fillPrompt("history");
+      await page.submit();
+      expect(await page.waitForResponse({ timeoutMs: 15_000 })).toBe("ECHO: history");
+      await page.close();
+    } finally {
+      await new Promise<void>((r) => withHistory.close(() => r()));
+    }
+  }, 90_000);
+
   it("a two-step picture site: confirms the generation, reads pictures inside links, and leaves the history's pictures out", async () => {
     const svg = (c: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420"><rect width="420" height="420" fill="${c}"/></svg>`;
     const picSite = http.createServer((req, res) => {

@@ -358,11 +358,17 @@ export function pasteExpr(selector: string, text: string): string {
   })()`;
 }
 
+/**
+ * In-page: the elements matching a send / stop selector, leaving out those in the history sidebar. There a chat's title is part of a
+ * button's label, so a chat called "…停止…" or "…送信…" matched: Gemini then read as "still answering" until the wait ran out (2026-11-27).
+ */
+const pageButtons = (selector: string) => `[...document.querySelectorAll(${q(selector)})].filter((e) => !e.closest("nav, [role=navigation], bard-sidenav, side-navigation-v2"))`;
+
 function pageSnapshotExpr(site: SiteProfile): string {
   return `(() => {
     const all = document.querySelectorAll(${q(site.responseSelector)});
     const last = all.length ? all[all.length - 1] : null;
-    return { count: all.length, text: last ? (last.innerText || last.textContent || "") : "", busy: ${site.stopSelector ? `[...document.querySelectorAll(${q(site.stopSelector)})].some((e) => e.getClientRects().length > 0)` : "false"} };
+    return { count: all.length, text: last ? (last.innerText || last.textContent || "") : "", busy: ${site.stopSelector ? `${pageButtons(site.stopSelector)}.some((e) => e.getClientRects().length > 0)` : "false"} };
   })()`;
 }
 
@@ -455,7 +461,7 @@ class CdpChatPage implements WebChatPage {
       // Right after typing, the page has not yet enabled (or even drawn) the send button: wait for it instead of giving up at once.
       const findButton = () =>
         this.cdp.evaluate<{ x: number; y: number } | null>(`(() => {
-        const b = ${firstMatch(sendSelector)};
+        const b = ${pageButtons(sendSelector)}[0];
         if (!b || b.disabled || b.getAttribute("aria-disabled") === "true") return null;
         // a long prompt makes the prompt box grow and can push the button out of the visible area, where a mouse click does nothing
         b.scrollIntoView({ block: "center", inline: "center" });
