@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.91",
+    date: "2026-11-27",
+    items: [
+      "下の入力欄の説明を、いま画面にあるものに合わせました。依頼のフォームを開いているときはそのフォームを案内し、確認の質問が出ているときは、下から送ると別の依頼になることを知らせます。",
+      "スマホの幅では、下の入力欄の言葉を短くして、画面を広く使えるようにしました。",
+    ],
+  },
+  {
     version: "1.5.90",
     date: "2026-11-27",
     items: [
