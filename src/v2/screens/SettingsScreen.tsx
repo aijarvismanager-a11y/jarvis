@@ -174,15 +174,24 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
             const result = tried[s.id];
             const check = s.automationLevel >= 3 ? web?.botChecks?.[s.id] : undefined; // at Level 2 the person passes the check themselves
             const limitUntil = web?.usageLimits?.[s.id];
+            const usable = auto && !check && !limitUntil;
+            // an AI that is ready can be tried again at any time; not while the browser AIs are switched off (a successful try switches them on)
+            const canRecheck = usable && !!web?.enabled && trying !== s.id && waitingLogin?.id !== s.id;
+            const failed = !!result && result !== "ok";
+            const lockedButtons = busy || trying !== null || waitingLogin !== null;
+            const openAndRecheck = () => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); });
             return (
               <li key={s.id} className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{short(s.name)}</span>
                   {/* an AI that simply works needs no badge: the heading of its group already says so */}
                   {limitUntil ? <Badge tone="warn">上限に達しました</Badge> : check ? <Badge tone="warn">人間確認が必要</Badge> : auto ? null : s.automationLevel === 2 ? null : <Badge>まだ使えません</Badge>}
-                  {!limitUntil && !check && usage[s.id] && usage[s.id].last24h > 0 && <span className="ml-auto text-[11.5px] text-muted">直近24時間 {usage[s.id].last24h}回</span>}
+                  <span className="ml-auto flex items-center gap-2">
+                    {!limitUntil && !check && usage[s.id] && usage[s.id].last24h > 0 && <span className="text-[11.5px] text-muted">直近24時間 {usage[s.id].last24h}回</span>}
+                    {canRecheck && !failed && <Button variant="ghost" disabled={lockedButtons} aria-label={`${short(s.name)} に送って確認`} onClick={() => void tryOne(s)}>送って確認</Button>}
+                  </span>
                   {check && trying !== s.id && waitingLogin?.id !== s.id && (
-                    <Button disabled={busy || trying !== null || waitingLogin !== null} onClick={() => run(async () => { await api.openCheck(s.id); setTried((t) => ({ ...t, [s.id]: "" })); setWaitingLogin({ id: s.id, seen: false }); })}>確認を済ませる</Button>
+                    <Button disabled={lockedButtons} onClick={openAndRecheck}>確認を済ませる</Button>
                   )}
                   {!auto && s.automationLevel !== 2 && !check && !limitUntil && trying !== s.id && waitingLogin?.id !== s.id && (web?.loggedIn?.[s.id] ? (
                     // signed in already (the sign-in is remembered), yet not automatic: what is missing is a check, not another sign-in
@@ -202,7 +211,14 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                 {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} {check ? "の確認(ログイン・ロボット確認など)を済ませて" : "にログインして"}、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}
                 {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど)</p>}
                 {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。これで使えます。</p>}
-                {result && result !== "ok" && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}
+                {failed && !auto && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}
+                {failed && auto && <p className="mt-1 text-[12px] text-[#9B2C2C]">確認できませんでした: {usable && result.includes("ログインが必要です") ? "ログインが必要です。「ブラウザで開く」で済ませて、窓を閉じてください" : result}</p>}
+                {failed && canRecheck && (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <Button disabled={lockedButtons} onClick={openAndRecheck}>ブラウザで開く</Button>
+                    <Button variant="ghost" disabled={lockedButtons} onClick={() => void tryOne(s)}>もう一度送って確認</Button>
+                  </div>
+                )}
               </li>
             );
   };
@@ -226,6 +242,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         {web?.available && web.browserAvailable && ready.length > 0 && (
           <>
             <h3 className="mt-4 text-[13px] font-semibold">ブラウザ上の自動で使えるAI({ready.length}件)</h3>
+            {web.enabled && <p className="text-[12px] text-muted">「送って確認」を押すと、そのAIのサイトに「OKとだけ返信して」という短い文を1通送り、返事が来るかを確かめます。何もしなくても、そのまま使えます。</p>}
             <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
           </>
         )}
