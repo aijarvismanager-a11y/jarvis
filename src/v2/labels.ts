@@ -188,8 +188,10 @@ export const taskTitle = (objective: string): string => {
   const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)(?!\s*(?:に|へ|と|から|の(?:末尾|先頭|最後|最初)|を(?:新しく|新規に)?(?:作成し|作り|更新し|編集し|修正し)、))\s*(?:の|で|を)?\s*/i, "");
   // "node:test" is one word, and a comma right after "…に" does not end the phrase
   const cut = cleaned.search(/[。：(（]|:(?=\s)|(?<![にへと]|から)、/);
-  // "package.jsonを作成し" is the first half of a sentence: the heading ends at the action
-  const head = cut > 1 ? cleaned.slice(0, cut).replace(/(作成|更新|編集|修正)し$/, "$1") : cleaned;
+  // "npm testを実行し、" is the first half of a sentence: the heading ends at the action. Only after a two-kanji or katakana
+  // action word, and not where し belongs to the word itself ("見直し")
+  const first = cut > 1 ? cleaned.slice(0, cut) : cleaned;
+  const head = cleaned[cut] === "、" ? first.replace(/([一-龠々]{2}(?<![直出返渡消戻写足押探残示隠])|[ァ-ヶー])し$/, "$1") : first;
   return head.length > 28 ? `${head.slice(0, 28)}…` : head;
 };
 

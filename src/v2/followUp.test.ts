@@ -59,6 +59,11 @@ describe("taskTitle", () => {
     expect(taskTitle("package.jsonを作成し、`npm test`でNode.js組み込みのテストランナーを実行するtestスクリプトを定義する")).toBe("package.jsonを作成");
     expect(taskTitle("package.json を新しく作り、scripts を設定する")).toBe("package.json を新しく作り");
   });
+  it("ends the heading at the action, not with the し that leads into the next one", () => {
+    expect(taskTitle("npm testを実行し、結果を記録する")).toBe("npm testを実行");
+    expect(taskTitle("csvsum.jsとテストコードをレビューし、問題点を挙げる")).toMatch(/レビュー$/);
+    expect(taskTitle("画面の文言の見直し、ボタンの配置の確認")).toBe("画面の文言の見直し");
+  });
   it("otherwise uses the first phrase without command names, cut at 28 characters", () => {
     expect(taskTitle("capture.ps1 の使い方(Start/Shot/Click/Keys/Stop/Status/Windows)、確認用素材")).toBe("使い方");
     expect(taskTitle("src/sum.mjs に、数値の配列を合計する関数 sum を作る")).toMatch(/^src\/sum\.mjs に、数値の配列/);
