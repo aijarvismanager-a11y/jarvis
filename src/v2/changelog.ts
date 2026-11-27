@@ -3,6 +3,15 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.89",
+    date: "2026-11-27",
+    items: [
+      "Grok に長い文を送るとき、入力に時間がかかって止まることがあったのを直しました(貼り付けて送ります)。",
+      "Gemini は長すぎる文の後ろを黙って切り捨てるため、上限を超えるときは参考にする内容を短くして、依頼の全体が届くようにしました。Grok にも同じ上限を設けました。",
+      "文の最初のほうに改行があると、入力できたのに失敗と判断することがあったのを直しました。",
+    ],
+  },
+  {
     version: "1.5.88",
     date: "2026-11-27",
     items: [
