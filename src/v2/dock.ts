@@ -4,29 +4,38 @@ import type { Mission, Task } from "./types";
 export type DockMode = {
   kind: "new" | "redirect" | "plan-feedback";
   placeholder: string;
+  /** for a narrow (phone) screen, where a long placeholder makes the box several lines tall */
+  shortPlaceholder: string;
+  /** what sending does here; the keyboard help is added by the box on screens wide enough to have a keyboard */
   hint: string;
   button: string;
   /** asks "really?" first: sending stops work that is running */
   confirm?: string;
 };
 
-export function dockMode(status: string | null, planWaiting: boolean): DockMode {
+/** `form`: the long request form is open above ("questions" = it is asking the questions to answer before starting). */
+export function dockMode(status: string | null, planWaiting: boolean, form?: "open" | "questions"): DockMode {
   if (planWaiting) {
-    return { kind: "plan-feedback", placeholder: "計画を直してほしい点を書いて Enter(合っていれば、上の「この計画で開始」を押します)", hint: "Enter で送信 / Shift+Enter で改行。AIが計画を作り直します", button: "計画を直す" };
+    return { kind: "plan-feedback", placeholder: "計画を直してほしい点を書いて Enter(合っていれば、上の「この計画で開始」を押します)", shortPlaceholder: "計画の直したい点を書く", hint: "AIが計画を作り直します", button: "計画を直す" };
   }
   if (status === "running" || status === "paused") {
     return {
       kind: "redirect",
       placeholder: "変えたいことがあれば書いて Enter(いまの作業は止まります)",
-      hint: "Enter で送信 / Shift+Enter で改行。止まった作業の代わりに、新しい計画を提案します",
+      shortPlaceholder: "変えたいことを書く",
+      hint: "止まった作業の代わりに、新しい計画を提案します",
       button: "止めて変える",
       confirm: "いま実行中の作業を止めて、新しい計画を作ります。よろしいですか?(終わった作業は残ります)",
     };
   }
-  // the place where conditions can be given differs: a finished request has a "新しい依頼" button, otherwise the folded form is on screen
+  // the place where conditions can be given differs: the open form, the "新しい依頼" button of a finished request, or the folded
+  // form; while a plan is being made there is none of them
   const finished = status === "completed" || status === "failed";
-  const where = finished ? "「新しい依頼」" : "「条件や使う技術も指定して、くわしく依頼する」";
-  return { kind: "new", placeholder: status ? "次に頼みたいことを書いて Enter" : "作りたいものを書いて Enter", hint: `Enter で送信 / Shift+Enter で改行。条件の指定は、上の${where}から`, button: "送る" };
+  const hint = form === "questions" ? "確認の質問には、上のフォームで答えます。ここから送ると、別の依頼になります"
+    : form === "open" ? "条件の指定は、上のフォームの「詳細設定(任意)」で"
+    : status === "planning" ? ""
+    : `条件の指定は、上の${finished ? "「新しい依頼」" : "「条件や使う技術も指定して、くわしく依頼する」"}から`;
+  return { kind: "new", placeholder: status ? "次に頼みたいことを書いて Enter" : "作りたいものを書いて Enter", shortPlaceholder: status ? "次に頼みたいことを書く" : "作りたいものを書く", hint, button: "送る" };
 }
 
 /** Enter sends; Shift+Enter makes a new line; Enter while a Japanese conversion is still open (IME) only confirms the conversion. */

@@ -1077,7 +1077,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       </div>
       </div>
       {project && planWaiting && humanTodos.length > 0 && <Details summary={`ほかに、あなたがやること(${humanTodos.length}件。前の依頼から残っています)`}><HumanTodoCard ctx={ctx} todos={humanTodos} reload={reloadHumanTodos} /></Details>}
-      <PromptDock status={mission?.status ?? null} planWaiting={planWaiting} busy={dockBusy} onSend={dockSend} />
+      <PromptDock status={mission?.status ?? null} planWaiting={planWaiting} form={asking ? "questions" : starting ? "open" : undefined} busy={dockBusy} onSend={dockSend} />
     </div>
   );
 }

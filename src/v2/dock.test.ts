@@ -19,6 +19,12 @@ describe("dockMode", () => {
     expect(dockMode("cancelled", false).hint).toContain("くわしく依頼する");
     expect(dockMode("completed", false).hint).toContain("「新しい依頼」");
   });
+  it("points at the open form, not at the fold or button that opening it removed", () => {
+    expect(dockMode("completed", false, "open").hint).toContain("詳細設定");
+    expect(dockMode(null, false, "questions").hint).toContain("確認の質問");
+    for (const form of ["open", "questions"] as const) expect(dockMode("completed", false, form).hint).not.toMatch(/新しい依頼|くわしく依頼する/);
+    expect(dockMode("planning", false).hint).toBe("");
+  });
 });
 
 describe("isSendKey", () => {
