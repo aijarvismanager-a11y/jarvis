@@ -39,6 +39,11 @@ describe("taskTitle", () => {
     expect(taskTitle("capture.ps1 -Action Stop と -Action Status を実行して settings.json の復元を確かめる")).toBe("終了と設定の復元を確かめる");
     expect(taskTitle("dotnet build tests/HyperPlayer.Tests.csproj を1回、続けて dotnet test")).toBe("ビルドとテストを動かす");
   });
+  it("calls a task a record only when a record is what gets added to", () => {
+    expect(taskTitle("README.md に min 関数の使い方を2行だけ追記する。1行目は import 例、2行目は呼び出し例と結果とする。README.md が既にあれば末尾に追記し、なければ新しく作る")).toMatch(/^README\.md に min/);
+    expect(taskTitle("プロジェクトの一番上のフォルダに CHANGELOG.md が無ければ新しく作り、あれば先頭(新しい順)に追記する")).toBe("記録に結果を書き足す");
+    expect(taskTitle("今回の結果を更新履歴へ追記する")).toBe("記録に結果を書き足す");
+  });
   it("otherwise uses the first phrase without command names, cut at 28 characters", () => {
     expect(taskTitle("capture.ps1 の使い方(Start/Shot/Click/Keys/Stop/Status/Windows)、確認用素材")).toBe("使い方");
     expect(taskTitle("src/sum.mjs に、数値の配列を合計する関数 sum を作る")).toMatch(/^src\/sum\.mjs に、数値の配列/);

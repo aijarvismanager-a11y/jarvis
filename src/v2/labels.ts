@@ -168,7 +168,8 @@ export const taskTitle = (objective: string): string => {
     [/-Action\s+Stop|Stop と .*Status|復元.*確認/i, "終了と設定の復元を確かめる"],
     [/-Action\s+Start|アプリを起動|に起動し|起動して/i, "アプリを起動して画面を撮る"],
     [/dotnet\s+build|npm\s+(run\s+)?build|ビルド/i, "ビルドとテストを動かす"],
-    [/既存の記録|CLAUDE\.md|作業履歴|へ追記|に追記/i, "記録に結果を書き足す"],
+    // 「末尾に追記」 alone is any file being added to (a README), so it counts only after a word for a record
+    [/既存の記録|CLAUDE\.md|作業履歴|(?:記録|履歴|メモ|CHANGELOG|PROGRESS)[^。]{0,40}[へに]追記/i, "記録に結果を書き足す"],
     [/動画モード|sample\.mp4/i, "動画モードを確かめる"],
   ];
   for (const [re, title] of known) if (re.test(t)) return title;
