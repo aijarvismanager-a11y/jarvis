@@ -60,6 +60,7 @@ export function replySummary(tasks: Task[], status: string, humanTodoCount: numb
   else result = "進めています";
   let next: string;
   if (humanTodoCount > 0) next = `あなたの番です。人にしかできない作業が${humanTodoCount}件あります(上の「いまやること」)`;
+  else if (status === "completed" && failed > 0) next = "「各作業の中身と回答を見る」で、うまくいかなかった作業の理由を確かめてください。必要なら、下の欄で頼み直せます";
   else if (status === "completed") next = "あなたがやることはありません。次に頼みたいことを、下の欄に書いてください";
   else if (status === "failed") next = "上の「次にやること」から、やり直すか、下の欄に新しい依頼を書いてください";
   else if (status === "cancelled") next = "下の欄に、新しい依頼を書いてください";

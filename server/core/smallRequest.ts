@@ -11,9 +11,12 @@ const FILE_NAME = /[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:mjs|cjs|jsx?|tsx?|py|
 /** Work that is better split: other AIs are good at it (pictures, research, ideas), the screen has to be looked at, or it is large or risky. */
 const NOT_SMALL = /画像|イラスト|アイコン|ロゴ|バナー|動画|音楽|BGM|音声|ナレーション|デザイン|配色|見た目|画面|ブラウザ|調査|調べ|比較|アイデア|名前の?案|企画|大規模|全体|作り直|作り替|移行|リニューアル|公開|デプロイ|\bdeploy\b/i;
 
+/** The person asked for the work to be split into tasks ("作業は3つに分けて"): that choice is theirs. */
+const ASKS_SPLIT = /(?:作業|タスク|工程)[^。\n]{0,40}(?:分け(?!ず|ない)|分割(?!し?ない|せず|不要))|(?:[2-9２-９二三四五六七八九]つ|複数)(?:の(?:作業|タスク|工程))?に(?:分け(?!ず|ない)|分割(?!し?ない|せず))/;
+
 export function isSmallRequest(goal: string, constraints: string[] = []): boolean {
   const text = [goal, ...constraints].join("\n");
-  if (text.length > SMALL_GOAL_CHARS || NOT_SMALL.test(text)) return false;
+  if (text.length > SMALL_GOAL_CHARS || NOT_SMALL.test(text) || ASKS_SPLIT.test(text)) return false;
   const files = new Set(text.match(FILE_NAME) ?? []);
   return files.size >= 1 && files.size <= SMALL_MAX_FILES;
 }

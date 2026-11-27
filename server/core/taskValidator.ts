@@ -77,15 +77,16 @@ export function scriptInsteadOfDocument(markdown: string): string | null {
 /**
  * A size the task's own wording fixes for its one text deliverable: "1行だけ", "3行以内", "200文字以内".
  * Only a limit written with だけ / のみ / 以内 / まで counts (a plain "3行で要約" is a hint, not a rule), and wording that is about each part
- * ("各項目を1行で", "それぞれ", "ごと") is skipped: it limits the parts, not the whole file. Null when nothing is fixed.
+ * ("各項目を1行で", "それぞれ", "ごと") is skipped: it limits the parts, not the whole file. So is a limit on what is ADDED ("2行だけ追記する"). Null when nothing is fixed.
  */
 export function statedSizeLimit(wording: string): { lines?: number; chars?: number } | null {
   const text = wording.replace(/\s+/g, " ");
   const perPart = /各|それぞれ|ごと|毎/;
+  const added = /追記|追加|足す|足し|加え|書き足/;
   const lines: number[] = [];
   const chars: number[] = [];
   for (const part of text.split(/[。;]/)) {
-    if (perPart.test(part)) continue;
+    if (perPart.test(part) || added.test(part)) continue;
     for (const m of part.matchAll(/(\d{1,4})\s*行\s*(だけ|のみ|以内|まで)/g)) lines.push(Number(m[1]));
     for (const m of part.matchAll(/(\d{1,5})\s*(文字|字)\s*(だけ|のみ|以内|まで)/g)) chars.push(Number(m[1]));
   }

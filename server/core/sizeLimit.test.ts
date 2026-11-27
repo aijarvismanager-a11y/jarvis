@@ -11,6 +11,10 @@ describe("statedSizeLimit", () => {
   it("takes the stricter of several", () => expect(statedSizeLimit("5行以内。内容は1行だけ")).toEqual({ lines: 1 }));
   it("a hint without だけ/のみ/以内 is not a rule", () => expect(statedSizeLimit("結果を3行で要約する")).toBeNull());
   it("a limit on each part is not a limit on the file", () => expect(statedSizeLimit("各項目は1行だけで書く")).toBeNull());
+  it("a limit on what is added is not a limit on the file", () => {
+    expect(statedSizeLimit("max 関数の使い方を2行だけ追記する")).toBeNull();
+    expect(statedSizeLimit("README.md に使い方を3行まで足して")).toBeNull();
+  });
   it("nothing stated, nothing fixed", () => expect(statedSizeLimit("設計書を書く")).toBeNull());
 });
 

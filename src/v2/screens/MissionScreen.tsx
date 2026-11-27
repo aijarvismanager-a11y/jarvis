@@ -905,7 +905,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   // an unfinished request flows as messages; a finished (or stopped) one keeps the folded list of its tasks
   const flowing = !!mission && !FINISHED.includes(mission.status) && tasks.length > 0;
   // keep the latest message in view; not while something waits or the person has a to-do (that is read first, at the top)
-  const replyRef = useShowReply((reply || flowing) && mission && !waiting && humanTodos.length === 0 ? mission.id : null, flowing ? runThread(tasks).said.length : -1);
+  const replyRef = useShowReply((reply || flowing) && mission && !waiting && humanTodos.length === 0 ? mission.id : null, flowing ? runThread(tasks).said.length : -1, mission?.status === "running");
 
   // what belongs under one task, the same in the running thread and in the finished list
   const taskDetail = (t: Task) => mission && (

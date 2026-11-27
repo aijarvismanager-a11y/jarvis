@@ -41,6 +41,8 @@ describe("taskTitle", () => {
   });
   it("otherwise uses the first phrase without command names, cut at 28 characters", () => {
     expect(taskTitle("capture.ps1 の使い方(Start/Shot/Click/Keys/Stop/Status/Windows)、確認用素材")).toBe("使い方");
+    expect(taskTitle("src/sum.mjs に、数値の配列を合計する関数 sum を作る")).toMatch(/^src\/sum\.mjs に、数値の配列/);
+    expect(taskTitle("test/sum.test.mjs に node:test のテストを3件書く")).toMatch(/^test\/sum\.test\.mjs に node:t/);
     const t = taskTitle("白基調のスタジオ各画面を作り直すために必要な共通部品の洗い出しと整理をまとめて行う作業");
     expect(t.length).toBeLessThanOrEqual(29);
   });

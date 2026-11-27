@@ -19,6 +19,12 @@ describe("isSmallRequest", () => {
     expect(isSmallRequest(Array.from({ length: 11 }, (_, i) => `f${i}.js`).join(" "))).toBe(false);
     expect(isSmallRequest("src/a.js を直して", ["画像も作る"])).toBe(false);
   });
+  it("does as asked when the person wants the work split", () => {
+    expect(isSmallRequest("src/a.js を直して。作業は「実装」「テスト」の2つに分けてください")).toBe(false);
+    expect(isSmallRequest("src/a.js と test/a.test.js を、3つに分けて作って")).toBe(false);
+    expect(isSmallRequest("src/a.js を直して。作業は分けずに1回で")).toBe(true);
+    expect(isSmallRequest("src/a.js の、文字列をカンマで分ける関数を直して")).toBe(true);
+  });
   it("makes a valid one-task plan, also for the longest goal", () => {
     const draft = singleTaskDraft("a".repeat(4000));
     expect(planDraftSchema.safeParse(draft).success).toBe(true);

@@ -43,6 +43,11 @@ describe("replySummary", () => {
     expect(s.next).toContain("あなたの番");
   });
   it("says nothing is needed when nothing is left", () => expect(replySummary([task("completed")], "completed", 0).next).toContain("やることはありません"));
+  it("does not say there is nothing to do when a finished request has a failed task", () => {
+    const s = replySummary([task("completed"), task("failed")], "completed", 0);
+    expect(s.next).toContain("理由を確かめて");
+    expect(s.next).not.toContain("やることはありません");
+  });
   it("reports failures", () => expect(replySummary([task("completed"), task("failed")], "failed", 0).result).toContain("1件"));
 });
 

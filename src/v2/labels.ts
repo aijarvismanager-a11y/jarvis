@@ -173,8 +173,10 @@ export const taskTitle = (objective: string): string => {
   ];
   for (const [re, title] of known) if (re.test(t)) return title;
   // command / file names at the front ("capture.ps1 の使い方", "tools/ui-probe(…)") are noise in a heading
-  const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)\s*(?:の|で|を)?\s*/i, "");
-  const cut = cleaned.search(/[。、:：(（]/);
+  // ("src/sum.mjs に…" keeps its file name: without it the sentence starts with a bare "に")
+  const cleaned = t.replace(/^(?:[\w./\\:%-]+\.(?:ps1|mjs|ts|md|json|cs|csproj|sln)|tools\/[\w./-]+)(?!\s*(?:に|へ|と|から))\s*(?:の|で|を)?\s*/i, "");
+  // "node:test" is one word, and a comma right after "…に" does not end the phrase
+  const cut = cleaned.search(/[。：(（]|:(?=\s)|(?<![にへと]|から)、/);
   const head = cut > 1 ? cleaned.slice(0, cut) : cleaned;
   return head.length > 28 ? `${head.slice(0, 28)}…` : head;
 };
