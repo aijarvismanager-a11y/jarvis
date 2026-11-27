@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const PROJECT_ID_RE = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -53,6 +53,26 @@ export function resolveInProject(projectsRoot: string, projectId: string, relPat
     }
   }
   return target;
+}
+
+const NO_TEST_SCRIPT = 'echo "No test script in this project. Run its tests directly, e.g. node --test test/" && exit 1';
+
+/**
+ * Writes a stop-here package.json at the top of projects/. A project without its own package.json otherwise inherits the one of the folder
+ * above: "npm test" inside it ran this application's whole test suite (measured: coding tasks waited 5-7 minutes for it), and "npm install"
+ * would have written there. "type" is copied from the folder above so .js files keep being read the same way. An existing file is left alone.
+ */
+export function guardProjectsRoot(projectsRoot: string): void {
+  const file = path.join(projectsRoot, "package.json");
+  if (existsSync(file)) return;
+  let type: string | undefined;
+  try {
+    type = (JSON.parse(readFileSync(path.join(path.dirname(path.resolve(projectsRoot)), "package.json"), "utf8")) as { type?: string }).type;
+  } catch {
+    // no package.json above: nothing to copy
+  }
+  mkdirSync(projectsRoot, { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ name: "orchestra-projects", private: true, ...(type ? { type } : {}), scripts: { test: NO_TEST_SCRIPT } }, null, 2)}\n`);
 }
 
 /** Folder-name prefix for a new project: the ASCII part of its name (so `projects/` is readable), else "project". */
