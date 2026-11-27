@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dockMode, isSendKey, pastExchanges, replySummary } from "./dock";
+import { dockMode, isSendKey, pastExchanges, replySummary, runThread } from "./dock";
 import type { Mission, Task } from "./types";
 
 const task = (status: Task["status"]) => ({ status }) as Task;
@@ -54,4 +54,16 @@ describe("pastExchanges", () => {
     expect(past[0].result).toBe("終わっていません");
   });
   it("is empty without a current request", () => expect(pastExchanges([m("a", "1")], [], null)).toEqual([]));
+});
+
+describe("runThread", () => {
+  const t = (id: string, status: Task["status"], updatedAt = "") => ({ id, status, updatedAt }) as Task;
+  const ids = (list: Task[]) => list.map((x) => x.id);
+  it("lists ended tasks in the order they ended, then what is in hand, then the rest", () => {
+    const r = runThread([t("a", "completed", "2"), t("b", "failed", "1"), t("c", "running"), t("d", "ready"), t("e", "pending")]);
+    expect(ids(r.said)).toEqual(["b", "a"]);
+    expect(ids(r.now)).toEqual(["c"]);
+    expect(ids(r.next)).toEqual(["d", "e"]);
+  });
+  it("keeps a task that waits for the person with what is in hand", () => expect(ids(runThread([t("a", "waiting")]).now)).toEqual(["a"]));
 });

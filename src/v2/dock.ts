@@ -72,3 +72,13 @@ export function pastExchanges(missions: Mission[], tasks: Task[], current: Missi
       return { ...x, did: s.did, result: ended ? s.result : "終わっていません" };
     });
 }
+
+/** A running request read as a conversation: ended tasks in the order they ended, then the ones in hand, then the rest. */
+export function runThread(tasks: Task[]): { said: Task[]; now: Task[]; next: Task[] } {
+  const of = (...s: Task["status"][]) => tasks.filter((t) => s.includes(t.status)); // keeps the plan's order
+  return {
+    said: of("completed", "failed", "blocked", "cancelled").sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)),
+    now: of("running", "validation", "waiting", "paused"),
+    next: of("pending", "ready"),
+  };
+}

@@ -14,7 +14,8 @@ import { summaryLine } from "./summaryLine";
 import { MissionBrief } from "./MissionBriefCard";
 import { HumanTodoCard, useHumanTodos } from "./HumanTodoCard";
 import { humanTurnLine } from "../humanTodoView";
-import { pastExchanges, replySummary } from "../dock";
+import { pastExchanges, replySummary, runThread } from "../dock";
+import { RunThread } from "./RunThread";
 import { ThreadHistory } from "./ThreadHistory";
 import { useShowReply } from "./useShowReply";
 import { PromptDock } from "./PromptDock";
@@ -897,8 +898,21 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   // while something waits for the person, the earlier talk folds into one line so the waiting card is not pushed down
   const waiting = pendingPlan || starting || myHandoffs.length > 0 || approvals.some((a) => a.projectId === project?.id);
   const history = past.length > 0 && <ThreadHistory key={project?.id} items={past} renderAnswer={(taskId) => <TaskAnswer taskId={taskId} ctx={ctx} />} />;
-  // open on the latest reply; not while something waits or the person has a to-do (that is read first, at the top)
-  const replyRef = useShowReply(reply && mission && !waiting && humanTodos.length === 0 ? mission.id : null);
+  // an unfinished request flows as messages; a finished (or stopped) one keeps the folded list of its tasks
+  const flowing = !!mission && !FINISHED.includes(mission.status) && tasks.length > 0;
+  // keep the latest message in view; not while something waits or the person has a to-do (that is read first, at the top)
+  const replyRef = useShowReply((reply || flowing) && mission && !waiting && humanTodos.length === 0 ? mission.id : null, flowing ? runThread(tasks).said.length : -1);
+
+  // what belongs under one task, the same in the running thread and in the finished list
+  const taskDetail = (t: Task) => mission && (
+    <>
+      {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
+      {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
+      {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} />}
+      {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
+      {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
+    </>
+  );
 
   return (
     <div className="space-y-4">
@@ -954,15 +968,16 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               </dl>
             </div>
           )}
+          {flowing && <RunThread tasks={tasks} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
+          {/* where things stand comes last, nearest to the input box */}
           {total > 0 && !finishedMission && (
-            <div className="mt-3">
+            <div ref={flowing ? replyRef : undefined} className="mt-3" aria-label="いまの状況">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
               </div>
-              <p className="mt-1 text-[12px] text-muted">{percent}%({done}/{total})</p>
+              <p className="mt-1.5 text-[13px]"><span className="mr-2 text-[12px] text-muted">{percent}%({done}/{total})</span>{summaryLine(tasks, ctx, resting)}</p>
             </div>
           )}
-          {total > 0 && !finishedMission && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx, resting)}</p>}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} className="mt-3" />
           {/* the checks are details: folded under the summary */}
           {finishedMission && (
@@ -974,7 +989,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
             </div>
           )}
           {/* a finished request keeps its per-task details and the follow-up tools out of sight until asked for */}
-          {tasks.length > 0 && (
+          {tasks.length > 0 && !flowing && (
             <div className={finishedMission ? "mt-3" : ""}>
             <FoldIf on={finishedMission} summary={`各作業の中身と回答を見る(${tasks.length}件)`}>
             <ul className="mt-3 space-y-1">
@@ -988,11 +1003,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                     {["completed", "failed"].includes(t.status) && taskTime(overview.aiRuns, t.id) && <span className="shrink-0 text-[11.5px] text-muted">{taskTime(overview.aiRuns, t.id)}</span>}
                     {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}
                   </div>
-                  {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
-                  {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
-                  {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} />}
-                  {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
-                  {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
+                  {taskDetail(t)}
                 </li>
               ))}
             </ul>
