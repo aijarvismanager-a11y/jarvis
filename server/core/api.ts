@@ -6,9 +6,10 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
+import { isAiRecordPath, readArchivedRecord } from "./recordsArchive.ts";
 import { listHumanTodos, markHumanTodoDone, recordHumanTodoDelegation } from "./humanTodos.ts";
 import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
@@ -81,6 +82,8 @@ export type OrchestratorApiDeps = {
   restart?: () => void;
   /** Where sync backups are kept (backups/sync); without it the sync endpoints answer 501. */
   syncBackupsRoot?: string;
+  /** The folder old AI records are packed into (backups/); with it a packed record can still be read. */
+  recordsBackupsRoot?: string;
   /** where verifiers/<projectId>.ps1 live (the app root) */
   appRoot?: string;
   /** Where the folders of projects started in the app are made (their "original folder", filled by the sync); without it none is made. */
@@ -476,6 +479,11 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     if (!store.listArtifacts(projectId).some((a) => a.path === relPath)) return void res.status(404).json({ error: "成果物が見つかりません" });
     try {
       const file = resolveInProject(store.projectsRoot, projectId, relPath);
+      // an old record was packed away: the answers of old requests are still read from there
+      if (deps.recordsBackupsRoot && isAiRecordPath(relPath) && !existsSync(file)) {
+        const packed = await readArchivedRecord(deps.recordsBackupsRoot, projectId, relPath, MAX_ARTIFACT_BYTES);
+        if (packed !== null) return void res.json({ path: relPath, content: packed });
+      }
       const info = await stat(file);
       if (!info.isFile()) throw new Error("ファイルではありません");
       if (info.size > MAX_ARTIFACT_BYTES) return void res.status(413).json({ error: "ファイルが大きすぎて表示できません" });

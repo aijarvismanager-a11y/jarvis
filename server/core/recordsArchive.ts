@@ -30,6 +30,43 @@ function pack(outDir: string, archiveName: string, cwd: string, folder: string):
   });
 }
 
+/** One file out of an archive, as text; null when the archive does not hold it or it is longer than `maxBytes`. */
+function unpackText(archiveDir: string, archiveName: string, member: string, maxBytes: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn("tar", ["-xzOf", archiveName, "--", member], { cwd: archiveDir, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    child.stdout.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > maxBytes) child.kill();
+      else chunks.push(c);
+    });
+    child.on("error", () => resolve(null));
+    child.on("close", (code) => resolve(code === 0 && size <= maxBytes ? Buffer.concat(chunks).toString("utf8") : null));
+  });
+}
+
+/**
+ * The text of a record that has been packed away (the screen still shows the answers of old requests), taken from the newest
+ * archive that holds it. The folder stays packed. Null when no archive holds it.
+ */
+export async function readArchivedRecord(backupsRoot: string, projectId: string, rel: string, maxBytes: number): Promise<string | null> {
+  const parts = rel.split("/");
+  if (parts[0] !== RECORDS_DIR || parts.length < 3 || parts.some((p) => p === "" || p === "." || p === ".." || p.includes("\\"))) return null;
+  const folder = parts[1]!;
+  const dir = path.join(backupsRoot, "records", projectId);
+  if (!existsSync(dir)) return null;
+  const archives = readdirSync(dir)
+    .filter((n) => n.startsWith(`${folder}-`) && /^\d{8}\.tar\.gz$/.test(n.slice(folder.length + 1)))
+    .sort()
+    .reverse();
+  for (const name of archives) {
+    const text = await unpackText(dir, name, parts.slice(1).join("/"), maxBytes);
+    if (text !== null) return text;
+  }
+  return null;
+}
+
 export type ArchiveResult = { archived: string[]; kept: string[] };
 
 /**

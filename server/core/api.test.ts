@@ -10,6 +10,7 @@ import { Store } from "./store.ts";
 import { MissionEngine } from "./missionEngine.ts";
 import type { Planner } from "./planner.ts";
 import { createOrchestratorRouter } from "./api.ts";
+import { archiveOldRecords } from "./recordsArchive.ts";
 
 const TOKEN = "tok";
 let db: Db;
@@ -30,7 +31,7 @@ async function boot(canExecute: boolean) {
   const engine = new MissionEngine(store, { planner, executor: { name: "ok", execute: async () => ({ ok: true }) } });
   const app = express();
   app.use(express.json());
-  app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute, tokenMatches: (c) => c === TOKEN }));
+  app.use("/api/v2", createOrchestratorRouter({ store, engine, canExecute, tokenMatches: (c) => c === TOKEN, recordsBackupsRoot: path.join(projectsRoot, "_backups") }));
   server = http.createServer(app);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v2`;
@@ -217,6 +218,21 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect(env.project?.workDir.startsWith(env.projectsDir)).toBe(true);
     expect(env.project?.sourcePath).toBeNull();
     expect(((await (await call("/environment?projectId=../x")).json()) as { project: unknown }).project).toBeNull();
+  });
+
+  it("still serves a record that was packed away, with Japanese names too", async () => {
+    const rel = "_ai-records/料理メモ/確認.md";
+    mkdirSync(path.join(projectsRoot, "p1", "_ai-records", "料理メモ"), { recursive: true });
+    writeFileSync(path.join(projectsRoot, "p1", rel), "# 確認の記録");
+    store.createArtifact({ projectId: "p1", path: rel, createdBy: "test" });
+    store.createArtifact({ projectId: "p1", path: "_ai-records/料理メモ/無い.md", createdBy: "test" });
+    const packed = await archiveOldRecords({ projectsRoot, backupsRoot: path.join(projectsRoot, "_backups"), now: Date.now() + 30 * 86_400_000 });
+    expect(packed.archived).toEqual(["p1/料理メモ"]);
+    const ok = await call("/projects/p1/artifact-content?path=" + encodeURIComponent(rel));
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { content: string }).content).toBe("# 確認の記録");
+    expect(existsSync(path.join(projectsRoot, "p1", rel))).toBe(false); // it stays packed
+    expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("_ai-records/料理メモ/無い.md"))).status).toBe(404);
   });
 
   it("serves only registered artifacts, and never outside the project", async () => {
