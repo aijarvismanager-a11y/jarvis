@@ -3,6 +3,13 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.95",
+    date: "2026-11-28",
+    items: [
+      "「使うAI」の「新しいAIの候補」の探索が「FOREIGN KEY constraint failed」で止まる不具合を直しました。AIに聞けなかったときは、本当の理由が出ます。",
+    ],
+  },
+  {
     version: "1.5.94",
     date: "2026-11-28",
     items: [
