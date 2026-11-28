@@ -6,11 +6,11 @@ export type ModelTier = "haiku" | "sonnet" | "opus";
 export type Effort = "low" | "medium" | "high";
 export type ModelChoice = { model: ModelTier; effort: Effort };
 
-export type SaverCapabilities = { model: boolean; effort: boolean; strictMcp: boolean; noSlash: boolean; stableCache?: boolean };
+export type SaverCapabilities = { model: boolean; effort: boolean; strictMcp: boolean; noSlash: boolean; stableCache?: boolean; settings?: boolean };
 
 export function parseSaverCapabilities(helpText: string): SaverCapabilities {
   const has = (flag: string) => new RegExp(`(^|[\\s,])${flag.replace(/-/g, "\\-")}(\\s|,|$|=)`, "m").test(helpText);
-  return { model: has("--model"), effort: has("--effort"), strictMcp: has("--strict-mcp-config"), noSlash: has("--disable-slash-commands"), stableCache: has("--exclude-dynamic-system-prompt-sections") };
+  return { model: has("--model"), effort: has("--effort"), strictMcp: has("--strict-mcp-config"), noSlash: has("--disable-slash-commands"), stableCache: has("--exclude-dynamic-system-prompt-sections"), settings: has("--settings") };
 }
 
 const BASE: Record<string, ModelChoice> = {

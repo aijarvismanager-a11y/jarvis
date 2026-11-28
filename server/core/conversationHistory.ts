@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { parseCliCapabilities, spawnRunner, type CommandRunner } from "./planner.ts";
+import { isolationArgs } from "./isolation.ts";
+import { needsShell } from "./commandRunner.ts";
 import { HISTORY_NOTES_PATH } from "./projectImport.ts";
 
 // Carrying the talk with Claude Code over to an imported project.
@@ -155,6 +157,7 @@ export async function carryHistory(opts: { sourceFolder: string; projectDir: str
     if (!caps.permissionModePlan) throw new Error("読み取り専用モード(--permission-mode plan)が使えないため、安全に要約できません");
     const args = ["--print", "--permission-mode", "plan"]; // read-only: nothing may be edited
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
+    args.push(...isolationArgs(caps.saver, needsShell(command)));
     const res = await runner(command, args, { input: buildSummaryPrompt(text), cwd: opts.projectDir, signal: opts.signal, timeoutMs: opts.timeoutMs ?? 5 * 60_000 });
     if (res.code !== 0) throw new Error(`Claude Codeが異常終了しました(code=${res.code}): ${res.stderr.slice(0, 300)}`);
     // the model sometimes wraps the whole note in a code fence

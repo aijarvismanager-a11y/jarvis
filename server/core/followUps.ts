@@ -1,6 +1,7 @@
-import { spawnRunner, type CommandRunner } from "./commandRunner.ts";
+import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import { extractPlanJson, parseCliCapabilities, type CliCapabilities } from "./planner.ts";
 import { saverArgs } from "./tokenSaver.ts";
+import { isolationArgs } from "./isolation.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
 
 // After an AI has answered (a comparison table, a proposal), the person is asked what only they can decide.
@@ -66,7 +67,7 @@ export class FollowUpAsker {
     if (caps.outputFormatJson) args.push("--output-format", "json");
     if (caps.permissionModePlan) args.push("--permission-mode", "plan");
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
-    args.push(...saverArgs(caps.saver, choice));
+    args.push(...saverArgs(caps.saver, choice), ...isolationArgs(caps.saver, needsShell(this.command)));
     const res = await this.runner(this.command, args, { input: prompt, cwd: this.opts.cwd, timeoutMs: this.opts.timeoutMs ?? timeoutMs });
     if (res.timedOut) throw new Error("処理が時間内に終わりませんでした。もう一度試してください");
     if (res.code !== 0) throw new Error(explainClaudeFailure(`${res.stdout}\n${res.stderr}`) ?? `Claude Codeが異常終了しました(code=${res.code})`);

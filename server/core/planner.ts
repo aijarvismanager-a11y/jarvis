@@ -1,5 +1,6 @@
 import { needsShell, spawnRunner, type CommandRunner } from "./commandRunner.ts";
 import { parseSaverCapabilities, saverArgs, type SaverCapabilities } from "./tokenSaver.ts";
+import { isolationArgs } from "./isolation.ts";
 import { explainClaudeFailure } from "./systemCheck.ts";
 import { HISTORY_TASK_KEY, NO_RECORDS_RULE, keepsOtherFiles, withoutRecords } from "./fileScope.ts";
 import { MAX_PLAN_TASKS, SELF_PERMISSION_TASK, planDraftSchema, validatePlan, type PlanDraft } from "./taskGraph.ts";
@@ -203,6 +204,7 @@ export class ClaudeCodePlanner implements Planner {
     if (caps.permissionModePlan) args.push("--permission-mode", "plan"); // planning must not edit files
     if (caps.noSessionPersistence) args.push("--no-session-persistence");
     args.push(...saverArgs(caps.saver, { model: "sonnet", effort: "medium" })); // the plan decides how much everything after it costs, but it needs no heavy model
+    args.push(...isolationArgs(caps.saver, shell));
     return args;
   }
 

@@ -12,6 +12,8 @@ import { projectDir } from "./paths.ts";
 import { HUMAN_TODO_INSTRUCTION } from "./humanTodos.ts";
 import { fileURLToPath } from "node:url";
 import { HISTORY_NOTES_PATH, STATUS_REPORT_PATH } from "./projectImport.ts";
+import { DESIGN_GUIDE_LINES, buildsScreen } from "./designGuide.ts";
+import { isolationArgs } from "./isolation.ts";
 import type { SnapshotManager } from "./snapshotManager.ts";
 import type { Mission, Store, Task } from "./store.ts";
 
@@ -140,7 +142,7 @@ export function buildTaskPrompt(input: {
       "これを参考にして似せるのではなく、そのまま使って実装してください。SVGは作り直さず、ファイルをそのままコピーして(またはそのまま埋め込んで)使うこと。",
       "ファイル先頭のコメントにある色コード・フォント・余白、SVGの形・配置・文言は一切変えないこと。足りない部分だけを補い、補った点は最後の報告に書くこと。自分の好みで配色やレイアウトを変えないこと。",
     );
-  }
+  } else if (buildsScreen(task)) lines.push(...DESIGN_GUIDE_LINES); // a finished design from another AI wins over the guide
   if (input.uiProbe && SCREEN_CHECK.test(`${task.objective} ${mission.goal}`)) lines.push(...screenCheckLines(input.uiProbe));
   if (input.previousFailure) {
     lines.push(
@@ -285,6 +287,7 @@ if (this.opts.logs && caps.streamJson) args.push("--output-format", "stream-json
     if (allowedTools.length && caps.allowedTools) args.push("--allowed-tools", q(allowedTools.join(",")));
     if (disallowedTools.length) args.push("--disallowed-tools", q(disallowedTools.join(",")));
     args.push(...saverArgs(caps.saver, chooseModel(task.role, task.retryCount ?? 0, task.failure)));
+    args.push(...isolationArgs(caps.saver, shell));
     return args;
   }
 
