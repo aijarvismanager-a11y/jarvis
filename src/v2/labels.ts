@@ -1,4 +1,4 @@
-import type { Mission, MissionStatus, Task, TaskStatus } from "./types";
+import type { TaskWait, Mission, MissionStatus, Task, TaskStatus } from "./types";
 
 export const MISSION_LABEL: Record<MissionStatus, string> = {
   draft: "準備中",
@@ -320,6 +320,13 @@ const REASON_LABEL: Record<string, string> = {
 
 /** A task's failure note that says the person did not allow it (they pressed "拒否する"): nothing went wrong, so it is not advice-for-a-failure. */
 export const isRefusedNote = (note: string | undefined | null) => /承認されなかった|許可されなかった/.test(note ?? "");
+
+/** The words for each kind of quiet task: its badge, the end of "作業N(役割)…", and the whole sentence about it. */
+export const WAIT_TEXT: Record<TaskWait, { badge: string; line: string; sentence: string }> = {
+  limit: { badge: "利用枠の回復待ち", line: "は、Claude の利用枠の回復を待っています", sentence: "Claude の利用枠が回復するのを待っています(自動で再開します)。" },
+  login: { badge: "ログイン窓を閉じるのを待っています", line: "は、ログイン用の窓が閉じられるのを待っています", sentence: "ログイン用の窓が開いているため止まっています。その窓を閉じると続きます。" },
+  resting: { badge: "使えるAIを待っています", line: "は、使えるAIが戻るのを待っています", sentence: "使えるAIが戻るのを待っています(自動で再開します)。" },
+};
 
 /** A task's state in words. A task the person refused did not break; a cancelled task of a request that goes on was replaced by a new plan. */
 export function taskStatusLabel(status: TaskStatus, missionStatus: MissionStatus, note?: string, base: Record<TaskStatus, string> = TASK_LABEL): string {

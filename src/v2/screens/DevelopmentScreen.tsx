@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
-import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel, shortGoal, failedCauses, isRefusedNote, plainLogText, taskStatusLabel } from "../labels";
+import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel, shortGoal, failedCauses, isRefusedNote, plainLogText, taskStatusLabel, WAIT_TEXT } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import type { Task, TaskStatus } from "../types";
 import { FailureReason } from "./FailureReason";
@@ -27,6 +27,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
   const asking = ctx.approvals.some((a) => a.taskId === task.id);
   const note = ctx.overview.taskNotes?.[task.id];
   const missionStatus = ctx.mission?.status ?? "running";
+  const wait = ctx.overview.taskWaits?.[task.id];
   const [open, setOpen] = useState(task.status === "failed" || task.status === "running" || task.status === "waiting");
   const runs = ctx.overview.aiRuns.filter((r) => r.task_id === task.id);
   const outputs = ctx.overview.artifacts.filter((a) => a.taskId === task.id);
@@ -35,9 +36,9 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2 text-left">
         <span className="text-muted">{open ? "▾" : "▸"}</span>
         <span className="text-[13px] font-semibold">{roleLabel(task.role)}</span>
-        <Badge tone={asking ? "warn" : task.status === "failed" && isRefusedNote(note) ? "neutral" : TONE[task.status]}>{asking ? "あなたの許可待ち" : taskStatusLabel(task.status, missionStatus, note, TASK_LABEL_PLAIN)}</Badge>
+        <Badge tone={asking || wait ? "warn" : task.status === "failed" && isRefusedNote(note) ? "neutral" : TONE[task.status]}>{asking ? "あなたの許可待ち" : wait ? WAIT_TEXT[wait].badge : taskStatusLabel(task.status, missionStatus, note, TASK_LABEL_PLAIN)}</Badge>
         {task.retryCount > 0 && <span className="text-[11px] text-muted">再試行 {task.retryCount}回</span>}
-        <span className="ml-auto text-[12px] text-muted">{task.selectedAi || !["pending", "ready", "blocked"].includes(task.status) ? aiNameOf(ctx.services, task.selectedAi) : "担当は始めるときに決まります"}</span>
+        <span className="ml-auto text-[12px] text-muted">{wait === "resting" ? "担当は、AIが戻ったときに決まります" : task.selectedAi || !["pending", "ready", "blocked"].includes(task.status) ? aiNameOf(ctx.services, task.selectedAi) : "担当は始めるときに決まります"}</span>
         <span className="w-full pl-5 text-[12px] leading-snug text-muted">{shortGoal(task.objective).head}</span>
       </button>
       {open && (
@@ -123,6 +124,7 @@ export function DevelopmentScreen({ ctx, onOpenHome }: { ctx: Ctx; onOpenHome: (
         {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
         {ctx.approvals.some((a) => tasks.some((t) => t.id === a.taskId)) && <div className="mt-2"><Button onClick={onOpenHome}>ホームを開いて許可する</Button></div>}
         {ctx.mission.status === "planning" && <div className="mt-2"><Button onClick={onOpenHome}>ホームを開いて計画を見る</Button></div>}
+        {ctx.handoffs.some((h) => tasks.some((t) => t.id === h.taskId)) && <div className="mt-2"><Button onClick={onOpenHome}>ホームを開いて回答する</Button></div>}
         <FailureReason projectId={ctx.mission.projectId} missionId={ctx.mission.id} failed={ctx.mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(ctx.overview.taskNotes?.[t.id]))} causes={failedCauses(tasks, ctx.overview.taskNotes)} quiet={tasks.length === 0} onOpenHome={onOpenHome} className="mt-3" />
       </Card>
       <Card title="作業の一覧(上から順に進みます)">

@@ -8,7 +8,7 @@ import { usageLimitUntil } from "./usageLimit.ts";
 // state the screen shows; nothing here fails a task or spends a retry.
 
 export type RestingAi = { aiId: string; name: string; until: string; reason: "limit" | "botcheck" | "claude" };
-export type AllResting = { since: string; until: string; tasks: number; ais: RestingAi[] };
+export type AllResting = { since: string; until: string; tasks: number; ais: RestingAi[]; /** which tasks wait (absent in a state saved by an older version) */ taskIds?: string[] };
 
 const KEY = "allResting.v1";
 

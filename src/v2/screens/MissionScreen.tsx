@@ -862,8 +862,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
     });
 
   const pendingPlan = mission?.status === "planning" && view?.mission.id === mission.id;
-  const [resting, setResting] = useState(false);
-  usePoll(async () => setResting(((await api.allResting().catch(() => ({ state: null }))).state?.tasks ?? 0) > 0), 15000, []);
+  const resting = tasks.some((t) => overview.taskWaits?.[t.id] === "resting");
   const step = nextStep(ctx, tasks, () => setStarting(true), mission?.status !== "planning" || (pendingPlan && !!view?.proposal), resting, Date.now(), {
     replan: () => act("replan"),
     retry: (taskId) => void run(async () => { if (mission) { await api.retryTask(mission.projectId, mission.id, taskId, ""); ctx.refresh(); } }),
@@ -917,7 +916,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const taskDetail = (t: Task) => mission && (
     <>
       {overview.taskNotes?.[t.id] && <p className="ml-6 text-[12px] text-[#9B2C2C]">{overview.taskNotes[t.id]}</p>}
-      {(t.status === "running" || t.status === "validation") && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
+      {(t.status === "running" || t.status === "validation") && !overview.taskWaits?.[t.id] && <LiveLog projectId={ctx.project!.id} taskId={t.id} />}
       {t.status === "completed" && <TaskAnswer taskId={t.id} ctx={ctx} />}
       {["completed", "failed"].includes(t.status) && <TaskChangesPanel task={t} ctx={ctx} canRollback={mission.status !== "running"} />}
       {t.status === "failed" && !["completed", "cancelled", "planning"].includes(mission.status) && <RetryControls task={t} ctx={ctx} />}
@@ -978,14 +977,14 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               </dl>
             </div>
           )}
-          {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} notes={overview.taskNotes} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
+          {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} waits={overview.taskWaits} notes={overview.taskNotes} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
           {/* where things stand comes last, nearest to the input box */}
           {total > 0 && !finishedMission && (
             <div ref={flowing ? replyRef : undefined} className="mt-3" aria-label="いまの状況">
               <div className="h-2 overflow-hidden rounded-full bg-sidebar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full bg-accent transition-all" style={{ width: `${percent}%` }} />
               </div>
-              <p className="mt-1.5 text-[13px]"><span className="mr-2 text-[12px] text-muted">{percent}%({done}/{total})</span>{summaryLine(tasks, ctx, resting)}</p>
+              <p className="mt-1.5 text-[13px]"><span className="mr-2 text-[12px] text-muted">{percent}%({done}/{total})</span>{summaryLine(tasks, ctx)}</p>
             </div>
           )}
           <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} causes={failedCauses(tasks, overview.taskNotes)} className="mt-3" />

@@ -1,9 +1,9 @@
 import { aiNameOf, type Ctx } from "../context";
-import { isRefusedNote, roleLabel, troubleText } from "../labels";
+import { isRefusedNote, roleLabel, troubleText, WAIT_TEXT } from "../labels";
 import type { Task, TaskStatus } from "../types";
 
 /** One sentence on where the request stands, so the screen can be read without opening any row. */
-export function summaryLine(tasks: Task[], ctx: Ctx, resting = false): string {
+export function summaryLine(tasks: Task[], ctx: Ctx): string {
   const by = (st: TaskStatus) => tasks.filter((t) => t.status === st);
   const failed = [...by("failed"), ...by("blocked")];
   // while a plan waits (also a new one for a changed request) nothing is running, whatever the old tasks say
@@ -12,13 +12,15 @@ export function summaryLine(tasks: Task[], ctx: Ctx, resting = false): string {
   if (refused.length > 0 && refused.length === by("failed").length) return `あなたが許可しなかった作業があるため、ここで止まっています。許可しなかった作業は行っていません(後ろの作業${by("blocked").length + by("pending").length}件も進みません)。`;
   if (failed.length > 0) return `${troubleText(tasks, ctx.overview?.taskNotes)}があります。赤くなっている作業に理由が出ます(ホームの「次にやること」にも出ます)。`;
   if (ctx.mission?.status === "paused") return "一時停止中です。ホームの「再開」を押すと、続きから進みます。";
-  const waiting = by("waiting");
+  const waits = ctx.overview?.taskWaits ?? {};
+  const waiting = by("waiting").filter((t) => !waits[t.id]); // these need the person
   if (waiting.length > 0) return `「${roleLabel(waiting[0].role)}」があなたの操作を待っています。ホームの「次にやること」を見てください。`;
-  const running = by("running");
+  const running = by("running").filter((t) => !waits[t.id]);
   const asked = ctx.approvals.filter((a) => tasks.some((t) => t.id === a.taskId));
   if (asked.length > 0) return `「${roleLabel(tasks.find((t) => t.id === asked[0].taskId)?.role ?? "")}」は、あなたの許可を待っています。ホームの「許可が必要」のカードで、「許可して続ける」か「拒否する」を押してください。`;
-  if (running.length > 0 && resting) return `「${roleLabel(running[0].role)}」は、使えるAIが戻るのを待っています(自動で再開します)。`;
   if (running.length > 0) return `いま「${roleLabel(running[0].role)}」を ${aiNameOf(ctx.services, running[0].selectedAi)} が進めています。`;
+  const quiet = tasks.find((t) => waits[t.id]);
+  if (quiet) return `「${roleLabel(quiet.role)}」は、${WAIT_TEXT[waits[quiet.id]!].sentence}`;
   const cancelled = by("cancelled");
   // (a cancelled task of a request that goes on, or finished, was replaced by a new plan: nothing is left undone)
   if (ctx.mission?.status === "cancelled" && cancelled.length > 0 && cancelled.length < tasks.length && tasks.every((t) => t.status === "completed" || t.status === "cancelled")) return `途中で中止したため、${tasks.length - cancelled.length}件の作業だけが終わっています(残り${cancelled.length}件は行っていません)。`;

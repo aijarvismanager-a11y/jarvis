@@ -1,5 +1,5 @@
 import type { Ctx } from "./context";
-import { isRefusedNote, roleLabel } from "./labels";
+import { WAIT_TEXT, isRefusedNote, roleLabel } from "./labels";
 import type { Task } from "./types";
 
 /** What the failed-mission banner can do for the person (the screen supplies these). */
@@ -65,6 +65,13 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
       // every AI is resting: the work is waiting, not being done (the yellow box above says when it goes on)
       if (resting) return { tone: "wait", title: "いまは使えるAIがありません。自動で再開します", detail: "使えるAIが戻りしだい、続きから自動で進みます。何もしなくて大丈夫です。再開の目安は、画面上部の黄色い枠にあります。" };
       const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
+      const waits = ctx.overview?.taskWaits ?? {};
+      const active = tasks.filter((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
+      // only when nothing is actually being worked on: say what it waits for
+      if (active.length > 0 && active.every((t) => waits[t.id])) {
+        const kind = waits[active[0]!.id]!;
+        return { tone: kind === "login" ? "go" : "wait", title: kind === "login" ? "ログイン用の窓を閉じてください" : WAIT_TEXT[kind].badge, detail: `「${roleLabel(active[0]!.role)}」は、${WAIT_TEXT[kind].sentence}${kind === "login" ? "" : "何もしなくて大丈夫です。"}` };
+      }
       return { tone: "wait", title: "AI が作業しています", detail: `${doing ? `いまは「${roleLabel(doing.role)}」の作業中です。` : ""}終わるまでこの画面を開いたままで大丈夫です。途中で止めたい・方針を変えたいときは、下のボタンを使います。` };
     }
     case "paused":

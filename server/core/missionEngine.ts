@@ -386,12 +386,25 @@ export class MissionEngine {
     const allResting = this.assignAi(mission, task);
     transitionTask(this.store, projectId, task.id, "running", "scheduled");
     const promise = this.execute(mission, task, controller, allResting)
-      .catch((err) => this.store.appendEvent({ projectId, taskId: task.id, type: "ENGINE_ERROR", payload: { message: errMsg(err) } }))
+      .catch((err) => {
+        this.store.appendEvent({ projectId, taskId: task.id, type: "ENGINE_ERROR", payload: { message: errMsg(err) } });
+        this.failBroken(projectId, task.id, errMsg(err));
+      })
       .finally(() => {
         this.scheduler.release(projectId, task);
         this.inFlight.delete(key);
       });
     this.inFlight.set(key, { controller, promise });
+  }
+
+  /** An error inside the app ended the task's run: the task must not stay "running" with nobody working on it. */
+  private failBroken(projectId: string, taskId: string, message: string): void {
+    try {
+      const now = this.store.getTask(projectId, taskId);
+      if (now && ["running", "waiting", "validation"].includes(now.status)) transitionTask(this.store, projectId, taskId, "failed", `アプリ内部のエラーで止まりました: ${message}`);
+    } catch (err) {
+      this.store.appendEvent({ projectId, taskId, type: "ENGINE_ERROR", payload: { message: errMsg(err) } });
+    }
   }
 
   /** Broker picks the AI for a task that has none yet. Advisory: a Broker failure never stops the task. */
@@ -477,7 +490,7 @@ export class MissionEngine {
         const rest = restingList(this.store);
         const first = rest.length ? Math.min(...rest.map((r) => Date.parse(r.until))) : Date.now() + 60_000;
         const prev = readAllResting(this.store);
-        saveAllResting(this.store, { since: prev?.since ?? new Date().toISOString(), until: new Date(first).toISOString(), tasks: this.restWaiting.size + (this.restWaiting.has(task.id) ? 0 : 1), ais: rest });
+        saveAllResting(this.store, { since: prev?.since ?? new Date().toISOString(), until: new Date(first).toISOString(), tasks: this.restWaiting.size + (this.restWaiting.has(task.id) ? 0 : 1), ais: rest, taskIds: [...new Set([...this.restWaiting.keys(), task.id])] });
         await new Promise<void>((resolve) => {
           const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); this.restWaiting.delete(task.id); resolve(); };
           const timer = setTimeout(done, Math.min(Math.max(first - Date.now() + 5000, 5000), 60 * 60_000));
@@ -494,7 +507,7 @@ export class MissionEngine {
       if (left === 0) clearAllResting(this.store);
       else {
         const cur = readAllResting(this.store);
-        if (cur) saveAllResting(this.store, { ...cur, tasks: left });
+        if (cur) saveAllResting(this.store, { ...cur, tasks: left, taskIds: [...this.restWaiting.keys()] });
       }
     }
   }

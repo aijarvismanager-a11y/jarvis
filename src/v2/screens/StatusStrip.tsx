@@ -1,5 +1,5 @@
 import { aiNameOf, type Ctx } from "../context";
-import { MISSION_LABEL, isActiveMission, progressOf, roleLabel, goalText } from "../labels";
+import { MISSION_LABEL, isActiveMission, progressOf, roleLabel, goalText, WAIT_TEXT } from "../labels";
 
 /** A slim line under the tabs: where the running request stands, so other screens need not be left to check. */
 export function StatusStrip({ ctx, onOpen }: { ctx: Ctx; onOpen: () => void }) {
@@ -9,7 +9,8 @@ export function StatusStrip({ ctx, onOpen }: { ctx: Ctx; onOpen: () => void }) {
   const { done, total, percent } = progressOf(tasks);
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
   const asking = tasks.find((t) => ctx.approvals.some((a) => a.taskId === t.id));
-  const now = asking ? `${roleLabel(asking.role)}があなたの許可待ち` : doing ? `${aiNameOf(ctx.services, doing.selectedAi)} が${roleLabel(doing.role)}${doing.status === "waiting" ? "の回答待ち" : "中"}` : MISSION_LABEL[mission.status];
+  const wait = doing ? ctx.overview.taskWaits?.[doing.id] : undefined;
+  const now = asking ? `${roleLabel(asking.role)}があなたの許可待ち` : doing && wait ? `${roleLabel(doing.role)}: ${WAIT_TEXT[wait].badge}` : doing ? `${aiNameOf(ctx.services, doing.selectedAi)} が${roleLabel(doing.role)}${doing.status === "waiting" ? "の回答待ち" : "中"}` : MISSION_LABEL[mission.status];
   return (
     <button onClick={onOpen} className="flex w-full items-center gap-3 border-t border-border bg-panel px-4 py-1.5 text-left text-[12.5px] hover:bg-sidebar" title="ホームで詳しく見る">
       <span className="shrink-0 font-semibold">進行中</span>

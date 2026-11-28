@@ -11,7 +11,7 @@ import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { isAiRecordPath, readArchivedRecord } from "./recordsArchive.ts";
 import { listHumanTodos, markHumanTodoDone, recordHumanTodoDelegation } from "./humanTodos.ts";
-import { AIBroker, capabilityForTaskRole } from "./aiBroker.ts";
+import { AIBroker, capabilityForTaskRole, isMediaCapability } from "./aiBroker.ts";
 import type { AiHealthChecker } from "./aiHealth.ts";
 import type { AiDiscovery } from "./aiDiscovery.ts";
 import type { AiScout } from "./aiScout.ts";
@@ -122,6 +122,26 @@ function taskNotes(store: Store, projectId: string, tasks: ReturnType<Store["lis
     }
   }
   return notes;
+}
+
+/** Tasks that go on by themselves, or need something other than a pasted answer: the screen must not call these "your turn". */
+export function taskWaits(store: Store, projectId: string, tasks: ReturnType<Store["listTasks"]>): Record<string, "limit" | "login" | "resting"> {
+  const waits: Record<string, "limit" | "login" | "resting"> = {};
+  const reasons = new Map<string, string>();
+  if (tasks.some((t) => t.status === "waiting")) {
+    for (const e of store.listEvents({ projectId, type: "TASK_TRANSITION", limit: 1000 })) {
+      const p = e.payload as { to?: string; reason?: string };
+      if (e.taskId && p.to === "waiting") reasons.set(e.taskId, p.reason ?? "");
+    }
+  }
+  const resting = new Set(readAllResting(store)?.taskIds ?? []);
+  for (const t of tasks) {
+    const why = reasons.get(t.id) ?? "";
+    if (t.status === "waiting" && why.includes("利用上限")) waits[t.id] = "limit";
+    else if (t.status === "waiting" && why.includes("ログイン用の窓")) waits[t.id] = "login";
+    else if (t.status === "running" && resting.has(t.id)) waits[t.id] = "resting";
+  }
+  return waits;
 }
 
 export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
@@ -338,6 +358,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       missions: store.listMissions(projectId),
       tasks,
       taskNotes: taskNotes(store, projectId, tasks),
+      taskWaits: taskWaits(store, projectId, tasks),
       artifacts: store.listArtifacts(projectId).filter((a) => !isBuildOutput(a.path)),
       aiRuns: store.listAiRuns(projectId),
     });
@@ -1039,11 +1060,18 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const query = z.object({ projectId: z.string().max(100).optional(), status: z.enum(["pending", "submitted", "skipped", "cancelled"]).optional() }).safeParse(req.query);
     if (!query.success) return void res.status(400).json({ error: "クエリが不正です" });
     deps.webAi.hub.closeStale();
+    // a picture / video / music / voice maker cannot answer written work (and only a maker of that kind can do its work)
+    const fits = (s: { capabilities: string[] }, role: string) => {
+      const need = capabilityForTaskRole(role);
+      if (isMediaCapability(need)) return s.capabilities.includes(need);
+      return s.capabilities.length === 0 || !s.capabilities.every(isMediaCapability);
+    };
     // Each handoff also lists the other web AIs the user could hand it to (free ones only, never an API-key one).
     const handoffs = deps.webAi.hub.list(query.data).map((h) => ({
       ...h,
       alternatives: store
         .listAiServices()
+        .filter((s) => fits(s, store.getTask(h.projectId, h.taskId)?.role ?? ""))
         .filter((s) => s.id !== h.aiId && s.status === "active" && !!s.url && !s.requiresApiKey && s.freeStatus !== "paid" && (WEB_ADAPTER_TYPES as readonly string[]).includes(s.adapterType))
         .map((s) => ({ id: s.id, name: s.name, freeStatus: s.freeStatus })),
     }));

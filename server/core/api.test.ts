@@ -190,7 +190,7 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     await call("/projects/p1/missions", "POST", { goal: "g" });
     const o = (await (await call("/projects/p1/overview")).json()) as Record<string, unknown[]>;
     expect(o.missions).toHaveLength(1);
-    expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "taskNotes", "tasks"]);
+    expect(Object.keys(o).sort()).toEqual(["aiRuns", "artifacts", "missions", "taskNotes", "taskWaits", "tasks"]);
   });
 
   it("does not list .NET build output that was registered as an artifact (it stays in the database)", async () => {

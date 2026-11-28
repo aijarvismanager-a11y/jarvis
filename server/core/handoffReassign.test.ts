@@ -92,6 +92,15 @@ describe("handoff API", () => {
   }
   const send = (method: string, url: string, body?: unknown) => fetch(`${base}${url}`, { method, headers: { "content-type": "application/json", "x-orchestrator-token": "tok" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
+  it("does not offer a picture maker for written work", async () => {
+    store.upsertAiService({ id: "painter", name: "Painter", url: "https://painter.test", freeStatus: "free", capabilities: ["image_generation"] });
+    const hub = await boot();
+    const task = makeTask();
+    hub.request({ projectId: pid, taskId: task.id, aiId: "gemini", aiName: "G", url: null, level: 1, prompt: "P", note: null });
+    const listed = ((await (await fetch(`${base}/web-handoffs?status=pending`)).json()) as { handoffs: { alternatives: { id: string }[] }[] }).handoffs;
+    expect(listed[0]!.alternatives.map((a) => a.id)).toEqual(["chatgpt"]);
+  });
+
   it("lists only free, key-less web AIs as alternatives, and refuses to switch to any other", async () => {
     const hub = await boot();
     const h = hub.request({ projectId: pid, taskId: "t1", aiId: "gemini", aiName: "G", url: null, level: 1, prompt: "P", note: null });

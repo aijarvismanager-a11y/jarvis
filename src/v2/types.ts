@@ -61,7 +61,9 @@ export type PlanDraft = {
 };
 export type Proposal = { kind: "initial" | "replan"; draft: PlanDraft; feedback?: string; createdAt: string; single?: boolean };
 export type MissionView = { mission: Mission; tasks: Task[]; proposal: Proposal | null };
-export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[]; taskNotes?: Record<string, string> };
+export type Overview = { missions: Mission[]; tasks: Task[]; artifacts: Artifact[]; aiRuns: AiRun[]; taskNotes?: Record<string, string>; taskWaits?: Record<string, TaskWait> };
+/** Why a task is quiet when it is not waiting for a pasted answer: Claude's limit, an open sign-in window, every AI resting. */
+export type TaskWait = "limit" | "login" | "resting";
 export type Preview = {
   state: "stopped" | "starting" | "running" | "error";
   url: string | null;
