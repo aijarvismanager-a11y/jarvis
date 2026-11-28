@@ -98,6 +98,8 @@ const createSchema = z.object({
   technologyPreferences: z.array(z.string().max(200)).max(50).default([]),
 });
 const MAX_ARTIFACT_BYTES = 1_000_000;
+const MAX_PICTURE_BYTES = 8_000_000;
+const PICTURE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp" };
 // .NET build output that older runs registered as "artifacts" (86% of one project's rows). It is kept in the database but not listed:
 // the screen asks for the list every few seconds, and it was over 1 MB.
 const BUILD_OUTPUT = /(^|\/)obj\/|(^|\/)bin\/(Debug|Release|x64|x86|net[\d.]+)/i;
@@ -348,7 +350,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       if (history) store.appendEvent({ projectId: project.id, type: history.ok ? "HISTORY_CARRIED" : "HISTORY_CARRY_FAILED", payload: history.ok ? { sessions: history.sessions, turns: history.turns } : { error: history.error } });
       const mission = engine.startFixedMission({ projectId: project.id, goal: `既存プロジェクト「${project.name}」の現状分析`, draft: analysisPlan(project.name, history?.ok === true) });
       void engine.run(project.id, mission.id).catch(() => undefined);
-      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded, history: history ? (history.ok ? { ok: true, sessions: history.sessions, turns: history.turns } : { ok: false, error: history.error }) : null });
+      res.status(201).json({ project, missionId: mission.id, files: scan.files.length, bytes: scan.bytes, skippedSecrets: scan.skippedSecrets, excluded: scan.excluded, skippedDirs: scan.skippedDirs, skippedOther: scan.skippedOther, history: history ? (history.ok ? { ok: true, sessions: history.sessions, turns: history.turns } : { ok: false, error: history.error }) : null });
     }
   };
   router.get("/projects/:projectId/overview", (req, res) => {
@@ -524,10 +526,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       }
       const info = await stat(file);
       if (!info.isFile()) throw new Error("ファイルではありません");
-      if (info.size > MAX_ARTIFACT_BYTES) return void res.status(413).json({ error: "ファイルが大きすぎて表示できません" });
-      res.json({ path: relPath, content: await readFile(file, "utf-8") });
+      const picture = PICTURE_TYPES[path.extname(relPath).toLowerCase()];
+      // `location` lets the screen tell where the file is when it cannot be shown here
+      if (info.size > (picture ? MAX_PICTURE_BYTES : MAX_ARTIFACT_BYTES)) return void res.status(413).json({ error: "ファイルが大きすぎて、ここでは表示できません。下の場所にあるファイルを、ほかのアプリで開いてください", location: file });
+      const data = await readFile(file);
+      if (picture) return void res.json({ path: relPath, content: "", image: `data:${picture};base64,${data.toString("base64")}` });
+      if (data[0] === 0xff && data[1] === 0xfe) return void res.json({ path: relPath, content: data.subarray(2).toString("utf16le") });
+      if (data.subarray(0, 8000).includes(0)) return void res.json({ path: relPath, content: "", binary: true, location: file });
+      res.json({ path: relPath, content: data.toString("utf-8") });
     } catch (err) {
-      res.status(404).json({ error: err instanceof Error ? err.message : "ファイルを読めません" });
+      const code = (err as { code?: string }).code;
+      res.status(404).json({ error: code === "ENOENT" ? "このファイルは、いまはありません(あとの作業で消されたか、名前や場所が変わりました)" : `ファイルを読めませんでした${code ? `(${code})` : ""}。ほかのアプリで開いている場合は閉じて、もう一度選んでください` });
     }
   });
 

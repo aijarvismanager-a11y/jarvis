@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ApiError, api } from "./api";
 import { useAction } from "./hooks";
 import { usePoll } from "./hooks";
+import { importNote, nextLeaveOut, type ImportNote } from "./importText";
 import type { ImportProgress, Project } from "./types";
 import { Button, Details } from "./ui";
 
@@ -17,12 +18,13 @@ const PHASE: Record<ImportProgress["phase"], string> = {
   starting: "現状分析を開始しています…",
 };
 
-const mb = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)}GB` : `${Math.max(1, Math.round(bytes / 1024 ** 2))}MB`);
+const mb = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)}GB` : bytes < 1024 ** 2 ? "1MB未満" : `${Math.round(bytes / 1024 ** 2)}MB`);
 
 /** Brings an existing folder in as a new project; Claude Code then writes a status report about it. */
-export function ImportBar({ open, setOpen, onImported, setError }: { open: boolean; setOpen: (v: boolean) => void; onImported: (p: Project) => void; setError: (m: string) => void }) {
+export function ImportBar({ open, setOpen, onImported, setError, projectId }: { open: boolean; setOpen: (v: boolean) => void; onImported: (p: Project) => void; setError: (m: string) => void; projectId: string | null }) {
   const [folder, setFolder] = useState("");
-  const [note, setNote] = useState<string | null>(null);
+  // the result of the last import belongs to that project: it is not shown over the others, and can be closed
+  const [note, setNote] = useState<(ImportNote & { projectId: string }) | null>(null);
   // Shown right under the field, where the user is looking, not only in the page-wide bar.
   const [problem, setProblem] = useState<string | null>(null);
   const [heavy, setHeavy] = useState<TooLarge | null>(null);
@@ -57,7 +59,24 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
   usePoll(async () => setProgress(busy ? await api.importProgress() : null), 700, [busy]);
 
   // the button that opens this form lives in the header (V2App); closed, only the result of the last import is shown
-  if (!open) return note ? <div className="mx-auto max-w-[1600px] px-4 pb-2 text-[12px] text-status-done">{note}</div> : null;
+  if (!open) {
+    if (!note || note.projectId !== projectId) return null;
+    return (
+      <div role="status" className="mx-auto max-w-[1600px] px-4 pb-2">
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[12px]">
+          <div className="min-w-0">
+            <p className="text-status-done">{note.summary}</p>
+            {note.left.length > 0 && (
+              <Details summary="取り込まなかったもの">
+                <ul className="space-y-0.5 break-all text-muted">{note.left.map((l) => <li key={l}>{l}</li>)}</ul>
+              </Details>
+            )}
+          </div>
+          <button onClick={() => setNote(null)} className="shrink-0 font-semibold" aria-label="取り込みの結果を閉じる">×</button>
+        </div>
+      </div>
+    );
+  }
 
   // The browser cannot read a folder's path, so the server opens the Windows folder dialog and returns it.
   const pick = async () => {
@@ -68,6 +87,7 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
       if (chosen) {
         setFolder(chosen);
         setHeavy(null);
+        setLeaveOut(new Set());
       }
     } catch (e) {
       setProblem(e instanceof Error ? e.message : String(e));
@@ -76,14 +96,14 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
     }
   };
 
-  const go = (exclude: string[] = []) =>
+  // folders already chosen to be left out stay chosen on every try (a second round must not bring the first ones back)
+  const go = (exclude: string[] = heavy ? [...leaveOut] : []) =>
     run(async () => {
       setProblem(null);
       if (!folder.trim()) return void setProblem("取り込むフォルダが選ばれていません。「フォルダを選ぶ…」を押すか、パスを入力してください");
       try {
         const r = await api.importProject(folder.trim(), exclude, carry && history !== null);
-        const left = r.excluded?.length ? `(除外: ${r.excluded.join("、")})` : "";
-        setNote(r.existing ? `このフォルダは取り込み済みです。「${r.project.name}」を開きました(コピーは増やしません)` : `${r.files}ファイルを取り込みました${left}${r.skippedSecrets.length ? `(秘密情報らしい${r.skippedSecrets.length}ファイルは除外)` : ""}${r.history?.ok ? `。会話履歴(${r.history.sessions}セッション)を要約して引き継ぎました` : ""}${r.history && !r.history.ok ? `。会話履歴の引き継ぎはできませんでした(${r.history.error})` : ""}`);
+        setNote({ projectId: r.project.id, ...importNote(r) });
         setFolder("");
         setHeavy(null);
         setLeaveOut(new Set());
@@ -93,9 +113,11 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
         const msg = e instanceof Error ? e.message : String(e);
         setProblem(msg);
         const tooLarge = e instanceof ApiError ? (e.data.tooLarge as TooLarge | undefined) : undefined;
-        setHeavy(tooLarge ?? null);
+        // any other failure leaves the choice as it is, so trying again does not lose it
+        if (!tooLarge) return;
+        setHeavy(tooLarge);
         // pre-select the heaviest folders (never the loose files in the root, which cannot be left out by name)
-        setLeaveOut(new Set((tooLarge?.folders ?? []).filter((f, i) => i < 3 && f.bytes > 20 * 1024 ** 2 && !f.name.startsWith("(")).map((f) => f.name)));
+        setLeaveOut(nextLeaveOut(exclude, tooLarge.folders));
       }
     });
 
@@ -115,14 +137,15 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
         <Details summary="くわしく(読み込むもの・読み込まないもの)">
           <ul className="list-disc space-y-0.5 pl-5 text-muted">
             <li>読み込んだあと、Claude Code がフォルダの中身を調べて、「何が入っているか」のレポートを作ります。</li>
-            <li>node_modules・.git・.env(パスワードなどの秘密情報)は、読み込みません。</li>
+            <li>次のものは読み込みません。パスワードや鍵が入りうるファイル(.env・.pem・.key など)、記録ファイル(.log)、作り直せるフォルダ(node_modules・.git・dist・build・target・coverage・venv など)。</li>
+            <li>読み込まなかったものは、取り込みのあとに名前で確かめられます。</li>
           </ul>
         </Details>
       </div>
       <label htmlFor="import-folder" className="mt-2 block text-[12.5px] font-semibold">取り込むフォルダ</label>
       <div className="mt-1 flex flex-wrap gap-2">
         <Button variant="ghost" disabled={busy || picking} onClick={() => void pick()}>{picking ? "選択中…" : "フォルダを選ぶ…"}</Button>
-        <input id="import-folder" value={folder} onChange={(e) => { setFolder(e.target.value); setProblem(null); setHeavy(null); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void go(); }} placeholder="フォルダのパスをここに入力・貼り付け(例: C:\Users\you\my-app)" className="min-w-[14rem] flex-1 rounded-lg border border-[#8f8a7c] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-accent" />
+        <input id="import-folder" value={folder} onChange={(e) => { setFolder(e.target.value); setProblem(null); setHeavy(null); setLeaveOut(new Set()); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void go(); }} placeholder="フォルダのパスをここに入力・貼り付け(例: C:\Users\you\my-app)" className="min-w-[14rem] flex-1 rounded-lg border border-[#8f8a7c] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-accent" />
         <Button disabled={busy} onClick={() => void go()}>{busy ? "取り込み中…" : "取り込む"}</Button>
         <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button>
       </div>
@@ -155,6 +178,16 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
         <div className="mt-2 rounded-lg border border-border bg-panel px-3 py-2">
           <p className="text-[12.5px] font-semibold">重いフォルダ(上位)。チェックしたものを除いて取り込みます</p>
           <ul className="mt-1 space-y-0.5">
+            {/* chosen in an earlier try: no longer counted, but still listed so it can be taken back */}
+            {[...leaveOut].filter((n) => !heavy.folders.some((f) => f.name === n)).map((n) => (
+              <li key={n}>
+                <label className="flex items-center gap-2 text-[12.5px]">
+                  <input type="checkbox" checked onChange={() => toggle(n)} />
+                  <span className="min-w-0 flex-1 break-all font-mono">{n}</span>
+                  <span className="shrink-0 text-muted">除くと選んだフォルダ</span>
+                </label>
+              </li>
+            ))}
             {heavy.folders.map((f) => (
               <li key={f.name}>
                 <label className={`flex items-center gap-2 text-[12.5px] ${f.name.startsWith("(") ? "text-muted" : ""}`}>
@@ -166,7 +199,10 @@ export function ImportBar({ open, setOpen, onImported, setError }: { open: boole
             ))}
           </ul>
           <p className="mt-1 text-[11.5px] text-muted">除外したフォルダはコピーされず、元のフォルダとの同期の対象にもなりません。</p>
-          <div className="mt-2"><Button disabled={leaveOut.size === 0} onClick={() => void go([...leaveOut])}>{leaveOut.size}個を除いて取り込む</Button></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button disabled={leaveOut.size === 0} onClick={() => void go([...leaveOut])}>{leaveOut.size}個を除いて取り込む</Button>
+            {leaveOut.size === 0 && <span className="text-[12px] text-muted">除くフォルダにチェックを入れると押せます</span>}
+          </div>
         </div>
       )}
     </div>

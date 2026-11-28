@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import type { Ctx } from "../context";
 import { formatTime } from "../labels";
-import { Badge, Card } from "../ui";
+import { Badge, Button, Card } from "../ui";
 import type { Artifact } from "../types";
 import { classifyArtifact, groupByFolder } from "../artifactGroups";
 
@@ -27,9 +27,20 @@ function FileButton({ a, selected, onSelect }: { a: Artifact; selected: Artifact
   );
 }
 
+/** Where a file that cannot be shown here is on this PC, with a button to copy that place. */
+function FileLocation({ path }: { path: string }) {
+  const [copied, setCopied] = useState("");
+  return (
+    <div className="mt-2">
+      <p className="break-all rounded bg-bg px-2.5 py-1.5 font-mono text-[11.5px]">{path}</p>
+      <div className="mt-2"><Button variant="ghost" onClick={() => void navigator.clipboard?.writeText(path).then(() => setCopied(path)).catch(() => undefined)}>{copied === path ? "コピーしました" : "場所をコピー"}</Button></div>
+    </div>
+  );
+}
+
 export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected: Artifact | null; onSelect: (a: Artifact) => void }) {
   // What was fetched, tagged with what it was fetched for: anything stale is ignored instead of being cleared in an effect.
-  const [loaded, setLoaded] = useState<{ key: string; content: string | null; failure: string | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; content: string | null; failure: string | null; image?: string; binary?: boolean; location?: string } | null>(null);
   const projectId = ctx.project?.id;
   // A picture (.svg) is shown as a picture; this turns on its source text instead. Resets when another file is chosen.
   const [showSourceFor, setShowSourceFor] = useState<string | null>(null);
@@ -61,7 +72,7 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
     if (!projectId || !selected) return;
     const key = `${projectId}|${selected.path}|${shown?.version}`;
     let cancelled = false;
-    api.artifactContent(projectId, selected.path).then((c) => !cancelled && setLoaded({ key, content: c, failure: null })).catch((e) => !cancelled && setLoaded({ key, content: null, failure: e instanceof Error ? e.message : String(e) }));
+    api.artifactFile(projectId, selected.path).then((f) => !cancelled && setLoaded({ key, failure: null, ...f })).catch((e) => !cancelled && setLoaded({ key, content: null, failure: e instanceof Error ? e.message : String(e), location: e instanceof ApiError && typeof e.data.location === "string" ? e.data.location : undefined }));
     return () => {
       cancelled = true;
     };
@@ -115,7 +126,17 @@ export function ArtifactScreen({ ctx, selected, onSelect }: { ctx: Ctx; selected
               </p>
             </div>
             {failure ? (
-              <p className="text-[13px] text-[#9B2C2C]">{failure}</p>
+              <>
+                <p className="text-[13px] text-[#9B2C2C]">{failure}</p>
+                {current?.location && <FileLocation path={current.location} />}
+              </>
+            ) : current?.image ? (
+              <img src={current.image} alt={shown.path} className="block max-w-full rounded-lg border border-borderSoft bg-bg" />
+            ) : current?.binary ? (
+              <>
+                <p className="text-[13px]">このファイルは、文章ではない形式のため、ここでは中身を表示できません。下の場所にあるファイルを、対応するアプリで開いてください。</p>
+                {current.location && <FileLocation path={current.location} />}
+              </>
             ) : content === null ? (
               <p className="text-[13px] text-muted">読み込み中…</p>
             ) : /\.svg$/i.test(shown.path) && !showSource ? (

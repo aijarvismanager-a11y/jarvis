@@ -13,13 +13,16 @@ export const HISTORY_NOTES_PATH = "docs/previous-conversation.md";
 
 export const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "coverage", ".venv", "venv", "__pycache__", ".cache", ".turbo", "target"]);
 export const SKIP_FILE = /^(\.env(\..*)?|.*\.(log|pem|key|pfx|p12)|id_rsa.*|\.npmrc|\.DS_Store|Thumbs\.db)$/i;
+/** The part of SKIP_FILE that is left out because it may hold passwords or keys (the rest: logs and the OS's own files). */
+export const SECRET_FILE = /^(\.env(\..*)?|.*\.(pem|key|pfx|p12)|id_rsa.*|\.npmrc)$/i;
+const MAX_SKIPPED_NAMES = 100;
 export const MAX_IMPORT_FILES = 20_000;
 export const MAX_IMPORT_BYTES = 1024 * 1024 * 1024;
 /** The scan keeps counting past the limits (to say what is heavy) but gives up here. */
 const SCAN_HARD_CAP_FILES = 400_000;
 const ROOT_FILES = "(フォルダ直下のファイル)";
 
-export type ImportScan = { files: string[]; bytes: number; skippedSecrets: string[]; excluded: string[] };
+export type ImportScan = { files: string[]; bytes: number; skippedSecrets: string[]; excluded: string[]; /** folders never copied (build output, libraries...) */ skippedDirs: string[]; /** logs and the OS's own files */ skippedOther: string[] };
 export type ImportWeight = { name: string; files: number; bytes: number };
 
 /** Thrown when the folder is over the limits; carries what is heavy so the user can leave those folders out. */
@@ -39,7 +42,8 @@ export class ImportTooLargeError extends Error {
 export function scanImportSource(source: string, projectsRoot: string, opts: { exclude?: string[]; maxFiles?: number; maxBytes?: number } = {}): ImportScan {
   if (typeof source !== "string" || !path.isAbsolute(source)) throw new Error("フォルダの絶対パスを指定してください(例: C:\\Users\\you\\my-app)");
   const root = path.resolve(source);
-  if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error("フォルダが見つかりません");
+  if (!existsSync(root)) throw new Error("フォルダが見つかりません。場所と名前を確かめてください(「フォルダを選ぶ…」から選ぶと確実です)");
+  if (!statSync(root).isDirectory()) throw new Error("指定されたのはファイルです。そのファイルが入っているフォルダを指定してください");
   if (path.dirname(root) === root) throw new Error("ドライブ全体は取り込めません");
   const projects = path.resolve(projectsRoot);
   if (root === projects || root.startsWith(projects + path.sep) || projects.startsWith(root + path.sep)) throw new Error("このアプリ自身のプロジェクト置き場とは重なるフォルダは取り込めません");
@@ -48,6 +52,8 @@ export function scanImportSource(source: string, projectsRoot: string, opts: { e
   const files: string[] = [];
   const skippedSecrets: string[] = [];
   const excluded: string[] = [];
+  const skippedDirs: string[] = [];
+  const skippedOther: string[] = [];
   const weights = new Map<string, ImportWeight>();
   let bytes = 0;
   let capped = false;
@@ -59,7 +65,10 @@ export function scanImportSource(source: string, projectsRoot: string, opts: { e
       if (e.isSymbolicLink()) continue;
       const group = top ?? (e.isDirectory() ? e.name : ROOT_FILES);
       if (e.isDirectory()) {
-        if (SKIP_DIRS.has(e.name)) continue;
+        if (SKIP_DIRS.has(e.name)) {
+          if (skippedDirs.length < MAX_SKIPPED_NAMES) skippedDirs.push(childRel);
+          continue;
+        }
         if (top === null && exclude.has(e.name.toLowerCase())) {
           excluded.push(e.name);
           continue;
@@ -67,7 +76,8 @@ export function scanImportSource(source: string, projectsRoot: string, opts: { e
         walk(abs, childRel, group);
       } else if (e.isFile()) {
         if (SKIP_FILE.test(e.name)) {
-          skippedSecrets.push(childRel);
+          if (SECRET_FILE.test(e.name)) skippedSecrets.push(childRel);
+          else if (skippedOther.length < MAX_SKIPPED_NAMES) skippedOther.push(childRel);
           continue;
         }
         const size = lstatSync(abs).size;
@@ -91,14 +101,14 @@ export function scanImportSource(source: string, projectsRoot: string, opts: { e
     const heavy = [...weights.values()].sort((a, b) => b.bytes - a.bytes || b.files - a.files).slice(0, 8);
     const mb = Math.round(bytes / 1024 / 1024);
     throw new ImportTooLargeError(
-      `フォルダが大きすぎます(${capped ? `${SCAN_HARD_CAP_FILES.toLocaleString()}ファイル以上` : `${files.length.toLocaleString()}ファイル`}・${capped ? "" : `${mb.toLocaleString()}MB`})。上限は${maxFiles.toLocaleString()}ファイル・${Math.round(maxBytes / 1024 / 1024)}MBです。重いフォルダを除外して取り込めます`,
+      `フォルダが大きすぎます(${capped ? `${SCAN_HARD_CAP_FILES.toLocaleString()}ファイル以上` : `${files.length.toLocaleString()}ファイル`}・${capped ? "" : mb < 1 ? "1MB未満" : `${mb.toLocaleString()}MB`})。上限は${maxFiles.toLocaleString()}ファイル・${Math.round(maxBytes / 1024 / 1024)}MBです。重いフォルダを除外して取り込めます`,
       files.length,
       bytes,
       heavy,
     );
   }
   if (files.length === 0) throw new Error("取り込めるファイルがありません");
-  return { files, bytes, skippedSecrets, excluded };
+  return { files, bytes, skippedSecrets, excluded, skippedDirs, skippedOther };
 }
 
 /** Copies the scanned files into the project folder, one at a time so the server stays responsive meanwhile. */

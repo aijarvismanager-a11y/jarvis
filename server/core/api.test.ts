@@ -235,6 +235,26 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("_ai-records/料理メモ/無い.md"))).status).toBe(404);
   });
 
+  it("shows pictures as pictures, and says in words what it cannot show", async () => {
+    mkdirSync(path.join(projectsRoot, "p1"), { recursive: true });
+    const files: [string, Buffer][] = [["a.png", Buffer.from([137, 80, 78, 71, 0])], ["b.xlsx", Buffer.from([80, 75, 3, 4, 0, 0])], ["big.txt", Buffer.alloc(1_100_000, 97)]];
+    for (const [rel, data] of files) writeFileSync(path.join(projectsRoot, "p1", rel), data);
+    for (const rel of ["a.png", "b.xlsx", "big.txt", "gone.txt"]) store.createArtifact({ projectId: "p1", path: rel, createdBy: "test" });
+    const get = async (rel: string) => {
+      const res = await call("/projects/p1/artifact-content?path=" + rel);
+      return { status: res.status, body: (await res.json()) as { content?: string; image?: string; binary?: boolean; location?: string; error?: string } };
+    };
+    expect((await get("a.png")).body.image).toMatch(/^data:image\/png;base64,/);
+    expect((await get("b.xlsx")).body).toMatchObject({ binary: true, content: "", location: expect.stringContaining("b.xlsx") });
+    const big = await get("big.txt");
+    expect(big.status).toBe(413);
+    expect(big.body.location).toContain("big.txt");
+    const gone = await get("gone.txt");
+    expect(gone.status).toBe(404);
+    expect(gone.body.error).toContain("いまはありません");
+    expect(gone.body.error).not.toContain("ENOENT");
+  });
+
   it("serves only registered artifacts, and never outside the project", async () => {
     mkdirSync(path.join(projectsRoot, "p1", "docs"), { recursive: true });
     writeFileSync(path.join(projectsRoot, "p1", "docs", "a.md"), "# hello");

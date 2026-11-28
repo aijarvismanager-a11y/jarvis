@@ -34,10 +34,26 @@ describe("scanImportSource", () => {
     const scan = scanImportSource(src, path.join(tmp(), "projects"));
     expect(scan.files.sort()).toEqual(["package.json", "src/app.js"]);
     expect(scan.skippedSecrets).toEqual([".env"]);
+    expect(scan.skippedDirs.length).toBeGreaterThan(0);
     expect(() => scanImportSource("relative/dir", "x")).toThrow();
     expect(() => scanImportSource(path.join(src, "nope"), "x")).toThrow();
     const root = tmp();
     expect(() => scanImportSource(path.join(root, "projects"), path.join(root, "projects"))).toThrow();
+  });
+});
+
+describe("what an import leaves behind", () => {
+  it("names the folders and files it did not take, secrets apart from logs", () => {
+    const src = tmp();
+    for (const [rel, text] of [["a.js", "1"], ["build/x.js", "2"], [".env", "K"], ["debug.log", "l"]] as const) {
+      mkdirSync(path.dirname(path.join(src, rel)), { recursive: true });
+      writeFileSync(path.join(src, rel), text);
+    }
+    const scan = scanImportSource(src, path.join(tmp(), "projects"));
+    expect(scan.skippedDirs).toEqual(["build"]);
+    expect(scan.skippedSecrets).toEqual([".env"]);
+    expect(scan.skippedOther).toEqual(["debug.log"]);
+    expect(() => scanImportSource(path.join(src, "a.js"), path.join(tmp(), "projects"))).toThrow("ファイルです");
   });
 });
 

@@ -55,7 +55,7 @@ export const api = {
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),
   importProject: (path: string, exclude: string[] = [], carryHistory = false, name = "") =>
-    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[]; history?: { ok: true; sessions: number; turns: number } | { ok: false; error: string } | null }>("/projects/import", "POST", { path, name, exclude, carryHistory }),
+    request<{ project: Project; existing?: boolean; missionId: string | null; files: number; bytes: number; skippedSecrets: string[]; excluded?: string[]; skippedDirs?: string[]; skippedOther?: string[]; history?: { ok: true; sessions: number; turns: number } | { ok: false; error: string } | null }>("/projects/import", "POST", { path, name, exclude, carryHistory }),
   importHistory: (path: string) => request<{ found: boolean; sessions: number; lastAt: string | null }>(`/projects/import/history?path=${encodeURIComponent(path)}`),
   importProgress: () => request<{ progress: ImportProgress | null }>("/projects/import/progress").then((r) => r.progress),
   pickFolder: () => request<{ path: string | null }>("/system/pick-folder", "POST", {}).then((r) => r.path),
@@ -80,6 +80,7 @@ export const api = {
   humanTodoDone: (projectId: string, todoId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/human-todos/${encodeURIComponent(todoId)}/done`, "POST", {}),
   followUpOrigins: (projectId: string) => request<{ origins: Record<string, { from: string; depth: number }> }>(`/projects/${encodeURIComponent(projectId)}/follow-up-origins`).then((r) => r.origins),
   events: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/events`).then((r) => r.events),
+  artifactFile: (projectId: string, path: string) => request<{ content: string; image?: string; binary?: boolean; location?: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`),
   artifactContent: (projectId: string, path: string) => request<{ content: string }>(`/projects/${encodeURIComponent(projectId)}/artifact-content?path=${encodeURIComponent(path)}`).then((r) => r.content),
 
   followUpQuestions: (text: string) => request<{ questions: string[] }>("/follow-up-questions", "POST", { text }).then((r) => r.questions),

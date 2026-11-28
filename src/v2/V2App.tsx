@@ -268,7 +268,7 @@ export default function V2App() {
             </select>
           </div>
         </div>
-        <ImportBar open={importOpen} setOpen={setImportOpen} setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
+        <ImportBar projectId={projectId} open={importOpen} setOpen={setImportOpen} setError={setError} onImported={(p) => { setProjects((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, p])); choose(p.id); setScreen("mission"); }} />
         <nav className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3" aria-label="画面">
           {SCREENS.map((s) => (
             <button
