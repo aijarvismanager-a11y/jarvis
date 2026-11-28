@@ -1,5 +1,6 @@
 import type { Ctx } from "./context";
 import { WAIT_TEXT, isRefusedNote, roleLabel } from "./labels";
+import { leftLabel, leftToReflect, openSyncCard, placeName } from "./syncText";
 import type { Task } from "./types";
 
 /** What the failed-mission banner can do for the person (the screen supplies these). */
@@ -78,13 +79,17 @@ export function nextStep(ctx: Ctx, tasks: Task[], onNewRequest: () => void, plan
       return { tone: "go", title: "一時停止中です", detail: "「再開」を押すと、続きから作業を再開します。やめるときは「中止」を押します。" };
     case "failed":
       return failedAdvice(tasks, failed, ctx.overview?.taskNotes);
-    case "completed":
-      return {
-        tone: "done",
-        title: "できあがりました",
-        detail: "「動かして確認」で実際に動かして見られます。ほかのフォルダを引き継いだ場合は、ホームの「元のフォルダに反映する」を押すと、変更が元のフォルダに入ります(押すまでは入りません)。続きを頼むときは「新しい依頼」を押します。",
-        action: { label: "新しい依頼を出す", run: onNewRequest },
-      };
+    case "completed": {
+      const left = leftToReflect(ctx.sync);
+      if (left > 0) {
+        const place = placeName(ctx.sync?.createdByApp);
+        return { tone: "done", title: "できあがりました。反映はまだです", detail: `${leftLabel(ctx.sync)}は、まだ${place}に入っていません。下のボタンで中身を確かめて、反映してください(押すまでは入りません)。続きを頼むときは、下の入力欄に書きます。`, action: { label: "反映の画面を開く", run: () => void openSyncCard() } };
+      }
+      if (ctx.sync?.problem) {
+        return { tone: "go", title: "できあがりましたが、反映先を確認できません", detail: `${placeName(ctx.sync.createdByApp)}を調べられないため、反映できません。下のボタンで開いて、直し方を確かめてください。`, action: { label: "反映の画面を開く", run: () => void openSyncCard() } };
+      }
+      return { tone: "done", title: "できあがりました", detail: "「動かして確認」で実際に動かして見られます。続きを頼むときは「新しい依頼」を押します。", action: { label: "新しい依頼を出す", run: onNewRequest } };
+    }
     case "cancelled":
       return { tone: "go", title: "中止しました", detail: "新しい依頼を、下の入力欄から出せます。", action: { label: "新しい依頼を出す", run: onNewRequest } };
     default:

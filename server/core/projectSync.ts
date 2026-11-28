@@ -13,7 +13,17 @@ import { isAiRecordPath } from "./recordsArchive.ts";
 
 export type SyncLink = { sourcePath: string; importedAt: string; /** top-level folders left out of the import; never compared or copied */ exclude?: string[]; /** project-relative path -> sha1, as it was when last in step with the source */ baseline: Record<string, string> };
 export type SyncEntry = { path: string; kind: "added" | "modified" | "deleted"; /** the original was changed too, so applying would overwrite its changes */ conflict: boolean; /** the new file is under half as long as the one it replaces (a long file about to be wiped out) */ shrinks?: boolean; /** what the automatic check of a shrinking file concluded: safe = moved elsewhere (let through), unsafe = looks like a chat answer / lost content (repaired), unknown = needs a person */ shrinkVerdict?: "safe" | "unsafe" | "unknown"; shrinkReason?: string };
-export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean; prevBaseline: string | null }[] };
+export type SyncBackup = { id: string; createdAt: string; files: { path: string; kind: SyncEntry["kind"]; hadOriginal: boolean; prevBaseline: string | null; /** sha1 of what the sync left there (null: it deleted the file); absent in backups made by an older version */ wrote?: string | null }[] };
+/** A file that could not be written, with the reason in words the user can act on. */
+export type SyncFailure = { path: string; why: string };
+
+export function writeFailureReason(err: unknown): string {
+  const code = (err as { code?: string } | null)?.code ?? "";
+  if (["EBUSY", "EPERM", "EACCES"].includes(code)) return "ほかのアプリが使っているか、書き込みが許可されていません。そのファイルを開いているアプリを閉じて、もう一度押してください";
+  if (/DIR/.test(code)) return "同じ名前のフォルダ(またはファイル)があるため、書き込めません。その名前を変えてから、もう一度押してください";
+  if (code === "ENOSPC") return "ディスクの空き容量が足りません。空きを作ってから、もう一度押してください";
+  return `書き込めませんでした(${code || "原因不明"})`;
+}
 
 export const DEFAULT_KEEP_BACKUPS = 5;
 export const linkKey = (projectId: string) => `source:${projectId}`;
@@ -176,6 +186,9 @@ function markShrinks(entries: SyncEntry[], fromRoot: string, toRoot: string, exc
   return entries;
 }
 
+/** Files the AI wrote about the work (design notes, reviews, reports) rather than part of the app: not ticked by default on the screen. */
+export const isNotePath = (rel: string) => /^(design|review|reviews|docs|reports?|notes)\//i.test(rel);
+
 /** .NET build output: bin/Debug, bin/Release, obj/Debug, obj/Release (a folder merely called "bin" is not touched). */
 export const isBuildOutput = (rel: string) => /(^|\/)(bin|obj)\/(Debug|Release)\//i.test(rel);
 
@@ -212,7 +225,7 @@ export type ApplyOptions = { /** only these project-relative paths (default: eve
 const inside = (base: string, target: string) => target === base || target.startsWith(base + path.sep);
 
 /** Writes the diff into the original, after saving what it replaces. Returns the new link and the backup made. Never blocks the server: every read and write is asynchronous. */
-export async function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): Promise<{ link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[]; /** files whose damaged copy was put back from the original */ repaired?: string[] }> {
+export async function applySync(link: SyncLink, projectRoot: string, backupDir: string, opts: ApplyOptions = {}, direction: SyncDirection = "push"): Promise<{ link: SyncLink; backup: SyncBackup | null; skipped: SyncEntry[]; /** files whose damaged copy was put back from the original */ repaired?: string[]; /** files that could not be written (the others were) */ failed?: SyncFailure[] }> {
   const roots = rootsOf(link, projectRoot, direction);
   assertSourceExists(link);
   const [fromHashes, toHashes] = await Promise.all([hashTreeAsync(roots.from, link.exclude), hashTreeAsync(roots.to, link.exclude)]);
@@ -251,32 +264,52 @@ export async function applySync(link: SyncLink, projectRoot: string, backupDir: 
     return target;
   };
   // 1) save everything that is about to be overwritten or deleted
+  const failed: SyncFailure[] = [];
+  const saved: SyncEntry[] = [];
   for (const e of todo) {
     const target = abs(e.path);
-    const had = await isFile(target);
-    if (had) {
-      const saved = path.join(dir, "files", e.path);
-      await mkdir(path.dirname(saved), { recursive: true });
-      await cp(target, saved);
+    try {
+      const had = await isFile(target);
+      if (had) {
+        const keep = path.join(dir, "files", e.path);
+        await mkdir(path.dirname(keep), { recursive: true });
+        await cp(target, keep);
+      }
+      backup.files.push({ path: e.path, kind: e.kind, hadOriginal: had, prevBaseline: link.baseline[e.path] ?? null, wrote: e.kind === "deleted" ? null : fromHashes[e.path]! });
+      saved.push(e);
+    } catch (err) {
+      failed.push({ path: e.path, why: writeFailureReason(err) }); // without a saved copy it is not touched
     }
-    backup.files.push({ path: e.path, kind: e.kind, hadOriginal: had, prevBaseline: link.baseline[e.path] ?? null });
   }
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
-  // 2) write
+  const manifest = () => writeFile(path.join(dir, "manifest.json"), JSON.stringify(backup, null, 2));
+  await manifest(); // written before anything changes: even a crash half way leaves something to undo with
+  // 2) write: one file that cannot be written does not stop the others
   const baseline = { ...link.baseline };
-  for (const e of todo) {
+  for (const e of saved) {
     const target = abs(e.path);
-    if (e.kind === "deleted") {
-      await rm(target, { force: true });
-      delete baseline[e.path];
-    } else {
-      await mkdir(path.dirname(target), { recursive: true });
-      await cp(path.join(roots.from, e.path), target);
-      baseline[e.path] = fromHashes[e.path]!;
+    try {
+      if (e.kind === "deleted") {
+        await rm(target, { force: true });
+        delete baseline[e.path];
+      } else {
+        await mkdir(path.dirname(target), { recursive: true });
+        await cp(path.join(roots.from, e.path), target);
+        baseline[e.path] = fromHashes[e.path]!;
+      }
+    } catch (err) {
+      failed.push({ path: e.path, why: writeFailureReason(err) });
+      const entry = backup.files.find((f) => f.path === e.path)!;
+      if (entry.hadOriginal) await cp(path.join(dir, "files", e.path), target).catch(() => undefined); // in case it was left half written
+      backup.files.splice(backup.files.indexOf(entry), 1); // it did not change, so there is nothing to undo
     }
   }
-  return { link: { ...link, baseline }, backup, skipped, repaired };
+  if (backup.files.length === 0) {
+    await rm(dir, { recursive: true, force: true });
+    return { link, backup: null, skipped, repaired, failed };
+  }
+  await manifest();
+  return { link: { ...link, baseline }, backup, skipped, repaired, failed };
 }
 
 const isFile = (p: string) => stat(p).then((st) => st.isFile(), () => false);
@@ -304,24 +337,52 @@ export function pruneBackups(backupDir: string, keep: number): string[] {
   return removed;
 }
 
-/** Puts the written side back as it was before one sync (the original for a push, the working copy for a pull). The other side is untouched, so the diff shows those changes again. */
-export async function restoreBackup(link: SyncLink, projectRoot: string, backupDir: string, backupId: string, direction: SyncDirection = "push"): Promise<SyncLink> {
+/**
+ * Puts the written side back as it was before one sync (the original for a push, the working copy for a pull). The other side is
+ * untouched, so the diff shows those changes again. A file changed since that sync is somebody's later work: it is left as it is and
+ * reported. Everything that is replaced or removed is saved first (in the generation's "before-undo" folder).
+ */
+export async function restoreBackup(link: SyncLink, projectRoot: string, backupDir: string, backupId: string, direction: SyncDirection = "push"): Promise<{ link: SyncLink; restored: string[]; /** changed since the sync, so left alone */ kept: string[]; failed: SyncFailure[] }> {
   const backup = listBackups(backupDir).find((b) => b.id === backupId);
   if (!backup) throw new Error("そのバックアップが見つかりません");
   const source = path.resolve(rootsOf(link, projectRoot, direction).to);
   if (!existsSync(source)) throw new Error("復元先のフォルダが見つかりません");
   const baseline = { ...link.baseline };
+  const safety = path.join(backupDir, backup.id, "before-undo", new Date().toISOString().replace(/[:.]/g, "-"));
+  const restored: string[] = [];
+  const kept: string[] = [];
+  const failed: SyncFailure[] = [];
   for (const f of backup.files) {
     const target = path.resolve(source, f.path);
     if (!inside(source, target) || target === source) throw new Error("元のフォルダの外には書き込めません");
-    if (f.hadOriginal) {
-      await mkdir(path.dirname(target), { recursive: true });
-      await cp(path.join(backupDir, backup.id, "files", f.path), target);
-    } else {
-      await rm(target, { force: true }); // the sync had created it
+    try {
+      const there = await isFile(target);
+      const now = there ? await fileHash(target) : null;
+      const before = f.hadOriginal ? await fileHash(path.join(backupDir, backup.id, "files", f.path)) : null;
+      // older backups did not record what they wrote: the link's memory of the file is the closest to it
+      const wrote = f.wrote !== undefined ? f.wrote : (link.baseline[f.path] ?? null);
+      if (now !== before) {
+        if (now !== wrote) {
+          kept.push(f.path);
+          continue;
+        }
+        if (there) {
+          await mkdir(path.dirname(path.join(safety, f.path)), { recursive: true });
+          await cp(target, path.join(safety, f.path));
+        }
+        if (f.hadOriginal) {
+          await mkdir(path.dirname(target), { recursive: true });
+          await cp(path.join(backupDir, backup.id, "files", f.path), target);
+        } else {
+          await rm(target, { force: true }); // the sync had created it
+        }
+        restored.push(f.path);
+      }
+      if (f.prevBaseline === null) delete baseline[f.path];
+      else baseline[f.path] = f.prevBaseline;
+    } catch (err) {
+      failed.push({ path: f.path, why: writeFailureReason(err) });
     }
-    if (f.prevBaseline === null) delete baseline[f.path];
-    else baseline[f.path] = f.prevBaseline;
   }
-  return { ...link, baseline };
+  return { link: { ...link, baseline }, restored, kept, failed };
 }

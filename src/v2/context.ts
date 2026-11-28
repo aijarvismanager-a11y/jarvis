@@ -1,4 +1,4 @@
-import type { AiService, Approval, Artifact, Handoff, Mission, Overview, Project } from "./types";
+import type { AiService, Approval, Artifact, Handoff, Mission, Overview, Project, SyncSummary } from "./types";
 
 export type Ctx = {
   project: Project | null;
@@ -8,6 +8,9 @@ export type Ctx = {
   approvals: Approval[];
   mission: Mission | null;
   refresh: () => void;
+  /** What differs from the project's folder, and a way to count again after reflecting. */
+  sync?: SyncSummary | null;
+  refreshSync?: () => void;
   setError: (message: string) => void;
   /** Creates the project on demand (the Mission screen can start from nothing). */
   ensureProject: (nameHint: string) => Promise<Project>;

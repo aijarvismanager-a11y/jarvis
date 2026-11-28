@@ -1,4 +1,4 @@
-import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, NextIdeas, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, WebAiSettings, DesktopCompareInfo, HumanTodoView } from "./types";
+import type { TuningReport, AiService, Approval, Handoff, LogEntry, Preview, MissionView, Overview, Project, ProjectSummary, ClaudeQuota, ClaudeLimit, AllResting, Environment, StoredEvent, TaskChanges, MissionReport, Acceptance, NextIdeas, SnapshotInfo, ClaudeStatus, DepsState, ImportProgress, SyncState, SyncSummary, SyncFailure, WebAiSettings, DesktopCompareInfo, HumanTodoView } from "./types";
 
 const BASE = "/api/v2";
 
@@ -70,8 +70,9 @@ export const api = {
   runVerify: (projectId: string) => request<{ started: boolean }>(`/projects/${encodeURIComponent(projectId)}/verify/run`, "POST", {}),
   setAutoReflect: (projectId: string, enabled: boolean) => request<{ autoReflect: boolean }>(`/projects/${encodeURIComponent(projectId)}/auto-reflect`, "PUT", { enabled }),
   applySync: (projectId: string, opts: { deletes: boolean; overwriteConflicts: boolean; direction: "push" | "pull"; paths?: string[] }) =>
-    request<{ applied: number; skipped: unknown[]; backup: string | null; repaired?: string[] }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
-  restoreSync: (projectId: string, backupId: string, direction: "push" | "pull") => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId, direction }),
+    request<{ applied: number; skipped: { path: string; conflict: boolean; shrinks?: boolean }[]; backup: string | null; repaired?: string[]; failed?: SyncFailure[] }>(`/projects/${encodeURIComponent(projectId)}/sync/apply`, "POST", opts),
+  recreateSyncFolder: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}/sync/recreate-folder`, "POST", {}),
+  restoreSync: (projectId: string, backupId: string, direction: "push" | "pull") => request<{ ok: boolean; restored: string[]; kept: string[]; failed: SyncFailure[] }>(`/projects/${encodeURIComponent(projectId)}/sync/restore`, "POST", { backupId, direction }),
   overview: (projectId: string) => request<Overview>(`/projects/${encodeURIComponent(projectId)}/overview`),
   aiSelections: (projectId: string) => request<{ events: StoredEvent[] }>(`/projects/${encodeURIComponent(projectId)}/ai-selections`).then((r) => r.events),
   humanTodos: (projectId: string) => request<{ todos: HumanTodoView[] }>(`/projects/${encodeURIComponent(projectId)}/human-todos`).then((r) => r.todos),

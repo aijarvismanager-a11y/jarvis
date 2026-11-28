@@ -1,6 +1,7 @@
 import { bundleName, canReloadNow, isScreenOutdated } from "./screenUpdate";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "./api";
+import { placeName } from "./syncText";
 import type { Ctx } from "./context";
 import { currentMission } from "./labels";
 import { ArtifactScreen } from "./screens/ArtifactScreen";
@@ -163,11 +164,13 @@ export default function V2App() {
   // A slow answer for the project that was open before must not show on the one open now (a big folder takes seconds to compare).
   const sync = syncOf && syncOf.projectId === projectId ? syncOf.summary : null;
   // Hashing a big folder blocks the server for seconds, so wait until the first screen has loaded.
-  usePoll(async () => {
+  // counted again as soon as a request changes state, so "finished" never shows an old count
+  const missionStates = overview.missions.map((m) => m.status).join();
+  const refreshSync = usePoll(async () => {
     if (!projectId || !loaded) return void setSyncOf(null);
     const asked = projectId;
     setSyncOf({ projectId: asked, summary: await api.syncSummary(asked) });
-  }, 30000, [projectId, loaded]);
+  }, 30000, [projectId, loaded, missionStates]);
 
   const refresh = usePoll(
     async () => {
@@ -228,6 +231,8 @@ export default function V2App() {
     approvals,
     mission,
     refresh,
+    sync,
+    refreshSync,
     setError,
     ensureProject,
     openHelp: () => { setChangelog(false); setHelp(true); },
@@ -275,7 +280,7 @@ export default function V2App() {
               {s.label}
               {s.id === "mission" && waiting > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">{waiting}</span>}
               {s.id === "mission" && sync?.linked && sync.push + sync.pull > 0 && (
-                <span className="ml-1.5 rounded-full bg-sidebar px-1.5 py-0.5 text-[10px] font-normal text-muted" title={`元のフォルダとの違い: 元のフォルダ側の変更 ${sync.pull}件・このアプリ側の変更 ${sync.push}件。ホームの「元のフォルダに反映する」で確認できます。急がなくて大丈夫です`}>反映待ち {sync.push + sync.pull}件</span>
+                <span className="ml-1.5 rounded-full bg-sidebar px-1.5 py-0.5 text-[10px] font-normal text-muted" title={`${placeName(sync.createdByApp)}との違い: ${placeName(sync.createdByApp)}側の変更 ${sync.pull}件・このアプリ側の変更 ${sync.push}件。ホームの「${sync.createdByApp ? "保存先のフォルダに入れる" : "元のフォルダに反映する"}」で確認できます`}>反映待ち {sync.push + sync.pull}件</span>
               )}
             </button>
           ))}

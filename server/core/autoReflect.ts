@@ -55,7 +55,7 @@ export async function autoReflectMission(store: Store, syncBackupsRoot: string, 
     if (store.listMissions(projectId).some((m) => m.status === "running" && m.id !== missionId)) return skip("ほかの依頼が実行中です");
     const report = buildMissionReport(store, projectId, missionId, readArtifact);
     if (report.verdict === "unfinished" || report.tasks.some((t) => t.status !== "completed")) return skip("終わっていない作業があります");
-    const must = (report.todos ?? []).filter((t) => t.required && !t.id.startsWith("sync"));
+    const must = (report.todos ?? []).filter((t) => t.required && !t.id.startsWith("sync") && t.id !== "deliver"); // "put it in the folder" is exactly what this does
     if (must.length) return skip(`あなたがやることが残っています: ${must.map((t) => t.title).join(" / ")}`);
 
     const root = projectDir(store.projectsRoot, projectId);
@@ -70,6 +70,7 @@ export async function autoReflectMission(store: Store, syncBackupsRoot: string, 
     store.setSetting(linkKey(projectId), r.link);
     pruneBackups(backupDir, store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS));
     const applied = r.backup?.files.length ?? 0;
+    held.push(...(r.failed ?? []));
     store.appendEvent({ projectId, type: "SYNC_AUTO_APPLIED", payload: { missionId, source: link.sourcePath, files: applied, paths, held, backup: r.backup?.id ?? null, repaired: r.repaired ?? [] } });
     return { status: "done", applied, held };
   } catch (err) {

@@ -22,6 +22,7 @@ import { PromptDock } from "./PromptDock";
 import { FailureReason } from "./FailureReason";
 import { ClaudeCheck, Welcome } from "./Welcome";
 import { SyncCard } from "./SyncCard";
+import { leftLabel, leftToReflect, openSyncCard, placeName } from "../syncText";
 import { SayItHelper } from "../SayItHelper";
 import type { Approval, Handoff, LogEntry, MissionView, Preview, Task, TaskChanges, MissionReport, Acceptance, NextIdea, NextIdeas, ReportAction, ReportTodo } from "../types";
 
@@ -230,10 +231,7 @@ function TodoCard({ todo, ctx, missionId, onNewRequest }: { todo: ReportTodo; ct
       return;
     }
     if (a.kind === "copy") return void navigator.clipboard?.writeText(a.text).then(() => setCopied(a.text)).catch(() => undefined);
-    const box = document.querySelector<HTMLDetailsElement>("#sync-card details");
-    if (!box) return ctx.setError("このプロジェクトは、元のフォルダから取り込んだものではないので、反映の画面はありません");
-    box.open = true;
-    box.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!openSyncCard()) ctx.setError("このプロジェクトは、元のフォルダから取り込んだものではないので、反映の画面はありません");
   };
   return (
     <div className={`rounded-md border px-3 py-2.5 ${todo.required ? "border-accent bg-white" : "border-borderSoft bg-white"}`}>
@@ -901,7 +899,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       setDockBusy(false);
     }
   };
-  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length, overview.taskNotes) : null;
+  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length, overview.taskNotes, { count: leftToReflect(ctx.sync), place: placeName(ctx.sync?.createdByApp), label: leftLabel(ctx.sync) }) : null;
   // (the overview of a project that was just closed must not be drawn: see the same guard on the current request below)
   const past = project ? pastExchanges(overview.missions, overview.tasks, mission, overview.taskNotes) : [];
   // while something waits for the person, the earlier talk folds into one line so the waiting card is not pushed down
@@ -975,6 +973,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                 <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">結果</dt><dd>{reply.result}</dd></div>
                 <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">次にやること</dt><dd>{reply.next}</dd></div>
               </dl>
+              {mission.status === "completed" && leftToReflect(ctx.sync) > 0 && <div className="mt-2"><Button variant="ghost" onClick={() => void openSyncCard()}>反映の画面を開く</Button></div>}
             </div>
           )}
           {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} waits={overview.taskWaits} notes={overview.taskNotes} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}

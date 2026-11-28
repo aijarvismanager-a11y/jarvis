@@ -6,7 +6,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import type { MissionEngine } from "./missionEngine.ts";
 import type { Store } from "./store.ts";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { PROJECT_ID_RE, projectDir, resolveInProject } from "./paths.ts";
 import { isAiRecordPath, readArchivedRecord } from "./recordsArchive.ts";
@@ -27,7 +27,7 @@ import { getAiReviewSettings, pickReviewer, setAiReviewSettings } from "./aiRevi
 import { resetTuning, setTuningEnabled, tuningReport } from "./scoreTuning.ts";
 import { approveVerifyScript, runVerification, scriptText, verifyInfo } from "./postVerify.ts";
 import { autoReflectKey, isSyncBusy, withSyncLock } from "./autoReflect.ts";
-import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
+import { DEFAULT_KEEP_BACKUPS, applySync, autoPullPaths, computeDiffsAsync, hashTreeAsync, isNotePath, linkKey, listBackups, normalizeSource, pruneBackups, restoreBackup, type SyncLink } from "./projectSync.ts";
 import path from "node:path";
 import { buildMissionReport } from "./missionReport.ts";
 import { loadAcceptance, runAcceptance, type AcceptanceRunner } from "./acceptance.ts";
@@ -383,7 +383,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const { push, pull } = await computeDiffsAsync(link, root);
       res.json({ linked: true, verify: deps.appRoot ? verifyInfo(store, deps.appRoot, projectId) : null, autoReflect: store.getSetting<boolean>(autoReflectKey(projectId), false), createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, sourcePath: link.sourcePath, entries: push, pullEntries: pull, backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)) });
     } catch (err) {
-      res.json({ linked: true, sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
+      res.json({ linked: true, createdByApp: !!(link as { createdByApp?: boolean }).createdByApp, autoReflect: store.getSetting<boolean>(autoReflectKey(projectId), false), sourcePath: link.sourcePath, entries: [], pullEntries: [], backups: listBackups(backupDir), pullBackups: listBackups(pullDir(backupDir)), problem: err instanceof Error ? err.message : String(err) });
     }
   });
   router.put(
@@ -412,8 +412,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     res.status(202).json({ started: true });
   }));
   // Cheap-to-poll counts for the badges. Hashing both folders is not free, so the answer is reused for a few seconds.
-  type SyncSummaryValue = { linked: boolean; push: number; pull: number; problem?: string };
-  const summaryCache = new Map<string, { at: number; value: SyncSummaryValue }>();
+  type SyncSummaryValue = { linked: boolean; push: number; pull: number; /** push without the AI's notes: what the person is still expected to reflect */ toReflect?: number; createdByApp?: boolean; problem?: string };
+  const summaryCache = new Map<string, { at: number; stamp: string; value: SyncSummaryValue }>();
   const SUMMARY_TTL_MS = 60_000;
   const summaryRuns = new Map<string, Promise<SyncSummaryValue>>();
   router.get("/projects/:projectId/sync/summary", async (req, res) => {
@@ -421,15 +421,17 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
     const link = store.getSetting<SyncLink | null>(linkKey(projectId), null);
     if (!link || !deps.syncBackupsRoot) return void res.json({ linked: false, push: 0, pull: 0 });
     const hit = summaryCache.get(projectId);
-    if (hit && Date.now() - hit.at < SUMMARY_TTL_MS) return void res.json(hit.value);
+    const stamp = store.listMissions(projectId).map((m) => m.status).join();
+    if (hit && hit.stamp === stamp && Date.now() - hit.at < SUMMARY_TTL_MS) return void res.json(hit.value);
+    const createdByApp = !!(link as { createdByApp?: boolean }).createdByApp;
     // several screens may ask at once: share one hashing run
     let run = summaryRuns.get(projectId);
     if (!run) {
       run = computeDiffsAsync(link, projectDir(store.projectsRoot, projectId))
-        .then((d): SyncSummaryValue => ({ linked: true, push: d.push.length, pull: d.pull.length }))
-        .catch((err): SyncSummaryValue => ({ linked: true, push: 0, pull: 0, problem: err instanceof Error ? err.message : String(err) }))
+        .then((d): SyncSummaryValue => ({ linked: true, createdByApp, push: d.push.length, pull: d.pull.length, toReflect: d.push.filter((e) => !isNotePath(e.path)).length }))
+        .catch((err): SyncSummaryValue => ({ linked: true, createdByApp, push: 0, pull: 0, problem: err instanceof Error ? err.message : String(err) }))
         .then((value) => {
-          summaryCache.set(projectId, { at: Date.now(), value });
+          summaryCache.set(projectId, { at: Date.now(), stamp, value });
           summaryRuns.delete(projectId);
           return value;
         });
@@ -449,8 +451,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       summaryCache.delete(projectId);
       const keep = store.getSetting<number>("syncBackupKeep", DEFAULT_KEEP_BACKUPS);
       pruneBackups(dir, keep);
-      store.appendEvent({ projectId, type: opts.direction === "pull" ? "SYNC_PULLED" : "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, backup: r.backup?.id ?? null } });
-      res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null, repaired: r.repaired ?? [] });
+      store.appendEvent({ projectId, type: opts.direction === "pull" ? "SYNC_PULLED" : "SYNC_APPLIED", payload: { source: link.sourcePath, files: r.backup?.files.length ?? 0, skipped: r.skipped.length, failed: r.failed?.length ?? 0, backup: r.backup?.id ?? null } });
+      res.json({ applied: r.backup?.files.length ?? 0, skipped: r.skipped, backup: r.backup?.id ?? null, repaired: r.repaired ?? [], failed: r.failed ?? [] });
     }),
   );
   // The original changed in another tool: bring in what the copy never touched, but only while no request is running (a request may be
@@ -488,8 +490,23 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const { backupId, direction } = z.object({ backupId: z.string().regex(/^[\w.-]{1,64}$/), direction: z.enum(["push", "pull"]).default("push") }).parse(req.body ?? {});
       if (store.listMissions(projectId).some((m) => m.status === "running")) throw new Error("実行中の依頼があります。先に一時停止してください");
       summaryCache.delete(projectId);
-      store.setSetting(linkKey(projectId), await withSyncLock(projectId, () => restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction)));
-      store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId } });
+      const r = await withSyncLock(projectId, () => restoreBackup(link, projectDir(store.projectsRoot, projectId), direction === "pull" ? pullDir(backupDir) : backupDir, backupId, direction));
+      store.setSetting(linkKey(projectId), r.link);
+      store.appendEvent({ projectId, type: "SYNC_RESTORED", payload: { source: link.sourcePath, backup: backupId, restored: r.restored.length, kept: r.kept, failed: r.failed.length } });
+      res.json({ ok: true, restored: r.restored, kept: r.kept, failed: r.failed });
+    }),
+  );
+  // The folder the app made for a project was removed or renamed: make it again (empty), so everything can be reflected into it afresh.
+  router.post(
+    "/projects/:projectId/sync/recreate-folder",
+    syncGuarded((_req, res, { projectId, link }) => {
+      if (!(link as { createdByApp?: boolean }).createdByApp) throw new Error("取り込んだフォルダは作り直せません。元の場所に戻してください");
+      if (!existsSync(link.sourcePath)) {
+        mkdirSync(link.sourcePath, { recursive: true });
+        store.setSetting(linkKey(projectId), { ...link, baseline: {} });
+        summaryCache.delete(projectId);
+        store.appendEvent({ projectId, type: "SYNC_FOLDER_RECREATED", payload: { source: link.sourcePath } });
+      }
       res.json({ ok: true });
     }),
   );

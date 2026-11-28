@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { readdirSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -68,11 +68,55 @@ describe("project sync", () => {
     writeFileSync(path.join(proj, "new.txt"), "N");
     const r = await applySync(link, proj, backups);
     expect(read(src, "a.txt")).toBe("A2");
-    const back = await restoreBackup(r.link, proj, backups, r.backup!.id);
+    const back = (await restoreBackup(r.link, proj, backups, r.backup!.id)).link;
     expect(read(src, "a.txt")).toBe("A");
     expect(existsSync(path.join(src, "new.txt"))).toBe(false);
     expect(computeDiff(back, proj).map((e) => e.path)).toEqual(["a.txt", "new.txt"]); // the copy's changes show up again
     await expect(restoreBackup(r.link, proj, backups, "nope")).rejects.toThrow();
+  });
+
+  it("undo leaves alone what was changed after the sync, and saves what it replaces", async () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(proj, "a.txt"), "A2");
+    writeFileSync(path.join(proj, "new.txt"), "N");
+    writeFileSync(path.join(proj, "other.txt"), "O");
+    const r = await applySync(link, proj, backups);
+    writeFileSync(path.join(src, "a.txt"), "my later edit of a");
+    writeFileSync(path.join(src, "new.txt"), "my later edit of new");
+    const u = await restoreBackup(r.link, proj, backups, r.backup!.id);
+    expect(u.kept.sort()).toEqual(["a.txt", "new.txt"]);
+    expect(u.restored).toEqual(["other.txt"]);
+    expect(read(src, "a.txt")).toBe("my later edit of a");
+    expect(read(src, "new.txt")).toBe("my later edit of new");
+    expect(existsSync(path.join(src, "other.txt"))).toBe(false);
+    const safety = path.join(backups, r.backup!.id, "before-undo");
+    expect(read(safety, readdirSync(safety)[0]!, "other.txt")).toBe("O");
+  });
+
+  it("undo is as careful with a backup made by an older version (no record of what was written)", async () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(proj, "new.txt"), "N");
+    const r = await applySync(link, proj, backups);
+    const manifest = path.join(backups, r.backup!.id, "manifest.json");
+    writeFileSync(manifest, JSON.stringify({ ...r.backup!, files: r.backup!.files.map(({ wrote: _wrote, ...f }) => f) }));
+    writeFileSync(path.join(src, "new.txt"), "later");
+    expect((await restoreBackup(r.link, proj, backups, r.backup!.id)).kept).toEqual(["new.txt"]);
+    expect(read(src, "new.txt")).toBe("later");
+  });
+
+  it("one file that cannot be written does not stop the others, and is reported in plain words", async () => {
+    const { src, proj, backups, link } = setup();
+    writeFileSync(path.join(proj, "a.txt"), "A2");
+    writeFileSync(path.join(proj, "z.txt"), "Z");
+    mkdirSync(path.join(src, "z.txt"));
+    const r = await applySync(link, proj, backups);
+    expect(read(src, "a.txt")).toBe("A2");
+    expect(r.failed!.map((f) => f.path)).toEqual(["z.txt"]);
+    expect(r.failed![0]!.why).toContain("同じ名前のフォルダ");
+    expect(r.backup!.files.map((f) => f.path)).toEqual(["a.txt"]);
+    expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["z.txt"]); // still waiting
+    expect((await restoreBackup(r.link, proj, backups, r.backup!.id)).restored).toEqual(["a.txt"]);
+    expect(existsSync(path.join(src, "z.txt"))).toBe(true);
   });
 
   it("keeps only the newest generations", async () => {
@@ -110,7 +154,7 @@ describe("project sync", () => {
     // nothing left to push except the copy's own edit; the pulled files are in step
     expect(computeDiff(r.link, proj).map((e) => e.path)).toEqual(["sub/b.txt"]);
     // and the pull can be undone
-    const back = await restoreBackup(r.link, proj, backups, r.backup!.id, "pull");
+    const back = (await restoreBackup(r.link, proj, backups, r.backup!.id, "pull")).link;
     expect(read(proj, "a.txt")).toBe("A");
     expect(existsSync(path.join(proj, "added.txt"))).toBe(false);
     expect(computeDiff(back, proj, "pull").map((e) => e.path)).toContain("a.txt");

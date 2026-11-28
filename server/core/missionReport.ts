@@ -297,6 +297,16 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
       actions: unresolved.slice(0, 3).map((t) => ({ kind: "artifact" as const, label: `作業${numberOf(t)}のレビューを読む`, path: `_ai-records/reviews/${t.id}.md` })),
     });
   }
+  // a project made inside the app has no "original" folder: the same place is its save folder everywhere on screen
+  if (link?.createdByApp) {
+    const named = (s: string) => s.replaceAll("元のフォルダ", "保存先のフォルダ");
+    for (const x of todos) {
+      x.title = named(x.title);
+      x.why = named(x.why);
+      x.steps = x.steps.map(named);
+      x.actions = x.actions.map((a) => ("label" in a ? { ...a, label: named(a.label) } : a));
+    }
+  }
   // plain-text form of the same advice (Markdown copy, older screens)
   const nextSteps = todos.map((x) => `${x.required ? "【やること】" : "【任意】"}${x.title}。${x.why}`);
 

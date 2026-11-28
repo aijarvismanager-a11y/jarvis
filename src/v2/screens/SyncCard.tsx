@@ -4,6 +4,7 @@ import type { Ctx } from "../context";
 import { formatTime } from "../labels";
 import { Badge, Button, Card, Details } from "../ui";
 import { useAction } from "../hooks";
+import { applyNotice, placeName, restoreNotice, type SyncNotice } from "../syncText";
 import type { SyncBackup, SyncEntry, SyncState, VerifyInfo } from "../types";
 
 const KIND_LABEL: Record<SyncEntry["kind"], string> = { added: "追加", modified: "変更", deleted: "削除" };
@@ -12,34 +13,36 @@ type Direction = "push" | "pull";
 // Files the AI wrote about the work (design notes, reviews, reports) rather than part of the app: not ticked by default.
 const isNotes = (p: string) => /^(design|review|reviews|docs|reports?|notes)\//i.test(p);
 
-// What each direction means, in the user's words.
-const TEXT = {
-  push: {
-    title: "① このアプリで変えた分を、元のフォルダへ反映する",
-    intro: "AIが作った・直したファイルです。チェックを入れたものだけが、元のフォルダに入ります。",
-    empty: "このアプリで変えた分はありません。元のフォルダと同じです。",
-    conflict: "元のフォルダ側でも変えられたファイルを、上書きする(チェックしないと、そのファイルは反映しません)",
-    del: "このアプリで消したファイルを、元のフォルダからも消す(チェックしないと、残します)",
-    button: (n: number) => `${n}件を元のフォルダへ反映する`,
-    target: "元のフォルダ",
-    back: "この反映を取り消す",
-    backupsLabel: "反映する前の元のフォルダ(バックアップ)",
-  },
-  pull: {
-    title: "② 元のフォルダで変わった分を、このアプリへ取り込む",
-    intro: "元のフォルダを、ほかのツールで編集したときの変更です。このアプリ側で変えていないファイルは、依頼が動いていないときに、自動で取り込まれます。ここに残るのは、依頼の実行中のものと、自動では取り込まないもの(両方で変えたファイル・消されたファイル)です。",
-    empty: "元のフォルダ側で変わった分はありません。",
-    conflict: "このアプリ側でも変えたファイルを、上書きする(チェックしないと、そのファイルは取り込みません)",
-    del: "元のフォルダで消されたファイルを、このアプリからも消す(チェックしないと、残します)",
-    button: (n: number) => `${n}件をこのアプリへ取り込む`,
-    target: "このアプリのコピー",
-    back: "この取り込みを取り消す",
-    backupsLabel: "取り込む前のこのアプリのコピー(バックアップ)",
-  },
-} as const;
+// What each direction means, in the user's words. `f` is the folder's name: the original of an imported project, or the save folder the app made.
+const textFor = (f: string) =>
+  ({
+    push: {
+      title: `① このアプリで変えた分を、${f}へ反映する`,
+      intro: `AIが作った・直したファイルです。チェックを入れたものだけが、${f}に入ります。`,
+      empty: `このアプリで変えた分はありません。${f}と同じです。`,
+      conflict: `${f}側でも変えられたファイルを、上書きする(チェックしないと、そのファイルは反映しません)`,
+      del: `このアプリで消したファイルを、${f}からも消す(チェックしないと、残します)`,
+      button: (n: number) => `${n}件を${f}へ反映する`,
+      target: f,
+      back: "この反映を取り消す",
+      backupsLabel: `反映する前の${f}(バックアップ)`,
+    },
+    pull: {
+      title: `② ${f}で変わった分を、このアプリへ取り込む`,
+      intro: `${f}を、ほかのツールで編集したときの変更です。このアプリ側で変えていないファイルは、依頼が動いていないときに、自動で取り込まれます。ここに残るのは、依頼の実行中のものと、自動では取り込まないもの(両方で変えたファイル・消されたファイル)です。`,
+      empty: `${f}側で変わった分はありません。`,
+      conflict: "このアプリ側でも変えたファイルを、上書きする(チェックしないと、そのファイルは取り込みません)",
+      del: `${f}で消されたファイルを、このアプリからも消す(チェックしないと、残します)`,
+      button: (n: number) => `${n}件をこのアプリへ取り込む`,
+      target: "このアプリのコピー",
+      back: "この取り込みを取り消す",
+      backupsLabel: "取り込む前のこのアプリのコピー(バックアップ)",
+    },
+  }) as const;
 
-function Section({ dir, projectId, entries, backups, running, ctx, reload }: { dir: Direction; projectId: string; entries: SyncEntry[]; backups: SyncBackup[]; running: boolean; ctx: Ctx; reload: () => Promise<void> }) {
-  const t = TEXT[dir];
+function Section({ dir, place, projectId, entries, backups, running, ctx, reload }: { dir: Direction; place: string; projectId: string; entries: SyncEntry[]; backups: SyncBackup[]; running: boolean; ctx: Ctx; reload: () => Promise<void> }) {
+  const t = textFor(place)[dir];
+  const [notice, setNotice] = useState<SyncNotice | null>(null);
   const [deletes, setDeletes] = useState(false);
   const [overwrite, setOverwrite] = useState(false);
   const { busy, run } = useAction(ctx.setError);
@@ -52,28 +55,44 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
   const willWrite = picks.length;
   const apply = () => {
     if (!window.confirm(`${t.target}に ${willWrite} 件の変更を入れます。変わるファイルは、先にバックアップします(あとから取り消せます)。よろしいですか?`)) return;
+    setNotice(null);
     void run(async () => {
-      const r = await api.applySync(projectId, { deletes, overwriteConflicts: overwrite, direction: dir, paths: picks.map((e) => e.path) });
-      setChosen({});
-      setDeletes(false);
-      setOverwrite(false);
-      ctx.setError(r.repaired?.length ? `${r.repaired.join("、")} は、AIの書き込みで中身が失われていたため、入れずに、元のフォルダの内容に戻しました(壊れた方はバックアップに残してあります)` : r.applied ? "" : "入れる変更はありませんでした");
-      if (dir === "pull") ctx.refresh();
-      await reload();
+      try {
+        const r = await api.applySync(projectId, { deletes, overwriteConflicts: overwrite, direction: dir, paths: picks.map((e) => e.path) });
+        setChosen({});
+        setDeletes(false);
+        setOverwrite(false);
+        setNotice(applyNotice(t.target, r));
+        if (dir === "pull") ctx.refresh();
+      } finally {
+        // even after an error: some files may already be in, so the list must be read again
+        await reload();
+        ctx.refreshSync?.();
+      }
     });
   };
   const restore = (id: string) => {
-    if (!window.confirm(`${t.target}を、この操作の直前の状態に戻します。よろしいですか?`)) return;
+    if (!window.confirm(`${t.target}を、この操作の直前の状態に戻します。そのあとで中身が変えられたファイルは、そのまま残します。よろしいですか?`)) return;
+    setNotice(null);
     void run(async () => {
-      await api.restoreSync(projectId, id, dir);
-      if (dir === "pull") ctx.refresh();
-      await reload();
+      try {
+        setNotice(restoreNotice(t.target, await api.restoreSync(projectId, id, dir)));
+        if (dir === "pull") ctx.refresh();
+      } finally {
+        await reload();
+        ctx.refreshSync?.();
+      }
     });
   };
   return (
     <div className="mt-4 border-t border-borderSoft pt-3">
       <h3 className="text-[13px] font-semibold">{t.title}</h3>
       <p className="mt-0.5 text-[12px] text-muted">{t.intro}</p>
+      {notice && (
+        <div role="status" className={`mt-2 rounded-md border px-3 py-2 text-[12.5px] ${notice.tone === "ok" ? "border-[#BFDCC6] bg-[#EEF7F0]" : "border-[#E8D3A6] bg-[#FBF4E4]"}`}>
+          {notice.lines.map((l, i) => <p key={i} className="break-all">{l}</p>)}
+        </div>
+      )}
       {entries.length === 0 && <p className="mt-2 text-[13px]">{t.empty}</p>}
       {entries.length > 0 && (
         <>
@@ -87,7 +106,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
                 {isNotes(e.path) && <span className="shrink-0 font-sans text-[11px] text-muted" title="AIが書いたメモやレポートです。はじめはチェックが外れています">メモ</span>}
                 {e.shrinkVerdict === "safe" && <Badge tone="ok">半分以下に減りますが安全と確認済み</Badge>}
                 {e.shrinks && <Badge tone="warn">長いファイルが半分以下に減ります(中身が消える恐れ)</Badge>}
-                {e.conflict && <Badge tone="warn">{dir === "push" ? "元のフォルダでも変更あり" : "このアプリでも変更あり"}</Badge>}
+                {e.conflict && <Badge tone="warn">{dir === "push" ? `${place}でも変更あり` : "このアプリでも変更あり"}</Badge>}
               </li>
             ))}
           </ul>
@@ -105,6 +124,7 @@ function Section({ dir, projectId, entries, backups, running, ctx, reload }: { d
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button disabled={busy || running || willWrite === 0} onClick={apply}>{t.button(willWrite)}</Button>
+            {!running && willWrite === 0 && <span className="text-[12px] text-muted">{entries.some(allowed) ? "入れるファイルに、チェックを入れると押せます" : "残っているのは、そのままでは入れないファイルです。入れるときは、上の「上書きする」や「消す」の欄にチェックを入れてください"}</span>}
             {running && <span className="text-[12px] text-muted">依頼の実行中は反映できません。一時停止してから押してください</span>}
           </div>
         </>
@@ -176,6 +196,7 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
   }, [load]);
   if (!state || !state.linked) return null;
   const running = ctx.mission?.status === "running";
+  const place = placeName(state.createdByApp);
 
   return (
     <div id="sync-card">
@@ -186,7 +207,7 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
         <span className="flex flex-wrap items-center gap-2">
           {state.createdByApp ? "保存先のフォルダに入れる" : "元のフォルダに反映する"}
           {state.entries.length > 0 && <Badge tone="warn">反映していない変更 {state.entries.length}件</Badge>}
-          {state.pullEntries.length > 0 && <Badge tone="info">元のフォルダ側の変更 {state.pullEntries.length}件</Badge>}
+          {state.pullEntries.length > 0 && <Badge tone="info">{place}側の変更 {state.pullEntries.length}件</Badge>}
         </span>
       }
     >
@@ -204,9 +225,25 @@ export function SyncCard({ ctx }: { ctx: Ctx }) {
         <span><b>依頼が終わったら、安全なものは自動で反映する</b><span className="block text-[11.5px] text-muted">コンフリクトのないファイルだけを入れます。削除・AIのメモ・「半分以下に減る」ファイルは入れず、ここに残します。反映前にバックアップします。</span></span>
       </label>
       {state.verify?.available && <VerifyBox projectId={projectId} info={state.verify} ctx={ctx} reload={load} />}
-      {state.problem && <p className="mt-2 text-[12.5px] text-[#9B2C2C]">{state.problem}</p>}
-      <Section dir="pull" projectId={projectId} entries={state.pullEntries} backups={state.pullBackups} running={running} ctx={ctx} reload={load} />
-      <Section dir="push" projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />
+      {state.problem ? (
+        // the two folders could not be compared: saying "no differences" here would be false
+        <div className="mt-2 rounded-md border border-[#E7C4C4] bg-[#FBEFEF] px-3 py-2 text-[12.5px]">
+          <p className="font-semibold text-[#9B2C2C]">{state.problem === "元のフォルダが見つかりません" ? `${place}が見つからないため、違いを調べられません。` : `違いを調べられません(${state.problem})`}</p>
+          {state.createdByApp ? (
+            <>
+              <p className="mt-1">フォルダを移した・名前を変えた場合は、上の場所と名前に戻してから「差分を再確認」を押してください。消した場合は、下のボタンで空のフォルダを作り直せます(そのあと「反映する」で中身が入ります)。</p>
+              <div className="mt-2"><Button onClick={() => void api.recreateSyncFolder(projectId).then(load).then(() => ctx.refreshSync?.()).catch((e) => ctx.setError(e instanceof Error ? e.message : String(e)))}>保存先のフォルダを作り直す</Button></div>
+            </>
+          ) : (
+            <p className="mt-1">フォルダを移した・名前を変えた場合は、上の場所と名前に戻してから、下の「差分を再確認」を押してください。つないでいた外付けドライブなどが外れていないかも確かめてください。</p>
+          )}
+        </div>
+      ) : (
+        <>
+          <Section dir="push" place={place} projectId={projectId} entries={state.entries} backups={state.backups} running={running} ctx={ctx} reload={load} />
+          <Section dir="pull" place={place} projectId={projectId} entries={state.pullEntries} backups={state.pullBackups} running={running} ctx={ctx} reload={load} />
+        </>
+      )}
       <div className="mt-3"><Button variant="ghost" disabled={busy} onClick={() => void load()}>差分を再確認</Button></div>
     </Card>
     </div>

@@ -65,7 +65,8 @@ describe("autoReflectMission", () => {
     store.createProject({ id: "p", name: "p" });
     mkdirSync(path.join(base, "projects", "p"), { recursive: true });
     writeFileSync(path.join(base, "projects", "p", "a.txt"), "one");
-    store.setSetting(linkKey("p"), { sourcePath: src, importedAt: "", baseline: hashTree(path.join(base, "projects", "p")) });
+    // a project made inside the app: its report asks to "put it in the folder", which must not stop the automatic reflect
+    store.setSetting(linkKey("p"), { sourcePath: src, importedAt: "", baseline: hashTree(path.join(base, "projects", "p")), createdByApp: true });
     writeFileSync(path.join(base, "projects", "p", "a.txt"), "two");
     const engine = new MissionEngine(store, {
       planner: { name: "x", plan: async () => ({ summary: "", tasks: [] }) },
