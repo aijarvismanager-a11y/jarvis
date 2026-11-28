@@ -3,6 +3,20 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.100",
+    date: "2026-11-28",
+    items: [
+      "アプリが自動で作った続きの依頼が、「あなたの依頼」と表示される不具合を直しました(「アプリが自動で作った続きの依頼」と表示します)。",
+    ],
+  },
+  {
+    version: "1.5.99",
+    date: "2026-11-28",
+    items: [
+      "作業の見出しが「npm testを実行し」のように「し」で終わる不具合を直しました。",
+    ],
+  },
+  {
     version: "1.5.98",
     date: "2026-11-28",
     items: [
