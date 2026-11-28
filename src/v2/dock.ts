@@ -49,7 +49,7 @@ export function isSendKey(e: { key: string; shiftKey: boolean; isComposing?: boo
 /** The three short lines at the top of the AI's reply: what was done, how it went, what comes next. */
 export type ReplySummaryLines = { did: string; result: string; next: string };
 
-export function replySummary(tasks: Task[], status: string, humanTodoCount: number, notes?: Record<string, string>, unreflected?: { count: number; place: string; label?: string }): ReplySummaryLines {
+export function replySummary(tasks: Task[], status: string, humanTodoCount: number, notes?: Record<string, string>, unreflected?: { count: number; place: string; label?: string; /** the folder cannot be looked at */ problem?: boolean }): ReplySummaryLines {
   const count = (s: Task["status"]) => tasks.filter((t) => t.status === s).length;
   const done = count("completed");
   const failed = count("failed") + count("blocked");
@@ -63,6 +63,7 @@ export function replySummary(tasks: Task[], status: string, humanTodoCount: numb
   let next: string;
   if (humanTodoCount > 0) next = `あなたの番です。人にしかできない作業が${humanTodoCount}件あります(上の「いまやること」)`;
   else if (status === "completed" && failed > 0) next = "「各作業の中身と回答を見る」で、うまくいかなかった作業の理由を確かめてください。必要なら、下の欄で頼み直せます";
+  else if (status === "completed" && unreflected?.problem) next = `${unreflected.place}を調べられないため、反映できません。「反映の画面を開く」で直し方を確かめてください`;
   else if (status === "completed" && unreflected && unreflected.count > 0) next = `${unreflected.label ?? `変更${unreflected.count}件`}が、まだ${unreflected.place}に入っていません。「反映の画面を開く」で中身を確かめて、反映してください`;
   else if (status === "completed") next = "あなたがやることはありません。次に頼みたいことを、下の欄に書いてください";
   else if (status === "failed") next = "上の「次にやること」から、やり直すか、下の欄に新しい依頼を書いてください";

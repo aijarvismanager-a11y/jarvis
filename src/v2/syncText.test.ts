@@ -16,6 +16,10 @@ describe("a finished request with changes not yet in the folder", () => {
     expect(nextStep(ctx(2, true), done, () => {}).detail).toContain("保存先のフォルダ");
     expect(nextStep(ctx(0), done, () => {}).action?.label).toBe("新しい依頼を出す");
   });
+  it("does not say there is nothing to do when the folder cannot be looked at", () => {
+    const next = replySummary(done, "completed", 0, undefined, { count: 0, place: "保存先のフォルダ", problem: true }).next;
+    expect(next).toContain("反映できません");
+  });
   it("does not say there is nothing to do", () => {
     expect(replySummary(done, "completed", 0, undefined, { count: 2, place: "元のフォルダ" }).next).toContain("まだ元のフォルダに入っていません");
     expect(replySummary(done, "completed", 0, undefined, { count: 0, place: "元のフォルダ" }).next).toContain("やることはありません");

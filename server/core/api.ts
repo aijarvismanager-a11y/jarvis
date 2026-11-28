@@ -537,14 +537,30 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
   router.get("/projects/:projectId/missions/:missionId", (req, res) => {
     res.json(view(String(req.params.projectId), String(req.params.missionId)));
   });
-  router.get("/projects/:projectId/missions/:missionId/report", (req, res) => {
-    res.json({ report: buildMissionReport(store, String(req.params.projectId), String(req.params.missionId), (rel) => {
+  router.get("/projects/:projectId/missions/:missionId/report", async (req, res) => {
+    const projectId = String(req.params.projectId);
+    // for a project made in the app: is anything still waiting to be put into its save folder?
+    let delivery: { pending: number; missing: boolean } | undefined;
+    const link = store.getSetting<(SyncLink & { createdByApp?: boolean }) | null>(linkKey(projectId), null);
+    if (link?.createdByApp) {
       try {
-        return readFileSync(resolveInProject(store.projectsRoot, String(req.params.projectId), rel), "utf-8").slice(0, MAX_ARTIFACT_BYTES);
+        const { push } = await computeDiffsAsync(link, projectDir(store.projectsRoot, projectId));
+        delivery = { pending: push.filter((e) => !isNotePath(e.path)).length, missing: false };
       } catch {
-        return null;
+        if (!existsSync(link.sourcePath)) delivery = { pending: 0, missing: true };
       }
-    }, deps.appRoot ? verifyInfo(store, deps.appRoot, String(req.params.projectId)) : undefined) });
+    }
+    try {
+      res.json({ report: buildMissionReport(store, projectId, String(req.params.missionId), (rel) => {
+        try {
+          return readFileSync(resolveInProject(store.projectsRoot, projectId, rel), "utf-8").slice(0, MAX_ARTIFACT_BYTES);
+        } catch {
+          return null;
+        }
+      }, deps.appRoot ? verifyInfo(store, deps.appRoot, projectId) : undefined, delivery) });
+    } catch (err) {
+      fail(res, err);
+    }
   });
   const readInProject = (projectId: string) => (rel: string) => {
     try {

@@ -396,7 +396,8 @@ function ReportPanel({ ctx, projectId, missionId, status, onNewRequest }: { ctx:
     let alive = true;
     api.missionReport(projectId, missionId).then((r) => alive && setReport(r)).catch(() => alive && setReport(null));
     return () => { alive = false; };
-  }, [projectId, missionId, status]);
+    // read again after a reflect: "put it into the folder" must go away once it is there
+  }, [projectId, missionId, status, ctx.sync?.toReflect, ctx.sync?.problem]);
   if (!report) return null;
   const copy = () => { void navigator.clipboard?.writeText(report.markdown).then(() => setCopied(true)).catch(() => undefined); };
   const isOpen = open ?? (status.startsWith("failed") ? false : report.todos ? (report.todos ?? []).some((t) => t.required) : report.verdict !== "verified");
@@ -899,7 +900,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       setDockBusy(false);
     }
   };
-  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length, overview.taskNotes, { count: leftToReflect(ctx.sync), place: placeName(ctx.sync?.createdByApp), label: leftLabel(ctx.sync) }) : null;
+  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length, overview.taskNotes, { count: leftToReflect(ctx.sync), place: placeName(ctx.sync?.createdByApp), label: leftLabel(ctx.sync), problem: !!ctx.sync?.problem }) : null;
   // (the overview of a project that was just closed must not be drawn: see the same guard on the current request below)
   const past = project ? pastExchanges(overview.missions, overview.tasks, mission, overview.taskNotes) : [];
   // while something waits for the person, the earlier talk folds into one line so the waiting card is not pushed down
@@ -973,7 +974,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                 <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">結果</dt><dd>{reply.result}</dd></div>
                 <div className="flex gap-2"><dt className="w-[5.5em] shrink-0 font-semibold">次にやること</dt><dd>{reply.next}</dd></div>
               </dl>
-              {mission.status === "completed" && leftToReflect(ctx.sync) > 0 && <div className="mt-2"><Button variant="ghost" onClick={() => void openSyncCard()}>反映の画面を開く</Button></div>}
+              {mission.status === "completed" && (leftToReflect(ctx.sync) > 0 || !!ctx.sync?.problem) && <div className="mt-2"><Button variant="ghost" onClick={() => void openSyncCard()}>反映の画面を開く</Button></div>}
             </div>
           )}
           {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} waits={overview.taskWaits} notes={overview.taskNotes} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}

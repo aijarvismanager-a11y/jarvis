@@ -83,7 +83,7 @@ export function statedStatus(text: string): "settled" | "partly" | "none" | null
 
 /** readArtifact returns the text of a deliverable (null when unreadable); without it, deliverable contents are not judged. */
 
-export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null, verify?: { available: boolean; approved: boolean; changed?: boolean }): MissionReport {
+export function buildMissionReport(store: Store, projectId: string, missionId: string, readArtifact?: (relPath: string) => string | null, verify?: { available: boolean; approved: boolean; changed?: boolean }, /** how things stand with the save folder right now; without it the report cannot know whether delivery already happened */ delivery?: { pending: number; missing: boolean }): MissionReport {
   const mission = store.getMission(projectId, missionId);
   if (!mission) throw new Error("依頼が見つかりません");
   const tasks = store.listTasks(projectId).filter((t) => t.missionId === missionId).sort((a, b) => a.position - b.position);
@@ -260,7 +260,16 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   }
   // A project made inside the app only reaches its folder (with CHANGELOG.md etc.) when the person presses 反映.
   const link = store.getSetting<{ sourcePath?: string; createdByApp?: boolean } | null>(linkKey(projectId), null);
-  if (finished && link?.createdByApp && link.sourcePath && code.length + done.length > 0) {
+  if (finished && link?.createdByApp && link.sourcePath && code.length + done.length > 0 && delivery?.missing) {
+    todos.push({
+      id: "deliver",
+      required: true,
+      title: "保存先のフォルダが見つかりません。直してから、できたものを入れてください",
+      why: `「${link.sourcePath}」が無いため、成果物と更新履歴を入れられません。`,
+      steps: ["下のボタンで「保存先のフォルダに入れる」を開きます。", "フォルダを移した・名前を変えた場合は元に戻し、消した場合は「保存先のフォルダを作り直す」を押します。", "入れるファイルを確かめて、「反映する」を押します。"],
+      actions: [{ kind: "sync", label: "保存先のフォルダの画面を開く" }],
+    });
+  } else if (finished && link?.createdByApp && link.sourcePath && code.length + done.length > 0 && delivery?.pending !== 0) {
     todos.push({
       id: "deliver",
       required: true,

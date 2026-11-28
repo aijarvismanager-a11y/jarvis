@@ -136,6 +136,15 @@ describe("deliver to-do for projects made in the app", () => {
     expect(t?.actions[0]?.kind).toBe("sync");
     db.close();
   });
+  it("stops asking once everything is in the folder, and says so when the folder is gone", async () => {
+    const { store, db, m } = await runMission(4);
+    store.setSetting("source:p", { sourcePath: "D:/Desktop/p", importedAt: "", baseline: {}, exclude: [], createdByApp: true });
+    const todo = (delivery: { pending: number; missing: boolean }) => buildMissionReport(store, "p", m.id, undefined, undefined, delivery).todos.find((x) => x.id === "deliver");
+    expect(todo({ pending: 0, missing: false })).toBeUndefined();
+    expect(todo({ pending: 2, missing: false })?.title).toContain("入れてください");
+    expect(todo({ pending: 0, missing: true })?.title).toContain("見つかりません");
+    db.close();
+  });
   it("does not ask for imported projects", async () => {
     const { store, db, m } = await runMission(4);
     store.setSetting("source:p", { sourcePath: "D:/x", importedAt: "", baseline: {}, exclude: [] });
