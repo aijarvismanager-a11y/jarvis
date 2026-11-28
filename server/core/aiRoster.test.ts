@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type Db } from "./db.ts";
 import { Store } from "./store.ts";
 import { AiRoster } from "./aiRoster.ts";
+import { setWebAiSettings } from "./webAiSites.ts";
 
 let db: Db;
 let store: Store;
@@ -26,6 +27,18 @@ describe("AI roster", () => {
     expect(r.restore("a")).toBe(true);
     expect(store.getAiService("a")).toMatchObject({ name: "A", capabilities: ["research"] });
     expect(r.state().removed).toHaveLength(0);
+  });
+
+  it("sends nothing to the sites while the browser AIs are switched off", async () => {
+    let asked = 0;
+    const probe = async () => { asked++; return { ok: false as const, reason: "x" }; };
+    store.upsertAiService({ id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com", accessMode: "web", automationLevel: 1, adapterType: "manual", capabilities: ["research"] });
+    setWebAiSettings(store, { enabled: false, loggedIn: { chatgpt: true } });
+    expect((await roster([], probe).run()).lastNote).toContain("オフ");
+    expect(asked).toBe(0);
+    setWebAiSettings(store, { enabled: true });
+    await roster([], probe).run();
+    expect(asked).toBe(1);
   });
 
   it("removes nothing when every site looks gone (the network is down)", async () => {

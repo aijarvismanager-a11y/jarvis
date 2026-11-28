@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type Db } from "./db.ts";
 import { Store } from "./store.ts";
 import { AiScout, parseCandidates } from "./aiScout.ts";
+import { setWebAiSettings } from "./webAiSites.ts";
 
 let db: Db;
 let store: Store;
@@ -78,6 +79,10 @@ describe("AiScout", () => {
 
   it("stays due when there is nobody to ask yet", async () => {
     const scout = new AiScout(store, { asker: { ask: async () => ({ ok: false as const, error: "x" }) }, fetchImpl: fetchFake, pick: () => null });
+    // switched off: that is the reason given
+    expect((await scout.run()).lastNote).toContain("オフのため");
+    expect(scout.due()).toBe(true);
+    setWebAiSettings(store, { enabled: true });
     expect((await scout.run()).lastNote).toContain("探せるAIがありません");
     expect(scout.due()).toBe(true);
   });

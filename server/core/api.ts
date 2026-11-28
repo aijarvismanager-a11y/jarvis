@@ -692,7 +692,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       backupsDir: path.join(root, "backups"),
       snapshotsDir: path.join(root, "snapshots"),
       browserProfileDir: path.join(root, "data", "browser-profile"),
-      project: projectId ? { id: projectId, workDir: projectDir(store.projectsRoot, projectId), sourcePath: link?.sourcePath ?? null } : null,
+      project: projectId ? { id: projectId, workDir: projectDir(store.projectsRoot, projectId), sourcePath: link?.sourcePath ?? null, createdByApp: !!(link as { createdByApp?: boolean } | null)?.createdByApp } : null,
       node: process.version,
       platform: process.platform,
     });
@@ -877,7 +877,7 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const svc = store.getAiService(String(req.params.aiId));
       if (!svc) return void res.status(404).json({ error: "AIサービスが見つかりません" });
       if (!svc.url) throw new Error("このAIにはページのURLがありません");
-      if (getWebAiSettings(store).loggedIn[svc.id]) return void res.status(409).json({ error: `${svc.name} はログイン済みになっています。ログインし直すときは、先に「ログイン済みを解除」を押してください` });
+      if (getWebAiSettings(store).loggedIn[svc.id]) return void res.status(409).json({ error: `${svc.name} はログイン済みになっています。「使えるか確認する」か「送って確認」を押してください。ログインが切れていれば、ログインのボタンが出ます` });
       if (!web.openLogin || !web.browserAvailable()) throw new Error("Edge・Chrome・Braveのいずれも見つからないため、ログイン用のブラウザを開けません");
       web.openLogin(svc.url);
       res.json({ ok: true, url: svc.url });

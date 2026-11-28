@@ -131,7 +131,7 @@ export type ClaudeStatus = { state: "ready"; version: string } | { state: "not_i
 
 export type ProjectSummary = { project: Project; latestMission: { id: string; goal: string; status: MissionStatus } | null; openMissions: { id: string; goal: string; status: MissionStatus; updatedAt: string }[]; missionCount: number; artifactCount: number; lastActivityAt: string };
 export type ClaudeQuota = { fiveHour: { utilization: number | null; resetsAt: string | null } | null; sevenDay: { utilization: number | null; resetsAt: string | null } | null; status: string; checkedAt: string };
-export type Environment = { root: string; dataDir: string; projectsDir: string; backupsDir: string; snapshotsDir: string; browserProfileDir: string; project: { id: string; workDir: string; sourcePath: string | null } | null; node: string; platform: string };
+export type Environment = { root: string; dataDir: string; projectsDir: string; backupsDir: string; snapshotsDir: string; browserProfileDir: string; project: { id: string; workDir: string; sourcePath: string | null; createdByApp?: boolean } | null; node: string; platform: string };
 
 export type RestingAi = { aiId: string; name: string; until: string; reason: "limit" | "botcheck" | "claude" };
 export type AllResting = { since: string; until: string; tasks: number; ais: RestingAi[] };

@@ -10,11 +10,17 @@ import type { AiService, ClaudeQuota, Environment, Project, TuningReport, WebAiS
 
 function DeleteProjectCard({ project, setError, onDeleted }: { project: Project; setError: (m: string) => void; onDeleted: () => void }) {
   const { busy, run } = useAction(setError);
+  // which folder outside the app stays: the one the app made to save into, or the one it was imported from
+  const [outside, setOutside] = useState("アプリの外にあるファイル");
+  usePoll(async () => {
+    const p = (await api.environment(project.id).catch(() => null))?.project;
+    setOutside(p?.sourcePath ? (p.createdByApp ? "保存先のフォルダと、その中のファイル" : "取り込み元の元のフォルダ") : "アプリの外にあるファイル");
+  }, 60000, [project.id]);
   const remove = () => {
     if (!window.confirm(`プロジェクト「${project.name}」を削除します。
 
 このアプリの中にある作業用のコピー、依頼の記録、できたもの、変更の履歴がすべて消え、元に戻せません。
-(取り込み元の元のフォルダは消えません)
+(${outside}は消えません)
 
 削除しますか?`)) return;
     void run(async () => {
@@ -24,7 +30,7 @@ function DeleteProjectCard({ project, setError, onDeleted }: { project: Project;
   };
   return (
     <Card fold title="このプロジェクトを削除する(元に戻せません)">
-      <p className="text-[13px]">「{project.name}」を、このアプリから消します。消えるのは、アプリ内のコピーと記録だけで、取り込み元の元のフォルダには何もしません。実行中の依頼があるときは、先に止めてください。</p>
+      <p className="text-[13px]">「{project.name}」を、このアプリから消します。消えるのは、アプリ内のコピーと記録だけで、{outside}には何もしません。実行中の依頼があるときは、先に止めてください。</p>
       <Button variant="danger" className="mt-3" disabled={busy} onClick={remove}>このプロジェクトを削除</Button>
     </Card>
   );
@@ -76,14 +82,15 @@ function EnvironmentCard({ project }: { project: Project | null }) {
   const rows: [string, string, string][] = [
     ["データの置き場所", env.root, "このアプリの記録・コピー・バックアップは、すべてこの下にあります"],
     ["プロジェクトの作業用コピー", env.projectsDir, "AIが実際にファイルを書き換える場所(取り込んだ元のフォルダではありません)"],
-    ["バックアップ", env.backupsDir, "「元のフォルダに反映する」の前に自動で取る控え"],
+    ["バックアップ", env.backupsDir, "フォルダに反映する前に、自動で取る控え"],
     ["変更の履歴(巻き戻し用)", env.snapshotsDir, "作業ごとの前後の状態。「この作業の変更を元に戻す」で使います"],
     ["ブラウザ上のAIのログイン情報", env.browserProfileDir, "ChatGPT・Gemini などにログインした状態を覚えている専用のブラウザ"],
     ["記録のデータベース", env.dataDir, "依頼・作業・AIの記録(orchestrator.db)"],
   ];
   if (env.project) {
     rows.unshift(["このプロジェクトの作業用コピー", env.project.workDir, "AIが書き換えるのはここだけです"]);
-    if (env.project.sourcePath) rows.splice(1, 0, ["取り込み元の元のフォルダ", env.project.sourcePath, "反映のボタンを押すまで、変わりません"]);
+    const made = env.project.createdByApp;
+    if (env.project.sourcePath) rows.splice(1, 0, [made ? "保存先のフォルダ(このアプリが作成)" : "取り込み元の元のフォルダ", env.project.sourcePath, made ? "「保存先のフォルダに入れる」を押すか、自動の反映をオンにするまで、変わりません" : "反映のボタンを押すか、自動の反映をオンにするまで、変わりません"]);
   }
   return (
     <Details summary="フォルダと環境(データの場所)">
@@ -119,6 +126,8 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
   };
 
   const [trying, setTrying] = useState<string | null>(null);
+  // the AI whose successful check switched the browser AIs on: the person is told, since from then on things are sent to the sites
+  const [switchedOnBy, setSwitchedOnBy] = useState<string | null>(null);
   const [tried, setTried] = useState<Record<string, string>>({});
   // the AI whose sign-in window was opened from the card: when that window is closed the app checks it by itself
   const [waitingLogin, setWaitingLogin] = useState<{ id: string; seen: boolean } | null>(null);
@@ -126,7 +135,9 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
     setTrying(s.id);
     setTried((t) => ({ ...t, [s.id]: "" }));
     try {
+      const wasOff = web?.enabled === false;
       const r = await api.tryAutomation(s.id);
+      if (r.ok && wasOff) setSwitchedOnBy(s.id);
       setTried((t) => ({ ...t, [s.id]: r.ok ? "ok" : (r.reason ?? "試せませんでした") }));
       // the site asked for a sign-in although it was marked as signed in: the mark is wrong, so the sign-in button must come back
       if (!r.ok && r.reason?.includes("ログインが必要です") && web?.loggedIn?.[s.id]) await api.setLoggedIn(s.id, false).catch(() => undefined);
@@ -210,7 +221,13 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                 )}
                 {waitingLogin?.id === s.id && <p className="mt-1 text-[12px] text-[#8A6212]">開いたブラウザで {short(s.name)} {check ? "の確認(ログイン・ロボット確認など)を済ませて" : "にログインして"}、そのブラウザを閉じてください。閉じると、自動で確認します。</p>}
                 {trying === s.id && <p className="mt-1 text-[12px] text-muted">確認しています…(1分ほど)</p>}
-                {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。これで使えます。</p>}
+                {result === "ok" && <p className="mt-1 text-[12px] text-status-done">確認できました。{web?.enabled === false ? "使うには「ブラウザ上のAIも使う」をオンにしてください。" : "これで使えます。"}</p>}
+                {switchedOnBy === s.id && web?.enabled && (
+                  <div role="status" className="mt-1 rounded-md bg-[#FBF1DC] px-2 py-1.5 text-[12px] text-[#8A6212]">
+                    <p>あわせて「ブラウザ上のAIも使う」をオンにしました。これからは、依頼の文とファイルの一部が、ブラウザ上のAIのサイトに送られます。</p>
+                    <div className="mt-1"><Button variant="ghost" disabled={busy} onClick={() => run(async () => { await api.setWebAi(false); setSwitchedOnBy(null); done(); })}>オフに戻す</Button></div>
+                  </div>
+                )}
                 {failed && !auto && <p className="mt-1 text-[12px] text-[#9B2C2C]">使えるようにできませんでした: {result}</p>}
                 {failed && auto && <p className="mt-1 text-[12px] text-[#9B2C2C]">確認できませんでした: {usable && result.includes("ログインが必要です") ? "ログインが必要です。「ブラウザで開く」で済ませて、窓を閉じてください" : result}</p>}
                 {failed && canRecheck && (
@@ -223,13 +240,23 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
             );
   };
 
+  // browser AIs take work only when this PC has a browser for them and the switch is on
+  const browserOn = !!web?.available && web.browserAvailable && web.enabled;
+
   return (
     <div className="space-y-4">
       {section === "ai" && (<>
       <Card title="使うAI">
         <p className="text-[13px]">
-          自動で使えるAI: <b>{autoCount + (claudeCode ? 1 : 0)}件</b>。調べもの・設計・文章などは、このAIが分担します。
+          自動で使えるAI: <b>{(browserOn ? autoCount : 0) + (claudeCode ? 1 : 0)}件</b>。{web && (browserOn ? "調べもの・設計・文章などは、このAIが分担します。" : "いまは、すべての作業を Claude Code がします。")}
         </p>
+        {web?.available && web.browserAvailable && !web.enabled && (
+          <div role="status" className="mt-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
+            <p><b>「ブラウザ上のAIも使う」はオフです。</b>下のブラウザ上のAIは、いまは使われません。オンにすると、依頼の文とファイルの一部が、そのサイトに送られます(AIのログインの確認に成功したときも、オンになります)。</p>
+            <div className="mt-1.5"><Button disabled={busy} onClick={() => run(async () => { await api.setWebAi(true); done(); })}>ブラウザ上のAIをオンにする</Button></div>
+          </div>
+        )}
+        {web?.available && !web.browserAvailable && <p role="status" className="mt-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。どれかを入れると、使えるようになります。</p>}
         <ul className="mt-3 space-y-2">
           {claudeCode && (
             <li className="rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
@@ -241,7 +268,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         </ul>
         {web?.available && web.browserAvailable && ready.length > 0 && (
           <>
-            <h3 className="mt-4 text-[13px] font-semibold">ブラウザ上の自動で使えるAI({ready.length}件)</h3>
+            <h3 className="mt-4 text-[13px] font-semibold">{web.enabled ? "ブラウザ上の自動で使えるAI" : "オンにすると自動で使えるAI"}({ready.length}件)</h3>
             {web.enabled && <p className="text-[12px] text-muted">「送って確認」を押すと、そのAIのサイトに「OKとだけ返信して」という短い文を1通送り、返事が来るかを確かめます。何もしなくても、そのまま使えます。</p>}
             <ul className="mt-2 grid items-start gap-2 lg:grid-cols-2">{ready.map(renderRow)}</ul>
           </>
@@ -270,7 +297,6 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
         <div className="mt-3"><Details summary="「使った回数」について">
           <p className="text-[12px] text-muted">「使った回数」は、このアプリが各AIに頼んだ回数です。ChatGPT・Gemini などのサイトは残りの枠を教えてくれないため、サイト側の本当の残量は分かりません。「人間確認が必要」と出たAIや、サイトの利用上限に達したAIは、しばらく休み、その間は別のAIが引き受けます。</p>
         </Details></div>
-        {web?.available && !web.browserAvailable && <p className="mt-2 text-[12px] text-muted">ブラウザ(Edge・Chrome・Brave)が見つからないため、ブラウザ上のAIは使えません。</p>}
         {others.length > 0 && (
           <Details summary={`自動化待ちのAI(${others.length}件・いまは使われません)`}>
             <p className="text-[12px] text-muted">画像・動画・音楽づくりなどのAIで、まだアプリが自動で操作できないものです。人が画面を開いて操作する必要があるため、依頼の担当には選ばれません。自動で使えるようになったものから、順に「使えるAI」へ移します。何もしなくて大丈夫です。</p>
@@ -324,7 +350,7 @@ export function SettingsScreen({ section, services, project, setError, refresh, 
                       </li>
                     ))}
                   </ul>
-                  <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => run(async () => { await api.resetScoreTuning(); done(); })}>学んだ内容を消す</Button>
+                  <Button variant="ghost" className="mt-2" disabled={busy} onClick={() => { if (window.confirm("学んだ内容(AIの得意・不得意)をすべて消して、最初の状態に戻します。元に戻せません。\n消しますか?")) void run(async () => { await api.resetScoreTuning(); done(); }); }}>学んだ内容を消す</Button>
                 </Details>
               )}
             </div>

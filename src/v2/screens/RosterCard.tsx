@@ -14,7 +14,7 @@ export function RosterCard({ setError, onChanged }: { setError: (m: string) => v
   if (!state) return null;
   return (
     <Card title="AIの入れ替わり">
-      <p className="text-[13px]">週に1回、手動のままのAIを見直します。<b>ログイン済みで自動に使えると確認できたAIは、自動のAIにします</b>。サイトが2回続けて見つからないAIは名簿から外します(「戻す」で元に戻せます)。</p>
+      <p className="text-[13px]">週に1回、手動のままのAIを見直します。<b>ログイン済みで自動に使えると確認できたAIは、自動のAIにします</b>。サイトが2回続けて見つからないAIは名簿から外します(「戻す」で元に戻せます)。確認では、ログイン済みの手動のAIのサイトに試しの短い文を送ります(「ブラウザ上のAIも使う」がオンのときだけ。サイトがあるかの確認は、オフでも行います)。</p>
       <p className="mt-1 text-[12px] text-muted">
         {state.running ? "いま確認しています…(数分かかります)" : state.lastRunAt ? `最後に確認した日時: ${formatTime(state.lastRunAt)}。${state.lastNote ?? ""}` : "まだ確認していません。"}
       </p>

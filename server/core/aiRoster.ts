@@ -90,8 +90,10 @@ export class AiRoster {
       const manual = this.store.listAiServices().filter((s) => s.accessMode === "web" && s.automationLevel <= 2 && s.status === "active" && !!s.url && s.id !== "claude-code");
 
       // 1. raise to automatic what can be run by the app now (a few probes per run: each one uses a little of a free allowance)
+      // a probe sends a line to the AI's site, so nothing is probed while the browser AIs are switched off
+      if (!web.enabled) notes.push("「ブラウザ上のAIも使う」がオフのため、AIへの試しの送信はしていません(サイトがあるかだけを確認しました)");
       let probes = 0;
-      for (const s of manual) {
+      for (const s of web.enabled ? manual : []) {
         if (probes >= MAX_PROBES_PER_RUN) break;
         if ((NOT_AUTOMATABLE as Record<string, string>)[s.id] || resolveSiteProfile(this.store, s.id) === null || web.loggedIn[s.id] !== true) continue;
         probes++;

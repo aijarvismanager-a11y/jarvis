@@ -159,7 +159,7 @@ export class AiScout {
     };
     try {
       const svc = (this.deps.pick ?? (() => pickScout(this.store)))();
-      if (!svc) return finish("探せるAIがありません(自動で使えるAIが1つもないか、ログインが済んでいません)。使えるAIができたら、自動で探します。", undefined, true);
+      if (!svc) return finish(getWebAiSettings(this.store).enabled ? "探せるAIがありません(自動で使えるAIが1つもないか、ログインが済んでいません)。使えるAIができたら、自動で探します。" : "「ブラウザ上のAIも使う」がオフのため、探していません。オンにすると、自動で探します。", undefined, true);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 6 * 60_000);
       const task = { id: "ai-scout", projectId: "", role: "research", objective: "新しいAIの候補探し" } as unknown as Task;

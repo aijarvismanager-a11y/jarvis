@@ -278,7 +278,7 @@ export default function V2App() {
           {SCREENS.map((s) => (
             <button
               key={s.id}
-              onClick={() => setScreen(s.id)}
+              onClick={() => { setError(null); setScreen(s.id); }}
               aria-current={screen === s.id ? "page" : undefined}
               className={`whitespace-nowrap border-b-2 px-3 py-2 text-[13px] font-semibold ${screen === s.id ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"}`}
             >
@@ -335,7 +335,7 @@ export default function V2App() {
         )}
         <LimitBanner setError={setError} />
         <RestingBanner setError={setError} />
-        <ErrorBar message={error} onClose={() => setError(null)} />
+        {error && <div className="sticky top-2 z-30 shadow-md"><ErrorBar message={error} onClose={() => setError(null)} /></div>}
         {loaded && waitingElsewhere(approvals, handoffs, projects, projectId).map((w) => (
           <div key={w.projectId} role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
             <p className="min-w-0 flex-1"><b>ほかのプロジェクト「{w.name}」が、{waitingLabel(w)}です。</b>あなたが答えるまで、その作業は進みません。</p>
