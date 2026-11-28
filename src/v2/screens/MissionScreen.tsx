@@ -844,7 +844,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
   const finishedMission = !!mission && ["completed", "failed"].includes(mission.status);
   // a finished request does not push the long request form onto the screen: "新しい依頼" (banner or card) opens it
   const showIntake = starting || !mission || mission.status === "cancelled" || emptyDraft;
-  const { done, total, percent } = progressOf(tasks);
+  const { done, total, percent } = progressOf(tasks, mission?.status === "cancelled");
   const usage = summarizeUsage(overview.aiRuns, new Set(tasks.map((t) => t.id)));
   const myHandoffs = handoffs.filter((h) => h.projectId === project?.id);
   const recent = [...overview.artifacts].filter((a) => !/(^|\/)(bin|obj|node_modules|publish|dist)\//i.test(a.path)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
@@ -972,7 +972,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               </dl>
             </div>
           )}
-          {flowing && <RunThread tasks={tasks} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
+          {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
           {/* where things stand comes last, nearest to the input box */}
           {total > 0 && !finishedMission && (
             <div ref={flowing ? replyRef : undefined} className="mt-3" aria-label="いまの状況">

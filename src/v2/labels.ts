@@ -143,8 +143,9 @@ export function currentMission(missions: Mission[]): Mission | null {
   return sorted.find(isActiveMission) ?? sorted[0] ?? null;
 }
 
-export function progressOf(tasks: Task[]): { done: number; total: number; percent: number } {
-  const counted = tasks.filter((t) => t.status !== "cancelled");
+export function progressOf(tasks: Task[], stopped = false): { done: number; total: number; percent: number } {
+  // a cancelled task of a request that goes on was replaced; in a request that was stopped it is work that was never done
+  const counted = stopped ? tasks : tasks.filter((t) => t.status !== "cancelled");
   const done = counted.filter((t) => t.status === "completed").length;
   return { done, total: counted.length, percent: counted.length ? Math.round((done / counted.length) * 100) : 0 };
 }
@@ -191,7 +192,7 @@ export const taskTitle = (objective: string): string => {
   // "npm testを実行し、" is the first half of a sentence: the heading ends at the action. Only after a two-kanji or katakana
   // action word, and not where し belongs to the word itself ("見直し")
   const first = cut > 1 ? cleaned.slice(0, cut) : cleaned;
-  const head = cleaned[cut] === "、" ? first.replace(/([一-龠々]{2}(?<![直出返渡消戻写足押探残示隠])|[ァ-ヶー])し$/, "$1") : first;
+  const head = cleaned[cut] === "、" ? first.replace(/([一-龠々]{2}(?<![直出返渡消戻写足押探残示隠])|[ァ-ヶー])して?$/, "$1") : first;
   return head.length > 28 ? `${head.slice(0, 28)}…` : head;
 };
 

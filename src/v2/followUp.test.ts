@@ -63,6 +63,8 @@ describe("taskTitle", () => {
     expect(taskTitle("npm testを実行し、結果を記録する")).toBe("npm testを実行");
     expect(taskTitle("csvsum.jsとテストコードをレビューし、問題点を挙げる")).toMatch(/レビュー$/);
     expect(taskTitle("画面の文言の見直し、ボタンの配置の確認")).toBe("画面の文言の見直し");
+    expect(taskTitle("npm install を実行して、依存パッケージを入れる")).toBe("npm install を実行");
+    expect(taskTitle("画面の文言を見直して、直す")).toBe("画面の文言を見直して");
   });
   it("otherwise uses the first phrase without command names, cut at 28 characters", () => {
     expect(taskTitle("capture.ps1 の使い方(Start/Shot/Click/Keys/Stop/Status/Windows)、確認用素材")).toBe("使い方");

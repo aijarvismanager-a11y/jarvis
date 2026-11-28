@@ -13,6 +13,7 @@ import { getAutoRestart, useAutoRestartChoice } from "./autoRestart";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
 import { diffNotices, staleApprovalNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
+import { HeaderMenu } from "./HeaderMenu";
 import { HelpDialog } from "./HelpDialog";
 import { TextSizeControl } from "./TextSizeControl";
 import { QuotaChip } from "./screens/QuotaChip";
@@ -244,17 +245,14 @@ export default function V2App() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3">
           <h1 className="flex items-center gap-2 font-serif text-[17px] font-bold"><img src="/favicon.svg" alt="" className="h-6 w-6" />AIオーケストラ{appVersion && <span className="text-[11px] font-normal text-muted">v{appVersion}</span>}{windowVersion && appVersion && windowVersion !== appVersion && <span className="rounded border border-[#EBD9A8] bg-[#FBF1DC] px-1.5 py-0.5 text-[11px] font-normal text-[#8A6212]" title="この窓(インストーラ)の版と、画面を出しているサーバーの版が違います。窓を開き直すと、自動で揃います">窓は v{windowVersion}</span>}</h1>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&_button]:whitespace-nowrap">
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-lg border border-border bg-panel px-3.5 py-2 text-[13px] font-semibold hover:bg-sidebar" title="引き継ぎ・通知・画面の更新・更新履歴" aria-label="その他">⋯<Label>その他</Label></summary>
-              <div className="absolute right-0 z-20 mt-1 flex w-64 flex-col gap-1 rounded-lg border border-border bg-panel p-1.5 shadow-md" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
-                <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ">📁 ほかで作っているものを引き継ぐ</Button>
-                {notifySupported() && (
-                  <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>{notifyOn ? "🔔 通知をオフにする" : "🔕 通知をオンにする"}</Button>
-                )}
-                <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)">🔄 画面を更新</Button>
-                <Button variant="ghost" onClick={() => { setHelp(false); setChangelog(true); }} title="更新履歴">🆕 更新履歴</Button>
-              </div>
-            </details>
+            <HeaderMenu title="引き継ぎ・通知・画面の更新・更新履歴" label="その他" summary={<>⋯<Label>その他</Label></>}>
+              <Button variant="ghost" disabled={importOpen} onClick={() => setImportOpen(true)} title="ほかで作っているものを引き継ぐ">📁 ほかで作っているものを引き継ぐ</Button>
+              {notifySupported() && (
+                <Button variant="ghost" aria-pressed={notifyOn} onClick={() => { void setNotifyEnabled(!notifyOn).then(setNotifyOn); }}>{notifyOn ? "🔔 通知をオフにする" : "🔕 通知をオンにする"}</Button>
+              )}
+              <Button variant="ghost" onClick={() => window.location.reload()} title="画面を最新の状態に読み込み直します(F5 / Ctrl+R でも同じです)">🔄 画面を更新</Button>
+              <Button variant="ghost" onClick={() => { setHelp(false); setChangelog(true); }} title="更新履歴">🆕 更新履歴</Button>
+            </HeaderMenu>
             <Button variant="ghost" onClick={() => { setChangelog(false); setHelp(true); }} title="使い方" aria-label="使い方">？<Label>使い方</Label></Button>
             <Button variant="ghost" disabled={projectId === null} onClick={() => { choose(null); setScreen("mission"); }} title="新しいプロジェクト" aria-label="新しいプロジェクト">＋<Label>新しいプロジェクト</Label></Button>
             <TextSizeControl />
@@ -334,7 +332,7 @@ export default function V2App() {
           // inert while offline: old content stays readable but its buttons cannot be pressed (they could not reach the server anyway)
           <div inert={offline} aria-disabled={offline || undefined} className={offline ? "opacity-50 saturate-50 transition-opacity" : "transition-opacity"}>
             {screen === "mission" && <MissionScreen ctx={ctx} />}
-            {screen === "development" && <DevelopmentScreen ctx={ctx} />}
+            {screen === "development" && <DevelopmentScreen ctx={ctx} onOpenHome={() => setScreen("mission")} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
             {screen === "projects" && <ProjectsScreen currentId={projectId} onOpen={(id, to) => { choose(id); setScreen(to); }} />}

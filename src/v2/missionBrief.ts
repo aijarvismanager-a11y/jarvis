@@ -52,14 +52,16 @@ export function finishOf(goal: string): string | null {
 export function missionBrief(mission: Mission, all: Mission[], origins: Record<string, { from: string; depth: number }> | null, tasks: Task[] = []): MissionBrief {
   const origin = origins?.[mission.id] ?? null;
   const notes: string[] = [];
+  // advice to stop or turn down belongs only to a request that can still be stopped
+  const stoppable = ["draft", "planning", "running", "paused"].includes(mission.status);
   const files = filesOf(mission.goal);
   const sameFile = files.length > 0 ? all.filter((o) => o.id !== mission.id && o.createdAt <= mission.createdAt && filesOf(o.goal).some((f) => files.includes(f))) : [];
   if (sameFile.length >= 2) {
     const first = sameFile.map((o) => o.createdAt).sort()[0];
     const days = Math.max(1, Math.round((Date.parse(mission.createdAt) - Date.parse(first)) / 86_400_000));
-    notes.push(`同じファイルを扱う依頼は、これで${sameFile.length + 1}件目です(${days}日間)。細かい直しが続いているだけなら、止めて構いません。`);
+    notes.push(`同じファイルを扱う依頼は、これで${sameFile.length + 1}件目です(${days}日間)。${stoppable ? "細かい直しが続いているだけなら、止めて構いません。" : ""}`);
   }
-  if (origin) notes.push(`前の依頼の続きとして、アプリが自動で作りました(${origin.depth}回目の続き)。必要なければ却下してください。`);
+  if (origin) notes.push(`前の依頼の続きとして、アプリが自動で作りました(${origin.depth}回目の続き)。${stoppable ? "必要なければ却下してください。" : ""}`);
   if (/人が|ユーザーが|手動で/.test(mission.goal)) notes.push("人の操作や、人が貼る値に頼る依頼です。値がまだ無いと、AIは「未判定」と書いて終わり、整理の依頼が続きやすくなります。");
   if (/(そろえ|揃え|統一|文言|書き直|整え|表記)/.test(purposeOf(mission.goal)) && !/(実行|テスト|ビルド|確認して|撮影|起動)/.test(purposeOf(mission.goal))) notes.push("記録の文章を整える依頼です。実際の動作の確認や修正は含まれません。");
   void tasks;

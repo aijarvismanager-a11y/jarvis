@@ -25,8 +25,10 @@ function Bubble({ task, no, line, side, renderTitle, children }: { task: Task; n
  * The running request as messages that arrive one after another: what has finished (in the order it finished), what is
  * being done now, and one short line for what comes after.
  */
-export function RunThread({ tasks, renderTitle, renderDetail, timeOf }: {
+export function RunThread({ tasks, asked, renderTitle, renderDetail, timeOf }: {
   tasks: Task[];
+  /** ids of the tasks that wait for the person's permission */
+  asked: string[];
   renderTitle: (t: Task) => ReactNode;
   renderDetail: (t: Task) => ReactNode;
   timeOf: (taskId: string) => string;
@@ -37,7 +39,7 @@ export function RunThread({ tasks, renderTitle, renderDetail, timeOf }: {
     <section aria-label="作業の流れ" className="mt-3 space-y-2">
       <ul className="space-y-2">
         {said.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={SAID[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={timeOf(t.id)} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
-        {now.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={DOING[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={t.status === "running" || t.status === "validation" ? elapsedSince(t.updatedAt) : ""} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
+        {now.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={asked.includes(t.id) ? "は、あなたの許可を待っています" : DOING[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={!asked.includes(t.id) && (t.status === "running" || t.status === "validation") ? elapsedSince(t.updatedAt) : ""} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
       </ul>
       {next.length > 0 && (
         <details className="text-[12.5px] text-muted">

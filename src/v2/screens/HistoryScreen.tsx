@@ -21,7 +21,7 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
         {missions.length === 0 && <p className="text-[13px] text-muted">まだ依頼を出していません。「ホーム」から最初の依頼を出すと、ここに残ります。</p>}
         <ul className="divide-y divide-borderSoft">
           {(showAll ? missions : missions.slice(0, 10)).map((m) => {
-            const { done, total } = progressOf(ctx.overview.tasks.filter((t) => t.missionId === m.id));
+            const { done, total } = progressOf(ctx.overview.tasks.filter((t) => t.missionId === m.id), m.status === "cancelled");
             return (
               <li key={m.id} className="py-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

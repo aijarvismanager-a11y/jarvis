@@ -8,7 +8,8 @@ export function StatusStrip({ ctx, onOpen }: { ctx: Ctx; onOpen: () => void }) {
   const tasks = ctx.overview.tasks.filter((t) => t.missionId === mission.id);
   const { done, total, percent } = progressOf(tasks);
   const doing = tasks.find((t) => t.status === "running" || t.status === "validation" || t.status === "waiting");
-  const now = doing ? `${aiNameOf(ctx.services, doing.selectedAi)} が${roleLabel(doing.role)}${doing.status === "waiting" ? "の回答待ち" : "中"}` : MISSION_LABEL[mission.status];
+  const asking = tasks.find((t) => ctx.approvals.some((a) => a.taskId === t.id));
+  const now = asking ? `${roleLabel(asking.role)}があなたの許可待ち` : doing ? `${aiNameOf(ctx.services, doing.selectedAi)} が${roleLabel(doing.role)}${doing.status === "waiting" ? "の回答待ち" : "中"}` : MISSION_LABEL[mission.status];
   return (
     <button onClick={onOpen} className="flex w-full items-center gap-3 border-t border-border bg-panel px-4 py-1.5 text-left text-[12.5px] hover:bg-sidebar" title="ホームで詳しく見る">
       <span className="shrink-0 font-semibold">進行中</span>

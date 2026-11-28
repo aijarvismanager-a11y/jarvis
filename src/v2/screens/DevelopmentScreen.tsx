@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { aiNameOf, type Ctx } from "../context";
 import { LEVEL_LABEL, MISSION_LABEL, RUN_STATUS_LABEL, TASK_LABEL_PLAIN, formatCost, formatDuration, formatTime, progressOf, roleLabel, shortGoal } from "../labels";
-import { Badge, Card, Details, GoalText } from "../ui";
+import { Badge, Button, Card, Details, GoalText } from "../ui";
 import type { Task, TaskStatus } from "../types";
 import { FailureReason } from "./FailureReason";
 import { summaryLine } from "./summaryLine";
@@ -24,6 +24,7 @@ const TONE: Record<TaskStatus, "neutral" | "ok" | "warn" | "bad" | "info"> = {
 };
 
 function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: string) => string; why: SelectionWhy | null }) {
+  const asking = ctx.approvals.some((a) => a.taskId === task.id);
   const [open, setOpen] = useState(task.status === "failed" || task.status === "running" || task.status === "waiting");
   const runs = ctx.overview.aiRuns.filter((r) => r.task_id === task.id);
   const outputs = ctx.overview.artifacts.filter((a) => a.taskId === task.id);
@@ -32,7 +33,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2 text-left">
         <span className="text-muted">{open ? "▾" : "▸"}</span>
         <span className="text-[13px] font-semibold">{roleLabel(task.role)}</span>
-        <Badge tone={TONE[task.status]}>{TASK_LABEL_PLAIN[task.status]}</Badge>
+        <Badge tone={asking ? "warn" : TONE[task.status]}>{asking ? "あなたの許可待ち" : TASK_LABEL_PLAIN[task.status]}</Badge>
         {task.retryCount > 0 && <span className="text-[11px] text-muted">再試行 {task.retryCount}回</span>}
         <span className="ml-auto text-[12px] text-muted">{task.selectedAi || !["pending", "ready", "blocked"].includes(task.status) ? aiNameOf(ctx.services, task.selectedAi) : "担当は始めるときに決まります"}</span>
         <span className="w-full pl-5 text-[12px] leading-snug text-muted">{shortGoal(task.objective).head}</span>
@@ -97,7 +98,7 @@ function TaskRow({ task, ctx, label, why }: { task: Task; ctx: Ctx; label: (id: 
   );
 }
 
-export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
+export function DevelopmentScreen({ ctx, onOpenHome }: { ctx: Ctx; onOpenHome: () => void }) {
   // why each task has its AI: the selection events of the whole request (the history list only keeps the latest ones)
   const [selections, setSelections] = useState<StoredEvent[]>([]);
   const missionProject = ctx.mission?.projectId;
@@ -105,7 +106,7 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
   const tasks = ctx.mission ? ctx.overview.tasks.filter((t) => t.missionId === ctx.mission!.id).sort((a, b) => a.position - b.position) : [];
   const names = new Map(tasks.map((t) => [t.id, roleLabel(t.role)]));
   if (!ctx.mission) return <Card title="進み具合">まだ依頼がありません。「ホーム」の下の入力欄に作りたいものを書いて「送る」を押すと、ここに進み具合が出ます。</Card>;
-  const { done, total, percent } = progressOf(tasks);
+  const { done, total, percent } = progressOf(tasks, ctx.mission.status === "cancelled");
   return (
     <div className="space-y-4">
       <Card title="いまの依頼">
@@ -117,11 +118,12 @@ export function DevelopmentScreen({ ctx }: { ctx: Ctx }) {
           </div>
         )}
         {total > 0 && <p className="mt-3 text-[13px]">{summaryLine(tasks, ctx)}</p>}
+        {ctx.approvals.some((a) => tasks.some((t) => t.id === a.taskId)) && <div className="mt-2"><Button onClick={onOpenHome}>ホームを開いて許可する</Button></div>}
         <FailureReason projectId={ctx.mission.projectId} missionId={ctx.mission.id} failed={ctx.mission.status === "failed"} className="mt-3" />
       </Card>
       <Card title="作業の一覧(上から順に進みます)">
         {tasks.length === 0 ? (
-          <p className="text-[13px] text-muted">{ctx.mission.status === "planning" ? "計画の承認待ちです。ホームで計画を読んで「この計画で開始」を押すと、作業がここに並びます。" : ctx.mission.status === "failed" || ctx.mission.status === "cancelled" ? "この依頼は、作業が始まる前に終わりました。理由は上の「いまの依頼」に出ています。やり直すときは「ホーム」で「計画をやり直す」か「新しい依頼」を使ってください。" : "計画を承認すると、作業がここに並びます。"}</p>
+          <p className="text-[13px] text-muted">{ctx.mission.status === "planning" ? "計画の承認待ちです。ホームで計画を読んで「この計画で開始」を押すと、作業がここに並びます。" : ctx.mission.status === "cancelled" ? "この依頼は、作業が始まる前に中止しました。続けるときは「ホーム」の入力欄から、新しい依頼を出してください。" : ctx.mission.status === "failed" ? "この依頼は、作業が始まる前に終わりました。理由は上の「いまの依頼」に出ています。やり直すときは「ホーム」で「計画をやり直す」か「新しい依頼」を使ってください。" : "計画を承認すると、作業がここに並びます。"}</p>
         ) : (
           <>
             <p className="mb-2 text-[12px] text-muted">各行を押すと、その作業の内容と、できたファイルが見られます。</p>

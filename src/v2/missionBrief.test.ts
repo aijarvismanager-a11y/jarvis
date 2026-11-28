@@ -24,6 +24,15 @@ describe("missionBrief", () => {
     expect(missionBrief(all[0], all, {}).origin).toBe("自動の続きではない依頼(画面から出された依頼)");
     expect(missionBrief(all[0], all, {}).notes).toEqual([]);
   });
+  it("advises stopping only while the request can still be stopped", () => {
+    const all = [m("a", "a.md を直す", "2026-11-18T00:00:00Z"), m("b", "a.md を直す", "2026-11-19T00:00:00Z"), m("c", "a.md を直す", "2026-11-20T00:00:00Z")];
+    const notes = (status: Mission["status"]) => missionBrief({ ...all[2], status }, all, { c: { from: "b", depth: 1 } }).notes.join("\n");
+    expect(notes("planning")).toMatch(/止めて構いません[\s\S]*却下してください/);
+    for (const status of ["cancelled", "completed", "failed"] as const) {
+      expect(notes(status)).toContain("3件目");
+      expect(notes(status)).not.toMatch(/止めて|却下/);
+    }
+  });
   it("does not say who started a request before that is read", () => {
     const one = [m("a", "ただ作る", "2026-11-27T00:00:00Z")];
     expect(missionBrief(one[0], one, null).origin).toBe("確認しています…");
