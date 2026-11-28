@@ -321,6 +321,33 @@ const REASON_LABEL: Record<string, string> = {
 /** A task's failure note that says the person did not allow it (they pressed "拒否する"): nothing went wrong, so it is not advice-for-a-failure. */
 export const isRefusedNote = (note: string | undefined | null) => /承認されなかった|許可されなかった/.test(note ?? "");
 
+/** A task's state in words. A task the person refused did not break; a cancelled task of a request that goes on was replaced by a new plan. */
+export function taskStatusLabel(status: TaskStatus, missionStatus: MissionStatus, note?: string, base: Record<TaskStatus, string> = TASK_LABEL): string {
+  if (status === "failed" && isRefusedNote(note)) return "許可しなかった";
+  if (status === "cancelled" && missionStatus !== "cancelled") return "置き換え済み";
+  return base[status];
+}
+
+/** How many tasks went wrong, keeping apart the ones that failed, the ones the person refused and the ones stuck behind them. */
+export function troubleText(tasks: Task[], notes?: Record<string, string>): string {
+  const failed = tasks.filter((t) => t.status === "failed");
+  const refused = failed.filter((t) => isRefusedNote(notes?.[t.id])).length;
+  const blocked = tasks.filter((t) => t.status === "blocked").length;
+  const parts: string[] = [];
+  if (failed.length > refused) parts.push(`うまくいかなかった作業 ${failed.length - refused}件`);
+  if (refused > 0) parts.push(`許可しなかった作業 ${refused}件`);
+  if (blocked > 0) parts.push(`${parts.length ? "その後ろで" : ""}進めなかった作業 ${blocked}件`);
+  return parts.join("、");
+}
+
+/** One line per failed task with the reason recorded for it (shown with the request's own reason, which is only general). */
+export function failedCauses(tasks: Task[], notes?: Record<string, string>): string[] {
+  return tasks.filter((t) => t.status === "failed" && notes?.[t.id]).map((t) => {
+    const text = plainLogText(notes![t.id]!);
+    return `「${roleLabel(t.role)}」の作業: ${text.length > 200 ? `${text.slice(0, 200)}…` : text}`;
+  });
+}
+
 /** The cause, when the reason's own words give it away: what to do differs a lot (wait, sign in, shorten the request). */
 function causeHint(reason: string): string | null {
   if (/利用上限|上限に達|rate limit|usage limit|quota|overloaded|429/i.test(reason)) return "Claude の利用上限が原因のようです。画面の上の赤い枠で「リセットまで待つ」か「ほかのAIに回す」を選んでから、「やり直す」を押してください。";

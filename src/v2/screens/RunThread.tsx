@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { runThread } from "../dock";
-import { TASK_LABEL, elapsedSince, roleLabel, taskTitle } from "../labels";
+import { TASK_LABEL, elapsedSince, isRefusedNote, roleLabel, taskTitle } from "../labels";
 import type { Task } from "../types";
 
-const SAID: Partial<Record<Task["status"], string>> = { completed: "が終わりました", failed: "は、うまくいきませんでした", blocked: "は、進められません", cancelled: "は、中止しました" };
+const SAID: Partial<Record<Task["status"], string>> = { completed: "が終わりました", failed: "は、うまくいきませんでした", blocked: "は、進められません", cancelled: "は、新しい計画で置き換えました" }; // this thread is only shown while the request goes on
 const DOING: Partial<Record<Task["status"], string>> = { running: "を進めています", validation: "の結果をチェックしています", waiting: "は、あなたの操作を待っています", paused: "は、一時停止しています" };
 
 function Bubble({ task, no, line, side, renderTitle, children }: { task: Task; no: number; line: string; side?: string; renderTitle: (t: Task) => ReactNode; children: ReactNode }) {
@@ -25,10 +25,11 @@ function Bubble({ task, no, line, side, renderTitle, children }: { task: Task; n
  * The running request as messages that arrive one after another: what has finished (in the order it finished), what is
  * being done now, and one short line for what comes after.
  */
-export function RunThread({ tasks, asked, renderTitle, renderDetail, timeOf }: {
+export function RunThread({ tasks, asked, notes, renderTitle, renderDetail, timeOf }: {
   tasks: Task[];
   /** ids of the tasks that wait for the person's permission */
   asked: string[];
+  notes?: Record<string, string>;
   renderTitle: (t: Task) => ReactNode;
   renderDetail: (t: Task) => ReactNode;
   timeOf: (taskId: string) => string;
@@ -38,7 +39,7 @@ export function RunThread({ tasks, asked, renderTitle, renderDetail, timeOf }: {
   return (
     <section aria-label="作業の流れ" className="mt-3 space-y-2">
       <ul className="space-y-2">
-        {said.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={SAID[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={timeOf(t.id)} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
+        {said.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={t.status === "failed" && isRefusedNote(notes?.[t.id]) ? "は、許可しなかったため行っていません" : SAID[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={timeOf(t.id)} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
         {now.map((t) => <Bubble key={t.id} task={t} no={no(t)} line={asked.includes(t.id) ? "は、あなたの許可を待っています" : DOING[t.status] ?? `: ${TASK_LABEL[t.status]}`} side={!asked.includes(t.id) && (t.status === "running" || t.status === "validation") ? elapsedSince(t.updatedAt) : ""} renderTitle={renderTitle}>{renderDetail(t)}</Bubble>)}
       </ul>
       {next.length > 0 && (

@@ -1,3 +1,4 @@
+import { troubleText } from "./labels";
 import type { Mission, Task } from "./types";
 
 /** What the pinned prompt box at the bottom does when Enter is pressed, depending on where the request stands. */
@@ -48,14 +49,15 @@ export function isSendKey(e: { key: string; shiftKey: boolean; isComposing?: boo
 /** The three short lines at the top of the AI's reply: what was done, how it went, what comes next. */
 export type ReplySummaryLines = { did: string; result: string; next: string };
 
-export function replySummary(tasks: Task[], status: string, humanTodoCount: number): ReplySummaryLines {
+export function replySummary(tasks: Task[], status: string, humanTodoCount: number, notes?: Record<string, string>): ReplySummaryLines {
   const count = (s: Task["status"]) => tasks.filter((t) => t.status === s).length;
   const done = count("completed");
   const failed = count("failed") + count("blocked");
-  const did = tasks.length === 0 ? "まだ作業は始まっていません" : `${tasks.length}件の作業のうち、${done}件が終わりました`;
+  const total = status === "cancelled" ? tasks.length : tasks.length - count("cancelled"); // replaced tasks are not left to do
+  const did = total === 0 ? "まだ作業は始まっていません" : `${total}件の作業のうち、${done}件が終わりました`;
   let result: string;
-  if (status === "completed") result = failed > 0 ? `できました(ただし${failed}件はうまくいきませんでした)` : "最後まで、うまくできました";
-  else if (status === "failed") result = `途中で止まりました(うまくいかなかった作業 ${failed}件)`;
+  if (status === "completed") result = failed > 0 ? `できました(ただし、${troubleText(tasks, notes)})` : "最後まで、うまくできました";
+  else if (status === "failed") result = failed > 0 ? `途中で止まりました(${troubleText(tasks, notes)})` : "途中で止まりました";
   else if (status === "cancelled") result = "途中でやめました";
   else result = "進めています";
   let next: string;
@@ -72,7 +74,7 @@ export function replySummary(tasks: Task[], status: string, humanTodoCount: numb
 export type PastExchange = { mission: Mission; tasks: Task[]; result: string; did: string };
 
 /** The requests made before the one on screen, oldest first (the newest sits right above the current one, like a chat). */
-export function pastExchanges(missions: Mission[], tasks: Task[], current: Mission | null): PastExchange[] {
+export function pastExchanges(missions: Mission[], tasks: Task[], current: Mission | null, notes?: Record<string, string>): PastExchange[] {
   if (!current) return [];
   return missions
     .filter((m) => m.id !== current.id && m.createdAt <= current.createdAt)
@@ -81,7 +83,7 @@ export function pastExchanges(missions: Mission[], tasks: Task[], current: Missi
     .filter((x) => !(x.mission.status === "draft" && x.tasks.length === 0)) // never planned: nothing was said back
     .map((x) => {
       const ended = ["completed", "failed", "cancelled"].includes(x.mission.status);
-      const s = replySummary(x.tasks, x.mission.status, 0);
+      const s = replySummary(x.tasks, x.mission.status, 0, notes);
       return { ...x, did: s.did, result: ended ? s.result : "終わっていません" };
     });
 }

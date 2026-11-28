@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import { type Ctx } from "../context";
-import { MISSION_LABEL, TASK_LABEL, isRefusedNote, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal } from "../labels";
+import { MISSION_LABEL, TASK_LABEL, isRefusedNote, plainLogText, taskTitle, condenseAnswers, deriveProjectName, elapsedSince, formatCost, formatDuration, formatTime, formatTokens, summarizeUsage, progressOf, roleLabel, shortGoal, failedCauses, taskStatusLabel } from "../labels";
 import { Badge, Button, Card, Details, GoalText } from "../ui";
 import { useAction, usePoll } from "../hooks";
 import { SplitPreview } from "./SplitPreview";
@@ -702,6 +702,12 @@ function PlanReview({ view, ctx, onCancel }: { view: MissionView; ctx: Ctx; onCa
   return (
     <Card title={proposal.kind === "replan" ? "再計画の提案" : "計画の提案"}>
       <MissionBrief ctx={ctx} mission={mission} />
+      {proposal.kind === "replan" && (
+        <div className="mb-3 rounded-lg border border-borderSoft bg-bg px-3 py-2 text-[13px]">
+          {proposal.feedback && <p className="whitespace-pre-wrap break-words"><span className="mr-2 font-semibold">あなたが伝えた変更内容</span>{proposal.feedback.replace(/^【途中での方針変更】/, "")}</p>}
+          <p className="text-muted">完了した作業は残ります。終わっていない作業は、この計画で開始すると置き換わります。</p>
+        </div>
+      )}
       {proposal.draft.summary && <p className="mb-3 text-[15px] leading-relaxed">{proposal.draft.summary}</p>}
       <p className="mb-2 text-[13px] text-muted">{proposal.single ? "依頼の全体を、1つの作業で進めます。内容は「詳しく見る」で読めます。" : `作業は全部で${proposal.draft.tasks.length}つです。上から順に進みます。細かい内容は、各作業の「詳しく見る」で読めます。`}</p>
       <ol className="mb-3 space-y-2">
@@ -896,12 +902,12 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
       setDockBusy(false);
     }
   };
-  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length) : null;
+  const reply = mission && finishedMission ? replySummary(tasks, mission.status, humanTodos.length, overview.taskNotes) : null;
   // (the overview of a project that was just closed must not be drawn: see the same guard on the current request below)
-  const past = project ? pastExchanges(overview.missions, overview.tasks, mission) : [];
+  const past = project ? pastExchanges(overview.missions, overview.tasks, mission, overview.taskNotes) : [];
   // while something waits for the person, the earlier talk folds into one line so the waiting card is not pushed down
   const waiting = pendingPlan || starting || myHandoffs.length > 0 || approvals.some((a) => a.projectId === project?.id);
-  const history = past.length > 0 && <ThreadHistory key={project?.id} items={past} renderAnswer={(taskId) => <TaskAnswer taskId={taskId} ctx={ctx} />} />;
+  const history = past.length > 0 && <ThreadHistory key={project?.id} items={past} notes={overview.taskNotes} renderAnswer={(taskId) => <TaskAnswer taskId={taskId} ctx={ctx} />} />;
   // an unfinished request flows as messages; a finished (or stopped) one keeps the folded list of its tasks
   const flowing = !!mission && !FINISHED.includes(mission.status) && tasks.length > 0;
   // keep the latest message in view; not while something waits or the person has a to-do (that is read first, at the top)
@@ -951,7 +957,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold tracking-wide text-muted">{project?.name ?? "プロジェクト"}</span>
             {mission.status === "failed" && tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id])) ? (
-              <Badge tone="neutral">許可待ちで止まっています</Badge>
+              <Badge tone="neutral">許可しなかったため停止</Badge>
             ) : (
               <Badge tone={mission.status === "completed" ? "ok" : mission.status === "failed" ? "bad" : mission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[mission.status]}</Badge>
             )}
@@ -972,7 +978,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               </dl>
             </div>
           )}
-          {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
+          {flowing && <RunThread tasks={tasks} asked={approvals.map((a) => a.taskId)} notes={overview.taskNotes} renderTitle={(t) => <TaskObjective text={t.objective} />} renderDetail={taskDetail} timeOf={(id) => taskTime(overview.aiRuns, id)} />}
           {/* where things stand comes last, nearest to the input box */}
           {total > 0 && !finishedMission && (
             <div ref={flowing ? replyRef : undefined} className="mt-3" aria-label="いまの状況">
@@ -982,7 +988,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
               <p className="mt-1.5 text-[13px]"><span className="mr-2 text-[12px] text-muted">{percent}%({done}/{total})</span>{summaryLine(tasks, ctx, resting)}</p>
             </div>
           )}
-          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} className="mt-3" />
+          <FailureReason projectId={mission.projectId} missionId={mission.id} failed={mission.status === "failed"} refused={tasks.some((t) => t.status === "failed" && isRefusedNote(overview.taskNotes?.[t.id]))} quiet={tasks.length === 0} causes={failedCauses(tasks, overview.taskNotes)} className="mt-3" />
           {/* the checks are details: folded under the summary */}
           {finishedMission && (
             <div className="mt-3">
@@ -1002,7 +1008,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
                   <div className="flex items-start gap-2">
                     <StepMark status={t.status} />
                     <span className="min-w-0 flex-1"><span className="text-muted">{roleLabel(t.role)} / </span><TaskObjective text={t.objective} /></span>
-                    {(t.status === "failed" || t.status === "blocked") && <Badge tone="bad">{TASK_LABEL[t.status]}</Badge>}
+                    {(t.status === "failed" || t.status === "blocked" || t.status === "cancelled") && <Badge tone={t.status === "cancelled" || isRefusedNote(overview.taskNotes?.[t.id]) ? "neutral" : "bad"}>{taskStatusLabel(t.status, mission.status, overview.taskNotes?.[t.id])}</Badge>}
                     {t.status === "waiting" && <Badge tone="warn">{TASK_LABEL[t.status]}</Badge>}
                     {["completed", "failed"].includes(t.status) && taskTime(overview.aiRuns, t.id) && <span className="shrink-0 text-[11.5px] text-muted">{taskTime(overview.aiRuns, t.id)}</span>}
                     {(t.status === "running" || t.status === "validation") && <span className="shrink-0 text-muted">{TASK_LABEL[t.status]} {elapsedSince(t.updatedAt)}</span>}

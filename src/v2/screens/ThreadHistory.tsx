@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react";
 import type { PastExchange } from "../dock";
-import { TASK_LABEL, formatTime,roleLabel, taskTitle } from "../labels";
+import { formatTime, roleLabel, taskStatusLabel, taskTitle } from "../labels";
 import { GoalText } from "../ui";
 import { Requester } from "./MissionBriefCard";
 
 const SHOWN = 1; // only the exchange just before stays visible (two pushed the current reply off the screen); older ones come in with a button
 const STEP = 5;
 
-function Exchange({ item, renderAnswer }: { item: PastExchange; renderAnswer: (taskId: string) => ReactNode }) {
+function Exchange({ item, notes, renderAnswer }: { item: PastExchange; notes?: Record<string, string>; renderAnswer: (taskId: string) => ReactNode }) {
   const [open, setOpen] = useState(false); // answers are read from files, so only when asked for
   const { mission, tasks } = item;
   return (
@@ -26,7 +26,7 @@ function Exchange({ item, renderAnswer }: { item: PastExchange; renderAnswer: (t
           <ul className="mt-1.5 space-y-1.5">
             {tasks.map((t) => (
               <li key={t.id} className="text-[12.5px]">
-                {t.status !== "completed" && <span className={`mr-1.5 font-semibold ${t.status === "failed" || t.status === "blocked" ? "text-[#9B2C2C]" : "text-muted"}`}>[{TASK_LABEL[t.status]}]</span>}
+                {t.status !== "completed" && <span className={`mr-1.5 font-semibold ${t.status === "failed" || t.status === "blocked" ? "text-[#9B2C2C]" : "text-muted"}`}>[{taskStatusLabel(t.status, mission.status, notes?.[t.id])}]</span>}
                 <span className="text-muted">{roleLabel(t.role)} / </span>{taskTitle(t.objective)}
                 {t.status === "completed" && renderAnswer(t.id)}
               </li>
@@ -39,7 +39,7 @@ function Exchange({ item, renderAnswer }: { item: PastExchange; renderAnswer: (t
 }
 
 /** The earlier exchanges, above the current request, so the screen reads as one conversation from top to bottom. */
-export function ThreadHistory({ items, renderAnswer }: { items: PastExchange[]; renderAnswer: (taskId: string) => ReactNode }) {
+export function ThreadHistory({ items, notes, renderAnswer }: { items: PastExchange[]; notes?: Record<string, string>; renderAnswer: (taskId: string) => ReactNode }) {
   const [count, setCount] = useState(SHOWN);
   const hidden = Math.max(0, items.length - count);
   return (
@@ -50,7 +50,7 @@ export function ThreadHistory({ items, renderAnswer }: { items: PastExchange[]; 
         </div>
       )}
       <ul className="space-y-3">
-        {items.slice(hidden).map((x) => <Exchange key={x.mission.id} item={x} renderAnswer={renderAnswer} />)}
+        {items.slice(hidden).map((x) => <Exchange key={x.mission.id} item={x} notes={notes} renderAnswer={renderAnswer} />)}
       </ul>
     </section>
   );

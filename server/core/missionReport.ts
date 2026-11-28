@@ -8,6 +8,9 @@ import { linkKey } from "./projectSync.ts";
 
 export const LEVEL_LABEL: Record<number, string> = { 1: "L1 成果物の存在", 2: "L2 構文チェック", 3: "L3 自動テスト(npm test)", 4: "L4 結合ゲート(起動して画面を開く)" };
 
+// the task states in the report's words (the screen and the copied Markdown are read by the person)
+const STATUS_WORD: Record<string, string> = { pending: "順番待ち", ready: "開始前", running: "実行中", waiting: "操作待ち", validation: "チェック中", completed: "完了", failed: "失敗", blocked: "前の作業が止まったため未実行", cancelled: "中止・置き換え", paused: "一時停止" };
+
 export type ReportTask = {
   id: string;
   role: string;
@@ -306,7 +309,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
   if (count("TASK_MANUAL_RETRY")) notes.push(`手動でやり直した作業が${count("TASK_MANUAL_RETRY")}件あります`);
   if (count("TASK_ROLLBACK")) notes.push(`変更を元に戻した作業が${count("TASK_ROLLBACK")}件あります`);
   if (count("APPROVAL_DENIED")) notes.push("AIが実行しようとした操作のうち、許可が出なかったものがあります(許可の出ない操作は止める決まりです。作業全体が失敗したとは限りません)");
-  for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`作業${reportTasks.indexOf(t) + 1}は完了していません(${t.status})`);
+  for (const t of reportTasks.filter((x) => x.status === "failed" || x.status === "blocked" || x.status === "cancelled")) notes.push(`作業${reportTasks.indexOf(t) + 1}は完了していません(${STATUS_WORD[t.status] ?? t.status})`);
 
   const verdict: MissionReport["verdict"] = !finished ? "unfinished" : code.length > 0 && code.every((t) => t.level >= 3) && code.some((t) => t.level >= 4) ? "verified" : "partial";
   const inconclusive = done.some((t) => t.inconclusive);
@@ -322,7 +325,7 @@ export function buildMissionReport(store: Store, projectId: string, missionId: s
     `判定: **${verdictLabel}**`,
     "",
     "## 作業ごとの結果",
-    ...reportTasks.map((t, i) => `- [${t.status === "completed" ? "x" : " "}] 作業${i + 1}: ${t.objective}(${t.status}${t.inconclusive ? " / 答えが出ていない" : t.partly ? " / 一部未確認" : ""}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
+    ...reportTasks.map((t, i) => `- [${t.status === "completed" ? "x" : " "}] 作業${i + 1}: ${t.objective}(${STATUS_WORD[t.status] ?? t.status}${t.inconclusive ? " / 答えが出ていない" : t.partly ? " / 一部未確認" : ""}${t.level ? ` / 最高検証 ${LEVEL_LABEL[t.level] ?? `L${t.level}`}` : ""}${t.attempts > 1 ? ` / ${t.attempts}回実行` : ""})`),
     "",
     "## 確認していないこと",
     ...notChecked.map((n) => `- ${n}`),

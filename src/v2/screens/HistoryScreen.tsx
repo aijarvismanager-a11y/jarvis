@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Ctx } from "../context";
-import { MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf } from "../labels";
+import { isRefusedNote, MISSION_LABEL, describeEvent, explainFailure, formatTime, missionFailureReason, progressOf } from "../labels";
 import { Badge, Card, Details, GoalText } from "../ui";
 import { usePoll } from "../hooks";
 import { MissionBrief } from "./MissionBriefCard";
@@ -31,7 +31,9 @@ export function HistoryScreen({ ctx }: { ctx: Ctx }) {
                 </div>
                 <GoalText goal={m.goal} className="mt-1 text-[13px]" />
                 {m.status !== "completed" && <MissionBrief ctx={ctx} mission={m} compact />}
-                {m.status === "failed" && <p className="mt-1 text-[12px] text-[#9B2C2C]">理由: {explainFailure(missionFailureReason(events, m.id)).what}</p>}
+                {m.status === "failed" && (ctx.overview.tasks.some((t) => t.missionId === m.id && t.status === "failed" && isRefusedNote(ctx.overview.taskNotes?.[t.id]))
+                  ? <p className="mt-1 text-[12px] text-muted">あなたが許可しなかった作業があるため、止まっています。</p>
+                  : <p className="mt-1 text-[12px] text-[#9B2C2C]">理由: {explainFailure(missionFailureReason(events, m.id)).what}</p>)}
               </li>
             );
           })}
