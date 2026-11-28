@@ -3,6 +3,18 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.104",
+    date: "2026-11-28",
+    items: [
+      "Claude の利用枠の回復を待っている間は「利用枠の回復待ち」と表示し、「あなたの操作待ち」とは出さないようにしました。",
+      "使えるAIが無くて待つ間は「使えるAIを待っています」と表示し、作業中のような経過時間や「実行中」を出さないようにしました。",
+      "ログイン用の窓を閉じるのを待っているときは、その窓を閉じるよう案内します。",
+      "手作業の依頼の「別のAIに頼む」には、その作業ができるAIだけを並べます。",
+      "手作業の回答を待っている間、「進み具合」からホームを開けるようにしました。",
+      "アプリ内部のエラーで止まった作業が「実行中」のまま残らないようにしました。",
+    ],
+  },
+  {
     version: "1.5.103",
     date: "2026-11-28",
     items: [
