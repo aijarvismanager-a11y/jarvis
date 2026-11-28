@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { PastExchange } from "../dock";
 import { TASK_LABEL, formatTime,roleLabel, taskTitle } from "../labels";
 import { GoalText } from "../ui";
+import { Requester } from "./MissionBriefCard";
 
 const SHOWN = 1; // only the exchange just before stays visible (two pushed the current reply off the screen); older ones come in with a button
 const STEP = 5;
@@ -12,7 +13,7 @@ function Exchange({ item, renderAnswer }: { item: PastExchange; renderAnswer: (t
   return (
     <li className="space-y-1.5">
       <div className="ml-auto w-fit max-w-[88%] rounded-2xl rounded-tr-sm bg-[#F3EEE6] px-3.5 py-2">
-        <p className="text-[11px] text-muted">あなたの依頼 ・ {formatTime(mission.createdAt)}</p>
+        <p className="text-[11px] text-muted"><Requester mission={mission} /> ・ {formatTime(mission.createdAt)}</p>
         <GoalText goal={mission.goal} className="break-words text-[13.5px]" />
       </div>
       <div className="w-fit max-w-[88%] rounded-2xl rounded-tl-sm border border-borderSoft bg-white px-3.5 py-2">

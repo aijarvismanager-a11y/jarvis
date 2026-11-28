@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filesOf, finishOf, missionBrief, purposeOf } from "./missionBrief";
+import { filesOf, finishOf, missionBrief, purposeOf, requesterLabel } from "./missionBrief";
 import type { Mission } from "./types";
 
 const m = (id: string, goal: string, createdAt: string): Mission => ({ id, projectId: "p", goal, constraints: [], technologyPreferences: [], budgetPolicy: "free_only", status: "completed", createdAt, updatedAt: createdAt });
@@ -27,5 +27,13 @@ describe("missionBrief", () => {
   it("does not say who started a request before that is read", () => {
     const one = [m("a", "ただ作る", "2026-11-27T00:00:00Z")];
     expect(missionBrief(one[0], one, null).origin).toBe("確認しています…");
+  });
+});
+
+describe("requesterLabel", () => {
+  it("does not call a request the app made the person's own", () => {
+    expect(requesterLabel({ c: { from: "b", depth: 1 } }, "c")).toBe("アプリが自動で作った続きの依頼");
+    expect(requesterLabel({}, "a")).toBe("あなたの依頼");
+    expect(requesterLabel(null, "a")).toBe("依頼");
   });
 });

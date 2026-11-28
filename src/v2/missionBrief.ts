@@ -16,6 +16,12 @@ export type MissionBrief = {
 
 const FILE_RE = /[\w.\-/\\]+\.(?:md|ps1|json|ts|tsx|js|cs|py|html|css|txt|svg)\b/gi;
 
+/** The line over a request in the conversation. Until the origins are read it claims neither. */
+export function requesterLabel(origins: Record<string, { from: string; depth: number }> | null, missionId: string): string {
+  if (!origins) return "依頼";
+  return origins[missionId] ? "アプリが自動で作った続きの依頼" : "あなたの依頼";
+}
+
 /** File names a request talks about (just the last part, so "docs/a.md" and "a.md" count as the same file). */
 export function filesOf(text: string): string[] {
   const out = new Set<string>();

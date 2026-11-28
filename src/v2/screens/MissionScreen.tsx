@@ -11,7 +11,7 @@ import { DepsCard } from "./DepsCard";
 import { nextStep } from "../nextStep";
 import { NextStepBanner } from "./NextStep";
 import { summaryLine } from "./summaryLine";
-import { MissionBrief } from "./MissionBriefCard";
+import { MissionBrief, Requester } from "./MissionBriefCard";
 import { HumanTodoCard, useHumanTodos } from "./HumanTodoCard";
 import { humanTurnLine } from "../humanTodoView";
 import { pastExchanges, replySummary, runThread } from "../dock";
@@ -958,7 +958,7 @@ export function MissionScreen({ ctx }: { ctx: Ctx }) {
           </div>
           {/* one thread: your request, then the AI's reply that starts with a three-line summary */}
           <div className="ml-auto max-w-[94%] rounded-2xl rounded-tr-sm bg-[#F3EEE6] px-3.5 py-2.5">
-            <p className="mb-0.5 text-[11px] font-semibold text-muted">あなたの依頼</p>
+            <p className="mb-0.5 text-[11px] font-semibold text-muted"><Requester mission={mission} /></p>
             <GoalText goal={mission.goal} className="font-serif text-[16px] font-semibold" />
           </div>
           {!FINISHED.includes(mission.status) && <MissionBrief ctx={ctx} mission={mission} />}
