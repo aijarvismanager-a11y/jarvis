@@ -3,6 +3,16 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.107",
+    date: "2026-11-28",
+    items: [
+      "大きいフォルダの取り込みで、除くと選んだフォルダが、取り込み直しても外れないようにしました。",
+      "取り込みのあと、取り込まなかったフォルダやファイルを名前で確かめられるようにしました。結果の知らせは、閉じられます。",
+      "「できたもの」で画像は画像として表示し、ここで表示できないファイルは、理由と場所を知らせるようにしました。",
+      "無くなったファイルを開いたときや、フォルダの代わりにファイルを指定したときの案内を、分かりやすくしました。",
+    ],
+  },
+  {
     version: "1.5.106",
     date: "2026-11-28",
     items: [
