@@ -19,6 +19,10 @@ describe("screen design guide", () => {
     expect(prompt(task("集計の関数を作る"))).not.toContain("画面デザインの手順"); // the mission goal alone does not count
   });
 
+  it("asks every task to report in Japanese", () => {
+    expect(prompt(task("CHANGELOG.md に記録する", "document"))).toContain("最後の報告は、必ず日本語で");
+  });
+
   it("gives way to a finished design drawn by another AI", () => {
     expect(prompt(task("画面を作る"), ["design/screen.svg"])).not.toContain("画面デザインの手順");
   });

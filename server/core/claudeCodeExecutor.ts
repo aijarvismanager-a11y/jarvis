@@ -128,6 +128,7 @@ export function buildTaskPrompt(input: {
     "コマンド(dotnet build / dotnet test / npm test など)は、1つずつ単独で実行してください。cd で移動したり、$TEMP などの変数を使ったりしないでください(カレントはすでに作業ディレクトリです。承認が得られず、まとめて拒否されます)。出力は直接読んでください。",
     "npm test は、このフォルダの package.json に test の指定があるときだけ使ってください。無いときは node --test test/ のようにテストを直接実行してください。テストは裏で(バックグラウンドで)実行せず、終わるまで待ってください。",
     "成果物はファイルとして保存し(調査はresearch/、設計はdesign/、コードはcode/などサブフォルダ)、最後に何をしたかを短く報告してください。期待する成果物にパスが書かれている場合は、サブフォルダの慣例よりそのパスを優先してください。",
+    "最後の報告は、必ず日本語で書いてください(コード・ファイル名・コマンドはそのままでかまいません)。", // without this the light model sometimes reported in English
   ];
   if (input.hasStatusReport && task.role !== "analysis") lines.push(`このプロジェクトは既存のコードを取り込んだものです。作業の前に ${STATUS_REPORT_PATH} を読み、既存の構成・書き方・使っている技術に合わせてください。`);
   if (input.hasHistoryNotes && task.role !== "analysis") lines.push(`${HISTORY_NOTES_PATH} は、このプロジェクトの前の Claude Code での作業(決定事項・未完了のこと・注意点)の要約です。作業の前に読み、その方針を尊重してください。`);
