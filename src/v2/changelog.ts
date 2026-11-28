@@ -3,6 +3,16 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.108",
+    date: "2026-11-28",
+    items: [
+      "しまったプロジェクトも、中身のまま開けるようにしました。依頼を出すと、一覧に戻ります。",
+      "ほかのプロジェクトが、あなたの許可や操作を待っているときは、どの画面でも知らせて、開くボタンを出すようにしました。",
+      "「これまでの記録」の依頼ごとに、回答・ファイル・完了レポートを読めるようにしました。失敗の理由は、新しいものを表示します。",
+      "履歴の「その他の出来事」に名前を付けました。終わっていない依頼があるプロジェクトは、しまえない理由を表示します。",
+    ],
+  },
+  {
     version: "1.5.107",
     date: "2026-11-28",
     items: [
