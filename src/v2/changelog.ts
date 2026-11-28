@@ -3,6 +3,18 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.103",
+    date: "2026-11-28",
+    items: [
+      "失敗した理由が、赤い枠と作業の行にそのまま出るようにしました。",
+      "うまくいかなかった作業と、その後ろで進めなかった作業、許可しなかった作業を分けて数えるようにしました。",
+      "許可しなかったために止まった依頼を「失敗」と表示しないようにし、「進み具合」からホームを開けるようにしました。",
+      "依頼を変えて新しい計画を待っている間と、完了したあとの「進み具合」の文を直しました。",
+      "新しい計画の画面に、あなたが伝えた変更内容を出し、置き換えた作業は「置き換え済み」と表示します。",
+      "検証レポートの英語の状態名を日本語にしました。",
+    ],
+  },
+  {
     version: "1.5.102",
     date: "2026-11-28",
     items: [
