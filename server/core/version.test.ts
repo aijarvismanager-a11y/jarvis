@@ -17,7 +17,7 @@ describe("VersionWatch", () => {
     writeFileSync(src, "x");
     const old = new Date(Date.now() - 60_000);
     utimesSync(src, old, old);
-    const watch = new VersionWatch(dir, 0);
+    const watch = new VersionWatch(dir, -1); // never reuse the answer: with 0, two calls in the same millisecond share it
     expect(watch.status().stale).toBe(false);
     writeFileSync(path.join(dir, "a.test.ts"), "t"); // a new test file does not matter
     expect(watch.status().stale).toBe(false);
