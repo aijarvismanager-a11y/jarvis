@@ -3,6 +3,18 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.109",
+    date: "2026-11-28",
+    items: [
+      "ブラウザ上のAIがオフ、またはブラウザが無いときは、すべての作業を Claude Code がすると表示し、オンにするボタンを置きました。",
+      "オフの間は、入れ替わりの確認でAIのサイトに何も送りません。ログインの確認でオンになったときは知らせて、オフに戻せます。",
+      "アプリが作った保存先のフォルダを、正しい名前で表示するようにしました。候補を探さない理由と、確認で送るものを説明します。",
+      "失敗の知らせは、画面を下へ動かしても見え、タブを移ると消えます。学んだ内容を消す前に、確認を出します。",
+      "画面を作る作業では、見やすさとスマホ幅を意識したデザインの手順を Claude Code に渡すようにしました。その作業は、利用枠の消費が増えることがあります。",
+      "アプリが動かす Claude Code は、あなた個人の共通の指示(CLAUDE.md と rules)を読まないようにしました。プロジェクトの指示と許可の設定は、そのまま使います。",
+    ],
+  },
+  {
     version: "1.5.108",
     date: "2026-11-28",
     items: [
