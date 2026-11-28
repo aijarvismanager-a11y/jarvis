@@ -12,6 +12,7 @@ import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { getAutoRestart, useAutoRestartChoice } from "./autoRestart";
 import type { AiService, Approval, Artifact, Handoff, Overview, Project, SyncSummary } from "./types";
+import { elsewhereNotices, waitingByProject, waitingElsewhere, waitingLabel } from "./waitingElsewhere";
 import { diffNotices, staleApprovalNotices, notifyEnabled, notifySupported, setNotifyEnabled, showNotices, snapshotOf, type NotifyState } from "./notify";
 import { usePoll } from "./hooks";
 import { HeaderMenu } from "./HeaderMenu";
@@ -68,6 +69,7 @@ export default function V2App() {
   // what the last poll saw, per project: the next poll announces only the difference
   const seen = useRef<{ projectId: string | null; state: NotifyState | null }>({ projectId: null, state: null });
   const remindedApprovals = useRef(new Map<string, number>());
+  const seenElsewhere = useRef<Set<string> | null>(null);
 
   const projectIdRef = useRef<string | null>(projectId);
   const choose = useCallback((id: string | null) => {
@@ -186,8 +188,8 @@ export default function V2App() {
         return;
       }
       setProjects(list);
-      // A stored id may point at a project that no longer exists; fall back to the newest one.
-      const active = list.find((p) => p.id === projectId) ?? (!loaded && !list.some((p) => p.id === projectId) ? list[list.length - 1] : undefined);
+      // A stored id may point at a project that no longer exists; fall back to the newest one that is not put away.
+      const active = list.find((p) => p.id === projectId) ?? (!loaded && !list.some((p) => p.id === projectId) ? list.filter((p) => p.status !== "archived").pop() : undefined);
       if (active && active.id !== projectId) choose(active.id);
       setLoaded(true);
       // The AI list is ~20KB and rarely changes (Settings refreshes it on demand): fetch it on the first poll and then every 8th.
@@ -201,7 +203,10 @@ export default function V2App() {
       const missionsNow = ov.missions;
       const prev = seen.current.projectId === (active?.id ?? null) ? seen.current.state : null;
       showNotices(diffNotices(prev, appr.filter(mine), hand.filter(mine), missionsNow));
-      showNotices(staleApprovalNotices(appr.filter(mine), Date.now(), remindedApprovals.current));
+      showNotices(staleApprovalNotices(appr, Date.now(), remindedApprovals.current)); // every project's: an approval waits for ever
+      const other = elsewhereNotices(seenElsewhere.current, appr, hand, list, active?.id ?? null);
+      seenElsewhere.current = other.seen;
+      showNotices(other.notices);
       seen.current = { projectId: active?.id ?? null, state: snapshotOf(appr.filter(mine), hand.filter(mine), missionsNow) };
       if (svc) setServices(svc);
       setHandoffs(hand);
@@ -264,7 +269,7 @@ export default function V2App() {
             <QuotaChip onOpen={() => setScreen("ais")} />
             <select aria-label="プロジェクト" value={projectId ?? ""} onChange={(e) => choose(e.target.value || null)} className="min-w-0 max-w-[16rem] rounded-lg border border-border bg-panel px-2 py-1.5 text-[13px]">
               <option value="">(新しいプロジェクト)</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.filter((p) => p.status !== "archived" || p.id === projectId).map((p) => <option key={p.id} value={p.id}>{p.name}{p.status === "archived" ? "(しまってある)" : ""}</option>)}
             </select>
           </div>
         </div>
@@ -331,6 +336,18 @@ export default function V2App() {
         <LimitBanner setError={setError} />
         <RestingBanner setError={setError} />
         <ErrorBar message={error} onClose={() => setError(null)} />
+        {loaded && waitingElsewhere(approvals, handoffs, projects, projectId).map((w) => (
+          <div key={w.projectId} role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#EBD9A8] bg-[#FBF1DC] px-3 py-2 text-[13px] text-[#8A6212]">
+            <p className="min-w-0 flex-1"><b>ほかのプロジェクト「{w.name}」が、{waitingLabel(w)}です。</b>あなたが答えるまで、その作業は進みません。</p>
+            <Button variant="ghost" disabled={offline} onClick={() => { choose(w.projectId); setScreen("mission"); }}>開いて確認する</Button>
+          </div>
+        ))}
+        {project?.status === "archived" && (
+          <div role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-borderSoft bg-panel px-3 py-2 text-[13px]">
+            <p className="min-w-0 flex-1">このプロジェクトは、しまってあります(中身は残っています)。依頼を出すと、一覧に戻ります。</p>
+            <Button variant="ghost" disabled={offline} onClick={() => void api.archiveProject(project.id, false).then(() => refresh()).catch((e) => setError(e instanceof Error ? e.message : String(e)))}>もとに戻す</Button>
+          </div>
+        )}
         {!loaded || (!!project && overviewFor !== project.id && ["mission", "development", "history", "artifacts"].includes(screen)) ? (
           <p className="text-[13px] text-muted">読み込み中…</p>
         ) : (
@@ -340,8 +357,8 @@ export default function V2App() {
             {screen === "development" && <DevelopmentScreen ctx={ctx} onOpenHome={() => setScreen("mission")} />}
             {screen === "history" && <HistoryScreen ctx={ctx} />}
             {screen === "artifacts" && <ArtifactScreen ctx={ctx} selected={selectedArtifact} onSelect={setSelectedArtifact} />}
-            {screen === "projects" && <ProjectsScreen currentId={projectId} onOpen={(id, to) => { choose(id); setScreen(to); }} />}
-            {(screen === "ais" || screen === "settings") && <SettingsScreen section={screen === "ais" ? "ai" : "app"} services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.length ? rest[rest.length - 1].id : null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
+            {screen === "projects" && <ProjectsScreen currentId={projectId} waiting={waitingByProject(approvals, handoffs)} onOpen={(id, to) => { choose(id); setScreen(to); }} />}
+            {(screen === "ais" || screen === "settings") && <SettingsScreen section={screen === "ais" ? "ai" : "app"} services={services} project={project} setError={setError} onProjectDeleted={() => { const rest = projects.filter((p) => p.id !== projectId); setProjects(rest); choose(rest.filter((p) => p.status !== "archived").pop()?.id ?? null); setScreen("mission"); }} refresh={() => { pollCount.current = 0; refresh(); }} />}
           </div>
         )}
       </main>

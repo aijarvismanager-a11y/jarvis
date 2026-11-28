@@ -5,12 +5,13 @@ import { usePoll } from "../hooks";
 import { Badge, Button, Card, GoalText } from "../ui";
 import type { ProjectSummary } from "../types";
 import { IDLE_DAYS, idleProjects } from "../idleProjects";
+import { waitingLabel, type Waiting } from "../waitingElsewhere";
 
 /** Every project on one page: its newest request, how many requests and files it has, and when it last changed. */
-export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null; onOpen: (projectId: string, screen: "mission" | "history" | "artifacts") => void }) {
+export function ProjectsScreen({ currentId, waiting = {}, onOpen }: { currentId: string | null; waiting?: Record<string, Waiting>; onOpen: (projectId: string, screen: "mission" | "history" | "artifacts") => void }) {
   const [rows, setRows] = useState<ProjectSummary[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ projectId: string; text: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const reload = usePoll(async () => setRows(await api.projectsSummary()), 5000, []);
   const archive = async (id: string, archived: boolean) => {
@@ -19,7 +20,7 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
       await api.archiveProject(id, archived);
       reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "しまえませんでした");
+      setError({ projectId: id, text: e instanceof Error ? e.message : "しまえませんでした" });
     }
   };
   if (!rows) return <p className="text-[13px] text-muted">読み込み中…</p>;
@@ -30,7 +31,7 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
       await api.missionAction(projectId, missionId, "cancel");
       reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "中止できませんでした");
+      setError({ projectId, text: e instanceof Error ? e.message : "中止できませんでした" });
     }
   };
   const idle = idleProjects(rows, currentId);
@@ -67,7 +68,6 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
         </div>
       )}
       {note && <p className="mb-2 text-[12px] text-muted">{note}</p>}
-      {error && <p className="mb-2 text-[12px] text-[#9B2C2C]">{error}</p>}
       <ul className="space-y-2">
         {shown.map((r) => (
           <li key={r.project.id} className={`rounded-lg border px-3 py-2 ${r.project.id === currentId ? "border-accent bg-bg" : "border-borderSoft bg-bg"}`}>
@@ -75,6 +75,7 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
               <span className="font-semibold text-[14px]">{r.project.name}</span>
               {r.project.id === currentId && <Badge tone="info">いま開いている</Badge>}
               {r.project.status === "archived" && <Badge tone="neutral">しまってある</Badge>}
+              {waiting[r.project.id] && <Badge tone="warn">{waitingLabel(waiting[r.project.id])}</Badge>}
               {r.latestMission && <Badge tone={r.latestMission.status === "completed" ? "ok" : r.latestMission.status === "failed" ? "bad" : r.latestMission.status === "running" ? "info" : "neutral"}>{MISSION_LABEL[r.latestMission.status]}</Badge>}
               <span className="ml-auto text-[11px] text-muted">最後の動き {formatTime(r.lastActivityAt)}</span>
             </div>
@@ -87,11 +88,17 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
             ))}
             <p className="mt-1 text-[12px] text-muted">依頼 {r.missionCount}件 · できたもの {r.artifactCount}件</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button variant="ghost" onClick={() => onOpen(r.project.id, "mission")}>ホームで開く</Button>
+              {waiting[r.project.id] ? (
+                <Button onClick={() => onOpen(r.project.id, "mission")}>開いて確認する</Button>
+              ) : (
+                <Button variant="ghost" onClick={() => onOpen(r.project.id, "mission")}>ホームで開く</Button>
+              )}
               <Button variant="ghost" onClick={() => onOpen(r.project.id, "history")}>これまでの記録</Button>
               <Button variant="ghost" disabled={r.artifactCount === 0} onClick={() => onOpen(r.project.id, "artifacts")}>できたもの</Button>
               {r.project.status === "archived" ? (
                 <Button variant="ghost" onClick={() => archive(r.project.id, false)}>もとに戻す</Button>
+              ) : r.openMissions.length > 0 ? (
+                <span className="self-center text-[11px] text-muted">終わっていない依頼があるため、しまえません(終わるか中止するとしまえます)</span>
               ) : (
                 r.project.id === currentId ? (
                 <span className="self-center text-[11px] text-muted">いま開いているため、しまえません(ほかを開くとしまえます)</span>
@@ -100,6 +107,7 @@ export function ProjectsScreen({ currentId, onOpen }: { currentId: string | null
               )
               )}
             </div>
+            {error?.projectId === r.project.id && <p role="alert" className="mt-1 text-[12px] text-[#9B2C2C]">{error.text}</p>}
           </li>
         ))}
       </ul>

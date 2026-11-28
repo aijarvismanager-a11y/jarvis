@@ -50,7 +50,7 @@ async function serverVersion(): Promise<{ stale: boolean; startedAt: string; ver
 export const api = {
   serverVersion,
   projectsSummary: () => request<{ summary: ProjectSummary[] }>("/projects-summary").then((r) => r.summary),
-  projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects.filter((p) => p.status !== "archived")),
+  projects: () => request<{ projects: Project[] }>("/projects").then((r) => r.projects), // put-away ones too: they can still be opened
   archiveProject: (projectId: string, archived: boolean) => request<{ project: Project }>(`/projects/${encodeURIComponent(projectId)}/archive`, "POST", { archived }).then((r) => r.project),
   deleteProject: (projectId: string) => request<{ ok: boolean }>(`/projects/${encodeURIComponent(projectId)}`, "DELETE"),
   createProject: (name: string) => request<{ project: Project }>("/projects", "POST", { name }).then((r) => r.project),

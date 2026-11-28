@@ -74,7 +74,7 @@ function Markdown({ text }: { text: string }) {
 }
 
 /** One task's answer: folded away by default (a request has many), readable in full size, or in a large reading window. */
-function TaskAnswer({ taskId, ctx }: { taskId: string; ctx: Ctx }) {
+export function TaskAnswer({ taskId, ctx }: { taskId: string; ctx: Ctx }) {
   const src = answerSource(ctx, taskId);
   const key = src ? `${src.summary}` : "";
   const projectId = ctx.project?.id;

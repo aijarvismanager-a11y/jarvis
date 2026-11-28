@@ -235,6 +235,12 @@ describe("orchestrator API: projects and artifacts (UI)", () => {
     expect((await call("/projects/p1/artifact-content?path=" + encodeURIComponent("_ai-records/料理メモ/無い.md"))).status).toBe(404);
   });
 
+  it("brings a put-away project back when a new request is made in it", async () => {
+    store.setProjectStatus("p1", "archived");
+    expect((await call("/projects/p1/missions", "POST", { goal: "again" })).status).toBe(201);
+    expect(store.getProject("p1")?.status).toBe("active");
+  });
+
   it("shows pictures as pictures, and says in words what it cannot show", async () => {
     mkdirSync(path.join(projectsRoot, "p1"), { recursive: true });
     const files: [string, Buffer][] = [["a.png", Buffer.from([137, 80, 78, 71, 0])], ["b.xlsx", Buffer.from([80, 75, 3, 4, 0, 0])], ["big.txt", Buffer.alloc(1_100_000, 97)]];

@@ -1159,6 +1159,8 @@ export function createOrchestratorRouter(deps: OrchestratorApiDeps): Router {
       const body = createSchema.parse(req.body);
       if (/\(ここに[^)]*\)/.test(body.goal)) return void res.status(400).json({ error: "依頼文に「(ここに…)」という書きかけの部分が残っています。書き換えてから、もう一度出してください" });
       const { mission } = await engine.createMission({ projectId: String(req.params.projectId), ...body });
+      // a new request in a project that was put away brings it back: work must not run where the lists hide it
+      if (store.getProject(mission.projectId)?.status === "archived") store.setProjectStatus(mission.projectId, "active");
       res.status(201).json(view(mission.projectId, mission.id));
     }),
   );
