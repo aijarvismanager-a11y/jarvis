@@ -3,6 +3,14 @@ export type ChangeEntry = { version: string; date: string; items: string[] };
 /** What changed, newest first, in the words of someone using the app (not the commit messages). */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: "1.5.106",
+    date: "2026-11-28",
+    items: [
+      "保存先のフォルダを調べられないときは、返答でも「反映できません」と知らせ、反映の画面を開くボタンを出すようにしました。",
+      "完了レポートの「保存先に入れてください」は、入れ終えると消え、フォルダが無いときは直し方の案内になるようにしました。",
+    ],
+  },
+  {
     version: "1.5.105",
     date: "2026-11-28",
     items: [
